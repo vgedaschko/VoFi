@@ -4,6 +4,7 @@
 **Stand der Recherche:** 25.10.2026 (Werte mit Quellenangabe [Qn], Annahmen mit (A) gekennzeichnet)
 **Status:** Entwurf zur Abstimmung mit dem Auftraggeber
 **Konventionen:** R-Bezeichner und Eingabeschlüssel englisch in `snake_case`; alle nutzerseitigen Texte deutsch. Ertragsteuern sind in v1 ausgeklammert (Vor-Steuer-VoFi). Beträge brutto (inkl. USt.), da Wohnraumvermietung und Selbstnutzung keinen Vorsteuerabzug erlauben.
+**Bezug zu den anderen Memos:** 01 (VoFi-Methodik: Zeit- und Zinskonventionen, nachschüssige Rekursion), 02 (Recht und Förderung: verbindliche Parameter), 04 (Monte Carlo: Default-Verteilungen und Prozesse), 05 (R-Architektur: Eingabeschema), 06 (Steuern). Bei Abweichungen gelten die Fachmemos; dieses Memo übernimmt deren Werte für die Referenzszenarien (abgeglichen am 25.10.2026: Bio-Treppe nach Memo 02, MC-Defaults nach Memo 04, YAML-Grammatik nach Memo 05).
 
 ---
 
@@ -40,15 +41,15 @@
 | **KfW 458** Heizungsförderung Privatpersonen (Zuschuss) | **Seit 21.07.2026:** Grundförderung 30 % (alle Eigentümer, auch Vermieter/WEG); Klimageschwindigkeitsbonus (nur Selbstnutzer, Ersatz funktionsfähiger Öl-/Kohle-/Nachtspeicher-/Gasetagen- oder ≥ 20 J. alter Gas-/Biomasseheizung) **16 % bis 31.01.2027**, dann −4 Pp je Halbjahr bis 0 % ab 01.08.2028; Einkommensbonus (nur Selbstnutzer): zvE ≤ 30.000 € 40 %, ≤ 40.000 € 30 %, ≤ 50.000 € 10 %; Familienzuschlag: zvE −10.000 € bei mind. einem minderjährigen Kind; Deckel 70 % (80 % bei zvE ≤ 30.000 €); förderfähige Kosten 1. WE **28.000 €** (−750 € je Halbjahr ab 01.02.2027, 22.000 € ab 01.08.2030), WE 2–6 je 15.000 €, ab WE 7 je 8.000 €; Effizienzbonus und Emissionsminderungszuschlag entfallen; geplant Q1/2027: WP-Grundförderung 15 % + 15 % Wertschöpfungsbonus für EU-Geräte | [Q8] (Sek.), [Q11] |
 | **KfW 459** Heizungsförderung Unternehmen – Wohngebäude | max. 30 % der förderfähigen Kosten; Höchstbeträge nach Zahl der WE (1. WE sinkt ab 01.02.2027 halbjährlich um 750 €) | [Q9] |
 | **KfW 358/359** Ergänzungskredit | 358 („Plus“, Selbstnutzer zvE ≤ 90.000 €) 25/3/10: **2,53 %**, 10/2/10: 1,48 %; 359 (ohne Einkommensgrenze) 25/3/10: 4,62 %; bis 120.000 €/WE; setzt BEG-EM-Zusage voraus; laut Fachpresse von der Juli-Reform nicht betroffen | [Q1], [Q8], [Q11] |
-| **BAFA BEG EM Gebäudehülle** | Grundförderung 15 % (Dämmung, Fenster, Türen, sommerlicher Wärmeschutz); förderfähige Kosten je WE und Kalenderjahr 30.000 € (60.000 € mit iSFP); **iSFP-Bonus +5 Pp seit 21.07.2026 erst ab 30.000 € förderfähiger Investition** – ob auf den Gesamtbetrag oder nur den übersteigenden Teil, ist in den Quellen widersprüchlich; Staffel bei MFH 1./2.–6./ab 7. WE: 30/15/8 T€ (60/30/15 T€ mit iSFP); Fachplanung/Baubegleitung 50 % (EFH max. 5.000 €; MFH 2.000 €/WE, max. 20.000 €); geplant Q1/2027: WPB-Bonus +5 Pp für Dämmung aus iSFP | [Q10] (Sek.) |
+| **BAFA BEG EM Gebäudehülle** | Grundförderung 15 % (Dämmung, Fenster, Türen, sommerlicher Wärmeschutz); förderfähige Kosten je WE und Kalenderjahr 30.000 € (60.000 € mit iSFP); **iSFP-Bonus +5 Pp seit 21.07.2026 erst ab 30.000 € förderfähiger Investition** (1 WE; bei mehreren WE Schwelle = Höchstgrenze ohne Bonus) und nach Memo 02 nur auf den Betrag oberhalb der Schwelle (Default; einzelne Sekundärquellen lesen es als Bonus auf den Gesamtbetrag); Staffel bei MFH 1./2.–6./ab 7. WE: 30/15/8 T€ (60/30/15 T€ mit iSFP); Fachplanung/Baubegleitung 50 % (EFH max. 5.000 €; MFH 2.000 €/WE, max. 20.000 €); geplant Q1/2027: WPB-Bonus +5 Pp für Dämmung aus iSFP | [Q10] (Sek.) |
 | Laufzeit BEG-Richtlinie | bis Ende 2030 – Förderung späterer Sanierungsstufen ist **unsicher** | [Q8] (Sek.) |
 
 ### 1.2 Rechtsrahmen (Gebäude, Mietrecht, CO₂)
 
 | Thema | Stand | Quelle |
 |---|---|---|
-| **GModG** (ersetzt GEG) | Bundestag 10.07.2026, Bundesrat ohne Einspruch; Gesetz vom 23.07.2026, **BGBl. 2026 I Nr. 226 vom 28.07.2026**; Heizungsregeln in Kraft seit 29.07.2026; weitere Teile am ersten Tag des sechsten Folgemonats, Stufen 01.01.2028 und 01.01.2030; 65-%-EE-Pflicht entfällt; fossile Heizungen wieder zulässig, aber **Bio-Treppe ab 2029** (Sekundärquellen: 10 % ab 2029, Zwischenstufen u. a. 15 %/30 %, ca. 60 % ab 2040; Brennstoffe 2045 klimaneutral) – genaue Stufen in § 43 GModG prüfen | [Q12] (teils Sek.) |
-| GModG Neubau | Faktor 0,55 auf Referenzgebäude entfällt, Referenzgebäude neu definiert (Bundesregierung: Niveau unverändert; Kammern: faktische Absenkung); **Nullemissionsgebäude ab 01.01.2030** für alle Neubauten, LCA-Bericht Pflicht | [Q13] |
+| **GModG** (ersetzt GEG) | Bundestag 10.07.2026, Bundesrat ohne Einspruch; Gesetz vom 23.07.2026, **BGBl. 2026 I Nr. 226 vom 28.07.2026**; Heizungsregeln in Kraft seit 29.07.2026; weitere Teile am ersten Tag des sechsten Folgemonats, Stufen 01.01.2028 und 01.01.2030; 65-%-EE-Pflicht entfällt; fossile Heizungen wieder zulässig, aber **Bio-Treppe** für neue Gas-/Öl-/Flüssiggasheizungen nach § 43 Abs. 1 GModG: 10 % ab 01.01.2029, 15 % ab 2030, 30 % ab 2035, 60 % ab 2040 (Stufen lt. Memo 02); Ziel klimaneutrale Brennstoffe 2045 | [Q12] (teils Sek.) |
+| GModG Neubau | Faktor 0,55 auf Referenzgebäude entfällt, Referenzgebäude neu definiert (Bundesregierung: Niveau unverändert; Kammern: faktische Absenkung), voraussichtlich anzuwenden ab 01.01.2027 (Ableitung Memo 02); **Nullemissionsgebäude ab 01.01.2030** für alle Neubauten, LCA-Bericht Pflicht | [Q13], Memo 02 |
 | **CO₂KostAufG** | 10-Stufen-Modell nach kg CO₂/(m² Wfl.·a): < 12 → Vermieter 0 %; 12–< 17 → 10 %; 17–< 22 → 20 %; 22–< 27 → 30 %; 27–< 32 → 40 %; 32–< 37 → 50 %; 37–< 42 → 60 %; 42–< 47 → 70 %; 47–< 52 → 80 %; ≥ 52 → 95 % | Gesetzestext (bekannt), [Q12] |
 | **Neu: § 5a CO₂KostAufG** (GModG) | Für nach § 43 GModG neu eingebaute Gas-/Öl-/Flüssiggasheizungen: **ab 01.01.2028** 50/50-Teilung der CO₂-Kosten (statt Stufenmodell) und der **Gasnetzentgelte**; **ab 01.01.2029** 50/50 der Mehrkosten beigemischter biogener Brennstoffe, Vermieteranteil begrenzt auf 30 % der Brennstoffmenge; Ausnahmen (Havarie < 12 Monate vor 2028), Härtefallregel § 5d; Neubau-Erstreckung § 5b | [Q12] (Sek.) |
 | **§ 559 BGB** | 8 % p. a. der Modernisierungskosten; Erhaltungsanteil abzuziehen; Kappung 3 €/m² in 6 Jahren (2 €/m² bei Miete < 7 €/m²) | [Q14] |
@@ -109,7 +110,7 @@
 | Typischer Horizont | 20–30 Jahre; bei Komponentenmaßnahmen (Heizung) Lebensdauer der Anlage (≈ 20 J.). |
 | Typische Finanzierung | Hoher EK-Anteil, Bankdarlehen (Volltilger), KfW-Zuschüsse (459), ggf. Spareinrichtung; selten Kapitalmarkt-Großkredite. |
 | Fallstricke | Umlage bei Genossenschaften satzungs- und beschlussabhängig (oft freiwillig unter Rechtsrahmen); PV-Stromverrechnung an Mitglieder (Heizkostenverordnung, gemeinschaftliche Gebäudeversorgung) rechtlich prüfen; Zwei-Perspektiven-Logik (Genossenschaft und Mitglieder) zwingend. |
-| Abgeleitete Anforderungen | A-04, A-09, A-10, A-12, A-13, A-14, A-18, A-21. |
+| Abgeleitete Anforderungen | A-04, A-09, A-10, A-12, A-13, A-14, A-17, A-18, A-20, A-21. |
 
 ### 2.3 Persona (c): Privater Kleinvermieter mit 6-WE-Mehrfamilienhaus
 
@@ -137,7 +138,7 @@
 | Typischer Horizont | 15–25 Jahre (Alter, geplanter Verbleib). |
 | Typische Finanzierung | Erspartes, KfW 458 (Zuschuss), BAFA (Zuschuss), KfW 358/359 Ergänzungskredit, ggf. Modernisierungskredit der Hausbank; Alternative § 35c EStG (Steuer – in v1 ausgeklammert). |
 | Fallstricke | Prebound-Effekt (realer Verbrauch < Bedarf) → Einsparungen nicht aus Bedarfsausweis ableiten; JAZ ändert sich mit den Stufen; Förderdeckel je Kalenderjahr; Ohnehin-Maßnahmen haben eigene (spätere) Zeitpunkte und müssen bedingte GModG-Anforderungen erfüllen; Tilgung ist Vermögensaufbau, keine Kosten. |
-| Abgeleitete Anforderungen | A-03, A-04, A-06, A-10, A-14, A-15, A-18, Haushaltsmodus-Bericht. |
+| Abgeleitete Anforderungen | A-03, A-04, A-05, A-10, A-13, A-14, A-15, A-16, A-21, Haushaltsmodus-Bericht. |
 
 ### 2.5 Persona (e): Familie, die ein neues Einfamilienhaus baut (KfW 300/297)
 
@@ -151,7 +152,7 @@
 | Typischer Horizont | 30–35 Jahre (Darlehenslaufzeit). |
 | Typische Finanzierung | 20–30 % EK, KfW 300 bzw. 297, ggf. KfW 124, Bankdarlehen (10–15 J. Zinsbindung), Anschlussfinanzierung. |
 | Fallstricke | Förderfähigkeit (Einkommen, Kinder, EH 40 + LCA), Antragsfristen und Mittelvorbehalt; Bereitstellungszinsen und Doppelbelastung (Miete + Rate) in der Bauphase; Einspeisevergütung nach EEG-Reform 2027 unsicher. |
-| Abgeleitete Anforderungen | A-02, A-07, A-08, A-14, A-16, A-19, Haushaltsmodus-Bericht. |
+| Abgeleitete Anforderungen | A-02, A-06, A-07, A-08, A-13, A-14, A-16, A-19, A-21, Haushaltsmodus-Bericht. |
 
 ### 2.6 Querschnittsmatrix Persona × Funktion
 
@@ -258,9 +259,9 @@ Priorität: **M** = Muss v1, **S** = Soll v1, **v2** = späteres Release. Die Sp
 
 **Emissionsfaktor Erdgas:** 0,181 kg CO₂/kWh (bezogen auf Brennwert H_s; ≙ 0,201 kg/kWh H_i nach BEHG-Standardwert) – (A), im Energiememo zu verifizieren. Biomethan-Anteil: CO₂-Preis entfällt auf den Bio-Anteil.
 
-**Bio-Treppe für nach dem 29.07.2026 eingebaute Gaskessel (A, aus Sekundärquellen, § 43 GModG prüfen):** 2029–2031: 10 %; 2032–2034: 15 %; 2035–2039: 30 %; 2040–2044: 60 %; ab 2045: 100 % klimaneutraler Brennstoff.
+**Bio-Treppe für nach dem 29.07.2026 eingebaute Gaskessel (§ 43 Abs. 1 GModG, Stufen wie Memo 02):** 2029: 10 %; 2030–2034: 15 %; 2035–2039: 30 %; 2040–2044: 60 %; ab 2045: 100 % klimaneutraler Brennstoff (A – Ableitung aus dem Klimaneutralitätsziel 2045, keine ausdrückliche Gesetzesstufe; im Fachmemo zu klären).
 
-**Finanzmarkt-Defaults (A):** Kapitalmarktdarlehen WU 4,00 % (10 J. fest), privat 4,10 % Soll (10 J. fest); Anschlusszins (Basis) 4,25 %; Habenzins WU 2,0 %, privat 2,5 %; Kontokorrent/Ergänzungskredit WU 5,5 %, privat 6,0 %; KfW-Zinsen laut Konditionenanzeiger 22.10.2026 [Q1], bei späterer Inanspruchnahme (S4: 2030, 2033) gleich angenommen (MC variiert).
+**Finanzmarkt-Defaults (A):** Kapitalmarktdarlehen WU 4,00 % (10 J. fest), privat 4,10 % Soll (10 J. fest); Anschlusszins deterministisch **4,00 %** (Niveau 10/2026 fortgeschrieben; bewusst etwas konservativer als der Erwartungspfad des Zinsprozesses aus Memo 04 mit θ = 3,75 %); Habenzins WU 2,0 %, privat 2,5 %; Kontokorrent/Ergänzungskredit WU 5,5 %, privat 6,0 %; KfW-Zinsen laut Konditionenanzeiger 22.10.2026 [Q1], bei späterer Inanspruchnahme (S4: 2030, 2033) gleich angenommen (MC variiert).
 
 **Default-MC-Verteilungen (gelten, sofern im Szenario nichts anderes steht):**
 
@@ -273,12 +274,12 @@ Priorität: **M** = Muss v1, **S** = Soll v1, **v2** = späteres Release. Die Sp
 | Gasnetzentgelte (Wachstum) | Dreieck(0 %; 3 %; 8 %) p. a. | Netzrückbau, sinkende Kundenzahl |
 | CO₂-Preis 2030 / 2040 | Dreieck(60; 90; 200) / Dreieck(80; 150; 300) €/t, Interpolation linear | ETS-2-Unsicherheit |
 | Biomethan-Mehrkosten | Dreieck(3; 6; 10) ct/kWh netto | |
-| Anschlusszins | Mean-Reversion (Vasicek): Langfristniveau 4,0 %, Anpassung a = 0,15, σ = 0,8 Pp p. a., Start 4,1 %; alternativ N(4,25 %; 1,0 Pp), trunkiert [1,5 %; 8 %] | |
-| Baukostenabweichung | PERT(−5 %; +5 %; +25 %) | Sanierung im Bestand eher rechtsschief |
+| Anschlusszins | Vasicek wie Memo 04: r₀ ≈ 4,0 %, θ 3,75 %, κ 0,12, σ 0,7 Pp p. a., Floor 0,5 %; Option θ ~ N(3,75 %; 0,5 Pp) | Habenzins und Kontokorrent als Spread zum Pfad (Memo 04) |
+| Baukostenabweichung | Neubau PERT(0,95; 1,05; 1,35), Sanierung im Bestand PERT(0,95; 1,10; 1,50) als Faktor (Memo 04) | einfache Komponententauschmaßnahmen szenariospezifisch enger |
 | Mietsteigerung | N(Basis; 0,6 Pp) | |
-| Leerstand | Beta mit Mittel = Basis, sd = 1 Pp | |
-| JAZ | Dreieck(Basis − 0,3; Basis; Basis + 0,3) | |
-| Prebound-Faktor (Verbrauch/Bedarf) | Gleich(0,50; 0,80) | nur wenn aus Bedarf gerechnet wird |
+| Leerstand | Niveau PERT(0; Basis; 8 %) (Memo 04), jährliche Schwankung iid | |
+| JAZ | Bestand PERT(2,6; 3,2; 4,0), Neubau PERT(3,2; 3,8; 4,6) (Memo 04); szenariospezifisch Modus = Basiswert | |
+| Prebound-/Rebound-Faktor | f_pre PERT(0,5; 0,7; 1,0), f_post PERT(0,9; 1,1; 1,4), ρ_S ≈ 0,3 (Memo 04) | entfällt f_pre, wenn Verbrauchsdaten vorliegen (S1, S3, S4) |
 | Liegenschaftszins (Restwert) | N(Basis; 0,5 Pp), trunkiert [2 %; 6 %] | |
 | Restnutzungsdauer am Horizont | Dreieck(Basis − 5; Basis; Basis + 5) J. | |
 | Förderverfügbarkeit nach 2030 | Bernoulli(p = 0,7) | S4 Stufe 3 |
@@ -347,7 +348,7 @@ Priorität: **M** = Muss v1, **S** = Soll v1, **v2** = späteres Release. Die Sp
 | Ortsübliche Vergleichsmiete | 7,10 €/m² (unsaniert) | 7,60 €/m² (energetisch modernisiert) | A |
 | Mietsteigerung § 558 | 1,5 % p. a. ab 2028 | 1,5 % p. a. auf Gesamtmiete inkl. Umlage ab 2029 | A |
 | Modernisierungsumlage | keine (konservativ; Fenster-Verbesserung nicht umgelegt) | rechnerisch 55.651,59 €/a (2,90 €/m²·Monat), Kappung 2,00 €/m² → 38.400 €/a; **Unternehmensbeschluss: warmmietenneutral 1,10 €/m²·Monat = 21.120 €/a ab 01.01.2028** | berechnet/A |
-| Härtefälle § 559 Abs. 4 | – | 2 WE ohne Umlage (MC: Beta, Mittel 8 % der WE) | A |
+| Härtefälle § 559 Abs. 4 | – | deterministisch 0 WE; MC: Anteil der WE ohne Umlage Beta(Mittel 8 %) | A |
 | Leerstand | 3,0 % | 1,0 % | A |
 | Mietminderung Bauphase 2027 | 1,25 % der Jahressollmiete | 7,5 % der Jahressollmiete | A |
 | Uneinbringliche Forderungen | 1,0 % | 1,0 % | A |
@@ -377,12 +378,12 @@ Priorität: **M** = Muss v1, **S** = Soll v1, **v2** = späteres Release. Die Sp
 
 | Parameter | V1 | V2 |
 |---|---|---|
-| EK-Budget | 150.000 € | 151.488,50 € (Budget 150.000 € + Rundungsrest; Vergleich über VoFi-Ausgleich) |
-| Darlehen 1 | Kapitalmarkt 427.185 €, Annuität, Sollzins 4,00 % fest 10 J., Volltilgung 20 J. → **31.433,02 €/a**; Anschluss 2037 zu 4,25 % → 31.825,43 €/a | **KfW 261**: 1.300.000 € (investiv 1.264.000 € + Baubegleitung 36.000 €), Laufzeit 30 J., 5 tilgungsfreie J., Zinsbindung 10 J., Sollzins **3,65 %** |
+| EK-Budget (gleich je Variante, A-09) | 151.488,50 €: davon 150.000 € eingesetzt, 1.488,50 € als Geldanlage zu 2,0 % | 151.488,50 € vollständig eingesetzt |
+| Darlehen 1 | Kapitalmarkt 427.185 €, Annuität, Sollzins 4,00 % fest 10 J., Volltilgung 20 J. → **31.433,02 €/a**; Anschluss 2037 zu 4,00 % → Annuität unverändert 31.433,02 €/a (Testfall „gleicher Zins“); Sensitivität 4,25 % → 31.825,43 €/a | **KfW 261**: 1.300.000 € (investiv 1.264.000 € + Baubegleitung 36.000 €), Laufzeit 30 J., 5 tilgungsfreie J., Zinsbindung 10 J., Sollzins **3,65 %** |
 | Tilgungszuschuss | – | 10 % (EH 70 EE 0 % + WPB 10 Pp) × 1.264.000 € = 126.400 € + 50 % × 36.000 € = 18.000 € → **144.400 €**, Gutschrift 01/2028 |
 | Zinszahlung tilgungsfreie Jahre | – | 2027: 47.450 €; 2028–2031: 1.155.600 × 3,65 % = **42.179,40 €/a** |
 | Annuität ab 2032 | – | TZ-Wirkung Laufzeitverkürzung (Default): **80.165,66 €/a** (Annuität des Ursprungsbetrags über 25 J.), Ende nach 21 Annuitätenjahren; Alternative Ratenreduzierung: **71.261,11 €/a** |
-| Restschuld Ende Zinsbindung (31.12.2036) | 254.949,95 € | 951.288,32 € (Laufzeitverkürzung) bzw. 999.182,07 € (Ratenreduzierung); Anschluss 2037 zu 4,25 % |
+| Restschuld Ende Zinsbindung (31.12.2036) | 254.949,95 € | 951.288,32 € (Laufzeitverkürzung) bzw. 999.182,07 € (Ratenreduzierung); Anschluss 2037 zu 4,00 % (Basis) |
 | Habenzins / Kontokorrent | 2,0 % / 5,5 % | 2,0 % / 5,5 % |
 
 **Restwert 2056 (Ertragswert, ImmoWertV vereinfacht)**
@@ -412,7 +413,7 @@ Priorität: **M** = Muss v1, **S** = Soll v1, **v2** = späteres Release. Die Sp
 
 | Parameter | Verteilung |
 |---|---|
-| Investitionskosten V2 / V1 | PERT(−5 %; +5 %; +25 %) / PERT(−5 %; +3 %; +15 %), Korrelation 0,7 |
+| Investitionskosten V2 / V1 | Sanierungs-Default PERT(0,95; 1,10; 1,50) / PERT(0,95; 1,05; 1,25), Rangkorrelation 0,7 |
 | JAZ V2 | Dreieck(2,6; 2,9; 3,3) |
 | Nutzwärme nach Sanierung | Dreieck(65; 75; 90) kWh/m²·a |
 | Leerstand V1 / V2 | Beta(Mittel 3 %) / Beta(Mittel 1 %) |
@@ -516,7 +517,7 @@ Priorität: **M** = Muss v1, **S** = Soll v1, **v2** = späteres Release. Die Sp
 | KfW-Annuität danach (30 J.) | 164.969,40 €/a | – | 273.371,56 €/a |
 | Kapitalmarktdarlehen | 5.100.000 €; 4,00 % fest 10 J.; 2 % Anfangstilgung → **306.000 €/a** | 8.700.000 €; gleiche Konditionen → 522.000 €/a | 3.858.400 €; gleiche Konditionen → **231.504 €/a** |
 | Restschuld Bank Ende 2036 | 3.875.377 € | – | 2.931.913 € |
-| Anschluss 2037 | Bank und KfW zu 4,25 % (Basis), Annuität auf Restlaufzeit (Bank: Fortführung mit gleicher Rate bis Volltilgung) | | |
+| Anschluss 2037 | Bank und KfW zu 4,00 % (Basis), KfW: Annuität auf Restlaufzeit; Bank: Fortführung mit gleicher Rate bis Volltilgung | | |
 | Abrufreihenfolge | EK → KfW → Bank; KfW-Zusage 03/2027, vollständiger Abruf bis 02/2028 → Bereitstellungsprovision 0 € (Testannahme) | | |
 | Bauzeitzinsen | über VoFi-Konto (Kontokorrent 5,5 %) | | |
 
@@ -538,8 +539,8 @@ Ertragswert: Liegenschaftszins 3,0 %, Gebäudealter 38 J., GND 80 → RND 42 J.,
 
 | Parameter | Verteilung |
 |---|---|
-| Baukostenabweichung (Bauwerk) | PERT(−5 %; +5 %; +20 %) |
-| Bauzeitverzug | diskret {0, 3, 6} Monate mit p = {0,6; 0,3; 0,1} → Mietausfall, Bauzeitzinsen |
+| Baukostenabweichung (Bauwerk) | Neubau-Default PERT(0,95; 1,05; 1,35) |
+| Bauzeitverzug | PERT(0; 2; 12) Monate (Memo 04), Rangkorrelation 0,5 mit Kostenüberschreitung → Mietausfall, Bauzeitzinsen |
 | Erstvermietungsmiete | N(13,00; 0,80) €/m² |
 | Mietsteigerung | N(2,0 %; 0,7 Pp) |
 | Anschlusszins 2037 und 2047 | Vasicek (Default), gemeinsamer Pfad |
@@ -649,7 +650,7 @@ Ertragswert: Liegenschaftszins 3,0 %, Gebäudealter 38 J., GND 80 → RND 42 J.,
 **Erwartetes qualitatives Ergebnis (Hypothesen)**
 
 1. V2 > V1 aus Sicht der Genossenschaft: Zuschuss (45,3 T€), Umlage (3,5 T€/a), PV-Erlöse (≈ 2,9 T€/a) und vermiedene Vermieteranteile nach § 5a (≈ 2–3 T€/a, steigend) übersteigen den Kapitaldienst der Mehrinvestition (≈ 12,7 T€/a über 15 J. gegenüber EK-Einsatz in V1); Differenz-Endwert positiv (Größenordnung +20 bis +60 T€).
-2. Mitglieder: Warmmiete V2 ≈ −0,05 €/m²·Monat günstiger als V1 im ersten Jahr (Umlage +0,35 €, Heizkosten −0,39 €), Abstand wächst mit CO₂-Preis und Bio-Treppe.
+2. Mitglieder: Warmmiete V2 im ersten vollen Jahr um ≈ 0,04 €/m²·Monat niedriger als in V1 (Umlage +0,35 €, Heizkosten −0,39 €); der Abstand wächst mit CO₂-Preis, Gasnetzentgelten und Bio-Treppe.
 3. Kritische Parameter: JAZ (< 2,5 halbiert die Umlagebasis), Strompreisentwicklung, rechtliche Zulässigkeit der PV-Stromverrechnung.
 
 **KPIs:** Differenz-Endwert (Kalkulationszins 2 %); VoFi-Rendite der Mehrinvestition; Nutzungsentgelt- und Warmmietenpfad (€/m²·Monat); Kostendeckungsgrad; Liquidität (min. Kontostand); CO₂-Minderung.
@@ -661,7 +662,7 @@ Ertragswert: Liegenschaftszins 3,0 %, Gebäudealter 38 J., GND 80 → RND 42 J.,
 | JAZ | Dreieck(2,6; 3,1; 3,4) |
 | Eigenverbrauchsquote PV | Dreieck(0,20; 0,30; 0,40) |
 | PV-Ertrag | N(900; 60) kWh/kWp |
-| Investitionskosten V2 | PERT(−5 %; 0 %; +20 %) |
+| Investitionskosten V2 | PERT(0,95; 1,00; 1,20) als Faktor (Komponententausch, enger als Sanierungs-Default) |
 | Strom-/Gaspreise, CO₂, Netzentgelt, Bio | Defaults (Abschnitt 4.0) |
 | Umlageakzeptanz (Anteil WE mit Härtefall) | Beta(Mittel 5 %) |
 
@@ -701,7 +702,7 @@ Ertragswert: Liegenschaftszins 3,0 %, Gebäudealter 38 J., GND 80 → RND 42 J.,
 | Bauteilflächen | Dach 160 m², Fenster 28 m² (Bj. 1995, 2-fach), Fassade opak 180 m², Kellerdecke 75 m² | A |
 | Heizung | Gas-Kessel Bj. 2005 (21 J. → Klimageschwindigkeitsbonus-berechtigt, ≥ 20 J. alt), η_eff 0,88 | A |
 | Verbrauch | 24.500 kWh_Hs/a (175 kWh/m²·a, Heizung + TWW), Nutzwärme 21.560 kWh/a; iSFP-Bedarf 230 kWh/m²·a → Prebound ≈ 0,76 | A |
-| Haushalt | 2 Erwachsene, 1 Kind (10 J.); zvE Ø (2023/2024) 58.000 € → Familienzuschlag −10.000 € → **48.000 €** → Einkommensbonus **10 %** | A, Regel [Q8] |
+| Haushalt | 2 Erwachsene, 1 Kind (10 J.); zvE Ø (2023/2024) 58.000 € → Familienzuschlag −10.000 € → **48.000 €** → Einkommensbonus **10 %**; Nettoeinkommen 4.800 €/Monat (für Belastungsquote) | A, Regel [Q8] |
 | iSFP | liegt vor (Kosten 1.800 €, BAFA-EBW-Zuschuss 50 %, max. 650 € – Wert prüfen), Bonusberechtigung 15 J. | A |
 | Erspartes (EK-Budget) | 60.000 €, Habenzins 2,5 % | A |
 
@@ -726,7 +727,7 @@ Ertragswert: Liegenschaftszins 3,0 %, Gebäudealter 38 J., GND 80 → RND 42 J.,
 | Variante/Zeitraum | Nutzwärme | Erzeuger | Endenergie | Kosten p. a. (Preisbasis 2026) |
 |---|---|---|---|---|
 | V0 2027–2029 | 21.560 kWh | Gas, η 0,88 | 24.500 kWh Gas | 24.500 × 12,5 ct + 180 € + 300 € Wartung/Schornsteinfeger = **3.542,50 €** (295,21 €/Monat) |
-| V0 2030–2031 | 21.560 kWh | Gas-BW, η 0,94 | 22.936 kWh | + Bio-Treppe (neuer Kessel) ab 2030: 10 %, 2032: 15 % … |
+| V0 2030–2031 | 21.560 kWh | Gas-BW, η 0,94 | 22.936 kWh | Bio-Treppe für den 2030 eingebauten Kessel: 15 % ab 2030, 30 % ab 2035, 60 % ab 2040 |
 | V0 2032–2041 | 18.973 kWh (−12 % Dach) | Gas-BW | 20.184 kWh | |
 | V0 2042–2049 | −5 % Fenster | Gas-BW | 19.175 kWh | ab 2045: 100 % klimaneutraler Brennstoff |
 | **V1 2027–2029** | 21.560 kWh | WP, JAZ 2,9 | **7.434,48 kWh_el** | 7.434,48 × 24 ct + 140 € + 250 € Wartung = **2.174,28 €** (181,19 €/Monat) |
@@ -753,7 +754,7 @@ Energiepreise, CO₂-Pfad und Bio-Treppe gemäß Abschnitt 4.0 (Gas EFH zerlegt 
 | V1 2027 | WP aus Erspartem; Zuschuss 2028 ins Guthaben |
 | V1 2030 | EK 15.000 € + **KfW 358** 70.000 € (25/3/10, Sollzins 2,53 % angenommen konstant): Zinsen 2030–2032 **1.771,00 €/a**, danach Annuität 22 J. **4.188,12 €/a**; Rest aus Guthaben |
 | V1 2033 | EK 10.000 € + **KfW 358** 45.000 € (25/3/10, 2,53 %): Zinsen 2033–2035 **1.138,50 €/a**, danach **2.692,36 €/a**; Rest aus Guthaben |
-| Anschluss | jeweils nach 10 J. zu 4,25 % (Basis) |
+| Anschluss | jeweils nach 10 J. zu 4,00 % (Basis) |
 
 **Restwert 2051:** Default `linear_book_value` der Maßnahmen (ND: WP 20 J., Dach 50 J., Fenster 35 J., WDVS 40 J., Gaskessel 20 J.); Option „ohne Restwert“ (Pflichtausweis). Ein Immobilienwertzuschlag für die bessere Effizienzklasse ist optional (v1 aus).
 
@@ -842,7 +843,7 @@ Energiepreise, CO₂-Pfad und Bio-Treppe gemäß Abschnitt 4.0 (Gas EFH zerlegt 
 | Rate KfW Jahre 6–10 (Annuität 30 J.) | 379,19 €/Monat | 546,79 €/Monat |
 | **Summe Raten Jahre 1–5 / 6–10** | **2.350,03 € / 2.546,73 €** | **2.096,72 € / 2.501,84 €** |
 | Restschuld nach 10 J. (Bank / KfW) | 321.201 € / 87.540 € | 289.714 € / 145.085 € |
-| Anschluss 2037 | Bank und KfW zu 4,25 % (Basis), Annuität auf Restlaufzeit (Ziel: Volltilgung bis 2062) | gleich |
+| Anschluss 2037 | Bank und KfW zu 4,00 % (Basis), Annuität auf Restlaufzeit (Ziel: Volltilgung bis 2062) | gleich |
 | Bereitstellungszinsen Bank | 0,25 %/Monat ab Monat 7 auf nicht abgerufene Beträge (A) | gleich |
 
 **Betrieb**
@@ -979,7 +980,7 @@ Nur als Platzhalter für Persona (c), nicht vollständig spezifiziert, weil das 
 **Ampelregel (Vorschlag, konfigurierbar):** Grün: Median der Vermögensdifferenz > 0 und P(besser als Referenz) ≥ 70 %; Gelb: P zwischen 40 % und 70 %; Rot: P < 40 %. Ohne MC: Grün bei Differenz > 0 in Basis- und pessimistischem Szenario.
 
 **Beispiel-Fazit (S4, Formulierungsmuster):**
-> „Wenn Sie 2027 eine Wärmepumpe einbauen, zahlen Sie für Heizung und Wartung im ersten Jahr voraussichtlich rund 115 € pro Monat weniger als mit Ihrer Gasheizung. Nach Abzug von 15.680 € Zuschuss haben sich die Mehrkosten gegenüber einem neuen Gaskessel voraussichtlich nach etwa vier bis fünf Jahren bezahlt gemacht. Die zusätzlichen Dämmmaßnahmen 2030 und 2033 erhöhen Ihre monatliche Belastung während der Kreditlaufzeit; über 25 Jahre liegen Sie damit je nach Energiepreisentwicklung etwa gleichauf mit der Variante ‚nur Wärmepumpe‘. Am stärksten hängt das Ergebnis vom CO₂-Preis ab 2028 ab.“
+> „Wenn Sie 2027 eine Wärmepumpe einbauen, zahlen Sie für Heizung und Wartung im ersten Jahr voraussichtlich rund 115 € pro Monat weniger als mit Ihrer Gasheizung. Nach Abzug von 15.680 € Zuschuss haben sich die Mehrkosten gegenüber einem neuen Gaskessel voraussichtlich nach etwa vier bis fünf Jahren bezahlt gemacht. Die zusätzlichen Dämmmaßnahmen 2030 und 2033 erhöhen Ihre monatliche Belastung während der Kreditlaufzeit; über 25 Jahre stehen Sie mit dem Gesamtpaket voraussichtlich etwas schlechter da als mit der Wärmepumpe allein, aber etwa gleich gut wie mit der Gasheizung – und Ihr Haus ist deutlich unabhängiger von Gas- und CO₂-Preisen. Am stärksten hängt das Ergebnis vom CO₂-Preis ab 2028 ab.“ *(Muster; die Zahlen sind Hypothesen und werden vom Tool erzeugt.)*
 
 ### 5.5 Label-Mapping (Auszug: Schlüssel → deutsches Label)
 
@@ -998,3 +999,277 @@ Nur als Platzhalter für Persona (c), nicht vollständig spezifiziert, weil das 
 | `residual_value` | Restwert |
 | `prob_better_than_ref` | Wahrscheinlichkeit „besser als Referenz“ |
 
+---
+
+## 6. Ableitungen für Eingabeschema und Tests
+
+### 6.1 Beispiel-YAML (Skizze) für S4
+
+Die Skizze verwendet die Grammatik aus Memo 05 (Abschnitte 4.2–4.4: `project`, `building`, `measures`, `funding`, `financing`, `accounts`, `market`, `stochastic`-Overlay, `variants` mit `extends`/`remove`/`overrides`). Felder, die dort noch nicht definiert sind und von den Referenzszenarien benötigt werden, sind mit `# neu` markiert. Die Basisdatei beschreibt die energetische Variante V1; die Referenz V0 entsteht als Variante durch Entfernen und Ergänzen.
+
+```yaml
+schema_version: 1
+meta:
+  scenario_id: s4_efh_1975_isfp
+  title: "S4 – Selbstnutzer EFH Baujahr 1975: stufenweise Sanierung nach iSFP"
+  created_date: 2026-10-25
+project:
+  perspective: selbstnutzer                # Codes nach Memo 02
+  project_type: sanierung_stufenweise
+  comparison_mode: absolute                # Total-VoFi je Alternative
+  valuation_date: 2027-01-01
+  horizon_years: 25
+  legal_state: 2026-10-25
+  price_base_year: 2026
+  reference_variant: v0_gas_behalten       # neu
+  report_mode: household                   # neu: Haushaltsmodus
+building:
+  building_type: EFH
+  construction_year: 1975
+  n_units: 1
+  living_area_m2: 140
+  component_areas_m2: {roof: 160, windows: 28, facade: 180, basement_ceiling: 75}   # neu
+  heating_existing: {carrier: erdgas_efh, installation_year: 2005, efficiency: 0.88} # neu
+  consumption_kwh: {erdgas_efh: 24500}     # neu: gemessener Verbrauch (H_s), Ø 3 Jahre
+household:                                 # neu: Förderberechtigung
+  taxable_income_avg_eur: 58000            # Ø 2. und 3. Vorjahr
+  n_children_u18: 1
+  net_income_month_eur: 4800
+
+measures:
+  wp_2027:
+    label: "Luft/Wasser-Wärmepumpe 10 kW"
+    year: 2027                              # neu: Ausführungsjahr
+    cost_eur: 32000
+    price_base_year: 2026
+    useful_life_years: 20
+    effects: {heating: {carrier: wp_strom_efh, jaz: 2.9}}                      # neu
+    replaces_ohnehin: [gaskessel_2030]     # neu: Verknüpfung zur Ohnehin-Maßnahme
+  dach_fenster_2030:
+    label: "Dach (Aufsparrendämmung) und Fenster 3-fach"
+    year: 2030
+    cost_eur: {expr: "building.component_areas_m2.roof * 320 + building.component_areas_m2.windows * 900"}
+    price_base_year: 2026
+    useful_life_years: 45
+    effects: {heat_demand_factor: 0.75, jaz: 3.2}
+    replaces_ohnehin: [dach_ohnehin_2032, fenster_ohnehin_2042]
+  fassade_2033:
+    label: "WDVS 16 cm, Kellerdecke, Gerüst"
+    year: 2033
+    cost_eur: {expr: "building.component_areas_m2.facade * 210 + building.component_areas_m2.basement_ceiling * 50 + 3500"}
+    price_base_year: 2026
+    useful_life_years: 40
+    effects: {heat_demand_factor: 0.72, jaz: 3.5}
+    replaces_ohnehin: [anstrich_2033]
+  wp_ersatz_2047:
+    label: "WP-Ersatz"
+    year: 2047
+    cost_eur: 25000
+    price_base_year: 2026
+    useful_life_years: 20
+
+funding:
+  kfw458_wp:
+    from: funding/kfw_458_2026-07-21       # Regelobjekt mit Stichtag
+    measure: wp_2027
+    application_date: 2026-12-15           # entscheidet über Bonus 16 % und 28.000 €
+    payout_delay_years: 1
+  bafa_huelle_2030:
+    from: funding/bafa_beg_em_huelle_2026-07-21
+    measure: dach_fenster_2030
+    isfp: true
+    isfp_bonus_mode: excess_over_threshold # Alternative: whole_amount
+    payout_delay_years: 1
+  bafa_huelle_2033:
+    from: funding/bafa_beg_em_huelle_2026-07-21
+    measure: fassade_2033
+    isfp: true
+    isfp_bonus_mode: excess_over_threshold
+    payout_delay_years: 1
+
+financing:
+  ek:
+    type: equity
+    amount_eur: 60000
+  kfw358_2030:
+    type: annuity_loan
+    program: kfw_358
+    start_year: 2030                        # neu: Darlehen in späterer Periode
+    amount_eur: 70000
+    term_years: 25
+    grace_years: 3
+    fixed_years: 10
+    rate_pa: 0.0253
+    followup_rate_pa: {ref: market.mortgage_rate}
+  kfw358_2033:
+    type: annuity_loan
+    program: kfw_358
+    start_year: 2033
+    amount_eur: 45000
+    term_years: 25
+    grace_years: 3
+    fixed_years: 10
+    rate_pa: 0.0253
+    followup_rate_pa: {ref: market.mortgage_rate}
+
+running_costs:                              # neu: benutzerdefinierte Zahlungsreihen
+  wartung_wp: {label: "Wartung Wärmepumpe", amount_eur: 250, growth: {ref: market.inflation}}
+
+accounts:
+  deposit_rate_pa: 0.025
+  overdraft_rate_pa: 0.060
+market:
+  inflation: {series: {2027: 0.028, 2028: 0.022}, fill: locf}
+  construction_price_index: 0.030
+  mortgage_rate: 0.040
+  co2_price: {from: prices/co2_price_paths_2026, use: mittel}
+  energy_prices: {from: prices/energy_2026-10}           # Gas zerlegt: Netz, CO2, Rest
+  bio_step: {from: legal/building_energy_law_2026-07}    # Bio-Treppe § 43 GModG
+residual_value: {method: linear_book_value, report_without: true}   # neu
+
+stochastic:
+  settings: {n_sim: 10000, seed: 20261025, sampling: lhs, copula: iman_conover}
+  parameters:
+    jaz_stufe1:     {target: measures.wp_2027.effects.heating.jaz, dist: pert, min: 2.6, mode: 2.9, max: 3.3}
+    foerderung_2033: {target: funding.bafa_huelle_2033.available, dist: bernoulli, p: 0.7}   # neu
+    zins_358_2030:  {target: financing.kfw358_2030.rate_pa, dist: truncnorm, mean: 0.0275, sd: 0.0075, min: 0.01, max: 0.05}
+  processes:
+    mortgage_rate:  {target: market.mortgage_rate, from: processes/mortgage_rate_vasicek_2026}
+    co2_price:      {target: market.co2_price, from: prices/co2_price_paths_2026}
+
+variants:
+  v1_isfp_stufen:
+    label: "iSFP stufenweise: WP 2027, Dach + Fenster 2030, Fassade 2033"
+    extends: base
+  v0_gas_behalten:
+    label: "Referenz: Gaskessel behalten, Ersatz bei Ausfall"
+    extends: base
+    remove: [measures.wp_2027, measures.dach_fenster_2030, measures.fassade_2033, measures.wp_ersatz_2047,
+             funding.kfw458_wp, funding.bafa_huelle_2030, funding.bafa_huelle_2033,
+             financing.kfw358_2030, financing.kfw358_2033, running_costs.wartung_wp]
+    overrides:
+      measures:
+        gaskessel_2030:
+          label: "Gas-Brennwertkessel nach Ausfall"
+          year: {dist: discrete, values: [2028, 2029, 2030, 2031, 2032, 2033]}   # Basis 2030
+          cost_eur: 12500
+          price_base_year: 2026
+          useful_life_years: 20
+          effects: {heating: {carrier: erdgas_efh, efficiency: 0.94, section43_new_fossil: true}}
+        dach_ohnehin_2032:
+          label: "Dach-Neueindeckung mit GModG-Mindestdämmung"
+          year: 2032
+          cost_eur: 40000
+          price_base_year: 2026
+          useful_life_years: 50
+          effects: {heat_demand_factor: 0.88}
+        anstrich_2033: {label: "Fassadenanstrich inkl. Gerüst", year: 2033, cost_eur: 11600, price_base_year: 2026, useful_life_years: 15}
+        fenster_ohnehin_2042:
+          label: "Fenstertausch 2-fach"
+          year: 2042
+          cost_eur: {expr: "building.component_areas_m2.windows * 700"}
+          price_base_year: 2026
+          useful_life_years: 35
+          effects: {heat_demand_factor: 0.95}
+        wp_referenz_2050:
+          label: "Umstieg Wärmepumpe (Gas nach 2045 nicht mehr sinnvoll)"
+          year: 2050
+          cost_eur: 32000
+          price_base_year: 2026
+          useful_life_years: 20
+          effects: {heating: {carrier: wp_strom_efh, jaz: 3.0}}
+      running_costs:
+        wartung_gas: {label: "Wartung und Schornsteinfeger", amount_eur: 300, growth: {ref: market.inflation}, until_year: 2049}
+```
+
+**Schemaanforderungen, die sich aus allen Szenarien ergeben (Checkliste):** `payment_schedule` (S2), `rent_roll` je WE (S1, S6), `modernisation_levy`-Block mit `legal_basis` (§ 559/559e), `voluntary_cap_per_m2`, `hardship_share` (S1, S3), `co2_cost_split` mit Heizungs-Einbaudatum (S1, S3), `tenant_perspective: true` (S1, S3), `pv`-Block mit `commissioning_date`, `self_consumption_share`, `internal_transfer_price` (S3, S5), `eligibility`-Prüfung (S5), `loan.subsidy` mit `share_of_amount`, `credit_year`, `effect: term_reduction|payment_reduction` (S1), `residual_value.method: income_value` mit `capitalisation_rate`, `remaining_life_years`, `land_value` (S1, S2), `scenario_overlays` (S2: „EH-55-Stufe nicht verfügbar“).
+
+### 6.2 Testkatalog
+
+| Testart | Inhalt | Szenarien |
+|---|---|---|
+| Deterministische Prüfwerte | alle S*-T*-Werte aus Abschnitt 4 (Förderbeträge, Kappungen, Annuitäten, Restschulden, Energiemengen) | S1–S5 |
+| Regeltests Förderung | Stichtagslogik (Antrag 12/2026 vs. 02/2027), Bonusberechtigung (Kesselalter, Einkommen, Kinder), Deckel (70/80 %, Höchstkosten je WE, je Kalenderjahr), WPB-Bonus, Baubegleitungs-TZ | S1, S3, S4, S5 |
+| Regeltests Mietrecht | § 559-Kappung 2 €/3 € je WE, § 559e-Kappung 0,50 €, § 559f-Halbierung, Drittmittelabzug, freiwillige Kappung, Härtefälle | S1, S3, S6 |
+| Regeltests CO₂ | Stufenzuordnung, Wechsel auf § 5a ab 2028 nur bei neu eingebauter fossiler Heizung, 30-%-Mengendeckel Bio | S1, S3 |
+| VoFi-Invarianten | Kontenidentität je Periode (Anfangsbestand + Einzahlungen − Auszahlungen = Endbestand), Mittelherkunft = Mittelverwendung in t = 0, Restschulden ≥ 0, Darlehen bei Laufzeitende getilgt, gleiches EK-Budget je Variante | alle |
+| Metamorphe Tests | Gaspreis ↑ ⇒ Vorteil WP-Variante ↑; TZ ↑ ⇒ Differenz-Endwert ↑; Umlage = 0 ⇒ V2 (S1) schlechter; Restwert ausgeschaltet ⇒ Endwerte sinken; Horizont +1 Jahr ⇒ Zahl der Perioden +1 | S1–S5 |
+| Reproduzierbarkeit | gleicher Seed ⇒ identische MC-Ergebnisse; MC mit σ = 0 und θ = r₀ = 4,00 % sowie allen Verteilungen im Modus ⇒ deterministisches Ergebnis | alle |
+| Statistische Stabilität | N = 10.000: Median und 5-%-Quantil der Endwertdifferenz zwischen zwei Seeds innerhalb ±1 % bzw. ±2 % | S1, S4 |
+| Snapshot-Regression | Kern-KPIs je Szenario als Referenzdatei mit Toleranz; Änderungen nur bewusst (Bibliotheksversion) | alle |
+
+---
+
+## 7. Offene Fragen an den Auftraggeber
+
+1. **Priorität der Zielgruppen für v1:** Zuerst Fachmodus (WU/Genossenschaft) oder Haushaltsmodus (Selbstnutzer)? Das bestimmt Berichtsvorlagen, Default-Parameter und ggf. eine spätere Oberfläche (Shiny).
+2. **Steuern:** Bleibt es bei Vor-Steuer-VoFi in v1? Für Kleinvermieter (c) ist das Ergebnis ohne Steuern oft verzerrt – reicht ein deutlicher Warnhinweis, oder soll ein einfaches Steuermodul (Grenzsteuersatz, AfA, Erhaltungsaufwand) in v1.5 kommen?
+3. **Eingabeformat:** Nur YAML, oder zusätzlich eine Excel-Eingabevorlage für Controller (Import nach YAML)?
+4. **Regionale Defaults:** Sollen Referenzszenarien eine konkrete Region abbilden (z. B. Mittelstadt West, Mietspiegel/Bodenrichtwert/Liegenschaftszins), oder bewusst generisch bleiben?
+5. **Genossenschaft:** Soll die Umlage bei Genossenschaften standardmäßig nach §§ 559e/559 laufen oder als frei definierte Nutzungsentgelterhöhung? Default für PV-Stromverrechnung an die Heizkostenabrechnung: 0 ct oder Verrechnungspreis?
+6. **Rechtliche Auslegungsfragen (Fachmemo Mietrecht):** Zurechnung der Zinsermäßigung nach § 559a (anteilig/voll); Reihenfolge Halbierung (§ 559f) und Drittmittelabzug; Bedeutung von § 559e Abs. 2 S. 2 für fossile Heizungen; Zurechnung von Zuschüssen auf Modernisierungs- vs. Erhaltungsanteil.
+7. **Förderauslegung (Fachmemo Förderung):** iSFP-Bonus nur auf den 30.000 € übersteigenden Betrag oder auf den Gesamtbetrag? Staffel der förderfähigen Kosten bei KfW 459 identisch mit 458? TZ-Verrechnung bei KfW 261 (Laufzeitverkürzung als Default korrekt?).
+8. **Default-Restwertmethode je Persona:** Ertragswert (WU), Komponentenzeitwert (Heizungstausch), Sachwert (EFH) – einverstanden?
+9. **„Nichtstun“-Logik:** Sollen gesetzlich erzwungene Ereignisse (Bio-Treppe, 2045 klimaneutrale Brennstoffe, bedingte Bauteilanforderungen) automatisch aus der Bibliothek in Referenzvarianten eingesteuert werden, oder bleibt das Nutzereingabe mit Warnung?
+10. **Periodik:** Reicht jährliche VoFi auch für Bauphasen und Haushalte (Monatswerte nur abgeleitet)?
+11. **MC-Defaults:** Wer verantwortet die Default-Verteilungen? Sollen zusätzlich Presets („vorsichtig/Basis/optimistisch“) angeboten werden?
+12. **Bibliothekspflege:** Wer aktualisiert Förder- und Preisbibliotheken zu den absehbaren Stichtagen (01.02. und 01.08. jedes Jahres bei KfW 458/459, Q1/2027 WP-Förderung, EEG-Reform 2027, BEHG 2027, ETS 2 ab 2028)?
+13. **Portfolio in v2** – bestätigt? Reicht in v1 der Batch-Lauf mit Summenzeile?
+14. **Ersatzneubau (S1-V4) und Landesförderung (S2-V3):** in v1-Integrationstests aufnehmen oder nur als Beispiel?
+15. **Mieterperspektive:** Genügt die abgeleitete Warmmietentabelle, oder wird eine vollständige Mieter-VoFi gewünscht?
+
+---
+
+## 8. Risiken
+
+| Risiko | Wirkung | Gegenmaßnahme |
+|---|---|---|
+| **Hohe Volatilität von Förderung und Recht** (Reform 21.07.2026, Degression ab 01.02.2027, WP-Förderung Q1/2027, EEG-Reform, BEHG 2027 noch nicht verabschiedet, ETS 2 ab 2028, GModG-Folgeverordnungen) | Veraltete Parameter führen zu falschen Empfehlungen | Regelobjekte mit Gültigkeitszeitraum und Stichtag; Warnung bei abgelaufener Bibliothek; Szenario „Förderstopp“ |
+| **Sekundärquellen** für Teile der Rahmendaten (Ratgeberportale) | Fehlerhafte Prüfwerte | Primärtext-Verifikation vor Freigabe der Bibliothek; Prüfwerte an Bibliotheksversion koppeln |
+| **Restwertdominanz** bei 30–40 Jahren | Vorzeichen des Ergebnisses hängt an RND/LZ | Pflichtausweis ohne Restwert; Tornado; MC auf RND/LZ |
+| **Doppelzählungen** (Instandhaltungspauschale vs. Ersatzinvestition; Leerstand vs. Mietausfallwagnis; Ohnehin in Variante und als Anteil) | Verzerrte Vorteilhaftigkeit | Validierungsregeln (A-25), klare Kategorien, Konsistenzchecks |
+| **Prebound-/Rebound-Effekt** | Überschätzte Einsparungen bei Rechnung aus Bedarfsausweis | Verbrauchsbasierte Defaults, Prebound-Faktor, Warnung |
+| **Fehlinterpretation durch Laien** (Tilgung als Kosten, statische Amortisation, Scheingenauigkeit) | Falsche Entscheidungen | Haushaltsmodus mit Liquiditäts- und Vermögenssicht, Bandbreiten, Klartext, Glossar |
+| **Ausklammerung der Ertragsteuern** | Verzerrung v. a. für Kleinvermieter | Warnhinweis; Steuer-Hook im Datenmodell; v2 |
+| **Subjektive MC-Verteilungen und Korrelationen** | Scheinbare Objektivität der Wahrscheinlichkeiten | Dokumentierte Defaults, Presets, Sensitivität der Ergebnisse auf Verteilungswahl, Common Random Numbers |
+| **Komplexität von Förder- und Mietrechtslogik** | Hoher Implementierungs- und Testaufwand, Scope Creep | Modulare Regel-Engine, v1 auf die Regeln der Referenzszenarien beschränken |
+| **Datenschutz** (Einkommen, Kinderzahl) | Personenbezogene Daten | lokale Verarbeitung, keine Übermittlung, Hinweis im Bericht |
+| **Haftung** | Nutzer verstehen Ergebnis als Rechts-/Steuer-/Förderberatung | Haftungsausschluss, Verweis auf Energieberatung/EEE und Förderbank |
+
+---
+
+## 9. Quellen (abgerufen am 25.10.2026)
+
+- [Q1] KfW Konditionen-Anzeiger, Stand 22.10.2026: https://www.kfw-formularsammlung.de/KonditionenanzeigerINet/KonditionenAnzeiger
+- [Q2] KfW Partnerportal, Wohngebäude-Kredit (261): https://www.kfw.de/partner/KfW-Partnerportal/Multiplikatoren/F%C3%B6rderprodukte/Wohngeb%C3%A4ude-Kredit-%28261%29/index.jsp
+- [Q3] 42watt, KfW 261 und 262 (Stand 01.09.2026, Sekundärquelle): https://42watt.de/magazin/kfw-261-und-262
+- [Q4] KfW, Klimafreundlicher Neubau Wohngebäude (297/298): https://www.kfw.de/inlandsfoerderung/Privatpersonen/Neubau/F%C3%B6rderprodukte/Klimafreundlicher-Neubau-Wohngeb%C3%A4ude-(297-298)/
+- [Q5] KfW, Pressemitteilung vom 27.02.2026 (Zinssenkung Neubau, EH 55 Signalzins): https://www.kfw.de/%C3%9Cber-die-KfW/Newsroom/Aktuelles/Pressemitteilungen-Details_883456.html
+- [Q6] KfW, Pressemitteilung vom 19.06.2026 (Verlängerung EH 55 bis 31.12.2026): https://www.kfw.de/About-KfW/Newsroom/Latest-News/Pressemitteilungen-Details_898560.html; Haustechnikdialog: https://www.haustechnikdialog.de/News/31604/Bund-und-KfW-verlaengern-Foerderung-fuer-Effizienzhaus-55-Neubauten
+- [Q7] KfW, Wohneigentum für Familien (300): https://www.kfw.de/inlandsfoerderung/Privatpersonen/Neubau/F%C3%B6rderprodukte/Wohneigentum-f%C3%BCr-Familien-(300)/
+- [Q8] KfW 458 ab 21.07.2026 (Sekundärquellen): https://reduco.ai/blog/kfw-458-heizungstausch; https://www.cleanthinking.de/heizungsfoerderung/; https://www.steuertipps.de/wohnen-haus-vermietung/kfw-heizungsfoerderung-uebergangsfrist-bis-20-juli-2026-nutzen
+- [Q9] KfW, Heizungsförderung für Unternehmen – Wohngebäude (459): https://www.kfw.de/inlandsfoerderung/Unternehmen/Wohnwirtschaft/F%C3%B6rderprodukte/Heizungsf%C3%B6rderung-f%C3%BCr-Unternehmen-Wohngeb%C3%A4ude-%28459%29/
+- [Q10] BAFA BEG EM Gebäudehülle nach 21.07.2026 (Sekundärquellen): https://reduco.ai/blog/foerderung/sanierung-einzelmassnahmen-21-juli-2026-aenderungen; https://www.schwaebisch-hall.de/renovieren/energetische-sanierung/bafa-foerderung.html; https://www.cleanthinking.de/?p=1073862; https://www.foerder-welt.de/content/foerderwelt/de/wohnen/alle-foerdermittel/bafa-zuschuss-einzelmassnahmen.html
+- [Q11] Energie-Fachberater, Stichtage der BEG-Reform 2026: https://www.energie-fachberater.de/news/kuerzungen-heizungsfoerderung.php
+- [Q12] GModG und Folgeänderungen: dejure § 559e BGB https://dejure.org/gesetze/BGB/559e.html; dejure § 559f BGB https://dejure.org/gesetze/BGB/559f.html; IWW (Beschluss) https://www.iww.de/pbp/architektenrecht/gesetzgebung-das-gebaeudemodernisierungsgesetz-ist-beschlossen-und-kann-in-kraft-treten-n173832; Nexvyra (Sekundärquelle) https://nexvyra.de/news/2026-07-16-gebaeudemodernisierungsgesetz-gmodg-verabschiedet.html und https://nexvyra.de/fakten/mieterschutz-gas-oelheizung-co2kostaufg-5a.md; LTO (Koalitionseinigung) https://www.lto.de/recht/nachrichten/n/heizungsgesetz-koalition-mieterschutz-kosten-aufteilung-gas-oel; EMA https://ema-energiewelt.de/wissen/co2-kosten-vermieter-mieter-fossile-heizung-2028; Deutscher Mieterbund https://mieterbund.de/aktuelles/meldungen/mieterbund-begruesst-geplante-regelungen-im-gebaeudemodernisierungsgesetz/; test.de https://www.test.de/Gebaeudeenergiegesetz-Was-Hausbesitzer-wissen-muessen-5655820-0/
+- [Q13] GModG Neubauanforderungen: BayIka-Bau Stellungnahme 11.05.2026 https://bayika.de/bayika-wAssets/docs/aktuelles/2026/2026-05-11_BF_Stellungnahme-BayIka-Bau_Verbaendeanhoerung-zum-Entwurf-des-Gebaeudemodernisierungsgesetzes.pdf; BDB Kurzbriefing https://www.baumeister-online.de/app/uploads/2026/07/BDB_Kurzbriefing_GModG_Website_final.pdf
+- [Q14] § 559 BGB https://dejure.org/gesetze/BGB/559.html; § 559c BGB https://lxgesetze.de/bgb/559c; Lobbyregister (Verdopplung auf 20.000 €) https://www.lobbyregister.bundestag.de/inhalte-der-interessenvertretung/regelungsvorhabensuche/RV0025430
+- [Q15] Mietpreisbremse bis 2029: https://www.lto.de/recht/nachrichten/n/bundestag-verlaengert-mietpreisbremse-bis-2029
+- [Q16] BEHG/ETS 2: https://www.advant-beiten.com/aktuelles/behg-novelle-co2-preis-bleibt-2027-im-korridor-von-55-bis-65-euro; BT-Drs. 21/7869 https://dserver.bundestag.de/btd/21/078/2107869.pdf; EY https://www.ey.com/de_de/technical/steuernachrichten/referentenentwurf-zum-dritten-behg-aenderungsgesetz-stabilisierung-des-co2-preises-fuer-2027
+- [Q17] BDEW: Quick Check 07.10.2026 https://www.bdew.de/media/documents/BDEW_Quick_Check_Gas_und_Strompreise261007.pdf; Strompreisanalyse 08/2026 https://www.bdew.de/media/documents/BDEW_Strompreisanalyse_082026.pdf; Gaspreisanalyse 08/2026 https://www.bdew.de/media/documents/BDEW_Gaspreisanalyse_082026.pdf; Gaspreisanalyse 01/2026 https://www.bdew.de/media/documents/BDEW_Gaspreisanalyse_012026_1.pdf
+- [Q18] Verbraucherzentrale NRW, Marktcheck Wärmepumpenstromtarife 02/2026: https://www.verbraucherzentrale.nrw/sites/default/files/2026-03/2026_02_marktcheck_warmepumpenstromtarife_vz-nrw.pdf
+- [Q19] Bauzinsen: https://www.drklein.de/finanzlexikon/darlehenszinsen.html; https://www.schwaebisch-hall.de/baufinanzierung/bauzinsen-aktuell.html
+- [Q20] EZB-Einlagensatz (Sekundärquelle): https://www.biallo.de/geldanlage/news/naechste-zinserhoehung-der-ezb
+- [Q21] Spareinlagen: https://www.inside-digital.de/vergleich/festgeld; https://www.tagesgeldvergleich.net/veroeffentlichungen/marktanalyse.html
+- [Q22] Destatis, Inflationsrate September 2026: https://www.destatis.de/DE/Presse/Pressemitteilungen/2026/10/PD26_364_611.html
+- [Q23] Baupreise Wohngebäude: https://ms-aktuell.de/welt/baupreise-dacharbeiten-teurer-12-10-2026/ (August 2026, Destatis-Zahlen); Destatis Mai 2026 https://www.destatis.de/DE/Presse/Pressemitteilungen/2026/07/PD26_241_61261.html
+- [Q24] ARGE eV / RegioKontext, „Wohnungsbau in Deutschland 2026“ (Bauforschungsbericht Nr. 93, März 2026): https://mieterbund.de/app/uploads/2026/03/studie_zum_wohnungsbau_2026.pdf
+- [Q25] Oberer Gutachterausschuss Brandenburg, Bewirtschaftungskosten nach Anlage 3 ImmoWertV 2022–2026: https://gutachterausschuss.brandenburg.de/sixcms/media.php/9/BewKo_2026.pdf
+- [Q26] EEG-Einspeisevergütung ab 01.08.2026: https://www.adac.de/rund-ums-haus/energie/spartipps/einspeiseverguetung-pv-anlagen; EEG-Reform 2027: https://reduco.ai/blog/einspeiseverguetung-aenderungen-2026-2027
+- [Q27] PV-Kosten: https://42watt.de/magazin/photovoltaik-kosten
+- [Q28] Wärmepumpenkosten: https://reduco.ai/blog/heizung/waermepumpe-kaskade-mehrfamilienhaus; https://www.aroundhome.de/heizung/waermepumpe/preise-kosten
+- [Q29] Mieten: https://vdiv.de/news-details/neubaumieten-von-20-euro-qm-etablieren-sich-als-neue-benchmark-in-deutschen-grossstaedten; https://www.immobilienscout24.de/unternehmen/fileadmin/user_upload/WohnBarometer_Q2_2026_Miete.pdf
+- [Q30] Bestandsmieten: https://www.sachsen-fernsehen.de/amp/bezahlbares-wohnen-in-sachsen-unter-druck-2236254/; Gewobag Geschäftsbericht 2025 https://berichte.gewobag.de/fileadmin/assets_2025/PDFs/Gewobag-Geschaefts-und-Nachhaltigkeitsbericht-2025-HGB.pdf
+- [Q31] Finanztip, KfW 261 (Zinsniveau Juni 2026): https://www.finanztip.de/kfw-foerderung/kfw-energieeffizient-sanieren/
+- [Q32] SIKB Hausbankenmitteilung 55/2024 (TZ-Verrechnung): https://www.sikb.de/sites/default/files/SIKB/Hausbankenmitteilungen%202024/HB_55_2024.pdf
+- [Q33] Interhyp, EH-55-Antragsfrist: https://www.interhyp.de/ratgeber/news/kfw-effizienzhaus-55-antragsfrist-juni-2026/

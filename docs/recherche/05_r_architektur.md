@@ -17,7 +17,10 @@
 > sind deutsch. Die Zeilenschlüssel der VoFi-Tabelle (`equity_in`, `loan_<k>_interest`, `od_draw` …), die
 > Ausgleichsrangfolge Ü1–Ü4/D1–D4 und die Invarianten I1–I6 übernimmt dieses Memo unverändert aus Memo 01.
 > Die Domänenentitäten und Parameterschlüssel (`project`, `building`, `unit_groups`, `measures`, `funding`, `legal_state` …)
-> stammen aus Memo 02.
+> stammen aus Memo 02. Abgestimmt sind außerdem das Stochastik-Overlay, die Verteilungen und Prozesse, die benannten
+> Zufallsströme und die Speicherstrategie aus Memo 04, die Steuerschnittstelle (`tax_category`, Anlagen- und
+> Maßnahmenregister, `tax_init`/`tax_step`/`tax_finalize`) aus Memo 06 und die Adaptivitätsanforderungen A-01 bis A-25
+> sowie die Referenzszenarien S1–S5 aus Memo 07. Wo die Memos voneinander abweichen, nennt Abschnitt 13 den Punkt.
 
 ---
 
@@ -26,7 +29,7 @@
 **Kernaussage.** Empfohlen wird **Variante A**: ein R-Paket `vofi` aus **reinen Funktionen über einfachen Listen mit
 S3-Klassen**, einem **über die Simulationen vektorisierten Matrix-Rechenkern** (alle Zeitreihen sind Matrizen
 N × (T+1), deterministisch heißt N = 1) und einer **Registry**, in der Zahlungskomponenten, Kreditinstrumente,
-Ausgleichsaktionen, Verteilungen, Treiber, Kennzahlen und Steuermodule als Funktionen eingetragen sind. Die Engine
+Ausgleichsaktionen, Verteilungen, stochastische Prozesse, Kennzahlen und Steuermodule als Funktionen eingetragen sind. Die Engine
 kennt keine konkreten Typen. Neue Typen entstehen als neue Datei, ohne dass sich der Kern ändert. Der Prototyp
 dieser Architektur rechnet **10.000 Simulationen × 83 Perioden** (12 Monate Bauphase + 70 Betriebsjahre, drei Kredite
 als Zustandsautomaten, Ausgleichsketten, Steuer-Slot) in **rund 0,3 s**, einen deterministischen Lauf in **rund 10 ms**.
@@ -38,17 +41,17 @@ Varianten und Sensitivitäten zu Fehlern führt.
 |---|---|---|
 | A1 | **Architektur A**: Paket `vofi`, Listen und S3, vektorisierter Matrix-Kern, Funktions-Registry. Long-Format-Data-Frames nur an der Ausgabegrenze (`as.data.frame()`). | Bestwert in fünf von sechs Kriterien (Abschnitt 2.6). Gemessen 0,12 bis 0,36 s je 10.000 Läufe. Minimale Abhängigkeiten. |
 | A2 | **Ein kanonisches Szenario-Objekt** (benannte R-Liste, Klasse `vofi_scenario`), in das **YAML** (versionierbar, für Fachentwickler und Git) und **Excel** (für Praktiker) verlustfrei übersetzt werden. Beide Richtungen sind getestet (Round-Trip). | Eine einzige Validierung und Auflösung. Excel speichert Zahlen gebietsschemaunabhängig, YAML bleibt diff-fähig. |
-| A3 | **Schichtenmodell für Parameter** mit Deep-Merge: Typ-Defaults < globale Defaults < Perspektiven-Profil < Bibliothekseinträge (`from:`) < Nutzerbibliothek < Szenario < Unsicherheiten < Variante < Laufzeit-Overrides. Für jeden Blattwert wird die **Herkunft** gespeichert (Datei, Eintrag, Excel-Zelle). | Adaptivität ohne Kopien. Nachvollziehbarkeit für Controller („woher kommt dieser Zinssatz?“). |
+| A3 | **Schichtenmodell für Parameter** mit Deep-Merge: Typ-Defaults < globale Defaults < Perspektiven-Profil < Bibliothekseinträge (`from:`) < Nutzerbibliothek < Szenario < Stochastik-Overlay (Memo 04, nur MC) < Variante < Laufzeit-Overrides. Für jeden Blattwert wird die **Herkunft** gespeichert (Datei, Eintrag, Excel-Zelle). | Adaptivität ohne Kopien. Nachvollziehbarkeit für Controller („woher kommt dieser Zinssatz?“). |
 | A4 | **Zwei Eingabeebenen**: Die *Domänenebene* (Gebäude, Wohnungsgruppen, Maßnahmen, Förderung nach Memo 02) wird von **Expandern** in die *Komponentenebene* (typisierte Zahlungskomponenten und Instrumente) übersetzt. Die Engine sieht nur Komponenten. Komponenten lassen sich auch direkt angeben. | Fachlich natürliche Eingabe, generischer Kern, Ausweg für Sonderfälle (`custom_series`). |
-| A5 | **Registry mit Arten** (`flow`, `instrument`, `account_action`, `expander`, `distribution`, `driver`, `kpi`, `tax`, `rule`). Eingebaute Typen werden beim Laden über die **Namenskonvention `typedef_*`** gefunden, es gibt keine zentrale Liste. | Parallele Entwicklung ohne Merge-Konflikte. Ein Vertragstest prüft jeden registrierten Typ automatisch. |
+| A5 | **Registry mit Arten** (`flow`, `instrument`, `account_action`, `expander`, `distribution`, `process`, `kpi`, `tax`, `rule`). Eingebaute Typen werden beim Laden über die **Namenskonvention `typedef_*`** gefunden, es gibt keine zentrale Liste. | Parallele Entwicklung ohne Merge-Konflikte. Ein Vertragstest prüft jeden registrierten Typ automatisch. |
 | A6 | **Kredite sind Zustandsautomaten** (`init`/`step`/`prepay`) in der Periodenschleife (Memo 01, E9). **Ausgleich** über konfigurierbare **Aktionsketten** Ü1–Ü4/D1–D4 inklusive Engpass-Policy (Memo 01, 3.2). | Sondertilgung, Anschlusszins, Tilgungszuschuss und Kontokorrent wirken ohne Sonderfälle zusammen. Die Kosten sind gemessen vernachlässigbar. |
-| A7 | **Steuer-Hook** als Modul mit `prepare(ctx, ledger, assets)` und `step(tctx, t, base, state)`. Standard ist `none`: Der Slot wird übersprungen, die Steuerzeile ist 0. Jede Zeile trägt ab v1 die Pflicht-Tags `section`, `category`, `tax_class` und `cash`, jede Investition ein **Asset** mit AfA-Basis. | Das spätere Steuermodul braucht kein Refactoring. Der Slot sieht auch endogene Zinsen (Habenzinsen, KK-Zinsen) und ist nicht zirkulär. |
-| A8 | **Zufallszahlen strikt getrennt vom Rechnen**: Ein zentraler Sampler erzeugt Ziehungen je *Parameterpfad* (Schlüssel) und *RNG-Block* (1.000 Läufe) mit abgeleiteten Seeds. Typen ziehen nie selbst. | Gemeinsame Zufallszahlen (CRN) über Varianten. Jeder Lauf ist exakt reproduzierbar, unabhängig von Chunk-Größe und Worker-Zahl. Ein neuer Parameter verschiebt keine anderen Ziehungen (im Prototyp geprüft). |
+| A7 | **Steuer-Hook nach Memo 06 §7**: S3-Generics `tax_init`/`tax_step`/`tax_finalize`, aufgerufen in jeder Periode vor dem Ausgleich. Das Null-Modul `tax_none` läuft in jedem Lauf (Zeile „Ertragsteuern“ sichtbar mit 0). Jede Zeile trägt ab v1 `section`, `category`, `tax_category` (Vokabular Memo 06 §7.2) und `cash`, Investitionen und Förderung zusätzlich `asset_id`/`measure_id`. Anlagen- und Maßnahmenregister gibt es ab v1. | Das spätere Steuermodul braucht kein Refactoring. Der Slot sieht auch endogene Zinsen (Habenzinsen, KK-Zinsen) und ist nicht zirkulär. `tax_flat` (Memo 06 §6.2) prüft die Schnittstelle als Referenzmodul. |
+| A8 | **Zufallszahlen strikt getrennt vom Rechnen**: Ein zentraler Sampler erzeugt Ziehungen je *benanntem Strom* (Memo 04 §4.3) und *RNG-Block* (1.000 Läufe = ein LHS-Replikat) mit abgeleiteten Seeds. Typen ziehen nie selbst. | Gemeinsame Zufallszahlen (CRN) über Varianten. Jeder Lauf ist exakt reproduzierbar, unabhängig von Chunk-Größe und Worker-Zahl. Ein neuer Parameter verschiebt keine anderen Ziehungen (im Prototyp geprüft). |
 | A9 | **Ergebnisklassen** `vofi_result`, `vofi_mc_result`, `vofi_comparison`, `vofi_sensitivity` mit `print`, `summary`, `format`, `plot`, `as.data.frame`. Die VoFi-Tabelle im Grob-Layout und transponiert stammt aus einem Ledger (Zeilen-Metadaten + Matrizen). | Eine Datenquelle für Konsole, Excel, HTML und Shiny. |
 | A10 | **Alle deutschen Texte in Label-Katalogen** (`inst/labels/de/*.yaml`), nicht im R-Code. | Im Test geprüft: Umlaute im R-Code erzeugen bei `R CMD check` eine WARNING („Portable packages must use only ASCII characters in their R code“). Mit Katalog ergibt `R CMD check` Status OK. roxygen-Doku mit Umlauten ist unproblematisch (`Encoding: UTF-8`). |
 | A11 | **Imports minimal: `yaml`, `openxlsx`** (rekursiv 6 Fremdpakete) plus `stats`, `utils`, `tools`. Alles andere (ggplot2, rmarkdown, shiny, future.apply, …) steht in Suggests. | Schlanke Installation und stabile Wartung. LHS, Copula und Wurzelsuche sind in wenigen Zeilen Base R umsetzbar. |
 | A12 | **Testpyramide**: Vertragstests je Typ, Orakel (a) bis (f) aus Memo 01, Invarianten I1–I6 für alle Läufe, eine **skalare Referenz-Engine** für Differenztests, metamorphe und statistische MC-Tests sowie Snapshots für deutsche Ausgaben. Abdeckung ≥ 90 % im Kern, ≥ 80 % gesamt. `R CMD check` ohne WARNING/NOTE. | Die Korrektheit des Rechenkerns ist das Hauptrisiko. Vektorisierungsfehler (`max` statt `pmax`) fängt der Invarianz-Test „Lauf i im Batch = Einzellauf i“ ab. |
-| A13 | **Reporting v1**: VoFi-Tabelle (Konsole, Excel mit Formel-Finanzierungssaldo), Kennzahlen, ggplot2-Grafiken, HTML- und DOCX-Bericht über rmarkdown. **Shiny erst in v1.1** als Viewer mit Parameter-Reglern. | Hoher Nutzen bei geringem Risiko. Shiny hängt von einer stabilen API ab. |
+| A13 | **Reporting v1**: VoFi-Tabelle (Konsole, Excel mit Formel-Finanzierungssaldo), Kennzahlen, ggplot2-Grafiken, HTML- und DOCX-Bericht über rmarkdown, jeweils im Fach- und im Haushaltsmodus (Memo 07). **Shiny erst in v1.1** als Viewer mit Parameter-Reglern. | Hoher Nutzen bei geringem Risiko. Shiny hängt von einer stabilen API ab. |
 | A14 | **Parallele Umsetzung**: Phase 0 (seriell) friert Verträge ein, legt Stubs aller exportierten Funktionen an, dazu Testhelfer, Vokabulare, CI und ein lauffähiges End-to-End-Gerüst. Danach arbeiten 6 bis 8 Agenten parallel an disjunkten Dateien (Abschnitt 12). | Konfliktdateien (DESCRIPTION, NAMESPACE, zzz.R, Verträge) gehören nur dem Integrator. |
 
 ---
@@ -85,8 +88,8 @@ Ergebnisse sind S3-Objekte mit generischen Methoden.
   isoliert testbare Funktionen. Die Vektorisierung über N gibt dem deterministischen und dem stochastischen Fall
   denselben Codepfad. Es braucht fast keine Abhängigkeiten. Idiomatisch für R-Pakete (roxygen, S3-Generics).
 - **Schwächen:** Die Disziplin bei Vektorisierung ist kritisch (`pmax` statt `max`, `drop = FALSE`). Abhilfe sind
-  Vertrags- und Invarianztests. Der Speicherbedarf bei vollem Ledger ist hoch (36 Zeilen × 10.000 × 81 ≈ 179 MB).
-  Abhilfe ist die `keep`-Strategie (Abschnitt 6.9).
+  Vertrags- und Invarianztests. Der Speicherbedarf bei vollem Ledger ist hoch (36 Zeilen × 10.000 × 81 × 8 Byte ≈ 233 MB).
+  Abhilfe ist die `store`-Strategie (Abschnitt 6.9).
 
 ### 2.2 Alternative B: R6-Objektmodell
 
@@ -151,7 +154,7 @@ nicht äquidistantem Raster (12 Monatsperioden + Jahresperioden). Der Code von P
 | **P3 Monte Carlo** (12 Monate Bau + 70 J.) | 10.000 | 83 | **0,30 s** | 719 MB |
 | P3 Monte Carlo mit Steuer-Slot | 10.000 | 83 | 0,28 s | 738 MB |
 | Skalierung P1 (nur Kennzahlen) | 1 / 100 / 1.000 / 10.000 / 50.000 | 41 | 2,1 ms / 4,4 ms / 32 ms / 0,23 s / 1,17 s | linear |
-| Ledger im Speicher (P2, 36 Zeilen) | 10.000 | 81 | – | 179 MB |
+| Ledger im Speicher (P2, 29 exogene Zeilen, `object.size`) | 10.000 | 81 | – | 179 MiB |
 | Kennzahl VoFi-Rendite, vektorisierte Bisektion naiv (`outer`) | 10.000 | 81 | 836 ms | – |
 | Kennzahl VoFi-Rendite, Bisektion mit Horner-Schema | 10.000 | 81 | **28 ms** (Abw. zu `uniroot` < 1e-11) | – |
 | Quantilbänder (5 Quantile je Periode, eine Zeile) | 10.000 | 81 | 28 ms | – |
@@ -220,8 +223,8 @@ vofi/
 │   ├── utils-*.R  time-grid.R  values.R  expr.R
 │   ├── scenario-*.R  io-yaml.R  io-excel-*.R  schema.R  validate-*.R
 │   ├── expand-*.R  rules-*.R
-│   ├── sampling.R  dist-*.R  driver-*.R
-│   ├── engine-*.R  account-actions.R  kpi-*.R  tax-hook.R  opportunity.R
+│   ├── sampling.R  dist-*.R  process-*.R
+│   ├── engine-*.R  account-actions.R  kpi-*.R  tax-hook.R  tax-none.R  tax-flat.R  tax-selfuse.R  opportunity.R
 │   ├── type-flow-*.R  type-inst-*.R
 │   ├── mc.R  compare.R  sensitivity.R  solve.R
 │   ├── methods-*.R  report-*.R  app.R
@@ -234,16 +237,17 @@ vofi/
 │   │   │   ├── legal/    mietrecht_2026-10.yaml  co2kostaufg_2026-07.yaml  …
 │   │   │   ├── prices/   co2_price_paths_2026.yaml  energy_prices_2026.yaml  interest_rates_2026-10.yaml
 │   │   │   ├── costs/    bewirtschaftung_2026.yaml  lifetimes.yaml  …
-│   │   │   ├── drivers/  rent_index_de.yaml  construction_price_index.yaml  …
+│   │   │   ├── processes/  mortgage_rate_vasicek_2026.yaml  inflation_ar1_de.yaml  …
 │   │   │   └── valuation/ immowertv_anlage2.yaml  …
 │   │   └── examples/                      # Beispielszenarien (YAML + daraus erzeugte XLSX)
-│   │       ├── neubau_mfh_wu.yaml  sanierung_efh_selbstnutzer.yaml
-│   │       ├── sanierung_mfh_kleinvermieter.yaml  grob_lehrbuch_a.yaml
+│   │       ├── s1_wu_sanierung_mfh_1963.yaml … s5_selbstnutzer_neubau_efh.yaml   # Memo 07 S1–S5
+│   │       ├── grob_lehrbuch_a.yaml                                           # Memo 01 (a)
 │   │       └── *.xlsx
 │   ├── labels/de/                         # deutsche Texte, je Modul/Typ eine Datei
 │   │   ├── core.yaml  validation.yaml  report.yaml  kpi.yaml  excel.yaml
 │   │   └── types/<typname>.yaml
-│   ├── vocab/  sections.yaml  categories.yaml  tax_classes.yaml  asset_classes.yaml  enums.yaml
+│   ├── vocab/  sections.yaml  categories.yaml  tax_categories.yaml  asset_types.yaml  enums.yaml
+│   ├── params/ steuern_DE.yaml                # versionierte Steuerparameter (Memo 06 §7.6)
 │   ├── templates/
 │   │   ├── vofi_eingabe.xlsx              # aus Registry generiert (data-raw/build_template.R)
 │   │   └── report/  vofi_bericht.Rmd  vofi_bericht.css  referenz.docx
@@ -367,8 +371,8 @@ roxygen-Doku mit Umlauten ergab **`Status: OK`**. Daraus folgen diese Regeln:
 #' @param model Ein Objekt der Klasse `vofi_model`, erzeugt mit [vofi_build()].
 #' @param n_sim Anzahl der Simulationsläufe (ganze Zahl >= 1).
 #' @param seed Startwert des Zufallszahlengenerators. `NULL` übernimmt
-#'   `analysis$mc$seed` aus dem Szenario.
-#' @param keep Umfang der gespeicherten Zwischenergebnisse, siehe Abschnitt
+#'   `stochastic$settings$seed` aus dem Szenario.
+#' @param store Umfang der gespeicherten Zwischenergebnisse, siehe Abschnitt
 #'   „Speicherstrategie“.
 #' @param chunk_size Läufe je Rechenblock (Vielfaches von 1.000); steuert
 #'   nur den Speicherbedarf, nicht die Ergebnisse.
@@ -376,12 +380,12 @@ roxygen-Doku mit Umlauten ergab **`Status: OK`**. Daraus folgen diese Regeln:
 #'   `vofi_mc_result`.
 #' @family Rechnen
 #' @examples
-#' sz <- vofi_read_scenario(vofi_example("sanierung_efh_selbstnutzer"))
+#' sz <- vofi_read_scenario(vofi_example("s4_selbstnutzer_efh_1975"))
 #' m  <- vofi_build(sz)
 #' vofi_run(m)
 #' @export
 vofi_run <- function(model, n_sim = 1L, seed = NULL,
-                     keep = c("auto", "ledger", "paths", "kpi"),
+                     store = c("auto", "full", "bands", "kpi"),
                      chunk_size = getOption("vofi.chunk_size", 10000L)) { … }
 ```
 
@@ -576,6 +580,7 @@ einen N-Vektor (`shape = "scalar"`) oder eine N × (T+1)-Matrix (`shape = "path"
 | Bezug | `{ref: building.living_area_m2}`, `{ref: market.rent_growth}` ggf. mit `scale`, `offset` | `ref` | Wert eines anderen Pfades. Zielt ein Prozess des Overlays auf diesen Pfad, ist es in der MC dessen N × (T+1)-Pfad |
 | Wachstum | `{start: 7.2, growth: {ref: market.rent_growth}}` oder `growth: 0.02` | `growth` | Startwert × kumulierter Index |
 | Ausdruck (eingeschränkt) | `{expr: "building.n_units * 150000"}` | `expr` | sichere Auswertung (4.12) |
+| Mengenbezug (Memo 07 A-14) | `{value: 14, per: m2_living_area}`; `per` ∈ `total`, `unit`, `m2_living_area`, `m2_component:<bauteil>`, `kw`, `kwp`, `kwh` | `quantity` | Wert × Bezugsgröße aus `building` (z. B. `component_areas_m2`) |
 | Automatisch | `auto` (nur zugelassene Parameter, z. B. Kreditbetrag) | `auto` | vom Build/der Engine bestimmt |
 
 Der **Basiswert** für den deterministischen Lauf ist der deterministische Wert am Zielpfad (Overlay-Prinzip nach
@@ -664,7 +669,7 @@ deep_merge <- function(base, override) {
 - **Ein Eintrag je Datei**, Pfad = id (`funding/kfw_261_eh55`). Das erlaubt paralleles Pflegen und saubere
   Git-Historien.
 - Pflichtmetadaten nach Memo 02 §10: `source` (Dokument, URL), `accessed`, `valid_from`, `valid_to`, `uncertainty`
-  (optional), `schema_version`, `target` (`funding` | `financing` | `drivers` | `components` | `legal` …).
+  (optional), `schema_version`, `block` (Zielblock: `funding` | `financing` | `processes` | `components` | `legal` …; bewusst nicht `target`, das im Overlay einen Pfad bezeichnet).
 - `from:` merged die Werte des Eintrags *unter* die lokale Angabe (lokal gewinnt).
 - **Validierung:** Liegt `application_date` außerhalb von `valid_from`/`valid_to`, gibt es eine Warnung, ebenso wenn
   `accessed` älter als 6 Monate ist (Memo 02 §10 Nr. 5).
@@ -677,7 +682,25 @@ deep_merge <- function(base, override) {
 ### 4.8 Varianten
 
 - `base` ist implizit die Basisvariante. Jede Variante hat `label` (deutsch), optional `description` und `extends`
-  (Standard `base`; Ketten erlaubt, Zyklen sind ein Fehler).
+  (Standard `base`; Ketten erlaubt, Zyklen sind ein Fehler). `project$reference_variant` (Memo 07) ist die
+  Standard-Basis für `vofi_compare()`.
+- **Explizite Operationen** (Memo 07 A-04: Vererbung nur mit ausdrücklichen Operationen, sonst Fehlerquelle). Intern
+  wird jede Variante in eine geordnete Liste von Pfadoperationen übersetzt:
+
+  | Operation | Wirkung | Prüfung |
+  |---|---|---|
+  | `set: {pfad: wert}` | Wert setzen; bei Maps Deep-Merge | Fehler, wenn der Pfad in der Elternvariante nicht existiert (Schutz vor Tippfehlern, die sonst still einen neuen Schlüssel anlegen) |
+  | `replace: {pfad: wert}` | Teilbaum vollständig ersetzen | Pfad muss existieren |
+  | `add: {sammlung.id: {...}}` | neuen Eintrag anlegen (Maßnahme, Kredit, Komponente) | Fehler, wenn die id schon existiert |
+  | `remove: [pfad, …]` | Eintrag löschen | Pfad muss existieren |
+
+  Die Baumform `overrides:` (wie im YAML-Beispiel) ist Kurzschrift für `set` mit derselben Existenzprüfung. `~` (null)
+  in `overrides` entspricht `remove`.
+- **Gemeinsame Bausteine** über YAML-Anker und -Aliase (`&wp`, `*wp`, Merge-Schlüssel `<<:`; das yaml-Paket
+  unterstützt sie, `merge.precedence = "override"`) oder über einen Block `shared`, auf den `{ref: shared.…}` verweist.
+- **Deterministische Szenario-Sets** (Memo 07 A-24, z. B. „Zinsschock“, „Förderstopp“) sind Varianten mit `set` auf
+  `market`- bzw. `funding`-Pfaden. Sie lassen sich mit jeder Projektvariante kreuzen
+  (`vofi_compare(sz, variants = …, scenario_sets = …)`).
 - **Vergleichbarkeitsprüfung** beim Vergleich (Memo 01 §5.1): gleiche Horizonte, gleiches EK-Budget, gleiche
   Konto-Konditionen. Abweichungen sind ein Fehler, außer bei ausdrücklichem `allow_unequal: true`.
 - `vofi_variants(sz)` listet die Varianten. `vofi_compare(sz)` rechnet alle Varianten mit gemeinsamen Zufallszahlen.
@@ -789,7 +812,7 @@ liefern N-Vektoren). Unbekannte Funktionen oder Symbole sind Validierungsfehler.
 | `distribution` | Zufallsverteilungen | `quantile(u, par)`, `point(par, which)`, `validate(par)`, `moments(par)` |
 | `process` | stochastische Zeitreihenprozesse (Memo 04 §2.2) | `simulate(par, z, grid, ctx)` → N × (T+1); `expected(par, grid)` (Basisfallpfad); `n_shocks(par)`; Prozessparameter dürfen selbst verteilt sein (Memo 04 E3) |
 | `kpi` | Kennzahlen | `compute(core, ctx)` → N-Vektor + NA-Gründe |
-| `tax` | Steuermodule | `prepare`, `step`, `finalize` (5.10) |
+| `tax` | Steuermodule | Konstruktor eines Modulobjekts; S3-Methoden `tax_init`, `tax_step`, `tax_finalize` (5.10, Memo 06 §7.12) |
 | `rule` | versionierte Rechtsregeln | Funktion, Auswahl nach `legal_state` |
 
 ### 5.2 Typdefinition (Felder) und Beispiel
@@ -859,8 +882,8 @@ Labels. Ein Überschreiben vorhandener Typen ist nur mit `overwrite = TRUE` mög
 | `ctx$n`, `ctx$T` | Läufe im Chunk, letzter Periodenindex |
 | `ctx$grid` | Raster: `t` (0…T), `delta` (Δ_t in Jahren), `tau`, `date_end`, `phase` (`construction`/`operation`), `label`; Helfer `index_of(date)`, `active(from, to)`, `rate_nom(r_pa)` = r·Δ, `rate_eff(r_pa)` = (1+r)^Δ − 1, `per_period(x_pa)`, `fine(step)` und `aggregate(x_fine)` für interne Monatsrechnung |
 | `ctx$project`, `ctx$building` | aufgelöste Domänendaten (nur lesen) |
-| `ctx$param(spec, name, shape)` | Parameterwert als N-Vektor oder N × (T+1)-Matrix (Konstante, Reihe, Ziehung, Treiber, Bezug, Ausdruck) |
-| `ctx$driver(name)` | Treiberpfad N × (T+1) |
+| `ctx$param(spec, name, shape)` | Parameterwert als N-Vektor oder N × (T+1)-Matrix (Konstante, Reihe, Ziehung, Bezug inkl. Prozesspfad, Ausdruck) |
+| `ctx$market(name)` | Marktgröße als N × (T+1)-Pfad: Basisfall aus `market`, in der MC der Pfad des Prozesses, der auf `market.<name>` zielt |
 | `ctx$zeros()`, `ctx$by_sim(x)`, `ctx$by_period(x)` | Nullmatrix; Broadcast eines N-Vektors (je Lauf) bzw. eines Zeitvektors der Länge T+1 (je Periode) auf N × (T+1). **Zwei getrennte Helfer, weil R beim Recycling `Matrix * Vektor` immer entlang der Zeilen ausrichtet:** `m * v` ist für einen N-Vektor richtig, für einen Zeitvektor falsch (bei N = T+1 sogar ohne Fehlermeldung). Zeitvektoren deshalb immer über `by_period()` |
 | `ctx$component(id)` | Ergebnis (`vofi_flows`) einer **deklarierten** Vorgängerkomponente, sonst Fehler |
 | `ctx$rows(filter)` | exogene Zeilen nach Tags (z. B. `category == "rent"`) |
@@ -871,13 +894,20 @@ Labels. Ein Überschreiben vorhandener Typen ist nur mit `overwrite = TRUE` mög
 ### 5.4 Rückgabevertrag: `vofi_flows`, `vofi_row`, `vofi_asset`
 
 ```r
-vofi_row(key, values, section, category, tax_class, cash = TRUE, label = NULL)
-#  values: numerische Matrix N x (T+1); Vorzeichen: Zufluss +, Abfluss -
-vofi_asset(id, basis, asset_class, cost_nature, in_service_period,
-           useful_life_years = NULL, land_share = 0, rented_share = NULL,
-           afa_hint = NULL, measure = NULL, funding_links = character())
-vofi_flows(..., assets = list(), memo = list(), meta = list())
+vofi_row(key, values, section, category, tax_category, cash = TRUE, asset_id = NULL,
+         measure_id = NULL, vat_rate = 0, vat_recoverable = FALSE, label = NULL, ...)
+#  values: numerische Matrix N x (T+1), Bruttobeträge; Vorzeichen: Zufluss +, Abfluss -
+#  ...: weitere Zahlungsbuch-Attribute nach Memo 06 §7.3 (tax_period, spread_years, program, is_tax ...)
+vofi_asset(asset_id, asset_type, in_service_period, land_share = 0, afa_method = NULL,
+           useful_life_override = NULL, construction_start_date = NULL,
+           building_application_date = NULL, original_completion_year = NULL, acquisition_date = NULL)
+vofi_measure(measure_id, measure_type, classification = c("auto", "erhaltung", "herstellung"),
+             classification_source = "default", completion_date = NULL, funding_choice = NULL, ...)
+vofi_flows(..., assets = list(), measures = list(), memo = list(), meta = list())
 ```
+
+Die AfA-Bemessungsgrundlage ist bewusst **kein** Feld von `vofi_asset()`. Sie entsteht im Steuermodul aus den
+zugeordneten Zeilen (Memo 06 §7.4).
 
 Typen vergeben nur lokale Zeilenschlüssel (`"saving"`, `"interest"`). Den Ledger-Schlüssel setzt die Engine:
 `<komponenten_id>_<zeile>` für Zahlungskomponenten (z. B. `pv_saving`), `loan_<k>_<zeile>` für Kredite (Memo 01
@@ -895,7 +925,7 @@ den deklarierten.
   `repay`, `fees`) und Merkzeilen (`repayment_grant`, zahlungsunwirksam).
 - Liegt die **Vertragsfrequenz** über der Rasterfrequenz (monatliche Annuität, Jahresperiode), rechnet `step()`
   intern `m = payments_per_year · Δ_t` Teilschritte und summiert (Memo 01 E7, Test (f)).
-- **Anschlusszins** nach Zinsbindung kommt aus `followup_rate_pa` (Konstante oder Treiberpfad). Die neue Rate folgt
+- **Anschlusszins** nach Zinsbindung kommt aus `followup_rate_pa` (Konstante oder Bezug auf `market.mortgage_rate`, in der MC Prozesspfad). Die neue Rate folgt
   `refi_rule` (Memo 01 §2.4 (7)).
 - **Tilgungszuschuss** mindert den Bestand am Ende von `t_TZ`, mit der Wirkung `shorten_term` oder
   `reduce_installment` (Memo 01 E9, K7).
@@ -960,7 +990,7 @@ vofi_register_type(vofi_type(
     kwp            = vofi_param("number", min = 0, unit = "kWp", required = TRUE),
     yield_kwh_kwp  = vofi_param("number", default = 950, unit = "kWh/kWp/a", stochastic = TRUE),
     self_use_share = vofi_param("share", default = 0.3, stochastic = TRUE),
-    power_price    = vofi_param("value", default = list(driver = "power_price"), unit = "EUR/kWh"),
+    power_price    = vofi_param("value", default = list(ref = "market.power_price"), unit = "EUR/kWh"),
     feed_in_eur_kwh = vofi_param("number", default = 0.08, unit = "EUR/kWh")
   ),
   build = function(spec, ctx) {
@@ -969,9 +999,10 @@ vofi_register_type(vofi_type(
     own  <- prod * ctx$param(spec, "self_use_share")                         # N-Vektor: Recycling korrekt
     vofi_flows(
       vofi_row("saving", own * ctx$param(spec, "power_price", "path"), section = "project",
-               category = "energy", tax_class = "private", label = "PV: vermiedener Strombezug"),
+               category = "energy", tax_category = "imputed_benefit", label = "PV: vermiedener Strombezug"),
       vofi_row("feed_in", (prod - own) * ctx$param(spec, "feed_in_eur_kwh"), section = "project",
-               category = "other_income", tax_class = "other_taxable_income", label = "PV: Einspeisung")
+               category = "other_income", tax_category = "income_tax_exempt",   # § 3 Nr. 72 EStG, Memo 06
+               label = "PV: Einspeisung")
     )
   },
   example = list(kwp = 10)
@@ -981,79 +1012,103 @@ vofi_register_type(vofi_type(
 Danach ist `type: pv_system` in YAML und Excel nutzbar. Ein frisch erzeugtes Excel-Template enthält den Typ in der
 Auswahlliste, und der Vertragstest kann auf ihn angewendet werden (`vofi_check_type("pv_system")`).
 
-### 5.10 Steuer-Hook
+### 5.10 Steuer-Hook (abgestimmt mit Memo 06 §7)
 
-**Schnittstelle:**
+Die fachliche Spezifikation der Schnittstelle steht in **Memo 06 §7** (Tags, Zahlungsbuch, Anlagen- und
+Maßnahmenregister, Steuerzustand, Modul-API, Pflicht-Tests). Dieses Memo übernimmt sie und legt fest, wie sie in die
+Registry und die Periodenschleife eingebettet wird.
+
+**Modul-API** (S3-Generics nach Memo 06 §7.12; die Klasse des Moduls bestimmt die Methode):
 
 ```r
-vofi_tax_module(
-  name     = "none",
-  prepare  = function(ctx, ledger, assets) NULL,  # einmal je Chunk, vor der Schleife
-  step     = NULL,                                # NULL => Engine überspringt den Slot (St_t = 0)
-  finalize = NULL                                 # optional: Veräußerung am Horizont, Detailzeilen
-)
-
-# Allgemeine Form eines Steuermoduls
-step <- function(tctx, t, base, state) {
-  # base: benannte Liste von N-Vektoren = Summen der Periode t je tax_class,
-  #       inkl. endogener Klassen (financing_cost aus Krediten/KK, capital_income aus Habenzinsen)
-  # state: Verlustvortrag, Restbuchwerte, Lag-Zahlungen ...
-  list(tax = <N-Vektor; Zahlung negativ, Erstattung positiv>, state = state,
-       detail = list(taxable_base = ..., afa = ..., loss_carryforward = ...))   # Merkzeilen
-}
+tax_init(module, params, assets, measures, n_sim)              # -> state (Verlustvortrag, Buchwerte, tax_due ...)
+tax_step(module, t, inputs, interest, state, params)           # -> list(payment, state, report)
+tax_finalize(module, T, state, terminal_inputs, params)        # -> list(payment_T, report)
+# Klassen: "tax_none" (Standard, läuft in jedem Lauf), "tax_flat" (v1-L, Standard aus, für Selbstnutzer und
+#          steuerbefreite Rechtsträger gesperrt), "tax_selfuse" (v1-S: § 35c-Generator, Habenzins nach Abgeltung),
+#          später "tax_full_private", "tax_corporate"
 ```
 
-- **Aufrufzeitpunkt** in jeder Periode t (Memo 01 §3.3, Schritt 5): nach den Kreditautomaten und den Kontozinsen,
-  **vor dem Ausgleich**. Alle Größen in `base` sind vor dem Ausgleich bekannt, die Rechnung bleibt nicht zirkulär. Ein
-  Veranlagungs-Lag (Zahlung in t+1) ist Sache des Moduls (Zustand).
-- **`prepare(ctx, ledger, assets)`** bekommt die exogenen Zeilen mit Tags und alle Assets (AfA-Basen als N-Vektoren,
-  Inbetriebnahmeperiode, Nutzungsdauer, `cost_nature`, Förderverknüpfungen). Daraus berechnet es vorab AfA-Pläne und
-  die exogenen Bemessungsteile.
+**Einbettung in die Architektur:**
+
+- **Registrierung:** Registry-Art `tax`. `vofi_register_tax_module(name, constructor, label = NULL, perspectives =
+  NULL)` trägt einen Konstruktor ein, der ein Objekt der Modulklasse liefert. Fremdpakete (z. B. ein späteres
+  `vofiTax`) registrieren in ihrem `.onLoad` und liefern S3-Methoden für `tax_init`/`tax_step`/`tax_finalize`.
+  `perspectives` erzwingt die Sperren aus Memo 06 §6.
+- **`inputs`** baut die Engine vor der Schleife: Aggregation der exogenen Ledger-Zeilen je **Steuerschlüssel**
+  (`tax_category × asset_id × measure_id`) zu Matrizen N × (T+1) (Memo 06 §7.3). In Periode t bekommt das Modul die
+  Spalte t als N-Vektoren.
+- **`interest`** = `list(exo_soll, endo_soll, endo_haben)`: Zinsen der Kreditautomaten aus Periode t sowie
+  KK- und Habenzinsen auf die Bestände t−1. Damit sieht das Modul auch die endogenen Zinsen, ohne dass Zirkularität
+  entsteht (Memo 01 §3.4, Memo 06 §7.8).
+- **Aufrufzeitpunkt** je Periode (Memo 01 §3.3, Schritt 5): nach den Kreditautomaten und den Kontozinsen, **vor
+  dem Ausgleich**. Die Engine bucht `tax = −payment` (Erstattung positiv) in die Zeile `tax`. Ein Veranlagungs-Lag
+  (`lag = 1`) ist Sache des Modulzustands.
+- **`tax_finalize()`** liefert die am Horizont offene Steuer (Lag, offene § 35c-Tranchen, Veräußerung/Restwert). Die
+  Engine bucht sie als Forderung bzw. Verbindlichkeit in den Endwert (Memo 06 §7.11) und weist sie als eigene Zeile
+  aus.
+- **`report`** je Periode geht als Merkzeilen (`section = "memo"`, „steuerliche Nebenrechnung“) in den Ledger.
+- **`tax_none`** wird in jedem Lauf aufgerufen, damit der Codepfad getestet ist (Memo 06 §6.1 Nr. 2). Der Mehraufwand ist
+  gering: Der Prototyp mit einem Pauschalmodul brauchte bei 10.000 × 81 rund 20 % mehr Laufzeit (0,30 → 0,36 s),
+  das Null-Modul liegt deutlich darunter.
+- **Unterlassungsalternative:** `vofi_opportunity()` verwendet dasselbe Modul (Memo 01 E11).
 - **Vereinfachte Form** für Module ohne endogene Größen: `vofi_tax_module_simple(name, fun)` mit
-  `fun(ctx, base_matrix)` → N × (T+1)-Steuermatrix. Dokumentierte Grenze: Habenzinsen und KK-Zinsen bleiben
-  unberücksichtigt. Für den Pauschalsteuermodus v1.1 aus Memo 01 (Satz auf Überschuss − Zinsen − AfA + Habenzinsen)
-  reicht das nicht, dafür ist `step` vorgesehen.
-- **Unterlassungsalternative:** `vofi_opportunity()` übernimmt dasselbe Steuermodul (Memo 01 E11).
-- **Prototyp:** Der Hook mit Pauschalsatz kostet bei 10.000 × 81 rund +20 % Laufzeit (0,30 → 0,36 s).
+  `fun(inputs_matrix, params)` → N × (T+1)-Zahlungsmatrix. Dokumentierte Grenze: KK- und Habenzinsen bleiben
+  unberücksichtigt. Nur für Experimente gedacht, nicht für `tax_flat`.
 
-### 5.11 Pflicht-Tags (ab v1, damit das Steuermodul später ohne Refactoring passt)
+### 5.11 Pflicht-Tags und Register (ab v1, damit das Steuermodul ohne Refactoring passt)
 
-**Zeilenebene** (jede `vofi_row`): `key`, `section`, `category`, `tax_class`, `cash` (zahlungswirksam), dazu automatisch
-`source` (Komponenten-id), `source_type`, `phase`.
+**Zeilenebene** (jede `vofi_row`, entspricht dem Zahlungsbuch aus Memo 06 §7.3). Pflichtfelder sind `key`, `section`,
+`category`, **`tax_category`**, `cash` sowie bei Investitionen und Förderung **`asset_id`** bzw. **`measure_id`**. Die
+Engine setzt `source`, `source_type` und `phase` automatisch. Optional bzw. per Default:
 
-**Vokabular `tax_class`** (`inst/vocab/tax_classes.yaml`, Codes englisch, Bedeutung deutsch; die steuerliche Behandlung
-legt erst das Steuermodul fest):
+- USt-Trennung: `vat_rate` (Default 0), `vat_recoverable` (Default `FALSE`). `values` sind **Bruttobeträge**;
+  netto und USt leitet die Engine bei Bedarf ab. Das ist v1-Pflicht nach Memo 06 §0 Nr. 4.
+- `tax_period`, `spread_years`, `use_share_rented`, `program`, `activity_type`, `is_tax` (`grundsteuer`,
+  `grunderwerbsteuer`, `umsatzsteuer`) und `stochastic_source` (Prozess bzw. Parameter für die Auswertung; heißt in
+  Memo 06 `driver`).
 
-| Code | Bedeutung / Beispiele | spätere Behandlung (Hinweis, fachlich im Steuer-Memo zu prüfen) |
-|---|---|---|
-| `rental_income` | Mieten, Modernisierungsumlage, sonstige Einnahmen aus V+V | Einnahme V+V bzw. Betriebseinnahme |
-| `other_taxable_income` | Einspeisevergütung, sonstige steuerpflichtige Einnahmen | je Regime |
-| `deductible_expense` | nicht umlagefähige Bewirtschaftung, Verwaltung, Grundsteuer, Mietausfall | sofort abziehbar |
-| `maintenance_expense` | Erhaltungsaufwand, Ohnehin-Instandhaltung | sofort oder verteilt (§ 82b EStDV, Option) |
-| `production_cost` | Herstellungskosten (Neubau, Erweiterung, Standardhebung) | AfA über Asset |
-| `acquisition_cost` | Anschaffungskosten Gebäude inkl. Nebenkosten | AfA über Asset |
-| `land` | Grund und Boden (anteilige Nebenkosten) | keine AfA |
-| `financing_cost` | Sollzinsen, Disagio, Bereitstellungsprovision, Gebühren, KK-Zinsen | Werbungskosten/Betriebsausgabe |
-| `capital_income` | Habenzinsen | Abgeltungsteuer bzw. Betriebseinnahme |
-| `investment_grant` | zahlungswirksame Zuschüsse | AHK-Minderung oder Einnahme (Wahlrecht) |
-| `repayment_grant` | Tilgungszuschuss (Merkzeile, `cash = FALSE`) | wie Zuschuss |
-| `disposal` | Restwert/Veräußerungserlös | § 23 EStG bzw. betrieblich |
-| `private` | privat, nicht steuerbar (Energiekosten Selbstnutzer, ersparte Miete) | – |
-| `neutral` | EK, Kreditaufnahme, Tilgung, Anlage/Auflösung, KK-Bewegung | – |
-| `tax_payment` | die Steuerzeile selbst | – |
+**Vokabular `tax_category`** (`inst/vocab/tax_categories.yaml`): Es gelten die Codes aus **Memo 06 §7.2**, nämlich
+`income_rental`, `income_other_taxable`, `income_tax_exempt`, `imputed_benefit`, `passthrough`, `expense_deductible`,
+`expense_nondeductible`, `capex_depreciable`, `capex_land`, `capex_expensable`, `acquisition_ancillary`,
+`subsidy_investment`, `subsidy_repayment_grant`, `subsidy_operating`, `interest_expense`, `interest_income`,
+`principal`, `equity`, `disposal_proceeds`, `tax_credit`, `tax_payment`. Die Vokabulardatei enthält je Code die deutsche
+Bedeutung und die zulässigen `section`-/`category`-Kombinationen (Vertragstest). Beispiele für die Zuordnung durch die
+eingebauten Typen:
 
-**Asset-Ebene** (`vofi_asset`): `basis` (N-Vektor, EUR), `asset_class` (`building_residential`, `land`,
-`technical_equipment`, `outdoor`), `cost_nature` (`production_cost`, `acquisition_cost`, `maintenance_expense`,
-`acquisition_related_candidate` für anschaffungsnahen Aufwand, `land`), `in_service_period` (Fertigstellung bzw.
-Anschaffung), `useful_life_years`, `afa_hint` (z. B. `linear`, `degressive`, `special`; nur ein Hinweis, die Sätze
-stehen in der Steuerbibliothek), `measure` (Maßnahmen-id), `funding_links` (Zuschüsse, die die Basis mindern können),
-`rented_share`, `eligible_35c` (Steuerermäßigung Selbstnutzer).
+| Typ / Zeile | `tax_category` |
+|---|---|
+| `rent_path`, `modernization_levy` | `income_rental` |
+| `operating_cost` (nicht umlagefähig), Verwaltung, Grundsteuer bei Leerstand | `expense_deductible` |
+| umlagefähige Betriebskosten (falls brutto modelliert) | `passthrough` |
+| `capex` (Neubau/Herstellung) / `capex` (Erhaltung) / `land` | `capex_depreciable` / `capex_expensable` / `capex_land` |
+| Grunderwerbsteuer, Notar, Makler | `acquisition_ancillary` |
+| `grant` / Tilgungszuschuss (Merkzeile, `cash = FALSE`) | `subsidy_investment` / `subsidy_repayment_grant` |
+| `loan_<k>_interest`, `loan_<k>_fees`, `od_interest` | `interest_expense` |
+| `dep_interest` | `interest_income` |
+| `loan_<k>_draw`, `loan_<k>_repay`, `od_*`, `dep_invest`/`dep_withdraw` | `principal` |
+| `equity_in`, `equity_out`, `equity_call` | `equity` |
+| `energy_cost` (Selbstnutzer), `imputed_rent` | `imputed_benefit` |
+| `residual_value` | `disposal_proceeds` |
 
-**Projektebene**: `project$perspective`, `project$legal_form` (später), `building$rented_share` bzw. Selbstnutzung je
-Wohnungsgruppe (gemischte Nutzung).
+**Anlagenregister** (`vofi_asset()`, Felder nach Memo 06 §7.4): `asset_id`, `asset_type` (`gebaeude_wohnen`,
+`grund_boden`, `aussenanlage`, `bewegliches_wg`, `pv_anlage`, …), `in_service_period` bzw. `in_service_date`,
+`construction_start_date`, `building_application_date`, `original_completion_year`, `acquisition_date`, `afa_method`,
+`useful_life_override`, `land_share`. **Die Bemessungsgrundlage ist keine Eingabe.** Das Modul bildet sie aus den
+`capex_depreciable`- und `acquisition_ancillary`-Zeilen mit derselben `asset_id` abzüglich `subsidy_*`. Damit werden
+MC-Kostenschwankungen automatisch AfA-wirksam.
 
-**Test „Steuerbereitschaft“**: Für alle Beispielszenarien hat jede zahlungswirksame Zeile eine gültige `tax_class`,
-und jede Investitionszeile ist über `source` einem Asset zugeordnet.
+**Maßnahmenregister** (`vofi_measure()`, Memo 06 §7.5): `measure_id`, `measure_type`, `classification`
+(`erhaltung` | `herstellung` | `auto`) mit `classification_source`, `completion_date`, `paid_in_full_date`,
+`contractor_certified`, `funding_choice`. Diese Felder erzeugt der Expander `measures` aus dem Domänenblock (4.9).
+
+**Projektebene:** `project$perspective` (Steuerregime nach Memo 06 §7.1 Nr. 4), Regime-Flags für Wohnungsunternehmen
+(steuerbefreite Vermietungsgenossenschaft, gemeinnützig), Selbstnutzungsanteil je Wohnungsgruppe.
+
+**Test „Steuerbereitschaft“** (ergänzt die Pflicht-Tests aus Memo 06 §7.12): Für alle Beispielszenarien hat jede
+zahlungswirksame Zeile eine gültige `tax_category`. Jede `capex_*`-, `acquisition_ancillary`- und `subsidy_*`-Zeile
+verweist auf ein vorhandenes Asset bzw. eine vorhandene Maßnahme. `tax_none` ergibt einen VoFi, der mit dem
+Vor-Steuer-VoFi identisch ist.
 
 ### 5.12 Typkatalog (Vorschlag)
 
@@ -1062,10 +1117,10 @@ und jede Investitionszeile ist über `source` einem Asset zugeordnet.
 | `flow` | `capex`, `land`, `rent_path`, `modernization_levy`, `operating_cost`, `maintenance`, `replacement`, `energy_cost`, `co2_cost`, `grant`, `imputed_rent`, `residual_value`, `share_of`, `custom_series`, `equity_flows` (Einlagen/Entnahmen) | `pv_system`, `rent_binding` (Belegungsbindung), `vacancy_ramp`, `sale_partial` |
 | `instrument` | `annuity_loan`, `installment_loan`, `bullet_loan` (jeweils mit Teilvalutierung, tilgungsfreien Jahren, Zinsbindung, Tilgungszuschuss, Disagio, Bereitstellungsprovision) | `bauspar`, `forward_loan`, `variable_rate_loan`, `member_shares` (Genossenschaftsanteile) |
 | `account_action` | `od_repay`, `dep_fill_reserve`, `dep_invest`, `dep_withdraw`, `od_draw`, `dep_use_reserve`, `equity_call`, `penalty_rate`, `stop` | `loan_prepay` (Ü3, Code in v1, Standard aus), `payout_policy` |
-| `distribution` | `fixed`, `uniform`, `normal`, `truncnormal`, `lognormal`, `triangular`, `pert`, `beta`, `discrete`, `empirical` | `mixture` |
-| `driver` | `deterministic_growth`, `iid_growth`, `ar1_growth`, `gbm`, `vasicek`, `discrete_paths` (z. B. CO2-Pfade mit Gewichten), `series` | `block_bootstrap` aus historischen Reihen, Regimewechsel |
+| `distribution` | nach Memo 04 E3: `fixed`, `normal`, `truncnorm`, `lognormal`, `uniform`, `triangular`, `pert`, `bernoulli`, `discrete`, `empirical`; zusätzlich `beta` | `mixture` |
+| `process` | nach Memo 04 E3: `ar1`, `linked_ar1`, `vasicek`, `mr_trend`, `gbm`, `scenario_mix` (z. B. CO2-Pfade mit Gewichten), `iid`, `fixed_path` (Stresstests) | `bootstrap` aus historischen Reihen (Memo 04 §10.2), Regimewechsel |
 | `kpi` | Memo 01 §4 (EW, ΔEW, R1–R3, Amortisation, Liquidität, max. KK, Nachschüsse), DSCR/ICR/LTV (WU) | Entnahme-Äquivalent als Standard-KPI in MC |
-| `tax` | `none` | `flat_rate` (v1.1), `estg_vv` (Kleinvermieter), `corporate` |
+| `tax` | `tax_none` (Standard); nach Memo 06 §6 zusätzlich `tax_flat` (Referenzmodul, Standard aus, gesperrt für Selbstnutzer und steuerbefreite Rechtsträger) und `tax_selfuse` (§ 35c-Generator mit BEG-Ausschluss, Habenzins nach Abgeltungsteuer) | `tax_full_private`, `tax_corporate` |
 | `expander` | `measures`, `unit_groups`, `funding`, `energy`, `residual` | `legal_reforms` |
 
 ---
@@ -1094,50 +1149,58 @@ Wartefrist nach Memo 02) und mit `ctx$grid$aggregate()` auf das VoFi-Raster summ
 vofi_run(model, n_sim, seed)
  └─ für jeden Chunk (Vielfaches von 1.000 Läufen):
      1  smp_draw(model$sampler, block_ids, seed)      Ziehungen je Schlüssel (U, Z), Copula/LHS
-     2  ctx <- eng_context(model, draws)              Raster, param()/driver()-Auflösung
+     2  ctx <- eng_context(model, draws)              Raster, param()/market()-Auflösung
      3  exo <- eng_flows(model, ctx)                  flow-Typen in Topo-Reihenfolge → Ledger (exogen)
      4  eng_auto_amounts(model, ctx, exo)             Zusagebeträge für amount: auto
      5  core <- eng_balance(model, ctx, exo)          Periodenschleife: Kredite, Zinsen, Steuer, Ausgleich
      6  eng_checks(core)                              Invarianten I1–I3 (Laufzeitprüfung)
      7  kpi <- kpi_compute(model$kpis, core, ctx)     Kennzahlen (+ Unterlassungsalternative mit gleichen Ziehungen)
-     8  eng_keep(core, kpi, keep)                     Speicherstrategie
+     8  eng_store(core, kpi, store)                   Speicherstrategie (Bänder im Streaming)
  └─ Chunks zusammenführen → vofi_result (N = 1) bzw. vofi_mc_result
 ```
 
 ### 6.3 Sampling und Zufallszahlen
 
-- **Trennung**: Der Sampler-Plan (im Build erzeugt) listet alle stochastischen *Schlüssel* (Parameterpfade wie
-  `measures.huelle.cost_eur` und Treiber wie `drivers.rent_index`) mit Verteilung bzw. Prozess. Typen ziehen nie
-  selbst.
-- **Uniforms zuerst**: Skalare Größen entstehen aus Uniforms über die Quantilfunktion der Verteilung. Deshalb muss jede
-  Verteilung `quantile()` implementieren. LHS, Copula und gemeinsame Zufallszahlen funktionieren dann einheitlich.
-  Treiber bekommen Standardnormal-Schocks Z (N × T).
-- **Block-Seeds**: Für Schlüssel k und RNG-Block b (1.000 Läufe, fest) gilt
-  `seed_kb = stable_hash(seed, k, b)` (eigene Hashfunktion in Base R, z. B. FNV-1a über die UTF-8-Bytes). Folgen:
+Die fachliche Spezifikation (Verteilungen, Prozesse, Kalibrierung, Konvergenz, Sensitivität) steht in Memo 04. Hier
+geht es um die Einbettung in die Architektur.
+
+- **Trennung**: Der Sampler-Plan (im Build aus dem Overlay `stochastic` erzeugt) listet alle stochastischen
+  *Schlüssel* (Namen der Overlay-Einträge, z. B. `par:huelle_kosten`, `shock:mortgage_rate`) mit Ziel­pfad und
+  Verteilung bzw. Prozess. Typen ziehen nie selbst.
+- **Uniforms zuerst**: Statische Größen entstehen aus Uniforms über die Quantilfunktion der Verteilung. Deshalb muss
+  jede Verteilung `quantile()` implementieren. LHS, Iman-Conover und gemeinsame Zufallszahlen funktionieren dann
+  einheitlich. Prozesse bekommen Standardnormal-Schocks Z (N × T).
+- **Benannte Ströme mit Blöcken**: Seed nach Memo 04 §4.3, `seed_j = (seed · 1000003 + h(name_j)) mod (2³¹ − 1)` mit
+  Polynom-Hash h. Ergänzt wird der Blockindex im Namen (`par:<name>:<b>`), RNG-Block b = 1.000 Läufe. **Ein Block ist
+  zugleich ein LHS-Replikat** (Memo 04 E6: bei N = 10.000 also 10 Replikate). Folgen:
   1. **CRN über Varianten**: Gleicher Schlüssel ergibt in allen Varianten dieselbe Ziehung (im Prototyp geprüft:
      identische Baukosten-Ziehung, obwohl die Variante eine Komponente und einen Kredit weniger hat).
   2. **Stabilität**: Ein neuer stochastischer Parameter verschiebt keine anderen Ziehungen.
   3. **Unabhängigkeit von Chunk-Größe und Worker-Zahl**: Chunks sind Vielfache der Blockgröße.
   4. **Einzellauf reproduzierbar**: `vofi_sim(mc, i)` rechnet Block ⌈i/1000⌉ neu und liefert die vollständige VoFi-Tabelle
-     von Lauf i, z. B. für das 5-%-Quantil („Wie sieht der schlechte Fall aus?“).
-- **LHS** je Block und Schlüssel: `u = (sample(n) - runif(n)) / n`. Rangkorrelationen zwischen skalaren Größen nach
-  **Iman-Conover** (erhält die LHS-Schichtung exakt). Korrelierte Treiberschocks über **Gauß-Copula** (`chol`) je
-  Periode. Beides ist Base R, ohne `lhs`/`mvtnorm`.
+     von Lauf i, z. B. für das 5-%-Quantil („Wie sieht der schlechte Fall aus?“; Memo 04 E10: P5/P50/P95).
+  5. **Erhöhung von N um ganze Blöcke** lässt die bisherigen Läufe unverändert (Memo 04 hält fest, dass sich bei LHS mit
+     fester Replikatzahl die Ziehungen mit N ändern; mit fester Blockgröße gilt das nur innerhalb eines Blocks).
+- **LHS** je Block und Schlüssel: `u = (sample.int(n) - runif(n)) / n`. Rangkorrelationen zwischen statischen Größen nach
+  **Iman-Conover** je Replikat (erhält die LHS-Schichtung exakt; Memo 04 E5/E6). Korrelierte Prozessschocks über
+  **Cholesky** je Periode, nicht positiv definite Matrizen werden per Eigenwert-Clipping repariert (mit Warnung).
+  Beides ist Base R, ohne `lhs`/`mvtnorm`/`Matrix`.
 - **RNG-Hygiene**: `RNGkind("Mersenne-Twister", "Inversion", "Rejection")` lokal setzen, danach `.Random.seed` und
   `RNGkind` des Nutzers wiederherstellen (eigene `with_local_seed()`, ohne withr in Imports). Das Paket setzt nie
   `future::plan()`, sondern respektiert den Plan des Nutzers.
 - **Deterministischer Lauf**: Der Sampler liefert die Basiswerte (`point()`) bzw. erwarteten Pfade (`expected()`).
   N = 1 ist derselbe Codepfad.
-- **Gespeicherte Eingaben**: Skalare Ziehungen (N × K) bleiben im MC-Ergebnis für die regressionsbasierte
-  Sensitivität. Für Pfadtreiber werden Kenngrößen gespeichert (mittleres Wachstum, Endniveau).
+- **Gespeicherte Eingaben**: Statische Ziehungen (N × K) bleiben im MC-Ergebnis für die globale Sensitivität (Memo 04
+  §7.4). Für Prozesse werden Pfadmerkmale gespeichert (mittleres Wachstum, Endniveau, Szenarioindex bei
+  `scenario_mix`).
 
 ### 6.4 Ledger
 
 ```r
 ledger <- list(
   rows = data.frame(              # eine Zeile je Ledger-Zeile
-    key, section, category, tax_class, cash, kind,   # kind: flow | stock | memo | check
-    source, source_type, order, label_key),
+    key, section, category, tax_category, cash, kind,   # kind: flow | stock | memo | check
+    asset_id, measure_id, vat_rate, source, source_type, order, label_key),
   values = list(<key> = matrix(N, T + 1), ...)      # Spalten = Zeitpunkte 0..T
 )
 ```
@@ -1159,9 +1222,9 @@ eng_balance <- function(model, ctx, exo) {
   T1  <- ctx$T + 1L
   acc <- acc_init(model$accounts, ctx)                 # G, KK, Limits, L_min, Raten je Periode
   ist <- lapply(model$instruments, function(k) k$type$init(k$spec, ctx))
-  tax <- model$tax
-  tctx <- tax$prepare(ctx, exo, ctx$assets)
-  tst  <- NULL
+  tax  <- model$tax                                    # Modulobjekt, Standard: Klasse "tax_none"
+  tin  <- tax_inputs(exo, ctx)                         # Steuerschlüssel tax_category x asset_id x measure_id
+  tst  <- tax_init(tax, model$tax_params, ctx$assets, ctx$measures, ctx$n)
   rec  <- rec_alloc(model, ctx)                        # vorallokierte N x (T+1)-Matrizen
   for (j in seq_len(T1)) {                             # j = t + 1
     F <- exo$sum[, j]                                  # originär, Zuschüsse, geplante EK-Ströme
@@ -1174,12 +1237,12 @@ eng_balance <- function(model, ctx, exo) {
     hz <- acc$G  * acc$h[, j]                          # (3) Zinsen auf Vorperiodenbestände
     kz <- acc$KK * acc$s[, j]
     S  <- F + hz - kz                                  # (4) vorläufiger Saldo
-    if (!is.null(tax$step)) {                          # (5) Steuer-Slot
-      r <- tax$step(tctx, j - 1L, rec_base(rec, exo, j, hz, kz), tst)
-      tst <- r$state
-      S <- S + r$tax
-      rec_tax(rec, j, r)
-    }
+    r <- tax_step(tax, j - 1L, inputs = tax_slice(tin, j),   # (5) Steuer-Slot (tax_none: payment = 0)
+                  interest = list(exo_soll = rec_loan_interest(rec, j), endo_soll = kz, endo_haben = hz),
+                  state = tst, params = model$tax_params)
+    tst <- r$state
+    S   <- S - r$payment                               # Zahlung positiv, Erstattung negativ (Memo 06)
+    rec_tax(rec, j, r)
     sur <- pmax(S, 0)                                  # (6) Ausgleich
     def <- pmax(-S, 0)
     for (a in model$surplus_chain) {
@@ -1195,7 +1258,8 @@ eng_balance <- function(model, ctx, exo) {
     rec_interest(rec, j, hz, kz)                       # (7) Bestände und Merkzeilen
     rec_stocks(rec, j, acc, ist)
   }
-  rec_finish(rec)                                      # (8) BS, balance_check, Flags
+  fin <- tax_finalize(tax, ctx$T, tst, rec_terminal(rec), model$tax_params)   # offene Steuer am Horizont
+  rec_finish(rec, fin)                                 # (8) BS, balance_check, Flags
 }
 ```
 
@@ -1232,18 +1296,19 @@ P(Limitverletzung).
 - Ergebnisfeld `checks` mit der maximalen Abweichung je Invariante (erscheint in Excel und Bericht als Blatt bzw.
   Abschnitt „Prüfungen“).
 
-### 6.9 Speicherstrategie `keep`
+### 6.9 Speicherstrategie `store` (abgestimmt mit Memo 04 E10, §5.5)
 
 | Wert | Speichert | Speicher bei 10.000 × 81 |
 |---|---|---|
-| `ledger` | alle Zeilen aller Läufe | ≈ 5 MB je Zeile (36 Zeilen ≈ 179 MB) |
-| `paths` (MC-Standard) | KPIs, skalare Ziehungen, Pfade ausgewählter Zeilen (`net_position`, `dep_balance`, `od_balance`, Kapitaldienst), voller Ledger für `keep_sims = 25` Läufe | ≈ 30–50 MB |
-| `kpi` | nur KPIs und Ziehungen | < 10 MB |
-| `auto` | `ledger` bei N = 1, sonst `paths` | – |
+| `full` | alle Zeilen aller Läufe | ≈ 6,5 MB je Zeile (gemessen: 29 Zeilen = 179 MiB; 36 Zeilen ≈ 233 MB) |
+| `bands` (MC-Standard) | KPIs und Pfadmerkmale aller Läufe, statische Ziehungen, **Fächerbänder im Streaming** (je Periode `quantile()` auf den N-Vektor ausgewählter Zeilen, z. B. `net_position`, `dep_balance`, `od_balance`, Kapitaldienst; 28 ms je Zeile), vollständige VoFi-Tabellen für `keep_runs` (z. B. `p05`, `p50`, `p95`) per zweitem Durchgang über `vofi_sim()` | ≈ 10–20 MB |
+| `kpi` | nur KPIs, Pfadmerkmale und Ziehungen | < 10 MB |
+| `auto` | `full` bei N = 1, sonst `bands` | – |
 
 Vor dem Lauf wird der Speicherbedarf geschätzt (Zeilen × N × (T+1) × 8 Byte). Über `getOption("vofi.max_memory_gb",
-2)` gibt es eine Warnung mit Vorschlag (`keep = "paths"`). Quantilbänder werden nach dem Lauf aus gespeicherten Pfaden
-gebildet (28 ms je Zeile).
+2)` gibt es eine Warnung mit Vorschlag (`store = "bands"`). Weil Quantile über Chunks nicht exakt zusammenführbar
+sind, werden die Bänder bei mehreren Chunks aus 1–2 gespeicherten N × (T+1)-Matrizen der Bandzeilen gebildet
+(Memo 04 §5.5). Diese Matrizen werden nach der Bandbildung verworfen.
 
 ### 6.10 Ergebnisklassen und Methoden
 
@@ -1254,7 +1319,7 @@ gebildet (28 ms je Zeile).
 | `vofi_model` | `spec`, `grid`, `nodes`, `instruments`, `sampler`, `surplus_chain`, `deficit_chain`, `tax`, `kpis`, `hash` | `print` |
 | `vofi_validation` | Befunde | `print`, `as.data.frame`, `format` |
 | `vofi_result` | `spec`, `grid`, `ledger`, `kpis` (Liste), `checks`, `flags`, `opportunity` (Kurzledger), `meta` (Version, Schema, Seed, Laufzeit, Bibliotheksstände) | `print` (Kopf-KPIs + gekürzte VoFi-Tabelle), `summary`, `format` (Zeichenmatrix im deutschen Zahlenformat), `plot`, `as.data.frame` (lang oder `wide = TRUE`) |
-| `vofi_mc_result` | `kpis` (Data Frame N Zeilen), `inputs` (Ziehungen), `paths`, `ledger_sample`, `deterministic` (`vofi_result`), `stats`, `checks`, `meta` (seed, n_sim, rng_block, sampling) | `print` (MC-Kennzahlen mit SE und Quantilen, Vergleich zum deterministischen Wert), `summary`, `format`, `plot` (`verteilung`, `fan`, `cdf`, `konvergenz`, `streu`, `tornado`), `as.data.frame` (`what = "kpis"`/`"paths"`), `quantile` |
+| `vofi_mc_result` | `kpis` (Data Frame N Zeilen, inkl. Pfadmerkmale), `inputs` (Ziehungen), `bands` (Quantile je Periode), `runs` (vollständige `vofi_result` für `keep_runs`), `deterministic` (`vofi_result`), `stats` (inkl. Standardfehler aus Replikaten), `checks`, `meta` (seed, n_sim, rng_block, sampling, replicates, reparierte Korrelationsmatrizen) | `print` (MC-Kennzahlen mit SE und Quantilen, Vergleich zum deterministischen Wert), `summary`, `format`, `plot` (`verteilung`, `fan`, `cdf`, `konvergenz`, `streu`, `tornado`), `as.data.frame` (`what = "kpis"`/`"paths"`), `quantile` |
 | `vofi_comparison` | `results` (benannt), `baseline`, `differences`, `ranking`, `crn = TRUE`, Vergleichbarkeitsbefund | `print` (KPI-Tabelle nebeneinander), `summary`, `format`, `plot` (`endwert`, `differenz`, `cdf`, `bestand`), `as.data.frame` |
 | `vofi_sensitivity` | Methode, Parameter, Ausschläge, KPI-Werte | `print`, `plot` (Tornado/Spider), `as.data.frame` |
 | `vofi_table` | Data Frame im Grob-Layout + Formatierungsinfo | `print`, `format` |
@@ -1262,6 +1327,13 @@ gebildet (28 ms je Zeile).
 ---
 
 ## 7. Reporting (Scope v1)
+
+**Zwei Berichtsmodi** (Memo 07 §0 Nr. 1, §5): `report_mode = "expert"` (**Fachmodus** für Wohnungsunternehmen und
+Genossenschaften: VoFi-Tabelle, EK-Rendite, DSCR, Werte je m² Wohnfläche) und `report_mode = "household"`
+(**Haushaltsmodus** für Selbstnutzer und Kleinvermieter: monatliche Belastung, Ersparnis je Monat, Amortisationsjahr,
+Ampel). Beide nutzen dasselbe Ergebnisobjekt. Der Modus wählt nur KPI-Set, Vorlage und Grafiken (Standard aus der
+Perspektive, überschreibbar). Die **Nutzerkostensicht** (Warmmiete je Variante, Memo 07 A-20) ist eine abgeleitete
+Tabelle aus den getaggten Zeilen (`vofi_tenant_view()`, v1).
 
 | Ausgabe | v1 | v1.1 | v2 |
 |---|---|---|---|
@@ -1289,17 +1361,17 @@ Netzwerkzugriffe, Schreiben nur in `withr::local_tempfile()`, feste Seeds.
 | Ebene | Inhalt | Werkzeug |
 |---|---|---|
 | 1 Vertragstests | Für **jeden registrierten Typ** automatisch (`test-contract-types.R` iteriert über `vofi_types()`): `example` bauen mit N = 1, 2, 7; Dimensionen, Tags, Vorzeichen, Labels vorhanden; **Vektorisierungsinvarianz** (Lauf i im Batch = Einzellauf mit den Ziehungen von i); Rasterinvarianz (Jahresraster vs. Monatsraster mit gleichen Jahresbeträgen ergibt plausible Aggregate); Verteilungen: `quantile(c(0, 0.5, 1))` im Träger, `moments()` gegen Stichprobe | `expect_vofi_flows_contract()`, `make_ctx()` |
-| 2 Orakel | **Memo 01 Beispiele (a) bis (f)** inkl. (a3), (b1), (b2), (c1), (c2), (e) und Test (f): Toleranz 1e-6 gegen die ungerundeten Skriptwerte (CSV aus dem Python-Referenzskript in Memo 01 §10.8), 0,005 gegen die Tabellenwerte. **Memo 02 Rechenbeispiele 1–7** für Mietrecht, Förderung und CO2-Aufteilung als Regelorakel. Geschlossene Formeln: Annuität, Restschuld, reine Anlage EW = EK·Π(1+h), Rentenendwert | `test-oracles.R`, `fixtures/oracles/` |
+| 2 Orakel | **Memo 01 Beispiele (a) bis (f)** inkl. (a3), (b1), (b2), (c1), (c2), (e) und Test (f): Toleranz 1e-6 gegen die ungerundeten Skriptwerte (CSV aus dem Python-Referenzskript in Memo 01 §10.8), 0,005 gegen die Tabellenwerte. **Memo 02 Rechenbeispiele 1–7** für Mietrecht, Förderung und CO2-Aufteilung als Regelorakel. **Memo 07 Referenzszenarien S1–S5** als Integrationsszenarien (`inst/extdata/examples/s1_…`–`s5_…`) mit den deterministischen Prüfwerten S*-T* (Förderbeträge, Kappungen, Annuitäten, Restschulden) und dem Testkatalog aus Memo 07 §6.2. **Pflicht-Tests der Steuerschnittstelle** aus Memo 06 §7.12 (u. a. `tax_none` und `tax_flat` mit s = 0 ergeben den Vor-Steuer-VoFi, Standardmodell-Test, AfA-Summe = Bemessungsgrundlage, Chunk-Invarianz). Geschlossene Formeln: Annuität, Restschuld, reine Anlage EW = EK·Π(1+h), Rentenendwert | `test-oracles.R`, `fixtures/oracles/` |
 | 3 Invarianten | **I1–I6** (Memo 01 §3.5) für alle Beispielszenarien, deterministisch und für **alle** Läufe einer MC mit N = 2.000: Finanzierungssaldo = 0, Vermögensfortschreibung (I2), Nichtnegativität und Komplementarität (I3), vollkommener Kapitalmarkt (I4), Monotonie bei Zusatzentnahme (I5), Unterlassung (I6) | `test-invariants.R` |
 | 4 Differenztests | **Skalare Referenz-Engine** (ca. 150 Zeilen, einfache Schleifen je Lauf und Periode, von einem *anderen* Agenten geschrieben) gegen die vektorisierte Engine auf 200 zufällig erzeugten Szenarien (Generator mit festen Seeds) | `helper-reference-engine.R` |
 | 5 Metamorphe Tests | Skalierung aller Geldbeträge mit k skaliert EW mit k; Komponente mit Betrag 0 ändert nichts; höhere Miete ⇒ EW ≥; höherer KK-Zins ⇒ EW ≤; eine Variante mit nur geändertem Label ergibt identische Ergebnisse; zusätzliche, unbeteiligte stochastische Größe lässt die übrigen Ziehungen unverändert (CRN) | `test-metamorphic.R` |
-| 6 MC-Statistik | MC mit entarteten Verteilungen (min = mode = max) = deterministischer Lauf; Mittelwert lognormaler Treiber innerhalb 4 SE vom theoretischen Wert; LHS: genau eine Ziehung je Schicht; Iman-Conover: Ziel-Rangkorrelation ±0,03 (N = 5.000); Gauß-Copula-Schocks: Korrelation über Fisher-z-Test; linearer Fall ohne Ausgleichsnichtlinearität: E[EW] = EW(E[X]) innerhalb 4 SE; Reproduzierbarkeit: gleicher Seed ⇒ identisch; Chunk-Größe 1.000 vs. 10.000 und sequenziell vs. `future` ⇒ identisch; `vofi_sim(mc, i)` = Zeile i | `test-mc-statistics.R` |
+| 6 MC-Statistik | MC mit entarteten Verteilungen (min = mode = max) = deterministischer Lauf; Mittelwert lognormaler Parameter innerhalb 4 SE vom theoretischen Wert; LHS: genau eine Ziehung je Schicht; Iman-Conover: Ziel-Rangkorrelation ±0,03 (N = 5.000); Gauß-Copula-Schocks: Korrelation über Fisher-z-Test; linearer Fall ohne Ausgleichsnichtlinearität: E[EW] = EW(E[X]) innerhalb 4 SE; Reproduzierbarkeit: gleicher Seed ⇒ identisch; Chunk-Größe 1.000 vs. 10.000 und sequenziell vs. `future` ⇒ identisch; `vofi_sim(mc, i)` = Zeile i | `test-mc-statistics.R` |
 | 7 Eingabe | YAML-Handler (Tabelle 4.5), Deep-Merge, `~`-Löschen, `from:`-Ketten und Zyklen, Varianten-Ketten, Expander, Excel-Round-Trip (YAML → XLSX → Liste identisch), Vorlage = frisch generierte Vorlage, jede Validierungsmeldung mindestens einmal ausgelöst (Klasse `vofi_error_validation`) | `test-io-*.R`, `test-scenario-*.R`, `test-validate-*.R` |
 | 8 Snapshots | `print`/`format` aller Ergebnisklassen, Validierungsbericht, VoFi-Tabelle, Fehlermeldungen (deutsch); Excel-Export: zurücklesen und Werte vergleichen (keine binären Snapshots, xlsx enthält Zeitstempel); JSON-Schema; Grafiken nur wenige `vdiffr`-Snapshots mit `skip_on_ci()`/`skip_on_cran()`, weil sich SVGs zwischen ggplot2-Versionen ändern | `expect_snapshot()`, `local_reproducible_output(width = 100)` |
 | 9 Performance | Regressionstest mit großzügiger Schwelle (10.000 × 53 < 3 s), `skip_on_cran()`; Benchmarks in `bench/` | `bench::mark` |
 | 10 App | `shiny::testServer()` für Modul-Logik (v1.1) | – |
 
-**Abdeckung:** ≥ 90 % Zeilenabdeckung für `engine-*`, `sampling*`, `dist-*`, `driver-*`, `scenario-*`, `values`,
+**Abdeckung:** ≥ 90 % Zeilenabdeckung für `engine-*`, `sampling*`, `dist-*`, `process-*`, `scenario-*`, `values`,
 `validate-*`, `type-*`, `kpi-*`; ≥ 80 % gesamt (`covr::package_coverage()`). App und Berichtsvorlage ausgenommen.
 
 **`R CMD check`-Sauberkeit:** 0 Errors, 0 Warnings, 0 Notes (`--as-cran` soweit offline möglich). Dazu gehören
@@ -1322,12 +1394,12 @@ Arbeitsverzeichnis), `lintr` ohne Befund (`.lintr`: Zeilenlänge 100, `object_na
 | Tornado 20 Parameter × 2 (deterministisch) | < 1 s | ≈ 0,1–0,2 s (hochgerechnet) | – |
 | Break-even per `uniroot` (≈ 15 Läufe) | < 0,5 s | ≈ 0,15 s | – |
 | 100.000 Läufe × 53 | < 20 s sequenziell | 2,1 s (P1, T = 40) | – |
-| Spitzenspeicher MC 10.000 × 83, `keep = "paths"` | < 1 GB | ≈ 0,4 GB (gc-Trigger) | – |
+| Spitzenspeicher MC 10.000 × 83, `store = "bands"` | < 1 GB | ≈ 0,4 GB (gc-Trigger) | – |
 | Shiny: Reaktion auf Reglerbewegung (deterministisch) | < 0,3 s | – | – |
 
 **Leitlinien:** keine Funktionsaufrufe je Lauf (nur je Periode, Komponente oder Chunk); `apply()` über Zeilen vermeiden,
 stattdessen spaltenweise Schleifen über t (`col_cumprod` war im Test schneller als `apply(…, 1, cumprod)`); Matrizen
-vorallokieren; Zufallszahlen nur für benutzte Treiber ziehen; Byte-Compiler eingeschaltet lassen; Parallelisierung
+vorallokieren; Zufallszahlen nur für benutzte Prozesse ziehen; Byte-Compiler eingeschaltet lassen; Parallelisierung
 (`parallel = TRUE`, `future.apply`) nur ab etwa 10⁶ Läufen oder bei sehr teuren Modellen anbieten, standardmäßig aus.
 
 ---
@@ -1382,22 +1454,24 @@ WS = Arbeitspaket aus Abschnitt 12. **I** = Integrator (gemeinsame Dateien).
 | `R/rules-mietrecht.R`, `R/rules-co2kostaufg.R`, `R/rules-funding.R` | versionierte Rechtsregeln (Memo 02) | – | WS-E2 |
 | `R/sampling.R` | Sampler-Plan, Block-Seeds, LHS, Iman-Conover, Copula, Ziehungsobjekt | – | WS-C |
 | `R/dist-*.R` (je Verteilung) | `typedef_dist_*` | – | WS-C |
-| `R/driver-*.R` (je Prozess) | `typedef_driver_*` | – | WS-C |
+| `R/process-*.R` (je Prozess) | `typedef_process_*` (Prozesse nach Memo 04 §2.2) | – | WS-C |
 | `R/engine-build.R` | Build: Graph, Topo-Sortierung, Sampler-Plan, Ketten, `auto` | `vofi_build` | WS-D |
 | `R/engine-context.R` | `ctx` | – | WS-D |
 | `R/engine-flows.R` | exogene Zeilen | – | WS-D |
 | `R/engine-balance.R`, `R/account-actions.R` | Periodenschleife, Konten, Aktionen Ü1–D4 | – | WS-D |
-| `R/engine-run.R`, `R/engine-checks.R`, `R/engine-keep.R` | Lauf, Chunks, Invarianten, Speicherstrategie | `vofi_run`, `vofi_sim` | WS-D |
+| `R/engine-run.R`, `R/engine-checks.R`, `R/engine-store.R` | Lauf, Chunks, Invarianten, Speicherstrategie | `vofi_run`, `vofi_sim` | WS-D |
 | `R/opportunity.R` | Unterlassungsalternative | `vofi_opportunity` | WS-D |
 | `R/kpi-core.R`, `R/kpi-returns.R`, `R/kpi-realestate.R` | KPI-Registry, EW/ΔEW/Amortisation, Renditen (Horner-Bisektion), DSCR/ICR/LTV | `vofi_kpis`, `vofi_register_kpi` | WS-D2 |
-| `R/tax-hook.R` | Steuermodul-Schnittstelle, `none`, `simple` | `vofi_tax_module`, `vofi_tax_module_simple`, `vofi_register_tax_module` | WS-D |
+| `R/tax-hook.R` | Schnittstelle: Generics, Steuerschlüssel-Aggregation (`tax_inputs`), Registrierung, Sperren je Perspektive | `tax_init`, `tax_step`, `tax_finalize`, `vofi_register_tax_module`, `vofi_tax_module_simple` | WS-D |
+| `R/tax-none.R` | Null-Modul (läuft in jedem Lauf) | – | WS-D |
+| `R/tax-flat.R`, `R/tax-selfuse.R` | Referenzmodul „Steuer-Light“ und Selbstnutzer-Bausteine nach Memo 06 §6 | – | WS-X (Steuer, Phase 2) |
 | `R/type-flow-<name>.R` (je Typ) | Zahlungskomponenten | – | WS-E (mehrere Agenten) |
 | `R/type-inst-<name>.R` (je Typ) | Kreditinstrumente | – | WS-F |
 | `R/mc.R` | MC-Steuerung, Parallelisierung, Statistik | `vofi_mc` | WS-G |
 | `R/compare.R` | Vergleich, Vergleichbarkeitsprüfung, Differenz-VoFi | `vofi_compare` | WS-G |
 | `R/sensitivity.R`, `R/solve.R` | Tornado/Spider/Regression; Break-even, Entnahme-Äquivalent, kritische Werte | `vofi_sensitivity`, `vofi_solve` | WS-G |
 | `R/methods-result.R`, `R/methods-mc.R`, `R/methods-compare.R`, `R/methods-misc.R` | S3-Methoden | S3 | WS-H |
-| `R/report-table.R` | Grob-Tabelle, transponiert | `vofi_table`, `vofi_ledger` | WS-H |
+| `R/report-table.R` | Grob-Tabelle, transponiert, Nutzerkostensicht | `vofi_table`, `vofi_ledger`, `vofi_tenant_view` | WS-H |
 | `R/report-plot.R` | Grafiken | `vofi_plot`, `plot.*` | WS-H |
 | `R/report-excel.R` | Excel-Export | `vofi_export_excel` | WS-H |
 | `R/report-html.R` | Bericht | `vofi_report` | WS-H |
@@ -1407,7 +1481,8 @@ WS = Arbeitspaket aus Abschnitt 12. **I** = Integrator (gemeinsame Dateien).
 
 ```r
 # Einlesen, Szenario, Validieren
-vofi_read_scenario(path, format = c("auto", "yaml", "excel"), library_paths = vofi_library_paths())
+vofi_read_scenario(path, format = c("auto", "yaml", "excel"), stochastic = NULL,
+                   library_paths = vofi_library_paths())       # stochastic: optionale Overlay-Datei
 vofi_write_scenario(scenario, path, format = c("auto", "yaml", "excel"), resolved = FALSE, overwrite = FALSE)
 vofi_scenario(x, source = NULL)
 vofi_example(name = NULL)
@@ -1424,16 +1499,18 @@ vofi_time_grid(valuation_date, horizon_years, construction_months = 0L,
                construction_step = c("month", "quarter"), operation_step = "year",
                horizon_from = c("completion", "valuation"))
 vofi_build(x, variant = "base", overrides = NULL)
-vofi_run(model, n_sim = 1L, seed = NULL, keep = c("auto", "ledger", "paths", "kpi"),
+vofi_run(model, n_sim = 1L, seed = NULL, store = c("auto", "full", "bands", "kpi"),
          chunk_size = getOption("vofi.chunk_size", 10000L))
-vofi_mc(model, n_sim = 10000L, seed = NULL, sampling = c("lhs", "mc"), keep = c("paths", "kpi", "ledger"),
-        paths = c("net_position", "dep_balance", "od_balance"), keep_sims = 25L, parallel = FALSE,
+vofi_mc(model, n_sim = 10000L, seed = NULL, sampling = c("lhs", "pseudo"), replicates = NULL,
+        store = c("bands", "kpi", "full"), bands = c("net_position", "dep_balance", "od_balance"),
+        keep_runs = c("p05", "p50", "p95"), parallel = FALSE,
         chunk_size = getOption("vofi.chunk_size", 10000L))
-vofi_sim(x, i)
+vofi_sim(x, i)                            # nicht gesetzte vofi_mc()-Argumente: aus stochastic$settings
 vofi_opportunity(model)
 
 # Analysieren
-vofi_compare(..., variants = NULL, baseline = NULL, n_sim = 1L, seed = NULL, allow_unequal = FALSE)
+vofi_compare(..., variants = NULL, baseline = NULL, scenario_sets = NULL, n_sim = 1L, seed = NULL,
+             allow_unequal = FALSE)          # baseline = NULL: project$reference_variant
 vofi_sensitivity(x, params = NULL, method = c("tornado", "spider", "regression"), delta = 0.1,
                  steps = 5L, kpi = "delta_terminal_value")
 vofi_solve(model, what = c("breakeven", "withdrawal_equivalent", "critical_value"), param = NULL,
@@ -1445,7 +1522,9 @@ vofi_table(x, sim = 1L, layout = c("grob", "transposed"), detail = c("standard",
 vofi_ledger(x, format = c("long", "wide"), sim = NULL)
 vofi_plot(x, type = NULL, ...)            # plot.<klasse>() rufen vofi_plot() auf
 vofi_export_excel(x, path, overwrite = FALSE, sheets = NULL)
-vofi_report(x, path, format = c("html", "docx"), template = NULL, title = NULL, open = interactive())
+vofi_report(x, path, format = c("html", "docx"), mode = c("auto", "expert", "household"), template = NULL,
+            title = NULL, open = interactive())
+vofi_tenant_view(x, variant = NULL)          # Nutzerkostensicht (Warmmiete), Memo 07 A-20
 vofi_app(scenario = NULL, launch.browser = interactive(), ...)
 
 # Erweitern
@@ -1456,13 +1535,19 @@ vofi_type_info(name)
 vofi_check_type(name)
 vofi_param(kind, ..., default = NULL, required = FALSE, min = NULL, max = NULL, unit = NULL,
            stochastic = FALSE, values = NULL, allow_auto = FALSE, shapes = NULL)
-vofi_row(key, values, section, category, tax_class, cash = TRUE, label = NULL)
-vofi_flows(..., assets = list(), memo = list(), meta = list())
-vofi_asset(id, basis, asset_class, cost_nature, in_service_period, useful_life_years = NULL,
-           land_share = 0, rented_share = NULL, afa_hint = NULL, measure = NULL, funding_links = character())
-vofi_tax_module(name, prepare, step = NULL, finalize = NULL, label = NULL)
+vofi_row(key, values, section, category, tax_category, cash = TRUE, asset_id = NULL, measure_id = NULL,
+         vat_rate = 0, vat_recoverable = FALSE, label = NULL, ...)
+vofi_flows(..., assets = list(), measures = list(), memo = list(), meta = list())
+vofi_asset(asset_id, asset_type, in_service_period, land_share = 0, afa_method = NULL,
+           useful_life_override = NULL, construction_start_date = NULL, building_application_date = NULL,
+           original_completion_year = NULL, acquisition_date = NULL)
+vofi_measure(measure_id, measure_type, classification = c("auto", "erhaltung", "herstellung"),
+             classification_source = "default", completion_date = NULL, funding_choice = NULL, ...)
+vofi_register_tax_module(name, constructor, label = NULL, perspectives = NULL, overwrite = FALSE)
 vofi_tax_module_simple(name, fun, label = NULL)
-vofi_register_tax_module(module, overwrite = FALSE)
+tax_init(module, params, assets, measures, n_sim)               # S3-Generics (Memo 06 §7.12),
+tax_step(module, t, inputs, interest, state, params)            # exportiert, damit Fremdpakete
+tax_finalize(module, T, state, terminal_inputs, params)         # Methoden liefern können
 vofi_register_kpi(name, compute, label = NULL, perspectives = NULL, higher_is_better = TRUE)
 ```
 
@@ -1520,8 +1605,8 @@ Phase 1  (parallel, 6–8 Agenten, nur gegen Verträge und Mocks)
   WS-A  Eingabe: io-yaml, scenario-read/layers/library/variants, Beispielszenarien (YAML)
   WS-A2 Excel: io-excel-read/write/template, data-raw/build_template.R
   WS-B  Schema/Validierung/Ausdrücke: schema, validate-*, expr
-  WS-C  Sampling: sampling, dist-*, driver-*
-  WS-D  Engine: time-grid, values, engine-*, account-actions, opportunity, tax-hook
+  WS-C  Sampling: sampling, dist-*, process-*
+  WS-D  Engine: time-grid, values, engine-*, account-actions, opportunity, tax-hook, tax-none
   WS-E  Flow-Typen: type-flow-* (auf 2–3 Agenten nach Typen aufteilbar)
   WS-F  Instrumente: type-inst-* (Memo-01-Kreditbausteine, Test (f))
   WS-H  Reporting: methods-*, report-table/plot/excel (gegen example_result)
@@ -1529,10 +1614,12 @@ Phase 1  (parallel, 6–8 Agenten, nur gegen Verträge und Mocks)
         Szenariengenerator für Differenztests  (bewusst ein anderer Agent als WS-D)
         │
         ▼
-Phase 2  (Integration + parallel 3–4 Agenten)
+Phase 2  (Integration + parallel 4–6 Agenten)
   Integrator: Merge-Reihenfolge D → C → F → E → A → B → A2 → H; End-to-End-Tests, Orakel grün
   WS-D2 KPIs (kpi-*), WS-G MC/Vergleich/Sensitivität/Solve, WS-E2 Expander + Rechtsregeln (Memo 02),
-  WS-H2 HTML/DOCX-Bericht, Bibliothekseinträge (Fachagent, nur inst/extdata/library)
+  WS-H2 HTML/DOCX-Bericht (Fach- und Haushaltsmodus), Bibliothekseinträge (Fachagent, nur inst/extdata/library)
+  WS-X  Steuermodule tax_flat, tax_selfuse (Memo 06 §6) gegen die in Phase 1 fertige Schnittstelle
+  WS-S  Referenzszenarien S1–S5 (Memo 07) als YAML + Prüfwerte (nur inst/extdata/examples, tests/fixtures)
         │
         ▼
 Phase 3  (Härtung)
@@ -1572,8 +1659,9 @@ Phase 3  (Härtung)
 3. **Vergleichsmodus Sanierung:** Memo 01 (E6) empfiehlt Total-VoFis mit ΔEW, Memo 02 nennt `differential` als Standard
    für Sanierung. Vorschlag: Total-VoFi als Standard, `differential` als gekennzeichneter Vereinfachungsmodus.
    Einverstanden?
-4. **Raster in v1:** Monatliche Bauphase plus jährlicher Betrieb ab v1, oder v1 rein jährlich und monatliche Bauphase in
-   v1.1? (Architektur unterstützt beides. Mehraufwand liegt vor allem in Krediten und Tests.)
+4. **Raster in v1:** Memo 01 (E7) empfiehlt das nicht äquidistante Raster (Bauphase monatlich) schon für v1, Memo 07
+   (A-02) die jährliche VoFi mit monatsgenauer Kreditrechnung und die unterjährige Bauphase erst in v2. Die Architektur
+   unterstützt beides (Raster als Vektor Δ_t). Der Mehraufwand liegt vor allem in Krediten und Tests. Entscheidung?
 5. **Excel-Bibliothek:** `openxlsx` (installiert, Wartungsmodus) oder Umstieg auf `openxlsx2` (aktiv entwickelt, nicht
    installiert)?
 6. **Shiny:** v1.1 als Viewer ausreichend? Wo würde die App laufen (lokal, Shiny Server, Posit Connect)? Sind die
@@ -1584,7 +1672,17 @@ Phase 3  (Härtung)
 9. **Bibliothekspflege:** Wer aktualisiert Förderkonditionen und Preispfade, in welchem Rhythmus? Soll das Tool beim
    Start auf veraltete Einträge hinweisen?
 10. **Ausdrücke:** Soll der sichere Ausdrucksauswerter auch für frei formulierte abgeleitete Parameter freigegeben werden
-    oder nur für Förderbedingungen?
+    oder nur für Förderbedingungen? (Memo 07 nutzt ihn bereits für Kostenformeln, z. B. Fläche × €/m².)
+11. **Abstimmung der Codes zwischen den Memos** (vor Phase 0 festzulegen, dann im Glossar und den Vokabularen fixiert):
+    - Perspektiven: Memo 02 (`wu_kommunal`, `wu_genossenschaft`, `wu_privat`, `kleinvermieter`, `selbstnutzer`) und
+      Memo 06 (`privat_vermieter`, `wu_kapges`, `wu_eg_befreit`, `wu_eg_stpfl`, `wu_kommunal`, `wu_gemeinnuetzig`,
+      `selbstnutzer`). Vorschlag: `perspective` nach Memo 02 plus getrenntes Feld `tax_regime` nach Memo 06.
+    - KPI-Schlüssel: Memo 04 verwendet `endwert`/`endwert_diff`, dieses Memo `terminal_value`/`delta_terminal_value`
+      (englische Bezeichner nach Projektvorgabe). Vorschlag: englische Schlüssel, deutsche Labels über den Katalog.
+    - Tilgungszuschuss-Wirkung: Memo 01 (`shorten_term`/`reduce_installment`), Memo 02 (`reduce_principal`/
+      `reduce_annuity`/`shorten_term`), Memo 07 (`term_reduction`/`payment_reduction`). Vorschlag: Memo-01-Codes.
+    - Projektarten: Memo 02 (`sanierung_eh`, …) und Memo 07 (`sanierung_stufenweise`). Vorschlag: Vokabular `enums.yaml`
+      als einzige Quelle, Memo-07-Wert ergänzen.
 
 ---
 
@@ -1598,7 +1696,7 @@ Phase 3  (Härtung)
 | Uneinheitliche Begriffe und Schlüssel paralleler Agenten | Integrationsaufwand | Glossar (3.6), Vokabulare, Verträge, Vertragstests |
 | Steuermodul braucht später Informationen, die heute fehlen | Refactoring | Pflicht-Tags und Assets ab v1 (5.11), Test „Steuerbereitschaft“, `step`-Schnittstelle mit Zustand |
 | Veraltete Bibliotheksdaten (Förderung, CO2-Preis, Recht) | falsche Annahmen | Gültigkeits- und Abrufdaten, Warnungen, Herkunft im Bericht |
-| Speicher bei großen N × T × Zeilen | Abbruch | `keep`-Strategie, Speicherschätzung, Chunks |
+| Speicher bei großen N × T × Zeilen | Abbruch | `store`-Strategie, Speicherschätzung, Chunks |
 | Umlaute und Locale in CI/`R CMD check` | WARNINGs, kaputte Snapshots | Label-Katalog, `LANG=C.UTF-8`, `skip_if_not(UTF-8)` |
 | openxlsx in Wartungsmodus | spätere Inkompatibilität | Kapselung in zwei Dateien, Wechsel zu openxlsx2 vorbereitet |
 | Excel-Vorlage und Registry laufen auseinander | Lesefehler | Vorlage generiert, Strukturtest |
