@@ -1,0 +1,119 @@
+# Stochastische Spezifikation – Overlay auf die deterministischen Projekteingaben.
+# Schlüssel englisch (snake_case), Beschriftungen (label) deutsch.
+stochastic:
+  settings:
+    n_sim: 10000
+    seed: 20261025
+    sampling: lhs              # pseudo | lhs
+    replicates: 10             # replizierte LHS (ehrliche Standardfehler)
+    antithetic: false          # nur mit sampling: pseudo sinnvoll
+    copula: iman_conover       # iman_conover | gaussian
+    start_year: 2026           # t = 0
+    horizon: 40                # Jahre (sonst aus Projekt)
+    store: bands               # kpi | bands | full
+    keep_runs: [p05, p50, p95] # vollständige VoFi-Tabellen nur für diese Läufe
+
+  parameters:                  # statisch: genau eine Ziehung je Simulation
+    construction_cost_factor:
+      target: construction.cost_factor
+      label: "Baukostenabweichung (Faktor auf Kostenschätzung)"
+      dist: pert
+      min: 0.95
+      mode: 1.05
+      max: 1.40
+    construction_delay_months:
+      target: construction.delay_months
+      label: "Bauzeitverzug (Monate)"
+      dist: pert
+      min: 0
+      mode: 2
+      max: 12
+    subsidy_approved:
+      target: funding.grant.approved
+      label: "Förderzusage erteilt"
+      dist: bernoulli
+      p: 0.85
+    savings_realisation:
+      target: energy.savings_realisation
+      label: "Realisierungsgrad der berechneten Einsparung"
+      dist: pert
+      min: 0.40
+      mode: 0.80
+      max: 1.05
+    heat_pump_lifetime:
+      target: components.heat_pump.lifetime
+      label: "Nutzungsdauer Wärmepumpe (Jahre)"
+      dist: triangular
+      min: 12
+      mode: 18
+      max: 25
+    exit_yield_shock:
+      target: exit.yield_shock
+      label: "Abweichung Exit-Rendite (absolut)"
+      dist: normal
+      mean: 0
+      sd: 0.004
+    vacancy_level:
+      target: revenue.vacancy_rate
+      label: "Leerstandsquote (Niveau)"
+      dist: lognormal
+      median: 0.02
+      p90: 0.05
+
+  processes:                   # Zeitreihen: genau ein Pfad je Simulation
+    inflation:
+      target: market.inflation
+      label: "Inflationsrate VPI"
+      type: ar1
+      mu: {dist: normal, mean: 0.02, sd: 0.004}   # Parameterunsicherheit (Trend)
+      phi: 0.5
+      sigma: 0.011
+      x0: 0.022
+    mortgage_rate:
+      target: financing.follow_up_rate
+      label: "Bauzins 10 J. Zinsbindung (Anschlussfinanzierung)"
+      type: vasicek              # Defaults kalibriert an Bundesbank SUD119 (Abschnitt 2.3)
+      r0: 0.040
+      theta: 0.0375
+      kappa: 0.12
+      sigma: 0.007
+      floor: 0.005
+    rent_growth:
+      target: revenue.rent_growth
+      label: "Mietsteigerung p.a."
+      type: linked_ar1           # g_t = a + b * basis_t + AR(1)-Abweichung
+      base: inflation
+      a: 0.002
+      b: 0.8
+      phi: 0.5
+      sigma: 0.006
+    co2_price:
+      target: energy.co2_price
+      label: "CO2-Preis BEHG/ETS2 (EUR/t)"
+      type: scenario_mix
+      scenarios:
+        niedrig: {prob: 0.3, years: [2026, 2030, 2045, 2066], values: [60, 70, 90, 100]}
+        mittel:  {prob: 0.5, years: [2026, 2030, 2045, 2066], values: [60, 120, 200, 250]}
+        hoch:    {prob: 0.2, years: [2026, 2030, 2045, 2066], values: [60, 200, 300, 350]}
+      noise: {phi: 0.8, sigma: 0.15}
+    gas_price:
+      target: energy.price.gas
+      label: "Gaspreis Haushalte ohne CO2-Anteil (EUR/kWh)"
+      type: mr_trend               # ln P_t = ln Trend_t + AR(1)-Abweichung
+      p0: 0.10
+      growth: {dist: normal, mean: 0.02, sd: 0.01}   # Trendunsicherheit
+      phi: 0.75
+      sigma: 0.08
+    vacancy_fluctuation:
+      target: revenue.vacancy_fluctuation
+      label: "Jährliche Leerstandsschwankung (Faktor)"
+      type: iid
+      dist_spec: {dist: pert, min: 0.5, mode: 1.0, max: 2.0}
+
+  correlations:
+    parameters:                # Rangkorrelation (Spearman) statischer Parameter
+      - [construction_cost_factor, construction_delay_months, 0.5]
+    shocks:                    # Korrelation der jährlichen Schocks
+      - [inflation, mortgage_rate, 0.4]
+      - [inflation, rent_growth, 0.3]
+      - [inflation, gas_price, 0.6]
