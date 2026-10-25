@@ -49,7 +49,7 @@
 | u | Uniform aus (0, 1) nach Spec 00 §11.5 (LHS je Block oder Pseudo), nach Korrelation (§11.6) |
 | z_y | Standardnormal-Schock des Jahres y ≥ 2 (Spec 00 §11.5), nach Kreuzkorrelation |
 | Q(u; par) | Quantilfunktion der Verteilung (`quantile(u, par)`, Spec 00 §5.3) |
-| m | Blockgröße = `n_sim / replicates` (Spec 00 §11.4) |
+| m | Blockgröße `block_size` (Default 200; im F21-Modus m = n_sim / `replicates`), Spec 00 §11.4, R-73 |
 | Φ, φ | Standardnormal-Verteilungsfunktion bzw. -dichte |
 
 ---
@@ -99,11 +99,12 @@ Argumente von `vofi_mc()`/`vofi_run()` gehen vor (Spec 00 §9.2, §14 Nr. 15).
 
 | YAML-Pfad | Typ | Einheit | Default | Pflicht | Validierung | Bedeutung | Quelle/Memo-Ref |
 |---|---|---|---|---|---|---|---|
-| `stochastic.settings.preset` | enum:`preview`,`standard`,`report`,`custom` | – | `standard` | nein | E bei unbekanntem Code | setzt `n_sim`/`replicates` nach 6.1, sofern diese nicht ausdrücklich angegeben sind (S01C-14) | Konzept §4.3, Memo 04 E9 |
-| `stochastic.settings.n_sim` | int | Läufe | `10000` (aus `preset`) | nein | E: ≥ 2 für MC; E: `n_sim %% replicates == 0` (mit Vorschlag nächster Vielfacher) | Anzahl Läufe | Spec 00 §11.4, Konzept F21 |
+| `stochastic.settings.preset` | enum:`preview`,`standard`,`report`,`tail`,`custom` | – | `standard` | nein | E bei unbekanntem Code | setzt `n_sim` nach 6.1, sofern nicht ausdrücklich angegeben; die Blockgröße bleibt 200, sodass jedes Preset ein Präfix des größeren ist (S01C-14) | Konzept §4.3, Memo 04 E9, R-73 |
+| `stochastic.settings.n_sim` | int | Läufe | `10000` (aus `preset`) | nein | E: ≥ 2 für MC; E: `n_sim %% block_size == 0` (`vofi_error_input` mit Vorschlag des nächsten Vielfachen); im F21-Modus `n_sim %% replicates == 0` | Anzahl Läufe | Spec 00 §11.4, R-73 |
 | `stochastic.settings.seed` | int | – | `20261025` (global.yaml) | ja für MC | E: ganzzahlig in [1, 2^31 − 2]; fehlt Argument und Feld → `vofi_error_input` | Master-Seed der benannten Ströme | Spec 00 §11.3, §9.2 |
 | `stochastic.settings.sampling` | enum:`lhs`,`pseudo` | – | `lhs` | nein | – | Basiszahlen (Spec 00 §11.5) | D8, Memo 04 E6 |
-| `stochastic.settings.replicates` | int | Blöcke | `10` | nein | E: ≥ 1; E: m = n_sim/replicates ≥ max(2, d + 1), d = Größe der Korrelationsgruppe (1.7.3) | Anzahl LHS-Replikate = Blöcke | Spec 00 §11.4, R-14 |
+| `stochastic.settings.block_size` | int | Läufe je Block | `200` | nein | E: ≥ 2; E: m ≥ max(2, d + 1), d = Größe der größten Korrelationsgruppe (1.7.3); E: zugleich mit `replicates` gesetzt | Läufe je LHS-Block (= Replikat); R = n_sim / m Blöcke; Lauf i hängt nur von Seed, Schlüssel, m und b = ⌈i/m⌉ ab | Spec 00 §11.4, R-73 |
+| `stochastic.settings.replicates` | int \| null | Blöcke | `null` | nein | E: ≥ 1; E: zugleich mit `block_size`; I: „Ziehungen hängen von n_sim ab“ | **F21-Modus:** Anzahl der Blöcke, m = n_sim / R (Konzept F21, „10 Replikate zu je N/10“) | Konzept F21, Spec 00 §11.4 |
 | `stochastic.settings.antithetic` | lgl | – | `false` | nein | E: `true` nur mit `sampling: pseudo` und geradem m | antithetische Variablen | Spec 00 §11.5 |
 | `stochastic.settings.copula` | enum:`iman_conover`,`gaussian` | – | `iman_conover` | nein | – | Abhängigkeit statischer Größen (1.7) | Spec 00 §11.6 |
 | `stochastic.settings.start_year` | int \| null | Jahr | `null` = Jahr(`valuation_date`) | nein | E: `start_year` ≤ Jahr(`valuation_date`); W bei `start_year` < Jahr(`valuation_date`) − 1 | erstes Prozessjahr (Spalte 1) | Spec 00 §11.7, R-58 |
@@ -112,11 +113,14 @@ Argumente von `vofi_mc()`/`vofi_run()` gehen vor (Spec 00 §9.2, §14 Nr. 15).
 | `stochastic.settings.keep_runs_kpi` | chr | – | `delta_terminal_value` | nein | E: skalare KPI des Modells | Auswahlkennzahl für `keep_runs` | Spec 00 §9.9 |
 | `stochastic.settings.bands` | chr[] | – | `[net_position, dep_balance, od_balance]` | nein | E: Ledger-Schlüssel des Modells (Bestands- oder Flusszeilen) | Fächerbänder | Spec 00 §9.9 |
 | `stochastic.settings.band_probs` | num[] | 1 | `[0.05, 0.25, 0.5, 0.75, 0.95]` | nein | E: streng steigend in (0, 1) | Quantile der Bänder | Spec 00 §13.2 |
-| `stochastic.settings.auto_funding_approval` | lgl | – | `true` | nein | – | automatischer Bernoulli-Schlüssel `funding.<id>.approved` (Spec 00 §11.6 Nr. 4, R-55) | D8 |
+| `stochastic.settings.auto_funding_approval` | lgl | – | `true` | nein | – | automatischer Bernoulli-Schlüssel `funding.<id>.approved` (Spec 00 §11.6 Nr. 4, R-55); bei Entscheidungsknoten (`fallback_variant`) mit Rolle `decision` (Spec 00 §9.11, R-71) | D8 |
 
-**Prüffälle (WS-C/WS-B):** (s1) `n_sim: 1000, replicates: 10` → m = 100; (s2) `n_sim: 1001` → E mit Vorschlag 1000
-oder 1010; (s3) `antithetic: true, sampling: lhs` → E; (s4) Korrelationsgruppe mit d = 12 Schlüsseln und
-`n_sim: 100, replicates: 10` (m = 10 < 13) → `vofi_error_input` (Spec 00 §15.5 Nr. 7).
+**Prüffälle (WS-C/WS-B):** (s1) `n_sim: 1000` mit Default `block_size: 200` → R = 5, SE-Kennzeichnung „grob“
+(se_df = 4); `n_sim: 10000` → R = 50; (s2) `n_sim: 1100` → `vofi_error_input` mit Vorschlag 1000 oder 1200 (Spec 00
+§15.5 Nr. 9); (s3) `antithetic: true, sampling: lhs` → E; (s4) Korrelationsgruppe mit d = 12 Schlüsseln und
+`block_size: 10` (m = 10 < 13) → `vofi_error_input` (Spec 00 §15.5 Nr. 7); (s5) `block_size: 200` und
+`replicates: 10` zugleich → E; (s6) `replicates: 10, n_sim: 1000` → m = 100 mit Hinweis (F21-Modus); (s7)
+Präfix: Läufe 1…1.000 von `n_sim: 10000` sind `identical()` zu `n_sim: 1000` (Spec 00 §15.5 Nr. 9).
 
 ### 1.3 `stochastic.parameters.<key>` (statische Größen)
 
@@ -306,10 +310,14 @@ min, β ≤ 1 → max; α = β = 1 → Mitte). **Prüffälle:** (b1) mean 0,08, 
 
 **Q(u) = 1{u > 1 − p}** (monoton nicht fallend; die Memo-04-Form 1{u < p} verletzt Spec 00 §5.3 und ist unzulässig,
 S01C-04). mean = p; var = p(1 − p); mode = 1{p ≥ 0,5}; median = Q(0,5) = 1{p > 0,5}. Mit LHS enthält jeder Block
-genau ⌊p m⌋ oder ⌈p m⌉ Einsen. Deterministischer Basiswert von `funding.<id>.approved` ist 1 (Spec 00 §11.6 Nr. 4).
-Rangkorrelationen mit Bernoulli-Schlüsseln erzeugen I („Bindungen: Zielkorrelation nicht erreichbar“, Memo 04 §3.4).
-**Prüffälle:** p = 0,85: Q(c(1e-9, 0.5, 1 − 1e-9)) = (0, 1, 1); Q(0,15) = 0, Q(0,1500001) = 1; m = 100 → je Block
-85 Einsen.
+genau ⌊p m⌋ oder ⌈p m⌉ Einsen. Deterministischer Basiswert von `funding.<id>.approved` ist 1 (Spec 00 §11.6 Nr. 4;
+unter dem Set `foerderstopp` 0). Ist das Instrument ein **Entscheidungsknoten** (`funding.<id>.fallback_variant`
+gesetzt, Spec 00 §9.11), erhält der Schlüssel die Rolle `decision`: gleiche Ziehung (Strom `par:<key>:<b>`), aber
+keine Wirkung auf das Ziel, sondern Zweigwahl je Lauf; Entscheidungsschlüssel MÜSSEN `bernoulli` (bzw. 0/1-wertig)
+sein und dürfen in keiner Korrelationsgruppe stehen (E `decision_correlated`, R-71). Rangkorrelationen mit
+Bernoulli-Schlüsseln der Rolle `value` erzeugen I („Bindungen: Zielkorrelation nicht erreichbar“, Memo 04 §3.4).
+**Prüffälle:** p = 0,85: Q(c(1e-9, 0.5, 1 − 1e-9)) = (0, 1, 1); Q(0,15) = 0, Q(0,1500001) = 1; m = 200 → je Block
+genau 170 Einsen (Golden 1.10.3: Block 1 von `funding.kfw261.approved`, erste fünf Läufe 1, 1, 1, 1, 0).
 
 #### 1.4.10 `discrete`
 
@@ -495,16 +503,17 @@ Erwartung 1). Variationskoeffizient des Rauschens: √(exp(σ²(1 − φ^{2(y−
 
 | Prozess | p0 / p̄ / φ / σ / g | E[P_2] | E[P_6] | E[P_11] | E[P_31] | E[P_31] \| g fest |
 |---|---|---:|---:|---:|---:|---:|
-| Gas EFH (Hs) ohne CO2 und Netzentgelt | 0,0754 / 0,0694 / 0,75 / 0,08 / N(0,02; 0,01) | 0,07533010 | 0,07822101 | 0,08536229 | 0,13106289 | 0,12571036 |
-| Gas MFH (Hs) ohne CO2 und Netzentgelt | 0,0719 / 0,0664 / 0,75 / 0,08 / N(0,02; 0,01) | 0,07189337 | 0,07478038 | 0,08165691 | 0,12539728 | 0,12027612 |
-| Haushaltsstrom | 0,375 / 0,360 / 0,75 / 0,04 / N(0,02; 0,007) | 0,37861625 | 0,40152721 | 0,44078078 | 0,66557412 | 0,65209492 |
-| Wärmepumpenstrom EFH | 0,260 / 0,250 / 0,75 / 0,05 / N(0,02; 0,007) | 0,26261237 | 0,27873241 | 0,30607017 | 0,46220412 | 0,45284357 |
-| Wärmepumpenstrom MFH | 0,250 / 0,240 / 0,75 / 0,05 / N(0,02; 0,007) | 0,25241083 | 0,26768481 | 0,29385386 | 0,44371608 | 0,43472995 |
-| Heizöl (Hi) ohne CO2 | 0,1194 / 0,080 / 0,70 / 0,18 / N(0,02; 0,012) | 0,10800160 | 0,09460660 | 0,09924443 | 0,15386662 | 0,14491023 |
-| Fernwärme | 0,156 / 0,150 / 0,80 / 0,07 / N(0,025; 0,008) | 0,15865063 | 0,17201114 | 0,19335203 | 0,32308481 | 0,31465041 |
-| Holzpellets (Hi) | 0,085 / 0,070 / 0,60 / 0,09 / N(0,025; 0,008) | 0,08061474 | 0,08045234 | 0,08995730 | 0,15076560 | 0,14682974 |
-| Beispiel ohne Krisenabweichung (`p_norm` = p0) | 0,0730 / 0,0730 / 0,75 / 0,08 / N(0,02; 0,01) | 0,07446000 | 0,08067538 | 0,08937200 | 0,13785950 | 0,13222940 |
+| Gas EFH (Hs) ohne CO2 und Netzentgelt | 0,06335 / 0,05833 / 0,75 / 0,08 / N(0,02; 0,01) | 0,06329700 | 0,06573832 | 0,07174468 | 0,11015703 | 0,10565828 |
+| Gas MFH (Hs) ohne CO2 und Netzentgelt | 0,06043 / 0,05580 / 0,75 / 0,08 / N(0,02; 0,01) | 0,06042243 | 0,06284453 | 0,06862183 | 0,10537904 | 0,10107542 |
+| Haushaltsstrom | 0,31513 / 0,30252 / 0,75 / 0,04 / N(0,02; 0,007) | 0,31816764 | 0,33741797 | 0,37040312 | 0,55930412 | 0,54797710 |
+| Wärmepumpenstrom EFH | 0,21849 / 0,21008 / 0,75 / 0,05 / N(0,02; 0,007) | 0,22068358 | 0,23422615 | 0,25719733 | 0,38839937 | 0,38053351 |
+| Wärmepumpenstrom MFH | 0,21008 / 0,20168 / 0,75 / 0,05 / N(0,02; 0,007) | 0,21210671 | 0,22494362 | 0,24693497 | 0,37286941 | 0,36531807 |
+| Heizöl (Hi) ohne CO2 | 0,10034 / 0,06723 / 0,70 / 0,18 / N(0,02; 0,012) | 0,09076136 | 0,07950492 | 0,08340252 | 0,12930566 | 0,12177894 |
+| Fernwärme | 0,13109 / 0,12605 / 0,80 / 0,07 / N(0,025; 0,008) | 0,13331778 | 0,14454597 | 0,16247989 | 0,27149893 | 0,26441123 |
+| Holzpellets (Hi) | 0,07944 / 0,06542 / 0,60 / 0,09 / N(0,025; 0,008) | 0,07534104 | 0,07518856 | 0,08407154 | 0,14090122 | 0,13722288 |
+| Beispiel ohne Krisenabweichung (`p_norm` = p0) | 0,0613 / 0,0613 / 0,75 / 0,08 / N(0,02; 0,01) | 0,06252600 | 0,06774521 | 0,07504800 | 0,11576421 | 0,11103647 |
 
+Alle Werte **netto** (ohne USt; # 01b §3.2.1: `price_eur_kwh` netto, `price_basis: net`, USt über `vat_rate`).
 Variationskoeffizient des Rauschens stationär: Gas 0,121392; Strom 0,060530; WP-Strom 0,075701; Heizöl 0,256107;
 Fernwärme 0,117065; Pellets 0,112857.
 
@@ -582,7 +591,7 @@ n_shocks = n_uniforms = 0; expected = simulate. Zweck: einen Marktpfad im MC fes
 
 | YAML-Pfad | Typ | Einheit | Default | Pflicht | Validierung | Bedeutung | Quelle |
 |---|---|---|---|---|---|---|---|
-| `stochastic.correlations.parameters` | list of [chr, chr, num] | – | `[]` | nein | E: beide Schlüssel sind statische Schlüssel des Plans (`parameters`, `<proc>.<param>`, `funding.<id>.approved`, verschobene Kurzformen); E: \|ρ_S\| ≤ 1; E: a ≠ b; E: dasselbe Paar zweimal mit verschiedenem ρ; W: \|ρ_S\| = 1 (wird repariert) | Rangkorrelationen (Spearman) statischer Größen | Spec 00 §11.6 Nr. 1–3 |
+| `stochastic.correlations.parameters` | list of [chr, chr, num] | – | `[]` | nein | E: beide Schlüssel sind statische Schlüssel der Rolle `value` (`parameters`, `<proc>.<param>`, `funding.<id>.approved` ohne Entscheidungsknoten, verschobene Kurzformen); E `decision_correlated`: Schlüssel der Rolle `decision` (Spec 00 §11.6 Nr. 4, R-71); E: \|ρ_S\| ≤ 1; E: a ≠ b; E: dasselbe Paar zweimal mit verschiedenem ρ; W: \|ρ_S\| = 1 (wird repariert) | Rangkorrelationen (Spearman) statischer Größen | Spec 00 §11.6 Nr. 1–3 |
 | `stochastic.correlations.shocks` | list of [chr, chr, num] | – | `[]` | nein | E: beide Schlüssel sind Prozesse mit n_shocks = 1; sonst wie oben | Korrelation (Pearson) der Jahresschocks z | Spec 00 §11.6 Nr. 5 |
 
 Paare aus einem Bibliotheksverweis (`{from: processes/…}`), deren Schlüssel im Plan fehlen, werden mit
@@ -603,8 +612,9 @@ Paare aus einem Bibliotheksverweis (`{from: processes/…}`), deren Schlüssel i
 
 #### 1.7.3 Mindestblockgröße
 
-m ≥ max(2, d + 1) (Spec 00 §11.4); sonst `vofi_error_input` mit Vorschlag (n_sim ≥ replicates · (d + 1)). Beispiel:
-d = 6 Schlüssel, replicates = 10 → n_sim ≥ 70; Preset `preview` (m = 100) erlaubt d ≤ 99.
+m ≥ max(2, d + 1) (Spec 00 §11.4, R-73); sonst `vofi_error_input` mit Vorschlag `block_size ≥ d + 1`. Mit dem
+Default `block_size: 200` sind Gruppen bis d = 199 zulässig, unabhängig von n_sim (auch in der Vorschau). Im
+F21-Modus (`replicates` R) gilt m = n_sim/R, Vorschlag n_sim ≥ R · (d + 1); Beispiel d = 6, R = 10 → n_sim ≥ 70.
 
 #### 1.7.4 Reparatur nicht positiv definiter Matrizen (MUSS, R-38)
 
@@ -635,7 +645,7 @@ Kopplungen sind **keine** eigenen Overlay-Felder. Sie entstehen über (i) Wertfo
 |---|---|---|---|---|
 | K1 | Bestandsmiete folgt der Inflation | Prozess `rent_growth` (`linked_ar1`, base `inflation`, a = 0,002, b = 0,8, `u0: base`) auf `market.rent_growth` | Startjahr unverändert (`u0: base`) | Memo 04 §1.2, Konzept §4.2 |
 | K2 | Indexmiete = VPI | `rent_regime: index` liest `market.inflation` (# 01b), keine Zusatzangabe | – | Memo 02 §2.7 |
-| K3 | Habenzins, KK-Zins folgen dem Bauzins | `accounts.deposit_rate_pa: {ref: market.mortgage_rate, offset: <h − r>, floor: 0}`, `accounts.overdraft_rate_pa: {ref: market.mortgage_rate, offset: <s − r>}`; Abstand so, dass der Basiswert unverändert bleibt (Konzept F18) | identisch | Memo 04 §1.2, Konzept A2/F18 |
+| K3 | Habenzins, KK-Zins folgen dem Bauzins | `accounts.deposit_rate_pa: {ref: market.mortgage_rate, anchor: <h>, floor: 0}`, `accounts.overdraft_rate_pa: {ref: market.mortgage_rate, anchor: <s>}` (Spec 00 §4.5 „Bezug“ mit `anchor`, R-76): Wert = a + (x − x[, 1]), Startwert = deterministischer Zins; Profilwerte # 01a | identisch (bei konstantem Basispfad) | Memo 04 §1.2, Konzept A2/F18 |
 | K4 | Energiepreis = Commodity/Rest + Netzentgelt + CO2 × EF | Prozesse auf `market.energy_price.<träger>` (ohne CO2 und ohne getrennt geführtes Netzentgelt), `market.energy_network_fee.<träger>` deterministisch mit Wachstum, `market.co2_price` als Korridor; Summe bildet der Typ `energy_cost` (# 01b) | – | Konzept §3.8, Memo 03 §2.4 |
 | K5 | Bio-Mehrkosten folgen Gaspreis/CO2 nicht, eigene Unsicherheit | `market.bio_fuel_premium` mit statischem Faktor (`apply: multiply`, triangular 0,5/1/1,67 ≙ 3/6/10 ct) | – | Memo 07 §4.0 |
 | K6 | Baupreise, Instandhaltung folgen der Inflation | `linked_ar1` (a = 0,007 bzw. 0,010, b = 1, `u0: base`) auf `market.construction_price_index`, `market.maintenance_index` | Startjahr unverändert | Memo 04 §2.3, Memo 03 §5.2 |
@@ -646,9 +656,11 @@ Kopplungen sind **keine** eigenen Overlay-Felder. Sie entstehen über (i) Wertfo
 | K11 | Betriebskosten folgen VPI + Spread | `{ref: market.inflation, offset: 0.005}` | – | Memo 03 §5 (operating_cost_growth) |
 | K12 | Bauzins = Bundrendite + Spread (Alternative zu Vasicek direkt, F7) | `market.mortgage_rate: {expr: "market.bund_yield_10y + market.mortgage_spread"}`, Prozesse auf beiden Summanden (2.2) | identisch | Memo 03 §4.3, Konzept F7 |
 
-**Prüffall K3 (WS-D):** Basis `market.mortgage_rate = 0.041`, `accounts.deposit_rate_pa: {ref: market.mortgage_rate,
-offset: -0.006, floor: 0}` → deterministisch 0,035 in allen Perioden; MC mit Golden-Pfad (1.6.3, aber r0 = 0,041):
-Spalte des Jahres 2 = r_2 − 0,006.
+**Prüffall K3 (WS-D):** Basis `market.mortgage_rate = 0.041` (konstant), `accounts.deposit_rate_pa: {ref:
+market.mortgage_rate, anchor: 0.035, floor: 0}` → deterministisch 0,035 in allen Perioden; MC mit Golden-Pfad
+(1.6.3: 0,04; 0,0406599864; 0,0494826935; 0,0441105157) → 0,035; 0,0356599864; 0,0444826935; 0,0391105157 (Wert
+= 0,035 + (r_y − r_1)). Ohne `anchor` (Form `offset: -0.006`) läge der Startwert im Lauf bei r_1 − 0,006 = 0,034 ≠
+0,035; deshalb ist `anchor` die Default-Kopplung (Konzept F18).
 
 ### 1.9 Ziele (`target`) und Abbildung auf Parameterpfade
 
@@ -673,9 +685,11 @@ zeilenweise konstant, `ctx$by_sim()`); Komponenten sehen beides nur über `ctx$p
 | `measures.<id>.delay_months` | number / scalar | `pert` | `processes/cost_risks_2026` (`use: delay_retrofit`) | Spec 00 §3.9 |
 | `measures.<id>.useful_life_years` | number / scalar | `triangular` (aus `costs/nutzungsdauern_2026.uncertainty`) | – | 01a |
 | `energy.performance_gap.prebound_factor` / `.rebound_factor` / `.realisation_factor` | value / scalar | `pert` | `processes/energy_performance_2026` (`use: prebound` \| `rebound` \| `realisation`) | 01b |
-| `energy.after.jaz` (realisierte JAZ; **nicht** `jaz_plan`, das `deterministic_only` ist) | number / scalar | `pert` | `processes/energy_performance_2026` (`use: jaz_air_water_existing` u. a.) | 01b |
-| `funding.<id>.approved` | value 0/1 | `bernoulli` (automatisch aus `approval_probability`; Verfügbarkeit nach 2030 `p = 0.7`) | Fördereinträge `budget_risk`; `processes/funding_risks_2026` (`use: availability_post2030`) | Spec 00 §11.6 Nr. 4, 01b |
-| `funding.<id>.payout_delay_months` | int → E (deterministisch) | – (Verzug als `measures.<id>.delay_months` modellieren) | – | 01b |
+| `energy.<zustand>.generators.<gen>.jaz` (realisierte JAZ; **nicht** `jaz_plan`, das `deterministic_only` ist und § 559f steuert, R-70) | number / scalar | `pert` | `processes/energy_performance_2026` (`use: jaz_air_water_existing` u. a.) | 01b §3.2.3 |
+| `funding.<id>.approved` | value 0/1 | `bernoulli` (automatisch aus `approval_probability`; Verfügbarkeit nach 2030 `p = 0.7`); Rolle `decision` bei Entscheidungsknoten | Fördereinträge `budget_risk`; `processes/funding_risks_2026` (`use: availability_post2030`) | Spec 00 §9.11, §11.6 Nr. 4, 01b |
+| `funding.<id>.payout_delay_months` | number ≥ 0 / scalar | `pert` (Auszahlungsverzug nach Zusage, Konzept B12) | `processes/funding_risks_2026` (`use: payout_delay`) | Spec 00 §3.9, R-84, 01b |
+| `financing.<id>.repayment_grant.cut_share` | share / scalar | `discrete` (Kürzung/Rückforderung bei verfehltem Nachweis) | `processes/funding_risks_2026` (`use: repayment_grant_cut`) | Spec 00 §8.2, R-84 |
+| `measures.<id>.active` | value 0/1 / scalar | `bernoulli` (Maßnahme findet statt, z. B. spätere Stufe) | – | Spec 00 §4.3.6, R-71 |
 | `residual_value.<methode>.cap_rate` | rate / path (Spalte T+1) | `apply: add` normal | `processes/valuation_risks_2026` (`use: cap_rate_shock`) | 01a |
 | `residual_value.<methode>.remaining_life_years` | number / scalar | `apply: add` triangular (−5; 0; 5) | `processes/valuation_risks_2026` (`use: remaining_life_shock`) | 01a |
 | `unit_groups.<id>.vacancy_rate` | share / path | `pert` bzw. `beta` | `processes/valuation_risks_2026` (`use: vacancy_level`) | 01b |
@@ -710,7 +724,8 @@ zeilenweise konstant, `ctx$by_sim()`); Komponenten sehen beides nur über `ctx$p
 | `uni:<proc>:<b>` | weitere Uniforms (v1 ungenutzt) | – |
 | `ic:<key>:<b>` | Score-Permutation Iman–Conover | `ic:cost_huelle:3` |
 
-b ist der globale Blockindex 1…replicates (dezimal, ohne führende Nullen). Schlüssel sind ASCII (id-Regeln Spec 00
+b ist der globale Blockindex 1…R mit R = n_sim / `block_size` (dezimal, ohne führende Nullen); Lauf i gehört zu
+Block ⌈i/m⌉, die Ströme eines Blocks hängen nicht von n_sim ab (Spec 00 §11.4, R-73). Schlüssel sind ASCII (id-Regeln Spec 00
 §4.4); Kurzform-Schlüssel enthalten Punkte, keine weiteren Sonderzeichen.
 
 #### 1.10.2 Namenskonventionen (SOLL, CRN)
@@ -745,6 +760,12 @@ Inversion/Rejection): 0,0770428277; 0,7377466243; 0,8153801601; 0,2168623472; 0,
 1,27760831; −0,71211298; 1,98313306; −1,39581165; −1,15778342; −0,21440874. Pseudo `runif(5)` im Strom
 `par:huelle_kosten:1`: 0,9472584811; 0,1823872703; 0,7804699554; 0,4783886457; 0,0081785580.
 
+**Default-Blockgröße m = 200** (R-73): `par:huelle_kosten:1` u[1:5] = 0,6396843421; 0,8825087800; 0,5951837389;
+0,1187823656; 0,2526394482 (Blockmittel 0,5000569179, Schichtung `sort(floor(200 u)) == 0:199`);
+`par:huelle_kosten:2` (hash 82619640, seed 1807676917) u[1:5] = 0,8671389795; 0,5422675004; 0,1600440787;
+0,1734603451; 0,1094319985. `par:funding.kfw261.approved:1` (seed 1698937791), p = 0,85: 170 Einsen, erste fünf
+Läufe 1, 1, 1, 1, 0. Die Läufe 1…200 sind bei n_sim = 1.000 und 10.000 identisch (Präfix-Test, Spec 00 §15.5 Nr. 9).
+
 ### 1.11 Validierungsregeln des Overlays (Sammelliste für WS-B, Codes `validation.stochastic.*`)
 
 | Code | Schwere | Regel |
@@ -766,6 +787,12 @@ Inversion/Rejection): 0,0770428277; 0,7377466243; 0,8153801601; 0,2168623472; 0,
 | `corr_ties` | I | Rangkorrelation mit `bernoulli`/`discrete` |
 | `corr_double_counting` | I | Schockkorrelation zwischen `linked_ar1` und seinem Basisprozess |
 | `block_too_small` | E (`vofi_error_input` bei Laufstart) | m < max(2, d + 1) |
+| `n_sim_not_multiple` | E (`vofi_error_input`) | n_sim kein Vielfaches von `block_size` (bzw. von `replicates` im F21-Modus), Vorschlag des nächsten Vielfachen |
+| `block_and_replicates` | E | `block_size` und `replicates` zugleich gesetzt |
+| `se_coarse` | I | R = n_sim/m < 10: Standardfehler „grob“ (se_df = R − 1) |
+| `decision_correlated` | E | Schlüssel der Rolle `decision` (Entscheidungsknoten) in einer Korrelationsgruppe oder nicht 0/1-wertig (R-71) |
+| `credit_amount_target` | E | Overlay- oder Designziel auf `financing.<id>.amount_eur` (`deterministic_only`, R-69); Unsicherheit über `approved` |
+| `jaz_plan_target` | E | Overlay-Ziel auf `jaz_plan` (`deterministic_only`, R-70) |
 | `antithetic_lhs` | E | `antithetic: true` mit `lhs` |
 | `cost_risk_double` | W | Kostenüberschreitungsfaktor auf eine Maßnahme, deren Risikozuschlag selbst stochastisch ist (Konzept §3.2) |
 | `prebound_with_measured` | W | `prebound_factor` stochastisch, obwohl `consumption_basis: measured` (Konzept B7) |
@@ -797,8 +824,8 @@ Alle Einträge folgen dem Eintragsschema 3.1 mit `block: processes`. Prozess- un
 | `processes/shock_correlations_2026` | – | Liste | `stochastic.correlations.shocks` | – | D | Memo 03 §2.3, Memo 04 §2.3, Konzept §4.2 |
 | `processes/param_correlations_2026` | – | Liste | `stochastic.correlations.parameters` | – | D | Memo 04 §3.1 |
 | `processes/cost_risks_2026` | `overrun_newbuild`, `overrun_retrofit`, `overrun_component`, `delay_newbuild`, `delay_retrofit`, `maintenance_level` | statisch | `measures.<id>.cost_eur`, `project.construction_delay_months`, `measures.<id>.delay_months`, `components.<id>.amount_eur` | `cost_<id>`, `delay_construction`, `delay_<id>`, `maint_level` | D | Memo 04 §1.2, Memo 07 §4.0/§4.3, Konzept §4.2 |
-| `processes/energy_performance_2026` | `prebound`, `rebound`, `realisation`, `jaz_air_water_existing`, `jaz_air_water_newbuild`, `jaz_ground_existing`, `jaz_air_water_mfh_central`, `jaz_relative` | statisch | `energy.performance_gap.*`, `energy.after.jaz` | `prebound`, `rebound`, `realisation`, `jaz_<id>` | C/D | Memo 04 §1.2, Memo 03 §7.2, Konzept B7 |
-| `processes/funding_risks_2026` | `availability_post2030`, `feed_in_continuation`, `repayment_grant_cut` | statisch | `funding.<id>.approved`, `market.feed_in_tariff.<klasse>`, `shared.tz_cut_<id>` | `funding.<id>.approved`, `feed_in`, `tz_cut_<id>` | D | Memo 07 §4.0, Konzept B12 |
+| `processes/energy_performance_2026` | `prebound`, `rebound`, `realisation`, `jaz_air_water_existing`, `jaz_air_water_newbuild`, `jaz_ground_existing`, `jaz_air_water_mfh_central`, `jaz_relative` | statisch | `energy.performance_gap.*`, `energy.<zustand>.generators.<gen>.jaz` | `prebound`, `rebound`, `realisation`, `jaz_<id>` | C/D | Memo 04 §1.2, Memo 03 §7.2, Konzept B7 |
+| `processes/funding_risks_2026` | `availability_post2030`, `feed_in_continuation`, `payout_delay`, `repayment_grant_cut` | statisch | `funding.<id>.approved`, `market.feed_in_tariff.<klasse>`, `funding.<id>.payout_delay_months`, `financing.<id>.repayment_grant.cut_share` | `funding.<id>.approved`, `feed_in`, `payout_delay_<id>`, `tz_cut_<id>` | D | Memo 07 §4.0, Konzept B12, Spec 00 §9.11 Nr. 7 |
 | `processes/valuation_risks_2026` | `cap_rate_shock`, `remaining_life_shock`, `vacancy_level`, `vacancy_fluctuation`, `market_value_uplift_efficiency` | statisch; `iid` | `residual_value.*`, `shared.vacancy_level`, `market.vacancy_fluctuation` | `cap_rate_rv`, `rnd_rv`, `vacancy_<group>`, `vacancy_fluct` | D | Memo 04 §1.2, Memo 07 §4.0, Konzept §4.2 |
 
 Förderzusagewahrscheinlichkeiten stehen in den Fördereinträgen (`budget_risk.approval_probability`, 3.4) und erzeugen
@@ -1027,20 +1054,22 @@ values:
 
 ### 2.4 Energiepreise (Mean-Reversion vom 12-Monats-Mittel zum Normalpreis, Konzept B8)
 
-Konvention (K4, # 01b): `market.energy_price.<träger>` ist der **Arbeitspreis brutto ohne CO2-Komponente und ohne
-getrennt geführtes Netzentgelt** (Gas: Netzentgelt in `market.energy_network_fee.gas`); Strom, Wärmepumpenstrom,
-Fernwärme und Pellets ohne getrenntes Netzentgelt. p0 = 12-Monats-Mittel (Nov. 2025–Okt. 2026), p_norm = Normalpreis
-(Memo 03 §2.4, real 2026, D); nominales Trendwachstum g = realer Trend + 2,0 % Inflation. Herleitung der Gas-p0:
-Gesamtpreis EFH 12,0 ct inkl. CO2 bei 65 €/t (0,1814 kg/kWh_Hs · 65 €/t · 1,19 = 1,40 ct) und Netzentgelt
-3,06 ct brutto (2,57 ct netto) → p0 = 7,54 ct; p_norm = 10,0 − 3,06 = 6,94 ct; MFH: 11,2 − 1,40 − 2,61 = 7,19 ct, p_norm
-= 9,80 · (10,0/10,6) − 2,61 = 6,64 ct (D).
+Konvention (K4, # 01b §3.2.1): `market.energy_price.<träger>` ist der **Arbeitspreis netto (ohne USt) ohne
+CO2-Komponente und ohne getrennt geführtes Netzentgelt** („Commodity + Rest“; Gas: Netzentgelt netto in
+`market.energy_network_fee.gas`); Strom, Wärmepumpenstrom, Fernwärme und Pellets ohne getrenntes Netzentgelt. Die
+USt rechnet der Typ `energy_cost` über `energy.carriers.<c>.vat_rate` (Default 0,19; Pellets 0,07, C, Prüfpunkt
+Anlage 2 Nr. 48 UStG). p0 = 12-Monats-Mittel (Nov. 2025–Okt. 2026), p_norm = Normalpreis (Memo 03 §2.4, real 2026,
+D); nominales Trendwachstum g = realer Trend + 2,0 % Inflation. Herleitung Gas EFH: Gesamtpreis 12,0 ct brutto =
+10,084 ct netto inkl. CO2 bei 65 €/t (0,1814 kg/kWh_Hs · 65 €/t = 1,179 ct netto) und Netzentgelt 2,57 ct netto →
+p0 = 6,335 ct; p_norm = 10,0/1,19 − 2,57 = 5,833 ct; MFH: 11,2/1,19 − 1,179 − 2,19 = 6,043 ct, p_norm = 9,80 ·
+(10,0/10,6)/1,19 − 2,19 = 5,58 ct (D). Übrige Träger: brutto/1,19 (Pellets /1,07).
 
 ```yaml
 # inst/extdata/library/processes/energy_prices_mr_2026.yaml
 id: processes/energy_prices_mr_2026
 block: processes
 schema_version: 1
-label: "Energiepreise 2026: Mean-Reversion um Trend (ohne CO2-Komponente)"
+label: "Energiepreise 2026 (netto): Mean-Reversion um Trend (ohne CO2-Komponente)"
 source:
   document: "BDEW Gas-/Strompreisanalyse 08/2026, BNetzA Monitoringbericht 2025, waermepreise.info 04/2026, DEPI 10/2026; HVPI-Teilindizes DE 1996-2025, eigene AR(1)-Schätzung realer Log-Preise (Memo 03 §2.1-2.4, Memo 04 §2.3)"
   url: "https://www.bdew.de/media/documents/BDEW_Gaspreisanalyse_082026.pdf"
@@ -1051,21 +1080,21 @@ valid_from: 2026-01-01
 valid_to: null
 quality: D                                  # Normalpreise und Trends: Expertenschätzung
 quality_detail: {gas.p0: B, gas_mfh.p0: B, power.p0: A, heatpump_power.p0: D, heatpump_power_mfh.p0: D, oil.p0: C, district_heating.p0: B, pellets.p0: C}
-fallback:
-  gas: {p0: 0.0754}
-  gas_mfh: {p0: 0.0719}
-  power: {p0: 0.375}
-  heatpump_power: {p0: 0.260}
-  heatpump_power_mfh: {p0: 0.250}
-  oil: {p0: 0.1194}
-  district_heating: {p0: 0.156}
-  pellets: {p0: 0.085}
+fallback:                                   # EUR/kWh netto
+  gas: {p0: 0.06335}
+  gas_mfh: {p0: 0.06043}
+  power: {p0: 0.31513}
+  heatpump_power: {p0: 0.21849}
+  heatpump_power_mfh: {p0: 0.21008}
+  oil: {p0: 0.10034}
+  district_heating: {p0: 0.13109}
+  pellets: {p0: 0.07944}
 values:
   gas:                                      # Erdgas EFH, Hs, ohne CO2 und Netzentgelt
     type: mr_trend
     label: "Erdgaspreis EFH (ohne CO2, ohne Netzentgelt)"
     p0: base
-    p_norm: 0.0694
+    p_norm: 0.05833
     growth: {dist: normal, mean: 0.020, sd: 0.010}
     phi: 0.75                               # Memo 03: 0,79 (real 1996-2025); Memo 04: 0,75-0,8
     sigma: 0.08                             # Memo 04/Konzept F20: 8 %; historisch 10,2 % nominal (inkl. 2022)
@@ -1073,7 +1102,7 @@ values:
     type: mr_trend
     label: "Erdgaspreis MFH (ohne CO2, ohne Netzentgelt)"
     p0: base
-    p_norm: 0.0664                          # D
+    p_norm: 0.05580                         # D
     growth: {dist: normal, mean: 0.020, sd: 0.010}
     phi: 0.75
     sigma: 0.08
@@ -1081,7 +1110,7 @@ values:
     type: mr_trend
     label: "Haushaltsstrompreis"
     p0: base
-    p_norm: 0.360
+    p_norm: 0.30252
     growth: {dist: normal, mean: 0.020, sd: 0.007}
     phi: 0.75
     sigma: 0.04                             # Konzept §4.2/F20: 4 %; Memo 03: 4,5 %
@@ -1089,15 +1118,15 @@ values:
     type: mr_trend
     label: "Wärmepumpenstrom EFH (separater Zähler)"
     p0: base
-    p_norm: 0.250
+    p_norm: 0.21008
     growth: {dist: normal, mean: 0.020, sd: 0.007}
     phi: 0.75
     sigma: 0.05                             # Memo 03 §17
   heatpump_power_mfh:
     type: mr_trend
-    label: "Wärmepumpenstrom Zentral-WP MFH (brutto)"
+    label: "Wärmepumpenstrom Zentral-WP MFH"
     p0: base
-    p_norm: 0.240                           # D
+    p_norm: 0.20168                         # D
     growth: {dist: normal, mean: 0.020, sd: 0.007}
     phi: 0.75
     sigma: 0.05
@@ -1105,7 +1134,7 @@ values:
     type: mr_trend
     label: "Heizölpreis (Hi, ohne CO2)"
     p0: base
-    p_norm: 0.080
+    p_norm: 0.06723
     growth: {dist: normal, mean: 0.020, sd: 0.012}
     phi: 0.70
     sigma: 0.18
@@ -1113,7 +1142,7 @@ values:
     type: mr_trend
     label: "Fernwärmepreis (Mischpreis)"
     p0: base
-    p_norm: 0.150
+    p_norm: 0.12605
     growth: {dist: normal, mean: 0.025, sd: 0.008}
     phi: 0.80
     sigma: 0.07
@@ -1121,7 +1150,7 @@ values:
     type: mr_trend
     label: "Holzpelletpreis (Hi)"
     p0: base
-    p_norm: 0.070
+    p_norm: 0.06542
     growth: {dist: normal, mean: 0.025, sd: 0.008}
     phi: 0.60
     sigma: 0.09
@@ -1350,9 +1379,11 @@ valid_from: 2026-01-01
 valid_to: null
 quality: D
 values:
-  availability_post2030: {dist: bernoulli, label: "Förderprogramm nach 2030 verfügbar", p: 0.7}
+  availability_post2030: {dist: bernoulli, label: "Förderprogramm nach 2030 verfügbar", p: 0.7}   # einfache Ziehung (Rolle value, on_reject), kein Entscheidungsknoten
   feed_in_continuation:  {dist: bernoulli, label: "feste Einspeisevergütung für Neuanlagen fortgeführt", p: 0.5, apply: multiply}
-  repayment_grant_cut:   {dist: discrete, label: "Kürzung Tilgungszuschuss (Anteil)", values: [0.0], probs: [1.0]}   # Platzhalter, Voreinstellung 0 (Konzept B12)
+  payout_delay:          {dist: pert, label: "Auszahlungsverzug Zuschuss nach Zusage (Monate)", min: 0, mode: 0, max: 6}   # Voreinstellung im Basisfall 0 (Spec 00 §9.11 Nr. 7)
+  repayment_grant_cut:   {dist: discrete, label: "Kürzung bzw. Rückforderung Tilgungszuschuss (Anteil)", values: [0.0, 0.5, 1.0], probs: [0.95, 0.04, 0.01]}   # D; Basiswert 0 (Konzept B12)
+notes: "Ziele: availability_post2030 -> funding.<id>.approved eines Instruments ohne Entscheidungsknoten (sonst übernimmt der automatische Schlüssel mit Rolle decision); payout_delay -> funding.<id>.payout_delay_months; repayment_grant_cut -> financing.<id>.repayment_grant.cut_share. Prüfwerte: PERT(0; 0; 6) (α = 1, β = 5) Mittel 1,0, q90 2,214256; discrete(0; 0,5; 1) Mittel 0,03, q95 = 0 (Q(0,95) = 0), q96 = 0,5."
 ```
 
 ```yaml
@@ -1417,13 +1448,20 @@ hier genannten sind ein Validierungsfehler.
 | `quality` | enum:`A`,`B`,`C`,`D` | – | – | ja | – | Qualitätsstufe des Eintrags | R-54 |
 | `quality_detail` | Map Unterpfad → `A`–`D` | – | `{}` | nein | E: Unterpfad existiert in `values` | abweichende Stufe einzelner Werte; Herkunft eines Blatts = längster passender Unterpfad, sonst `quality` (**S01C-08**) | Konzept §6.4 |
 | `legal_state` | Map | – | `null` | bedingt | E: Pflicht für `legal/*` und `funding/*` | Rechtsstand der Quelle: `as_of` (Fassung), `status`, `reference` (Fundstelle) (**S01C-08**) | Konzept §5.4, F5 |
-| `legal_state.status` | enum:`in_force`,`enacted`,`adopted_pending`,`pending`,`administrative`,`derived`,`market` | – | – | bedingt | E: `pending` ⇔ `reform` gesetzt | geltend / verkündet, künftig wirksam / beschlossen, Zustimmung oder Verkündung ausstehend / anhängig (Reformschalter) / Richtlinie, Merkblatt / eigene Ableitung / Marktdaten | Konzept F5 |
-| `reform` | chr (enum:reform) | – | `null` | nein | E: Code in `enums.yaml` | Eintrag nur aktiv mit `project.pending_reforms` | Spec 00 §4.10 |
+| `legal_state.status` | enum:`in_force`,`enacted`,`adopted_pending`,`pending`,`administrative`,`derived`,`market` | – | – | bedingt | E: `pending` ⇒ `reform` gesetzt; E: `reform` gesetzt ⇒ Status `pending` oder `derived` | geltend / verkündet, künftig wirksam / beschlossen, Zustimmung oder Verkündung ausstehend / anhängig (Reformschalter) / Richtlinie, Merkblatt / eigene Ableitung / Marktdaten | Konzept F5 |
+| `reform` | chr (enum:reform) | – | `null` | bedingt | E: Code in `enums.yaml` (`mietrecht_ii`, `stufe_2045`, `unreleased`); E: Pflicht bei `legal/*` mit `quality: D` (nie automatisch, R-80) | Eintrag nur aktiv mit `project.pending_reforms`; hat dann Vorrang vor dem Eintrag ohne Reform (Spec 00 §4.10) | Spec 00 §4.10, R-82 |
+| `release` | Map `{status: released \| pending, by: chr, date: date}` | – | `null` | bedingt | E: Pflicht bei `legal/*` mit `quality: C`; W: `status: released` ohne `by`/`date` | **Freigabe** von C-Einträgen: automatisch wählbar nur mit `released`; sonst nur mit Sammelcode `unreleased` in `pending_reforms` (Ergebnisvermerk); ohne wählbaren Eintrag ist das Thema inaktiv | Spec 00 §4.9–4.10, Konzept 6.5, R-80 |
 | `uncertainty` | Map Unterpfad → Overlay-Vorlage (1.3) | – | `null` | nein | E: gültige Verteilungsangabe | Vorschlag für Overlay-Einträge (z. B. Nutzungsdauern) | R-12 |
 | `from` | chr | – | `null` | nein | E: Eintrag existiert, kein Zyklus | Kette (Nutzlast des Ziels wird unter `values` gemischt) | Spec 00 §4.9 |
 | `fallback` | Map | – | `null` | nein | E: deckt jedes Token `base` ab | numerische Ersatzwerte für Tokens (1.5.1, **S01C-02**); wird nie gemischt | – |
 | `notes` | chr (de) | – | `null` | nein | – | Hinweise, offene Prüfpunkte | – |
 | `values` | beliebig | – | – | ja | E: Wertformen bzw. Felder des Zielblocks | Nutzlast; an der Fundstelle `{from, use, …lokal}` unter die lokale Angabe gemischt | Spec 00 §4.9 |
+
+**Bibliotheksstand (R-80):** `inst/extdata/library/VERSION` enthält eine Zeile `JJJJ.MM.n`; Stand dieses Katalogs
+**`2026.10.1`** (Stichtag der Werte 2026-10-25). Jede inhaltliche Änderung eines Eintrags erhöht n, ein neuer
+Monatsstand setzt n = 1; der Wert erscheint in `meta$library_version` jedes Ergebnisses (Spec 00 §4.9, §13.1).
+WS-L prüft in `test-library.R`: Format der Datei, jede Datei hat die Pflichtfelder dieser Tabelle, `legal/*` der
+Qualität C trägt `release`, `legal/*` der Qualität D trägt `reform`.
 
 ### 3.2 Qualitätskennzeichnung und ungeprüfte Werte
 
@@ -1453,11 +1491,11 @@ hier genannten sind ein Validierungsfehler.
 | `legal/mietrecht_ii_reform` | legal | `mietrecht` / `mietrecht_ii` | ab 2026-07-01 | B | Mietrecht II (BT-Drs. 21/6807, anhängig) |
 | `legal/co2kostaufg_2026` | legal | `co2kostaufg` | ab 2026-07-29 | B (§§ 5b, 5d C) | Stufenmodell, § 5a, § 9 |
 | `legal/gmodg_bio_treppe_2026` | legal | `bio_treppe` | ab 2026-07-29 | B | Bio-Treppe § 43 Abs. 1 GModG |
-| `legal/gmodg_bio_treppe_2045` | legal | `bio_treppe` / `gmodg_2045` | ab 2026-07-29 | D | Bio-Treppe mit abgeleiteter 2045-Stufe (Schalter, Pflichtsensitivität) |
+| `legal/gmodg_bio_treppe_2045` | legal | `bio_treppe` / `stufe_2045` | ab 2026-07-29 | D | Bio-Treppe mit abgeleiteter 2045-Stufe (Schalter, Pflichtsensitivität) |
 | `legal/behg_ets2_2026` | legal | `co2_pricing` | ab 2026-01-01 | B (2027 C) | BEHG-Preise, Korridore 2026/2027, ETS 2 ab 2028, Preisstabilitätsmechanismus |
 | `legal/emission_factors_geg_anlage9` | legal | `emission_factors_geg` | 2023-01-01 bis 2027-01-01 | A | Emissionsfaktoren GEG/GModG Anlage 9 |
 | `legal/emission_factors_co2cost_2026` | legal | `emission_factors_co2cost` | ab 2021-01-01 | A | Emissionsfaktoren BEHG/EBeV 2030 Anlage 2, Umrechnungen |
-| `legal/grunderwerbsteuer_2026` | legal | `grunderwerbsteuer` | ab 2025-07-01 | C | Steuersätze je Land, Freigrenze |
+| `legal/grunderwerbsteuer_2026` | legal | `grunderwerbsteuer` | ab 2025-07-01 | C (`release: pending`; bis zur Freigabe nur mit `unreleased`) | Steuersätze je Land, Freigrenze |
 | `legal/umsatzsteuer_2026` | legal | `umsatzsteuer` | ab 2023-01-01 | A | Steuersätze, PV-Nullsatz, Wohnraumvermietung |
 | `prices/energy_prices_2026` | market | – | ab 2026-01-01 | B (WP-Strom D, Öl/Pellets C) | Energiepreise 2026 (12-Monats-Mittel), Komponenten, Normalpreise, Grundpreise |
 | `prices/co2_price_paths_2026` | market | – | ab 2026-01-01 | D (hoch: A) | CO2-Korridore niedrig/mittel/hoch |
@@ -1465,7 +1503,8 @@ hier genannten sind ein Validierungsfehler.
 | `prices/interest_rates_2026_10` | market | – | ab 2026-08-01 | A | Zinsniveaus Okt. 2026, KfW-Konditionen 22.10.2026 |
 | `prices/macro_paths_2026` | market | – | ab 2026-01-01 | B | Inflation, Baupreise, Instandhaltung, Mieten, Bodenwert, Betriebskosten (deterministische Defaults) |
 | `prices/eeg_feed_in_2026` | market | – | 2026-08-01 bis 2027-02-01 | C | EEG-Einspeisevergütung |
-| `costs/bewirtschaftung_iibv_2026` | costs | – | 2026-01-01 bis 2029-01-01 | B (Sek.-Bestätigung C) | II. BV §§ 26, 28, 29 |
+| `prices/referenzszenarien_2026` | market | – | ab 2026-01-01 | D | Markt- und Preisannahmen der Referenzszenarien S1–S5 (Memo 07 §4.0, netto umgerechnet; 5.0) |
+| `costs/bewirtschaftung_ii_bv_2026` | costs | – | 2026-01-01 bis 2029-01-01 | B (Sek.-Bestätigung C) | II. BV §§ 26, 28, 29 |
 | `costs/bewirtschaftung_immowertv_2026` | costs | – | 2026-01-01 bis 2027-01-01 | B | ImmoWertV Anlage 3 (Modellansätze 2026) |
 | `costs/betriebskosten_benchmarks_2026` | costs | – | ab 2026-01-01 | C/D | Betriebskosten, nicht umlagefähige Kosten |
 | `costs/baukosten_neubau_2026` | costs | – | ab 2026-01-01 | B/D | Kostenkennwerte Neubau |
@@ -2198,7 +2237,7 @@ notes: "Stufen gelten ab 1. Januar des Jahres. Erfüllungsoptionen (Solarthermie
 id: legal/gmodg_bio_treppe_2045
 block: legal
 topic: bio_treppe
-reform: gmodg_2045                         # Code neu in enums.yaml (S01C-09)
+reform: stufe_2045                         # Schaltercode nach Spec 00 §4.10 (R-82)
 schema_version: 1
 label: "Bio-Treppe mit abgeleiteter Stufe 100 % klimaneutraler Brennstoff ab 2045"
 from: legal/gmodg_bio_treppe_2026
@@ -2210,7 +2249,7 @@ quality: D
 legal_state: {as_of: 2026-07-29, status: derived, reference: "keine Gesetzesstufe; Szenario-Schalter, Voreinstellung aus"}
 values:
   min_bio_share: {years: [2029, 2030, 2035, 2040, 2045], values: [0.10, 0.15, 0.30, 0.60, 1.00], interpolate: step}
-notes: "Nur für die Pflichtsensitivität bio_2045 (4.5) bzw. ausdrückliche Wahl. Status derived statt pending; reform-Code dient nur der Aktivierung."
+notes: "Nur aktiv mit project.pending_reforms: [stufe_2045] (Pflichtsensitivität stufe_2045, 4.4; Szenario-Sets dürfen pending_reforms setzen, R-82). Qualität D: nie automatisch (Spec 00 §4.10). Status derived; der Schaltercode dient nur der Aktivierung. Ersetzt das Feld energy.climate_neutral_2045 aus 01b §3.2.4 (Abgleich, Offene Punkte)."
 ```
 
 ```yaml
@@ -2319,6 +2358,7 @@ accessed: 2026-10-25
 valid_from: 2025-07-01
 valid_to: null
 quality: C                                # Konzept §10.2: Sätze nicht im Original verifiziert
+release: {status: pending, by: null, date: null}   # Spec 00 §4.10 (R-80): bis zur Fachfreigabe nur mit pending_reforms: [unreleased] wählbar
 legal_state: {as_of: 2025-07-01, status: in_force, reference: "GrEStG § 11 i. V. m. Landesrecht; Bremen: Rücknahmeantrag zum 01.01.2027 (Drs. 21/1941) offen"}
 values:
   rates: {BW: 0.050, BY: 0.035, BE: 0.060, BB: 0.065, HB: 0.055, HH: 0.055, HE: 0.060, MV: 0.060, NI: 0.050, NW: 0.065, RP: 0.050, SL: 0.065, SN: 0.055, ST: 0.050, SH: 0.065, TH: 0.050}
@@ -2358,7 +2398,7 @@ Die Nutzlast enthält einen Teilbaum `market` mit Wertformen, die über `market:
 id: prices/energy_prices_2026
 block: market
 schema_version: 1
-label: "Energiepreise 2026 (12-Monats-Mittel, brutto) mit Komponenten und Normalpreisen"
+label: "Energiepreise 2026 (12-Monats-Mittel, netto) mit Komponenten und Normalpreisen"
 source: {document: "BDEW Gas-/Strompreisanalyse 08/2026; BNetzA Monitoringbericht 2025; waermepreise.info 04/2026; DEPI 10/2026; Destatis (Memo 03 §2.1-2.4)", url: "https://www.bdew.de/media/documents/BDEW_Gaspreisanalyse_082026.pdf", publisher: "BDEW; BNetzA; AGFW/BDEW/VKU; DEPI"}
 as_of: 2026-10-25
 accessed: 2026-10-25
@@ -2369,20 +2409,23 @@ quality_detail: {market.energy_price.heatpump_power: D, market.energy_price.heat
 legal_state: {as_of: 2026-10-25, status: market, reference: "Marktdaten"}
 values:
   market:
-    energy_price:                         # EUR/kWh brutto, ohne CO2-Komponente und ohne getrennt geführtes Netzentgelt (K4)
-      gas:                {start: 0.0754, growth: 0.02}
-      gas_mfh:            {start: 0.0719, growth: 0.02}
-      power:              {start: 0.375,  growth: 0.02}
-      heatpump_power:     {start: 0.260,  growth: 0.02}
-      heatpump_power_mfh: {start: 0.250,  growth: 0.02}
-      oil:                {start: 0.1194, growth: 0.02}
-      district_heating:   {start: 0.156,  growth: 0.025}
-      pellets:            {start: 0.085,  growth: 0.025}
-    energy_network_fee:                   # EUR/kWh brutto
-      gas:     {start: 0.0306, growth: 0.03}   # 2,57 ct netto (Memo 07 §1.3, §4.0); Wachstum: Netzrückbau
-      gas_mfh: {start: 0.0261, growth: 0.03}   # 2,19 ct netto
-    bio_fuel_premium: {start: 0.0714, growth: 0.02}   # Biomethan-Mehrkosten 6,0 ct netto (Memo 07 §4.0), D
-  components:                             # informativ (Herleitung, Plausibilisierung), EUR/kWh brutto
+    energy_price:                         # EUR/kWh NETTO, ohne CO2-Komponente und ohne getrennt geführtes Netzentgelt (K4, # 01b §3.2.1)
+      gas:                {start: 0.06335, growth: 0.02}
+      gas_mfh:            {start: 0.06043, growth: 0.02}
+      power:              {start: 0.31513, growth: 0.02}
+      heatpump_power:     {start: 0.21849, growth: 0.02}
+      heatpump_power_mfh: {start: 0.21008, growth: 0.02}
+      oil:                {start: 0.10034, growth: 0.02}
+      district_heating:   {start: 0.13109, growth: 0.025}
+      pellets:            {start: 0.07944, growth: 0.025}   # brutto 8,5 ct / 1,07 (USt-Satz C)
+    energy_network_fee:                   # EUR/kWh netto
+      gas:     {start: 0.0257, growth: {ref: shared.network_fee_growth_gas}}       # Memo 07 §1.3, §4.0; Wachstum Default 0,03 (Netzrückbau)
+      gas_mfh: {start: 0.0219, growth: {ref: shared.network_fee_growth_gas_mfh}}
+    bio_fuel_premium: {start: 0.060, growth: 0.02}   # Biomethan-Mehrkosten 6,0 ct netto (Memo 07 §4.0), D
+  shared:                                 # Basiswerte der Overlay-Ziele (Spec 00 §4.5 Regel 4); Übernahme über shared: {from: prices/energy_prices_2026, use: shared}
+    network_fee_growth_gas: 0.03
+    network_fee_growth_gas_mfh: 0.03
+  components:                             # informativ (Herleitung, Plausibilisierung), EUR/kWh BRUTTO
     gas:     {total_incl_co2_65: 0.120, co2_component_at_65: 0.0140, network_fee: 0.0306, range: [0.105, 0.155]}
     gas_mfh: {total_incl_co2_65: 0.112, co2_component_at_65: 0.0140, network_fee: 0.0261, range: [0.098, 0.145]}
     power:   {total: 0.375, range: [0.32, 0.42]}
@@ -2392,10 +2435,10 @@ values:
     pellets: {total: 0.085, range: [0.065, 0.105]}
     normal_price_excl_co2: {gas: 0.100, oil: 0.080, district_heating: 0.150, power: 0.360, heatpump_power: 0.250, pellets: 0.070}
     company_net: {gas_mfh: 0.094, district_heating: 0.131, power_common: 0.270, heatpump_power: 0.210}
-  base_fees_eur_pa: {gas_efh: 180, heatpump_power_efh: 140, power_household: 120}   # Memo 07 §4.0 (C)
-  vat_rate: 0.19
+  base_fees_eur_pa: {gas_efh: 151.26, heatpump_power_efh: 117.65, power_household: 100.84}   # netto; brutto 180/140/120 (Memo 07 §4.0, C)
+  vat_rate: {standard: 0.19, pellets: 0.07}   # pellets C (Prüfpunkt)
 uncertainty:
-  market.energy_price.gas: {dist: triangular, min: 0.0604, mode: 0.0754, max: 0.1104}   # aus Spanne 10,5-15,5 ct inkl. CO2 und Netzentgelt
+  market.energy_price.gas: {dist: triangular, min: 0.0508, mode: 0.06335, max: 0.0928}   # netto, aus Spanne 10,5-15,5 ct brutto inkl. CO2 und Netzentgelt
 notes: "Deterministischer Default = 12-Monats-Mittel mit Trendwachstum; die MC kehrt zum Normalpreis zurück (processes/energy_prices_mr_2026), daher liegt der MC-Erwartungswert bei Gas, Öl, Pellets unter dem Basisfall (Konzept §3.8, B8). Neuverträge 01.10.2026: Gas 13,8 ct, Strom 38,9 ct (Beobachtung)."
 ```
 
@@ -2484,7 +2527,7 @@ values:                                   # setzt shared.co2_2030 (Basis 80) und
     2070: {expr: "shared.co2_2040 * 1.03^30"}
   fill: locf                               # nach 2070 konstant
   before: first
-notes: "Deterministisch (shared.co2_2030 = 80, shared.co2_2040 = 105 x 1,03^5 = 121,7229): exakt Memo 07 (2026-2035 linear, danach +3 % p. a.; z. B. 2040: 121,72; 2050: 163,59; 2056: 195,33; 2066: 262,51). Overlay der Referenzszenarien: shared.co2_2030 ~ triangular(60; 90; 200), shared.co2_2040 ~ triangular(80; 150; 300), Rangkorrelation 0,8 (D). Zwischen 2030 und 2035 linear, zwischen 2035 und 2040 geometrisch interpoliert, ab 2040 +3 % p. a. vom gezogenen Wert."
+notes: "Deterministisch (shared.co2_2030 = 80, shared.co2_2040 = 105 x 1,03^5 = 121,72377780): exakt Memo 07 (2026-2035 linear, danach +3 % p. a.; z. B. 2040: 121,72; 2050: 163,59; 2056: 195,33; 2066: 262,51). Overlay der Referenzszenarien: shared.co2_2030 ~ triangular(60; 90; 200), shared.co2_2040 ~ triangular(80; 150; 300), Rangkorrelation 0,8 (D). Zwischen 2030 und 2035 linear, zwischen 2035 und 2040 geometrisch interpoliert, ab 2040 +3 % p. a. vom gezogenen Wert."
 ```
 
 ```yaml
@@ -2598,8 +2641,8 @@ notes: "Mischsatz S3 (30 kWp): (10 x 7,70 + 20 x 6,66)/30 = 7,0067 ct/kWh; Einsp
 ### 3.7 Kosten (`costs/**`)
 
 ```yaml
-# inst/extdata/library/costs/bewirtschaftung_iibv_2026.yaml
-id: costs/bewirtschaftung_iibv_2026
+# inst/extdata/library/costs/bewirtschaftung_ii_bv_2026.yaml
+id: costs/bewirtschaftung_ii_bv_2026
 block: costs
 schema_version: 1
 label: "II. Berechnungsverordnung: Pauschalen ab 01.01.2026 (Kostenmiete)"
@@ -3076,3 +3119,283 @@ uncertainty:
 ```
 
 ---
+
+## 4. Szenario-Sets und Pflichtsensitivitäten
+
+### 4.1 Feldkatalog `scenario_sets.<id>` (Konkretisierung Spec 00 §4.11)
+
+Ein Szenario-Set ist entweder **statisch** (Operationen `set`/`replace`/`add`/`remove`/`overrides`; eigener
+Planungsfall mit eigenem Basisfall-Vorlauf, `auto`-Beträge neu bestimmt) oder **generiert** (`generate`; Risikofall
+auf dem Basismodell, eine Designzeile, Basisfallgrößen fest, R-69, R-74). Beides zugleich ist E.
+
+| YAML-Pfad | Typ | Einheit | Default | Pflicht | Validierung | Bedeutung | Quelle/Memo-Ref |
+|---|---|---|---|---|---|---|---|
+| `scenario_sets.<id>` | map | – | – | – | E: id `^[a-z][a-z0-9_]*$`, nicht `base`; E: id auch Varianten-id | Set (Schicht 7, nach der Variante) | Spec 00 §4.11 |
+| `….label` | chr (de) | – | – | ja | – | Anzeigename | Spec 00 §2.10 |
+| `….description` | chr (de) | – | `null` | nein | – | Erläuterung im Bericht (Szenariotabelle) | – |
+| `….set`, `….replace`, `….add`, `….remove`, `….overrides` | wie Varianten | – | – | bedingt (mind. eine Operation oder `generate`) | E: Pfade nur unter `market`, `funding`, `accounts`, `residual_value`, `stochastic`, `tax`, `project.pending_reforms`; E: höchstens ein Segment `*` je Pfad; E: Existenz je Treffer; I: Wildcard ohne Treffer | Operationen (Reihenfolge wie Varianten: `remove` → `replace` → `set` → `overrides` → `add`) | Spec 00 §4.11, R-71 |
+| `….generate` | map | – | `null` | nein | E: zusammen mit Operationen | generiertes Set | Spec 00 §4.11, R-74 |
+| `….generate.method` | enum:`cautious` | – | `cautious` | ja (in `generate`) | E: anderer Code (v1) | „ungünstige Werte der stärksten Treiber“ | Konzept B5 |
+| `….generate.n_drivers` | int | – | `5` | nein | E: ≥ 1 | Anzahl der Treiber | Konzept 1.4 |
+| `….generate.probs` | num[2] | 1 | `[0.1, 0.9]` | nein | E: 0 < p_lo < 0,5 < p_hi < 1 | Tornado-Grenzen (P10/P90) | Spec 00 §11.11 |
+| `….generate.kpi` | chr | – | `auto` | nein | E: skalare Kennzahl des Modells oder `auto` (= Primärkennzahl, Spec 00 §12.3a) | Bewertungskennzahl des Tornados | Spec 00 §4.11 |
+| `….generate.params` | chr[] \| `auto` | – | `auto` | nein | E: Designziele nach Spec 00 §11.11 | Kandidaten; `auto` = 4.3 Nr. 1 | 4.3 |
+| `….generate.exclude` | chr[] | – | `[]` | nein | E: Kandidat existiert | ausgeschlossene Kandidaten (z. B. `funding.*.approved`, wenn „Förderstopp“ getrennt berichtet wird) | – |
+
+Statische Sets mit Marktpfaden, die als **Wachstumsform** vorliegen, ändern nur `growth` (Override-Map ohne `start`
+wird nach Spec 00 §4.7 in die Basis-Wertform gemischt). Liegt der Basispfad nicht als Wachstumsform vor, meldet die
+Validierung E `validation.scenario_set.growth_form_required` mit dem betroffenen Pfad. Ein Set auf ein Overlay-Ziel
+macht es im Set deterministisch (Spec 00 §4.7 letzter Absatz); in der MC unter einem Set laufen die übrigen
+Overlay-Einträge weiter.
+
+### 4.2 Standard-Sets (`inst/extdata/defaults/global.yaml`, Schicht 1; Ablage # 01a)
+
+`foerderstopp` und `vorsichtig` sind nach Spec 00 §4.11 Pflicht; die übrigen Sets stehen zur Wahl in
+`vofi_compare(…, scenario_sets = …)` bereit und werden nur auf Anforderung gerechnet. Alle Werte D (eigene
+Ableitung), Belege in den Kommentaren.
+
+```yaml
+scenario_sets:
+  foerderstopp:
+    label: "Förderstopp: keine Förderzusage"
+    description: "Alle Förderinstrumente ohne Zusage (Konzept B12). Bei Entscheidungsknoten realisiert der Basisfall die Ausweichvariante (Spec 00 §9.11 Nr. 3)."
+    set: {funding.*.approved: 0}
+  vorsichtig:
+    label: "Vorsichtig: ungünstige Werte der fünf stärksten Treiber"
+    description: "Aus dem Tornado der Primärkennzahl: die fünf Treiber mit dem größten Ausschlag gleichzeitig auf P10 bzw. P90 (Konzept 1.4, B5)."
+    generate: {method: cautious, n_drivers: 5, probs: [0.1, 0.9], kpi: auto, params: auto}
+  zinsschock:
+    label: "Zinsschock: Bauzins 6,5 %"
+    description: "Bauzins und Anschlusszins dauerhaft 6,5 % (+2,4 Pp ggü. 10/2026; Größenordnung 2022: +2,7 Pp in zwölf Monaten)."
+    set: {market.mortgage_rate: 0.065}
+  zins_niedrig:
+    label: "Niedrigzins: Bauzins 2,5 %"
+    set: {market.mortgage_rate: 0.025}
+  stress_2022:
+    label: "Stress wie 2022: Energiepreis-, Inflations-, Baukosten- und Zinsschock"
+    description: "Krisenjahr 2027 nach dem Muster 2022/2023 (VPI 6,9 %/5,9 %, Baupreise 16,4 %/8,5 %, Bauzins +2,7 Pp, Energie-Commodity zweifach), danach Rückkehr."
+    set:
+      market.inflation: {series: {2027: 0.069, 2028: 0.059, 2029: 0.022}, fill: locf, before: first}          # Destatis VPI 2022/2023
+      market.construction_price_index: {series: {2027: 0.164, 2028: 0.085, 2029: 0.031, 2030: 0.030}, fill: locf, before: first}   # Destatis Baupreise Wohngebäude 2022/2023/2024
+      market.mortgage_rate: {years: [2027, 2028, 2032, 2037], values: [0.041, 0.068, 0.060, 0.050], interpolate: linear}
+      market.energy_price.*: {growth: {series: {2027: 1.04, 2028: -0.235, 2029: -0.184, 2030: -0.150, 2031: 0.020}, fill: locf}}   # Faktor auf den Basispfad 2,0 / 1,5 / 1,2 / 1,0
+  co2_niedrig:
+    label: "CO2-Preis niedrig (Preisdämpfung)"
+    set: {market.co2_price: {years: [2026, 2027, 2028, 2030, 2032, 2035, 2040, 2045, 2050, 2060, 2070], values: [65, 55, 45, 55, 60, 75, 100, 120, 140, 170.66, 208.03], interpolate: linear}}
+  co2_hoch:
+    label: "CO2-Preis hoch (UBA/Prognos)"
+    set: {market.co2_price: {years: [2026, 2027, 2028, 2030, 2032, 2035, 2040, 2045, 2050, 2060, 2070], values: [65, 80, 95, 125, 155, 200, 275, 350, 425, 518.07, 631.53], interpolate: linear}}
+  gasnetz_rueckbau:
+    label: "Gasnetzrückbau: Netzentgelte +8 % p. a."
+    set: {market.energy_network_fee.*: {growth: 0.08}}   # Obergrenze des Dreiecks (0; 3; 8 %), Memo 07 §4.0
+  mit_2045_stufe:
+    label: "Mit 2045-Stufe (100 % klimaneutraler Brennstoff ab 2045)"
+    description: "Schaltercode stufe_2045 (Spec 00 §4.10, R-82). Ersetzt die Liste pending_reforms; zusätzliche Reformen im Set wiederholen."
+    set: {project.pending_reforms: [stufe_2045]}
+```
+
+**Prüffälle (WS-A, WS-G):** (z1) `foerderstopp` auf S2 V1 (Knoten mit Ausweichvariante `v1b`): deterministischer
+Zweig b = 0, Ergebnis = V1b, `decision$alternative` = V1 (Spec 00 §9.11 Nr. 3). (z2) `foerderstopp` auf ein Szenario
+ohne Förderung: I („Wildcard ohne Treffer“), Ergebnis identisch zum Basisfall. (z3) `stress_2022` auf einen
+Energiepreis `{start: 0.06335, growth: 0.02}` (Preisstand 2026, Stichtag 2027-01-01): Preisniveau am Ende der Jahre
+2027 / 2028 / 2029 / 2030 / 2031 = 0,12923 / 0,09886 / 0,08067 / 0,06857 / 0,06994 EUR/kWh netto, d. h. Faktor auf
+den Basispfad (0,06335 · 1,02^k) = 2,0 / 1,5 / 1,2 / 1,0 / 1,0 (Toleranz 1e-4 durch Rundung der Raten). (z4) `stress_2022` auf einen konstanten
+Energiepreis `0.06335` → E `growth_form_required`. (z5) `mit_2045_stufe` + Bibliothek: Thema `bio_treppe` wählt
+`legal/gmodg_bio_treppe_2045` (Vorrang des Reformeintrags, Spec 00 §4.10). (z6) Ein Set mit `measures.*.cost_eur` →
+E (Pfad außerhalb der zulässigen Blöcke; Kostenschocks laufen über `market.construction_price_index` oder das Set
+„vorsichtig“).
+
+### 4.3 Generiertes Set „vorsichtig“ (Algorithmus, WS-G, `R/compare-cautious.R` # 01a)
+
+1. **Kandidaten** (`params: auto`), kanonisch sortiert (`method = "radix"`): (a) alle statischen Overlay-Schlüssel der
+   Rolle `value` (Ziel = Designspalte; low/high = Q(p_lo), Q(p_hi) der Verteilung, bei `apply: multiply|add` die
+   verknüpften Werte nach 1.3); (b) alle unsicheren Prozessparameter `<proc>.<param>` (Designspalte nach Spec 00
+   §11.11, Pfad = `expected(par_zeile)`); (c) jeder Prozess ohne unsicheren Parameter als **Quantilpfad** seines Ziels:
+   je Jahr y das p-Quantil der Randverteilung (ar1, vasicek, linked_ar1 mit Gaußbasis: `expected_y + Φ⁻¹(p) · sd_y`
+   geschlossen; mr_trend, gbm: Lognormal-Quantil; vasicek mit `floor`: `pmax(…, floor)`; scenario_mix: Szenario,
+   dessen kumulierte Wahrscheinlichkeit in aufsteigender Ordnung des Szenariomittels über die Betriebsjahre zuerst
+   p erreicht; iid: konstante Quantilreihe; fixed_path: kein Kandidat) (S01C-10); (d) Schlüssel der Rolle `decision`
+   als Zweigwahl (Q(p) der Bernoulli: P10 = 1{0,1 > 1 − p}). Ausgeschlossen: `generate.exclude`.
+2. **Tornado:** ein Design-Lauf mit 1 + 2k Zeilen (Spec 00 §11.11) auf der Kennzahl `kpi` (bei `delta_vs_reference`
+   dieselbe Designmatrix für Variante und Referenz, Spec 00 §12.8). Swing_j = |KPI_hi − KPI_lo|.
+3. **Auswahl:** die n = min(`n_drivers`, k) Kandidaten mit größtem Swing (Gleichstand: kanonische Ordnung), ohne
+   Kandidaten mit Swing ≤ 1e-9 · max(1, |KPI_base|). Ungünstige Seite je Kandidat: der Wert mit dem kleineren KPI
+   (bei `higher_is_better = FALSE` dem größeren).
+4. **Designzeile:** alle n Kandidaten zugleich auf ihrer ungünstigen Seite, übrige auf dem Basiswert; Lauf mit n = 1
+   (`meta$mode = "design"`, `meta$scenario_set = "vorsichtig"`, gesetzte Werte in `meta$notes`). Ohne Kandidaten:
+   Hinweis, das Set gilt für die Ampel als nicht gerechnet (Spec 00 §12.9).
+5. Der Tornado wird im Ergebnis mitgeliefert (`vofi_sensitivity`, 13.4) und ist mit `vofi_sensitivity(method =
+   "tornado", probs = c(0.1, 0.9))` identisch.
+
+**Prüffall (WS-G, synthetisch, linear):** KPI = 100 + 10 x1 − 5 x2 + 1 x3 mit x1, x2, x3 ~ U(−1; 1) (P10 = −0,8,
+P90 = 0,8). Swings 16 / 8 / 1,6. `n_drivers: 2` → x1 = −0,8, x2 = +0,8 → KPI_vorsichtig = 88; `n_drivers: 5` → 87,2.
+Mit einem vierten Schlüssel x4 ~ U(−1; 1) ohne Wirkung: unverändert (Swing 0 ausgeschlossen). Prozess-Quantilpfad
+Vasicek r0 = 0,040 (1.6.3), y = 11: sd_11 = 0,01362516; P90-Pfad 0,05571434, P10-Pfad 0,02079164 (Toleranz 1e-8; P95 = 0,06066439 wie 2.8 Nr. 1).
+
+### 4.4 Pflichtsensitivitäten (`analysis.mandatory_sensitivities`, Profilwerte; Ablage # 01a)
+
+Je Eintrag `{id, path, label}` und genau eines von `value`, `delta`, `add` (Spec 00 §4.3.14, R-82). Ausführung
+(WS-G): je Eintrag ein deterministischer Lauf mit dem Eintrag als Schicht-8-Override (neues Modell, `auto` neu
+bestimmt), bei Vergleichen gemeinsam auf Variante und Referenz; Ausgabe Primärkennzahl mit und ohne Restwert sowie
+Differenz zum Basisfall. `value` darf eine Wertform sein (z. B. `{ref: market.mortgage_rate}`, S01C-09). Einträge,
+deren Override den Basiswert nicht ändert, erscheinen im Bericht als „entspricht dem Basisfall“; Einträge ohne
+Wirkung auf das Ergebnis (z. B. 2045-Stufe ohne fossilen Erzeuger) als „ohne Wirkung“.
+
+| Profil | id | `path` | Wert | Label | Konzept |
+|---|---|---|---|---|---|
+| alle | `restwert_null` | `residual_value.method` | `value: zero` | „Restwert = 0“ | 5.5, A3 |
+| alle | `stufe_2045` | `project.pending_reforms` | `add: stufe_2045` | „mit 2045-Stufe (100 % klimaneutraler Brennstoff ab 2045)“ | F5, A7, R-82 |
+| `wu_kommunal`, `wu_privat` | `habenzins_liquiditaet` | `accounts.deposit_rate_pa` | `value: 0.02` | „Habenzins 2,0 % (reine Liquiditätsanlage)“ | A2, F18 |
+| `wu_kommunal`, `wu_privat`, `wu_genossenschaft` | `habenzins_kalkulationszins` | `accounts.deposit_rate_pa` | `value: 0.035` | „Habenzins = Kalkulationszins 3,5 %“ | A2, A4, F18 |
+| `wu_kommunal`, `wu_privat`, `wu_genossenschaft` | `habenzins_fk` | `accounts.deposit_rate_pa` | `value: {ref: market.mortgage_rate}` | „Habenzins = vermiedener FK-Zins“ | A2 |
+| `selbstnutzer`, `kleinvermieter` | `habenzins_abgeltung` | `accounts.deposit_withholding_tax_share` | `value: 0.26375` | „Habenzins nach Abgeltungsteuer (25 % + Soli)“ | B4, 3.12 |
+
+```yaml
+# Profil wu_kommunal (Ausschnitt, # 01a); wu_privat gleich; wu_genossenschaft ohne habenzins_liquiditaet
+analysis:
+  mandatory_sensitivities:
+    - {id: restwert_null, path: residual_value.method, value: zero, label: "Restwert = 0"}
+    - {id: habenzins_liquiditaet, path: accounts.deposit_rate_pa, value: 0.02, label: "Habenzins 2,0 % (reine Liquiditätsanlage)"}
+    - {id: habenzins_kalkulationszins, path: accounts.deposit_rate_pa, value: 0.035, label: "Habenzins = Kalkulationszins 3,5 %"}
+    - {id: habenzins_fk, path: accounts.deposit_rate_pa, value: {ref: market.mortgage_rate}, label: "Habenzins = vermiedener FK-Zins"}
+    - {id: stufe_2045, path: project.pending_reforms, add: stufe_2045, label: "mit 2045-Stufe (100 % klimaneutraler Brennstoff ab 2045)"}
+# Profil selbstnutzer bzw. kleinvermieter (Ausschnitt, # 01a)
+analysis:
+  mandatory_sensitivities:
+    - {id: restwert_null, path: residual_value.method, value: zero, label: "Restwert = 0"}
+    - {id: habenzins_abgeltung, path: accounts.deposit_withholding_tax_share, value: 0.26375, label: "Habenzins nach Abgeltungsteuer (25 % + Soli)"}
+    - {id: stufe_2045, path: project.pending_reforms, add: stufe_2045, label: "mit 2045-Stufe (100 % klimaneutraler Brennstoff ab 2045)"}
+```
+
+Kirchensteuer und Sparer-Pauschbetrag (`deposit_tax_allowance_eur_pa`, R-76) setzt der Nutzer; der Bericht nennt die
+Fehlerrichtung: Mit Brutto-Habenzins unterschätzt die Rechnung den Vorteil einer eigenfinanzierten Maßnahme (Konzept
+3.12).
+
+**Prüffälle (Walking Skeleton, Spec 00 Anhang A; h = 2 %, deterministisch, Toleranz 0,005 EUR):**
+
+| Sensitivität | EW | EW_U | ΔEW | Herleitung |
+|---|---:|---:|---:|---|
+| Basis | 52.830,80 | 42.448,32 | 10.382,48 | Spec 00 Anhang A |
+| `habenzins_kalkulationszins` (0,035) | 54.218,075 | 44.348,715 | 9.869,36 | G_2 = 64.945; t = 3: 50.000 − 3.000 − 60.000 + 2.273,075 |
+| `habenzins_fk` (0,04, Pfad konstant) | 54.683,20 | 44.994,56 | 9.688,64 | G_2 = 65.080 |
+| `habenzins_abgeltung` (0,26375, Pauschbetrag 0) | 52.345,83 | 41.793,15 | 10.552,68 | Habenzins netto 2 % · 0,73625 = 1,4725 %; Geldanlage und Unterlassung gleich besteuert |
+| `restwert_null` | 52.830,80 | 42.448,32 | 10.382,48 | kein Restwert im Skelett (Prüfung „entspricht dem Basisfall“) |
+
+Bei S1 (Habenzins im Szenario 2,0 %, F18) entspricht `habenzins_liquiditaet` dem Basisfall; `habenzins_kalkulationszins`
+zeigt den Unterschied zum Profilwert 3,5 %.
+
+---
+
+## 5. Referenzszenarien S1–S5 und `grob_lehrbuch_a` (`inst/extdata/examples/`, WS-S)
+
+### 5.0 Gemeinsame Konventionen (verbindlich für WS-S)
+
+1. **Dateien und ids:** `s1_wu_mfh_1963_eh70.yaml`, `s2_wu_neubau_mfh_36we.yaml`, `s3_eg_waermepumpe_pv.yaml`,
+   `s4_efh_1975_isfp.yaml`, `s5_neubau_efh_eh40.yaml`, `grob_lehrbuch_a.yaml` (dazu `skeleton.yaml`, Spec 00
+   Anhang A). `vofi_example()` listet sie; `meta.scenario_id` = Dateiname ohne `.yaml`.
+2. **Basis = Referenzvariante.** `base` ist die Referenz aus Memo 07 (S1 V1, S2 V1, S3 V1, S4 V0, S5 V1);
+   `project.reference_variant: base`. Bei Bestandsprojekten (S1, S3, S4) ist das die Referenzpflicht nach Spec 00
+   §12.3a; Primärkennzahl `delta_vs_reference` (`incremental_return` deterministisch). Varianten-ids `v<n>_<kurz>`.
+3. **Zeit:** Stichtag 2027-01-01, Jahresraster, `year: Y` = 1. Januar Y (Spec 00 §3.4); Horizontende fest
+   (R-67). Kredite mit `payments_per_year: 1` (Spec 00 §15.6), **außer S5** (Prüfwerte sind Monatsraten,
+   `payments_per_year: 12`, S01C-06).
+4. **Preisstände (R-35):** `project.price_base_year: 2026` (Preisstand 1.1.2027) für laufende Jahresbeträge „Preisbasis
+   2026“ in allen Szenarien. Maßnahmen: S1–S3 „Kostenstand 2027“ (Maßnahmen 2027 und Ersatz) → `price_base_year:
+   2026`; S2-Ersatz und S4 „Preisbasis/Kostenstand 2026“ → je Maßnahme `price_base_year: 2025` (Index ab 1.1.2026;
+   Vorlaufjahr 2026 über `series_year` mit Schlüssel 2026, Spec 00 §3.6); S5 Festpreis → `price_index: 0`; S2-Investition
+   (nominal 2027/28) → `price_index: 0`.
+5. **Energiepreise netto** (# 01b §0.6, §3.2.1): Die Brutto-Preise aus Memo 07 §4.0 stehen in
+   `prices/referenzszenarien_2026` als Nettowerte mit acht Nachkommastellen (= brutto / 1,19; Abweichung nach USt
+   < 3e-9 EUR/kWh, d. h. < 0,001 EUR je Prüfwert). CO2-Preis netto in EUR/t nach Memo 07 (60/60/70, +5 €/t bis 2035,
+   danach +3 %) über `prices/co2_price_path_referenzszenarien_2026` mit den Stützstellen `shared.co2_2030` und
+   `shared.co2_2040`. Emissionsfaktor Erdgas **0,181** kg/kWh_Hs als Szenarioeinstellung (Memo 07; Bibliothek
+   0,1814, F19).
+6. **Stochastik (F20):** Prozesse aus Abschnitt 2 (Vasicek-Bauzins, AR(1)-Inflation, Mean-Reversion-Energiepreise mit
+   den Normalpreisen der Bibliothek, CO2-Stützstellen Dreieck(60; 90; 200)/(80; 150; 300) mit ρ_S 0,8,
+   Netzentgeltwachstum Dreieck(0; 3; 8 %), Bio-Mehrkostenfaktor Dreieck(0,5; 1; 1,67), Baupreisindex additiv
+   N(0; 1,2 Pp) nach Memo 07 §4.0). Die Random-Walk-Defaults aus Memo 07 §4.0 entfallen. Szenariospezifische
+   Verteilungen nach Memo 07 §4.1–4.5. Variantenspezifische Overlay-Einträge stehen in der Variante (`add`/`set`
+   unter `stochastic.parameters`); gleiches Risiko = gleicher Schlüssel mit variantenspezifischen Parametern (CRN,
+   R-59), verwandte Kostenrisiken getrennt mit ρ_S 0,7 (B9). Faktoren und Zuschläge wirken über `shared`-Blätter
+   (Basiswert 1 bzw. 0) in `expr`-Angaben (Kosten, Baupreisindex, Bio-Mehrkosten); damit sind die Szenarien
+   unabhängig von S01C-01.
+7. **Zusagerisiko:** Nur S2 modelliert die Verfügbarkeit der EH-55-Stufe als Entscheidungsknoten (Spec 00 §9.11,
+   Konzept S2). Übrige Förderinstrumente tragen `approval_probability: 1.0` (Memo 07 sieht dort kein Zusagerisiko
+   vor), außer S4 Stufe 3 (BAFA 2033: einfache Ziehung p = 0,7, KfW 358 2033 per Bezug gekoppelt).
+8. **Prüfwerte:** Toleranz ±0,01 EUR (Beträge), ±0,1 % (Annuitäten, Memo 07), 1e-6 relativ (Energiemengen), sofern
+   nicht anders angegeben; Prüfwerte „(Preisbasis 2026)“ gelten für die **unindexierten** Jahresbeträge, d. h. mit
+   Override `market.*` Wachstum 0 bzw. als Hilfsgröße vor Fortschreibung. Konzeptkorrekturen F13/F14 sind
+   eingearbeitet (S1-T4, S3-T3, S3-T4). MC-Erwartungen gelten für n_sim = 10.000, Seed 20261025, `block_size` 200:
+   Eingangsmomente innerhalb 4 SE, Rangkorrelationen ±0,02 (Spec 00 §15.6); qualitative Hypothesen sind keine
+   Sollwerte (Konzept §9, F20).
+9. Felder aus Teil A bzw. B, deren Name bei Redaktionsschluss nicht feststand, tragen `# 01a` bzw. `# 01b`.
+
+```yaml
+# inst/extdata/library/prices/referenzszenarien_2026.yaml
+id: prices/referenzszenarien_2026
+block: market
+schema_version: 1
+label: "Markt- und Preisannahmen der Referenzszenarien S1-S5 (Memo 07 §4.0, Energiepreise netto)"
+source: {document: "Memo 07 §4.0 Default-Indizes, Default-Energiepreise (Preisbasis 2026, brutto), Finanzmarkt-Defaults; Konzept F19, F20", url: "docs/recherche/07_use_cases_referenzszenarien.md", publisher: "eigene Festlegung (Referenzszenarien)"}
+as_of: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+legal_state: {as_of: 2026-10-25, status: derived, reference: "Szenarioannahmen Memo 07 §4.0"}
+values:
+  market:
+    inflation: {series: {2027: 0.028, 2028: 0.022}, fill: locf, before: first}
+    construction_price_index: {expr: "market.construction_price_index_base + shared.construction_price_shift"}
+    construction_price_index_base: {series: {2027: 0.040, 2028: 0.030}, fill: locf, before: first}
+    maintenance_index: {ref: market.construction_price_index}
+    land_value_growth: 0.015
+    market_value_growth: 0.015
+    rent_growth: 0.015                    # Bestand § 558
+    rent_growth_new: 0.020                # Neubau
+    mortgage_rate: 0.040                  # Anschlusszins deterministisch
+    energy_price:                         # EUR/kWh NETTO ohne CO2 und Netzentgelt, Preisbasis 2026, Wachstum „Rest“ 2,0 %
+      gas:                {start: 0.06848739, growth: 0.02}   # Erdgas EFH: Rest 8,15 ct brutto
+      gas_mfh:            {start: 0.06134454, growth: 0.02}   # Erdgas MFH: Rest 7,30 ct brutto
+      heatpump_power:     {start: 0.20168067, growth: 0.02}   # WP-Strom EFH 24,0 ct brutto
+      heatpump_power_mfh: {start: 0.21008403, growth: 0.02}   # WP-Strom MFH 25,0 ct brutto inkl. Grundpreis
+      power:              {start: 0.31092437, growth: 0.02}   # Haushaltsstrom 37,0 ct brutto
+    energy_network_fee:                   # EUR/kWh netto (Hs)
+      gas:     {start: 0.02571429, growth: {ref: shared.network_fee_growth_gas}}       # 3,06 ct brutto (2,57 netto)
+      gas_mfh: {start: 0.02193277, growth: {ref: shared.network_fee_growth_gas_mfh}}   # 2,61 ct brutto (2,19 netto)
+    bio_fuel_premium: {expr: "market.bio_fuel_premium_base * shared.bio_premium_factor"}
+    bio_fuel_premium_base: {start: 0.060, growth: 0.02}       # 6,0 ct netto (7,14 brutto)
+    feed_in_tariff: {partial_le10kwp: 0.0770, partial_10_40kwp: 0.0666}   # IBN bis 31.01.2027, 20 J. fest
+  shared:
+    network_fee_growth_gas: 0.03
+    network_fee_growth_gas_mfh: 0.03
+    co2_2030: 80                          # 70 + 2 x 5
+    co2_2040: 121.72377780                # 105 x 1,03^5
+    construction_price_shift: 0           # Overlay-Ziel (additiv, Basis 0)
+    bio_premium_factor: 1                 # Overlay-Ziel (Faktor, Basis 1)
+  carriers:                               # Vorlagen für energy.carriers (Übernahme mit use: carriers.<c>, # 01b)
+    gas:                {class: gas, emission_factor_kg_kwh: 0.181, base_fee_eur_pa: 151.26050420, vat_rate: 0.19}   # Grundpreis 180 EUR brutto
+    gas_mfh:            {class: gas, emission_factor_kg_kwh: 0.181, base_fee_eur_pa: 0, vat_rate: 0.19}              # Grundpreis im Arbeitspreis
+    heatpump_power:     {class: power_hp, base_fee_eur_pa: 117.64705882, vat_rate: 0.19}                             # 140 EUR brutto
+    heatpump_power_mfh: {class: power_hp, base_fee_eur_pa: 0, vat_rate: 0.19}
+    power:              {class: power, base_fee_eur_pa: 100.84033613, vat_rate: 0.19}                                # 120 EUR brutto
+notes: "Brutto je kWh (Preisbasis 2026, CO2 60 EUR/t): Gas EFH 8,15 + 3,06 + 1,2923 = 12,5023 ct (Memo 07 rundet auf 12,50); Gas MFH 7,30 + 2,61 + 1,2923 = 11,2023 ct (11,20). Deterministischer CO2-Pfad über prices/co2_price_path_referenzszenarien_2026."
+```
+
+**Gemeinsamer Overlay-Kern** (in jedem Szenario ausgeschrieben; Prozessschlüssel nach 1.10.2):
+
+```yaml
+stochastic:
+  settings: {n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200, store: bands}
+  processes:
+    mortgage_rate: {target: market.mortgage_rate, from: processes/mortgage_rate_vasicek_2026}   # r0: base = 0,040
+    inflation:     {target: market.inflation, from: processes/inflation_ar1_2026}                # x0: base = 0,028
+    # energy_price_<c>: {target: market.energy_price.<c>, from: processes/energy_prices_mr_2026, use: <c>} je genutztem Träger
+  parameters:
+    co2_2030: {target: shared.co2_2030, label: "CO2-Preis 2030", dist: triangular, min: 60, mode: 90, max: 200}
+    co2_2040: {target: shared.co2_2040, label: "CO2-Preis 2040", dist: triangular, min: 80, mode: 150, max: 300}
+    bio_premium_factor: {target: shared.bio_premium_factor, from: processes/energy_prices_mr_2026, use: bio_premium_factor, apply: replace}   # Dreieck(0,5; 1; 1,6667) ≙ 3/6/10 ct netto
+    construction_price_shift: {target: shared.construction_price_shift, label: "Abweichung Baupreisindex p. a.", dist: normal, mean: 0, sd: 0.012}   # Memo 07 §4.0: N(Basis; 1,2 Pp)
+  correlations:
+    parameters: [[co2_2030, co2_2040, 0.8]]
+    shocks: {from: processes/shock_correlations_2026}     # Paare ohne Schlüssel im Plan werden verworfen (1.7.1)
+```

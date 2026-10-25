@@ -1,0 +1,16 @@
+# Zulaessige Bedingungsklassen (Spec 00, Abschnitt 2.9; nur diese). base: error, warning, message.
+# Labels: vocab.conditions.<class>.
+vofi_error_input:              {base: error}
+vofi_error_validation:         {base: error}
+vofi_error_registry:           {base: error}
+vofi_error_contract:           {base: error}
+vofi_error_engine:             {base: error}
+vofi_error_not_implemented:    {base: error}
+vofi_error_label:              {base: error}
+vofi_warning_input:            {base: warning}
+vofi_warning_plausibility:     {base: warning}
+vofi_warning_library_outdated: {base: warning}
+vofi_warning_engine:           {base: warning}
+vofi_warning_correlation:      {base: warning}
+vofi_warning_memory:           {base: warning}
+vofi_message:                  {base: message}

@@ -1,0 +1,15 @@
+# Abschnitte der VoFi-Tabelle (Spec 00, Abschnitt 7.5). Nur Codes und maschinelle Regeln (ASCII);
+# deutsche Bezeichnungen: inst/labels/de/vocab.yaml unter vocab.sections.<code>.
+#   order   : Ordnung im Grob-Layout (7.8); loans: 400 + k (k = Position in financing)
+#   balance : zahlungswirksame Zeilen gehen in balance_check ein (7.9 Nr. 1)
+#   flow    : Zahlungskomponenten (Art flow) duerfen Zeilen in diesem Abschnitt erzeugen (7.1)
+project:   {order: 100, balance: true,  flow: true}
+grants:    {order: 200, balance: true,  flow: true}
+equity:    {order: 300, balance: true,  flow: true}
+loans:     {order: 400, balance: true,  flow: false}
+overdraft: {order: 500, balance: true,  flow: false}
+deposit:   {order: 600, balance: true,  flow: false}
+tax:       {order: 700, balance: true,  flow: false}
+check:     {order: 800, balance: false, flow: false}
+stocks:    {order: 900, balance: false, flow: false}
+memo:      {order: 950, balance: false, flow: true}

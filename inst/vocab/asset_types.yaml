@@ -1,0 +1,9 @@
+# Anlagenarten des Anlagenregisters (Spec 00, Abschnitt 7.2). Labels: vocab.asset_types.<code>.
+codes:
+  - gebaeude_wohnen
+  - gebaeude_nichtwohnen
+  - grund_boden
+  - aussenanlage
+  - bewegliches_wg
+  - pv_anlage
+  - ladeinfrastruktur

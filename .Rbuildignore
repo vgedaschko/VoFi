@@ -1,0 +1,13 @@
+^docs$
+^data-raw$
+^bench$
+^tools$
+^\.github$
+^\.lintr$
+^\.gitignore$
+^.*\.Rproj$
+^\.Rproj\.user$
+^__pycache__$
+^.*\.Rcheck$
+^vofi_.*\.tar\.gz$
+^CLAUDE\.md$

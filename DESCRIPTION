@@ -1,0 +1,38 @@
+Package: vofi
+Type: Package
+Title: Vollständiger Finanzplan (VoFi) mit Monte-Carlo-Simulation für Wohngebäude
+Version: 0.1.0
+Authors@R: person("Vofi", "Team", role = c("aut", "cre"), email = "vofi@example.org")
+Description: Wirtschaftlichkeitsbewertung von Neubau und energetischer
+    Sanierung von Wohngebäuden in Deutschland nach der Methode des
+    Vollständigen Finanzplans (Grob) aus Sicht von Wohnungsunternehmen,
+    privaten Vermietern und Selbstnutzern. Enthält Szenarien in YAML und
+    Excel, eine versionierte Parameterbibliothek, Monte-Carlo-Simulation,
+    Varianten-, Sensitivitäts- und Break-even-Analysen sowie Berichte.
+License: file LICENSE
+Encoding: UTF-8
+Language: de
+Depends: R (>= 4.1.0)
+Imports:
+    openxlsx (>= 4.2.5),
+    stats,
+    tools,
+    utils,
+    yaml (>= 2.3.5)
+Suggests:
+    bslib,
+    covr,
+    DT,
+    future (>= 1.33.0),
+    future.apply (>= 1.11.0),
+    ggplot2 (>= 3.4.0),
+    jsonlite,
+    knitr,
+    rmarkdown,
+    shiny (>= 1.8.0),
+    testthat (>= 3.0.0),
+    withr
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1

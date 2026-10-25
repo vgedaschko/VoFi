@@ -1,0 +1,304 @@
+# Aufzaehlungen (Spec 00, Abschnitt 2.11). Form: name: {codes: [...], aliases: {alt: neu}, default: <code>}
+# Aliase dienen nur der Eingabe-Normalisierung (R-07, R-09, R-34); intern erscheinen nur kanonische
+# Codes. Labels: inst/labels/de/vocab.yaml unter vocab.enums.<name>.<code>.
+# Zusatzfelder einzelner Enums sind maschinelle Regeln (z. B. Abbildungen, Teilmengen).
+# Spec 01 ergaenzt weitere Enums (z. B. building_type, carrier_class); der Integrator uebernimmt sie.
+
+# --- Projekt (4.3.2) ---
+perspective:
+  codes: [wu_kommunal, wu_genossenschaft, wu_privat, kleinvermieter, selbstnutzer]
+  aliases: {}
+  default: ~
+tax_regime:
+  codes: [wu_kommunal, wu_eg_befreit, wu_eg_stpfl, wu_kapges, wu_gemeinnuetzig, privat_vermieter, selbstnutzer]
+  aliases: {}
+  default: ~
+  from_perspective:            # Default-Abbildung perspective -> tax_regime (R-08)
+    wu_kommunal: wu_kommunal
+    wu_genossenschaft: wu_eg_befreit
+    wu_privat: wu_kapges
+    kleinvermieter: privat_vermieter
+    selbstnutzer: selbstnutzer
+project_type:
+  codes: [neubau, sanierung_eh, sanierung_einzelmassnahmen, sanierung_stufenweise, heizungstausch, erwerb_sanierung, erwerb_neubau]
+  aliases: {}
+  default: ~
+  existing_building: [sanierung_eh, sanierung_einzelmassnahmen, sanierung_stufenweise, heizungstausch]   # Bestandsprojekte (1.5, 12.3a)
+comparison_mode:
+  codes: [absolute, differential]
+  aliases: {}
+  default: absolute
+report_mode:
+  codes: [auto, expert, household]
+  aliases: {}
+  default: auto
+federal_state:
+  codes: [BW, BY, BE, BB, HB, HH, HE, MV, NI, NW, RP, SL, SN, ST, SH, TH]
+  aliases: {}
+  default: ~
+reform:
+  codes: [mietrecht_ii, stufe_2045, unreleased]
+  aliases: {}
+  default: ~
+# --- Raster (3.3, 4.3.3) ---
+operation_alignment:
+  codes: [calendar, completion]
+  aliases: {}
+  default: calendar
+phase:
+  codes: [construction, operation]
+  aliases: {}
+  default: ~
+# --- Wertgrammatik (4.5) ---
+value_form:
+  codes: [const, series_t, series_year, points, schedule, ref, growth, expr, quantity, dist, auto, from]
+  aliases: {}
+  default: ~
+series_fill:
+  codes: [locf, zero, linear]
+  aliases: {}
+  default: locf
+series_before:
+  codes: [first, zero]
+  aliases: {}
+  default: first
+interpolate:
+  codes: [linear, step]
+  aliases: {}
+  default: linear
+quantity_per:
+  codes: [total, unit, m2_living_area, kw, kwp, kwh]
+  patterns: ["m2_component:*"]
+  aliases: {}
+  default: total
+auto_mode:
+  codes: [auto, topup]
+  aliases: {}
+  default: auto
+schedule_unit:
+  codes: [eur, share]
+  aliases: {}
+  default: eur
+# --- Massnahmen und Register (4.3.6, 7.2) ---
+classification:
+  codes: [auto, erhaltung, herstellung]
+  aliases: {}
+  default: auto
+classification_source:
+  codes: [default, user, rule]
+  aliases: {}
+  default: default
+funding_choice:
+  codes: [keine, beg_zuschuss, beg_kredit, "35c"]
+  aliases: {}
+  default: keine
+modernization_kind:            # Spec 01 Teil B, Abschnitt 1.4
+  codes: [none, bgb_555b_1, bgb_555b_1a, bgb_555b_2, bgb_555b_3, bgb_555b_4, bgb_555b_4a, bgb_555b_5, bgb_555b_6, bgb_555b_7]
+  aliases: {}
+  default: none
+rent_regime:
+  codes: [paragraph_558, staffel, index, bound_social, cooperative_fee, owner_occupied]
+  aliases: {}
+  default: paragraph_558
+consumption_basis:
+  codes: [measured, demand]
+  aliases: {}
+  default: demand
+# --- Foerderung (4.3.7, 9.11) ---
+instrument_type:
+  codes: [grant, loan, loan_with_repayment_grant, interest_subsidy, tax_credit, rent_binding]
+  aliases: {}
+  default: ~
+approval_timing:
+  codes: [auto, before_start, after_start]
+  aliases: {}
+  default: auto
+on_reject:
+  codes: [balance, drop_measures]
+  aliases: {}
+  default: balance
+# --- Kredite (8.2, 8.6) ---
+repayment:
+  codes: [annuity, installment, bullet]
+  aliases: {}
+  default: ~
+refi_rule:
+  codes: [keep_term, keep_tilg_rate, keep_payment]
+  aliases: {}
+  default: ~
+repayment_grant_effect:        # R-07
+  codes: [shorten_term, reduce_installment]
+  aliases: {reduce_annuity: reduce_installment, payment_reduction: reduce_installment, term_reduction: shorten_term}
+  default: shorten_term
+# --- Konten und Ausgleich (4.3.10, 8.9) ---
+surplus_action:
+  codes: [od_repay, dep_fill_reserve, loan_prepay, dep_invest]
+  aliases: {}
+  default: ~
+deficit_action:
+  codes: [dep_withdraw, od_draw, dep_use_reserve, equity_call, penalty_rate, stop]
+  aliases: {}
+  default: ~
+action_role:
+  codes: [surplus, deficit]
+  aliases: {}
+  default: ~
+action_rank:
+  codes: [U1, U2, U3, U4, D1, D2, D3, D4]
+  aliases: {}
+  default: ~
+direction:
+  codes: [inflow, outflow]
+  aliases: {}
+  default: ~
+# --- Restwert (4.3.12, R-34, R-72) ---
+residual_method:
+  codes: [zero, market_growth, income_value, component, asset_value, multiplier, exit_yield, user_value]
+  aliases: {none: zero, linear_book_value: component, component_book_value: component, ertragswert_allg: income_value, ertragswert_vereinf: income_value, sachwert_linear: asset_value}
+  default: ~
+rv_basis:
+  codes: [method, measures]
+  aliases: {}
+  default: method
+rv_path_basis:
+  codes: [auto, method, measures]
+  aliases: {}
+  default: auto
+# --- Auswertung (4.3.14, 12, 13) ---
+primary_kpi:
+  codes: [auto, delta_terminal_value, delta_vs_reference]
+  aliases: {}
+  default: auto
+deterministic_point:
+  codes: [mode, median, mean]
+  aliases: {}
+  default: mode
+restriction:
+  codes: [dscr, liquidity, warm_rent, burden, savings]
+  aliases: {}
+  default: ~
+kpi_shape:
+  codes: [scalar, series]
+  aliases: {}
+  default: scalar
+kpi_requires:
+  codes: [opportunity, market_value, household_income, living_area, tenant_data]
+  aliases: {}
+  default: ~
+traffic_light_level:
+  codes: [red, yellow, green]
+  aliases: {}
+  default: ~
+traffic_light_basis:
+  codes: [mc, cautious, base_only]
+  aliases: {}
+  default: ~
+sensitivity_method:
+  codes: [tornado, spider, global]
+  aliases: {}
+  default: tornado
+solve_what:
+  codes: [breakeven, critical_value, withdrawal_equivalent, incremental_return]
+  aliases: {}
+  default: breakeven
+# --- Ledger (7) ---
+row_kind:
+  codes: [flow, stock, memo, check]
+  aliases: {}
+  default: flow
+is_tax:
+  codes: [grundsteuer, grunderwerbsteuer, umsatzsteuer]
+  aliases: {}
+  default: ~
+realization:
+  codes: [actual, hypothetical]
+  aliases: {}
+  default: actual
+# --- Stochastik (11) ---
+sampling:
+  codes: [lhs, pseudo]
+  aliases: {}
+  default: lhs
+copula:
+  codes: [iman_conover, gaussian]
+  aliases: {}
+  default: iman_conover
+store:
+  codes: [auto, full, bands, kpi]
+  aliases: {}
+  default: auto
+run_mode:
+  codes: [deterministic, mc, design]
+  aliases: {}
+  default: deterministic
+process_output:
+  codes: [level, rate]
+  aliases: {}
+  default: ~
+static_role:
+  codes: [value, decision]
+  aliases: {}
+  default: value
+static_source:
+  codes: [overlay, inline, funding_auto, process_param]
+  aliases: {}
+  default: overlay
+# --- Registry (5) ---
+type_kind:
+  codes: [flow, instrument, account_action, expander, distribution, process, kpi, tax, rule]
+  aliases: {}
+  default: ~
+param_kind:
+  codes: [number, amount, rate, share, value, integer, enum, logical, date, string, timing, schedule, ref, ids, map]
+  aliases: {}
+  default: ~
+param_shape:
+  codes: [scalar, path]
+  aliases: {}
+  default: scalar
+rule_returns:
+  codes: [sim, path, params]
+  aliases: {}
+  default: ~
+type_source:
+  codes: [vofi, user]
+  aliases: {}
+  default: vofi
+# --- Szenario, Herkunft, Bibliothek (4.8, 4.9) ---
+scenario_format:
+  codes: [auto, yaml, excel, list]
+  aliases: {}
+  default: auto
+source_type:
+  codes: [type_default, global, profile, legal, library, user_library, scenario, overlay, variant, scenario_set, override, expander]
+  aliases: {}
+  default: ~
+quality:
+  codes: [A, B, C, D]
+  aliases: {}
+  default: ~
+library_block:
+  codes: [funding, financing, market, processes, components, legal, costs, valuation]
+  aliases: {}
+  default: ~
+release_status:
+  codes: [released, pending]
+  aliases: {}
+  default: ~
+severity:
+  codes: [error, warning, info]
+  aliases: {}
+  default: ~
+# --- Ausgabe (13, 14) ---
+table_layout:
+  codes: [grob, transposed]
+  aliases: {}
+  default: grob
+table_detail:
+  codes: [standard, full]
+  aliases: {}
+  default: standard
+report_format:
+  codes: [html, docx]
+  aliases: {}
+  default: html

@@ -1,0 +1,27 @@
+# Massnahmenarten des Massnahmenregisters (Spec 00, Abschnitt 7.2; Memo 06 Abschnitt 7.5).
+# Vorlaeufiger Bestand fuer Phase 0; Spec 01 (Teil A) konkretisiert, der Integrator uebernimmt.
+# Labels: vocab.measure_types.<code>.
+codes:
+  - neubau
+  - erweiterung
+  - aufstockung
+  - daemmung_fassade
+  - daemmung_dach
+  - daemmung_ogd
+  - daemmung_kellerdecke
+  - fenster
+  - aussentuer
+  - sonnenschutz
+  - heizung_tausch
+  - heizung_optimierung
+  - lueftung
+  - pv
+  - solarthermie
+  - speicher
+  - ladeinfrastruktur
+  - sanitaer
+  - elektro
+  - aufzug
+  - barrierefreiheit
+  - instandsetzung
+  - sonstige

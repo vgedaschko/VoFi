@@ -1,0 +1,102 @@
+# Kategorien je Abschnitt (Spec 00, Abschnitt 7.6). Nur Codes und Regeln (ASCII).
+# Labels: inst/labels/de/vocab.yaml unter vocab.categories.<section>.<category>.
+# Felder (fehlende Felder aus `defaults`):
+#   sign         : pos (>= 0), neg (<= 0), any (beliebig)
+#   noi          : geht in den Reinertrag NOI ein (12.3)
+#   burden       : geht in die monatliche Belastung ein (monthly_burden, Vorzeichen umgekehrt)
+#   tax          : Default-tax_category
+#   tax_allowed  : weitere erlaubte tax_category ("*" = alle ausser tax_excluded)
+#   tax_excluded : ausgeschlossene tax_category (nur mit tax_allowed: ["*"])
+#   ids          : Pflicht-ids (asset, measure)
+#   ids_optional : optionale ids
+#   cash         : Default von cash (memo: immer false)
+#   engine       : Engine-Kategorie (E), darf nur von der Engine erzeugt werden
+#   flow_ok      : darf von Zahlungskomponenten (Art flow) erzeugt werden
+#   kind         : Default von kind (flow, stock, memo, check)
+#   unit         : Default der Einheit (units.yaml)
+defaults:
+  sign: any
+  noi: false
+  burden: false
+  tax: not_applicable
+  tax_allowed: []
+  tax_excluded: []
+  ids: []
+  ids_optional: []
+  cash: true
+  engine: false
+  flow_ok: true
+  kind: flow
+  unit: EUR
+categories:
+  project:
+    land:               {sign: neg, tax: capex_land, ids: [asset]}
+    acquisition_cost:   {sign: neg, tax: acquisition_ancillary, ids: [asset]}
+    capex:              {sign: neg, tax: capex_depreciable, tax_allowed: [capex_expensable, capex_land], ids: [asset, measure]}
+    replacement:        {sign: neg, tax: capex_depreciable, tax_allowed: [capex_expensable], ids: [asset, measure]}
+    relocation_cost:    {sign: neg, tax: expense_deductible, tax_allowed: [capex_depreciable, capex_expensable], ids: [measure]}
+    rent:               {sign: pos, noi: true, tax: income_rental}
+    rent_loss:          {sign: neg, noi: true, tax: income_rental}
+    modernization_levy: {sign: pos, noi: true, tax: income_rental, ids: [measure]}
+    operating_income:   {sign: pos, noi: true, tax: income_other_taxable, tax_allowed: [income_tax_exempt, passthrough]}
+    operating_cost:     {sign: neg, noi: true, burden: true, tax: expense_deductible, tax_allowed: [expense_nondeductible, passthrough]}
+    property_tax:       {sign: neg, noi: true, burden: true, tax: expense_deductible, tax_allowed: [expense_nondeductible]}
+    maintenance:        {sign: neg, noi: true, burden: true, tax: expense_deductible, tax_allowed: [expense_nondeductible, capex_expensable]}
+    energy_cost:        {sign: neg, noi: true, burden: true, tax: expense_deductible, tax_allowed: [expense_nondeductible]}
+    co2_cost:           {sign: neg, noi: true, burden: true, tax: expense_deductible, tax_allowed: [expense_nondeductible]}
+    energy_income:      {sign: pos, noi: true, burden: true, tax: income_tax_exempt, tax_allowed: [income_other_taxable]}
+    energy_saving:      {sign: pos, noi: true, burden: true, tax: imputed_benefit}
+    imputed_rent:       {sign: pos, tax: imputed_benefit}
+    other_income:       {sign: pos, tax: income_other_taxable, tax_allowed: [income_tax_exempt]}
+    other_cost:         {sign: neg, noi: true, burden: true, tax: expense_deductible, tax_allowed: [expense_nondeductible]}
+    passthrough:        {sign: any, tax: passthrough}
+    custom:             {sign: any, tax: not_applicable, tax_allowed: ["*"], tax_excluded: [principal, tax_credit, tax_payment]}
+    residual_value:     {sign: pos, tax: disposal_proceeds, ids_optional: [asset]}
+    sale_cost:          {sign: neg, tax: disposal_proceeds}
+  grants:
+    grant:              {sign: pos, tax: subsidy_investment, ids: [measure]}
+    operating_subsidy:  {sign: pos, noi: true, tax: subsidy_operating}
+    tax_credit:         {sign: pos, tax: tax_credit, ids: [measure]}
+  equity:
+    equity_in:          {sign: pos, tax: equity}
+    equity_out:         {sign: neg, tax: equity}
+    equity_in_kind:     {sign: any, tax: equity, cash: false, engine: true, flow_ok: false, kind: memo}
+    equity_call:        {sign: pos, tax: equity, engine: true, flow_ok: false}
+    shortfall:          {sign: pos, tax: equity, engine: true, flow_ok: false}
+  loans:
+    draw:               {sign: pos, tax: principal, engine: true, flow_ok: false}
+    repay:              {sign: neg, burden: true, tax: principal, engine: true, flow_ok: false}
+    repay_balloon:      {sign: neg, tax: principal, engine: true, flow_ok: false}
+    prepay:             {sign: neg, tax: principal, engine: true, flow_ok: false}
+    interest:           {sign: neg, burden: true, tax: interest_expense, engine: true, flow_ok: false}
+    fees:               {sign: neg, burden: true, tax: interest_expense, engine: true, flow_ok: false}
+    repayment_grant:    {sign: pos, tax: subsidy_repayment_grant, ids: [measure], cash: false, engine: true, flow_ok: false, kind: memo}
+    disagio:            {sign: pos, tax: interest_expense, cash: false, engine: true, flow_ok: false, kind: memo}
+    assumed:            {sign: pos, tax: principal, cash: false, engine: true, flow_ok: false, kind: memo}
+  overdraft:
+    draw:               {sign: pos, tax: principal, engine: true, flow_ok: false}
+    repay:              {sign: neg, tax: principal, engine: true, flow_ok: false}
+    interest:           {sign: neg, tax: interest_expense, engine: true, flow_ok: false}
+  deposit:
+    invest:             {sign: neg, tax: principal, engine: true, flow_ok: false}
+    withdraw:           {sign: pos, tax: principal, engine: true, flow_ok: false}
+    interest:           {sign: any, tax: interest_income, engine: true, flow_ok: false}
+  tax:
+    income_tax:         {sign: any, tax: tax_payment, engine: true, flow_ok: false}
+    withholding_tax:    {sign: neg, tax: tax_payment, engine: true, flow_ok: false}
+  check:
+    balance_check:      {sign: any, tax: not_applicable, cash: false, engine: true, flow_ok: false, kind: check}
+  stocks:
+    balance:            {sign: pos, tax: not_applicable, cash: false, engine: true, flow_ok: false, kind: stock}
+    tax_liability:      {sign: any, tax: not_applicable, cash: false, engine: true, flow_ok: false, kind: stock}
+    net_position:       {sign: any, tax: not_applicable, cash: false, engine: true, flow_ok: false, kind: stock}
+  memo:
+    market_value:           {sign: pos, cash: false, ids_optional: [asset], kind: stock}
+    residual_path:          {sign: pos, cash: false, ids_optional: [asset], kind: stock}
+    tenant_energy_cost:     {sign: pos, cash: false, kind: memo}
+    tenant_operating_cost:  {sign: pos, cash: false, kind: memo}
+    tenant_energy_cost_pre: {sign: pos, cash: false, kind: memo}
+    energy_quantity:        {sign: pos, cash: false, kind: memo, unit: kWh}
+    co2_emission:           {sign: pos, cash: false, kind: memo, unit: t_co2}
+    tax_report:             {sign: any, cash: false, kind: memo}
+    aux_memo:               {sign: any, cash: false, kind: memo}

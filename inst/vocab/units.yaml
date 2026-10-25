@@ -1,0 +1,31 @@
+# Einheiten (Spec 00, Abschnitte 5.4, 7.1, 12.3). Labels: vocab.units.<code>.
+#   dim : money, money_rate, quantity, ratio, time, flag, count
+#   row : als Einheit von Ledger-Zeilen zulaessig (7.1)
+EUR:          {dim: money, row: true}
+EUR_pa:       {dim: money_rate, row: false}
+EUR_month:    {dim: money_rate, row: false}
+EUR_m2:       {dim: money_rate, row: false}
+EUR_m2_month: {dim: money_rate, row: false}
+EUR_m2_pa:    {dim: money_rate, row: false}
+EUR_kwh:      {dim: money_rate, row: false}
+EUR_kwp:      {dim: money_rate, row: false}
+EUR_t:        {dim: money_rate, row: false}
+EUR_unit:     {dim: money_rate, row: false}
+kWh:          {dim: quantity, row: true}
+kWh_pa:       {dim: quantity, row: false}
+kWh_m2_pa:    {dim: quantity, row: false}
+kW:           {dim: quantity, row: false}
+kWp:          {dim: quantity, row: false}
+t_co2:        {dim: quantity, row: true}
+kg_kwh:       {dim: quantity, row: false}
+m2:           {dim: quantity, row: true}
+share:        {dim: ratio, row: true}
+rate_pa:      {dim: ratio, row: false}
+ratio:        {dim: ratio, row: false}
+factor:       {dim: ratio, row: false}
+years:        {dim: time, row: false}
+year:         {dim: time, row: false}
+months:       {dim: time, row: false}
+date:         {dim: time, row: false}
+flag:         {dim: flag, row: false}
+count:        {dim: count, row: false}

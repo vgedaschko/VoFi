@@ -1,0 +1,24 @@
+# Steuerkategorien (Spec 00, Abschnitt 10.8, Memo 06 Abschnitt 7.2). Labels: vocab.tax_categories.<code>.
+codes:
+  - income_rental
+  - income_other_taxable
+  - income_tax_exempt
+  - imputed_benefit
+  - passthrough
+  - expense_deductible
+  - expense_nondeductible
+  - capex_depreciable
+  - capex_land
+  - capex_expensable
+  - acquisition_ancillary
+  - subsidy_investment
+  - subsidy_repayment_grant
+  - subsidy_operating
+  - interest_expense
+  - interest_income
+  - principal
+  - equity
+  - disposal_proceeds
+  - tax_credit
+  - tax_payment
+  - not_applicable

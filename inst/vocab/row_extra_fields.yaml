@@ -1,0 +1,14 @@
+# Zusatzfelder von Ledger-Zeilen (Spec 00, Abschnitt 7.1 `...` von vofi_row()).
+#   type       : integer, numeric, character, logical, date, enum
+#   values     : zulaessige Codes (nur type enum)
+#   categories : nur fuer diese Kategorien zulaessig (leer = alle)
+# Labels: vocab.row_extra_fields.<field>.
+tax_period:          {type: integer}
+spread_years:        {type: integer}
+use_share_rented:    {type: numeric}
+activity_type:       {type: character}
+stochastic_source:   {type: character}
+allocable_to_tenant: {type: logical}
+realization:         {type: enum, values: [actual, hypothetical]}
+approval_date:       {type: date}
+rv_basis:            {type: enum, values: [method, measures], categories: [residual_path]}

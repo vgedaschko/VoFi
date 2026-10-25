@@ -5,3 +5,6 @@ __pycache__/
 .RData
 *.Rcheck/
 vofi_*.tar.gz
+.Ruserdata
+inst/doc/
+*.Rproj
