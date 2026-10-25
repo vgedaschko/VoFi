@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.Rproj.user/
+.Rhistory
+.RData
+*.Rcheck/
+vofi_*.tar.gz
