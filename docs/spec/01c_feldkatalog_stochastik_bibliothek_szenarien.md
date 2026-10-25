@@ -3259,6 +3259,7 @@ analysis:
     - {id: habenzins_kalkulationszins, path: accounts.deposit_rate_pa, value: 0.035, label: "Habenzins = Kalkulationszins 3,5 %"}
     - {id: habenzins_fk, path: accounts.deposit_rate_pa, value: {ref: market.mortgage_rate}, label: "Habenzins = vermiedener FK-Zins"}
     - {id: stufe_2045, path: project.pending_reforms, add: stufe_2045, label: "mit 2045-Stufe (100 % klimaneutraler Brennstoff ab 2045)"}
+---
 # Profil selbstnutzer bzw. kleinvermieter (Ausschnitt, # 01a)
 analysis:
   mandatory_sensitivities:
@@ -3399,3 +3400,1431 @@ stochastic:
     parameters: [[co2_2030, co2_2040, 0.8]]
     shocks: {from: processes/shock_correlations_2026}     # Paare ohne Schlüssel im Plan werden verworfen (1.7.1)
 ```
+
+### 5.1 S1 – Kommunales WU: MFH 1963 auf EH 70 EE gegenüber Ohnehin-Sanierung (30 Jahre)
+
+Quelle Memo 07 §4.1, Konzept §9 S1, F14, F18, F19. Basis = V1 Ohnehin-Sanierung, Variante `v2_eh70`. Kostenaufteilung
+der Maßnahmen (Bauleistung × (1 + KG 700) × 1,05): V1 Faktor 1,15 · 1,05 = 1,2075, V2 1,18 · 1,05 = 1,239.
+
+| Maßnahme | Bauleistung | Gesamtkosten | Ohnehin-Kosten | Modernisierungskosten | Art |
+|---|---:|---:|---:|---:|---|
+| V1 `ohnehin_fassade` (Gerüst, Putz/Anstrich) | 105.000 | 126.787,50 | = Kosten | – | Erhaltung |
+| V1 `ohnehin_fenster` (2-fach) | 266.000 | 321.195,00 | = Kosten | – | Erhaltung |
+| V1 `ohnehin_heizung` (Gas-BW, Abgleich) | 107.000 | 129.202,50 | = Kosten | – | Erhaltung |
+| **Summe V1** | 478.000 | **577.185,00** | | | |
+| V2 `huelle` (Gerüst, WDVS 16 cm, Decken, Fenster 3-fach) | 799.500 | 990.580,50 | 447.982,50 | 542.598,00 | `bgb_555b_1` |
+| V2 `heizung` (WP-Kaskade, Heizkörper, TWW, Elektro, Abgleich) | 300.000 | 371.700,00 | 129.202,50 | 242.497,50 | `bgb_555b_1a`, Verfahren § 559 |
+| V2 `lueftung` (Abluftanlage) | 72.000 | 89.208,00 | 0 | 89.208,00 | `bgb_555b_1` |
+| **Summe V2** | 1.171.500 | **1.451.488,50** | 577.185,00 | **874.303,50** | |
+
+```yaml
+# inst/extdata/examples/s1_wu_mfh_1963_eh70.yaml
+schema_version: 1
+meta:
+  scenario_id: s1_wu_mfh_1963_eh70
+  title: "S1 – Kommunales Wohnungsunternehmen: Sanierung MFH 1963 auf EH 70 EE gegenüber Ohnehin-Sanierung"
+  author: "WS-S (Referenzszenario, Memo 07 §4.1)"
+  created_date: 2026-10-25
+  tags: [referenzszenario, s1, bestand, sanierung]
+project:
+  perspective: wu_kommunal
+  project_type: sanierung_eh
+  comparison_mode: absolute
+  valuation_date: 2027-01-01
+  horizon_years: 30                         # 2027-2056, Horizontende 2057-01-01
+  application_date: 2026-12-15
+  legal_state: 2026-10-25
+  pending_reforms: []
+  price_base_year: 2026                     # Kostenstand 2027 bzw. Preisbasis 2026 (R-35)
+  reference_variant: base                   # V1 Ohnehin-Sanierung (Referenzpflicht im Bestand, Spec 00 §12.3a)
+  report_mode: expert
+grid: {construction_months: 0}
+building:
+  building_type: MFH
+  construction_year: 1963
+  n_units: 24
+  living_area_m2: 1600
+  net_floor_area_m2: 2000                   # A_N
+  component_areas_m2: {facade: 1500, windows: 380, top_ceiling: 400, basement_ceiling: 400}
+  energy_class_before: H
+  wpb_flag: true                            # Worst Performing Building (Bonus KfW 261)
+  denkmal: false
+  heating_existing: {carrier: gas_mfh, installation_year: 1998, efficiency: 0.87}
+  consumption_kwh: {gas_mfh: 280000}        # Ø 3 Jahre, Hs
+  land_value_eur: {start: 504000, growth: {ref: market.land_value_growth}, base_date: 2027-01-01}
+  existing_value_eur: null                  # Memo 07 ohne Bestandswert -> roe_* NA (no_existing_value)
+unit_groups:
+  bestand:
+    label: "24 WE Bestand"
+    n_units: 24
+    living_area_m2: 1600
+    rent_regime: paragraph_558
+    rent_eur_m2_month: 6.20                 # 119.040 EUR/a Soll
+    increase_policy: fixed_growth
+    rent_growth: 0.015
+    growth_from: 2028-01-01                 # V2: 2029-01-01
+    growth_applies_to: total
+    ovm_eur_m2_month: 7.10                  # informativ (unsaniert); V2 7,60
+    vacancy_rate: 0.03                      # V2: 0,01
+    rent_default_rate: 0.01
+    extra_loss_share: {series: {2027: 0.0125, 2028: 0}, fill: locf, before: first}   # Mietminderung Bauphase; V2: 0,075
+    rent_law:
+      modernization_levy: auto
+      voluntary_cap_per_m2: null            # V2: 1.10 (Beschluss warmmietenneutral)
+      hardship_share: 0
+    operating:
+      admin_per_unit_eur_pa: 367            # 8.808 EUR/a (2026), VPI
+      nonrecoverable_share_of_rent: 0
+      recoverable_opex_eur_m2_month: 2.50   # Leerstandsbedingte Betriebskosten
+      vacancy_opex_scope: cold
+      growth: {ref: market.inflation}
+measures:
+  ohnehin_fassade:
+    label: "Gerüst, Putzausbesserung und Anstrich"
+    measure_type: fassade_instandsetzung    # 01a
+    year: 2027
+    completion_date: 2027-10-01
+    cost_eur: {expr: "126787.50 * shared.cost_factor_v1"}
+    ohnehin_share: 1
+    classification: erhaltung
+    modernization_kind: none
+    useful_life_years: 15
+    auto_replacement: false                 # 01a: Ersatz 2042 explizit
+  ohnehin_fenster:
+    label: "Fenstertausch 2-fach (U_w 1,3)"
+    measure_type: fenster                   # 01a
+    year: 2027
+    completion_date: 2027-10-01
+    cost_eur: {expr: "321195.00 * shared.cost_factor_v1"}
+    ohnehin_share: 1
+    classification: erhaltung
+    modernization_kind: none                # Verbesserung bewusst nicht umgelegt (Memo 07)
+    useful_life_years: 40
+  ohnehin_heizung:
+    label: "Gas-Brennwertkessel inkl. Abgas, Speicher, hydraulischer Abgleich"
+    measure_type: heizung_tausch            # 01a
+    year: 2027
+    completion_date: 2027-10-01
+    cost_eur: {expr: "129202.50 * shared.cost_factor_v1"}
+    ohnehin_share: 1
+    classification: erhaltung
+    modernization_kind: none
+    useful_life_years: 20
+    auto_replacement: false                 # 01a: Ersatz 2047 explizit
+  ersatz_fassade_2042:
+    label: "Fassade erneut (Anstrich)"
+    measure_type: fassade_instandsetzung    # 01a
+    year: 2042
+    cost_eur: 82500                         # Kostenstand 2027, Baupreisindex
+    classification: erhaltung
+    modernization_kind: none
+    useful_life_years: 15
+    auto_replacement: false                 # 01a: kein Ersatz am Horizontende 2057-01-01
+  ersatz_heizung_2047:
+    label: "Heizungsersatz 2047 (Gas-BW; mit 2045-Stufe Wärmepumpe)"
+    measure_type: heizung_tausch            # 01a
+    year: 2047
+    completion_date: 2047-01-01
+    cost_eur: {expr: "95000 + shared.v1_wp_2047 * (300000 - 95000)"}   # WP-Ersatz 300.000 (D, wie V2-Heizung ohne Nebenkosten)
+    classification: erhaltung
+    modernization_kind: none
+    useful_life_years: 20
+shared:
+  from: prices/referenzszenarien_2026       # network_fee_growth_*, co2_2030/2040, construction_price_shift, bio_premium_factor
+  use: shared
+  cost_factor_v1: 1
+  cost_factor_v2: 1
+  maintenance_saving_v2: 4.40               # EUR/m2 a (14,40 - 10,00)
+  v1_wp_2047: {expr: "ifelse('stufe_2045' %in% project.pending_reforms, 1, 0)"}   # Pflichtsensitivität stufe_2045 (Konzept S1)
+energy:
+  carriers:
+    gas_mfh: {class: gas, emission_factor_kg_kwh: 0.181, base_fee_eur_pa: 0}   # Preise per Default aus market.energy_price.gas_mfh (netto), USt 0,19
+    heatpump_power_mfh: {class: power_hp, base_fee_eur_pa: 0}
+  before:
+    consumption_basis: measured
+    generators:
+      kessel_alt: {carrier: gas_mfh, type: boiler, efficiency: 0.87, consumption_kwh_pa: 280000, installation_date: 1998-01-01, service_eur_pa: 1512.60504202}   # 1.800 EUR brutto
+  after:
+    measure: ohnehin_heizung
+    demand_kwh: 242250                      # 255.000 kWh Gas x 0,95 (Memo 07: Wirkungsgradgewinn ≈ 9 %)
+    generators:
+      gas_bw: {carrier: gas_mfh, type: boiler, efficiency: 0.95, installation_date: 2027-10-01, service_eur_pa: 1512.60504202}
+  stages:
+    ersatz_2047:
+      measure: ersatz_heizung_2047
+      generators:
+        gas_bw_2047: {carrier: gas_mfh, type: boiler, efficiency: 0.95, heat_share: {expr: "1 - shared.v1_wp_2047"}, installation_date: 2047-01-01, service_eur_pa: 1512.60504202}
+        wp_2047: {carrier: heatpump_power_mfh, type: heat_pump, jaz_plan: 2.7, heat_share: {ref: shared.v1_wp_2047}, flow_temperature_c: 60, installation_date: 2047-01-01, service_eur_pa: 2016.80672269}   # D
+components:
+  instandhaltung:
+    type: recurring
+    label: "Instandhaltung pauschal (14,40 EUR/m2 a)"
+    category: maintenance
+    amount_eur: 23040                       # 14,40 x 1.600, Preisbasis 2026
+    growth: {ref: market.maintenance_index}
+    from: 2027-01-01
+financing:
+  ek: {type: equity, amount_eur: 151488.50}          # EK-Budget gleich je Variante (V1: 1.488,50 als Geldanlage)
+  bank:
+    type: annuity_loan
+    label: "Kapitalmarktdarlehen"
+    amount_eur: 427185
+    start: 2027-01-01
+    rate_pa: 0.04
+    term_years: 20
+    fixed_years: 10
+    payments_per_year: 1
+    followup_rate_pa: {ref: market.mortgage_rate}
+    refi_rule: keep_term
+accounts:
+  deposit_rate_pa: 0.02                     # Szenarioeinstellung (F18; Profil: 0,035)
+  overdraft_rate_pa: 0.055
+market:
+  from: prices/referenzszenarien_2026
+  use: market
+  co2_price: {from: prices/co2_price_path_referenzszenarien_2026}
+residual_value:
+  method: income_value
+  sale_cost_share: 0.03
+  cap_rate: 0.035                           # 01a
+  remaining_life_years: 15                  # 01a; V2: 25
+  land_value_eur: {ref: building.land_value_eur}   # 01a
+  management_costs: {from: costs/bewirtschaftung_immowertv_2026}   # 01a: Verwaltung 367, Instandhaltung 14,40, MAW 2 %
+tax: {module: none}
+analysis:
+  stabilization_year: 2028
+stochastic:
+  settings: {n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200, store: bands}
+  processes:
+    mortgage_rate: {target: market.mortgage_rate, from: processes/mortgage_rate_vasicek_2026}
+    inflation: {target: market.inflation, from: processes/inflation_ar1_2026}
+    energy_price_gas_mfh: {target: market.energy_price.gas_mfh, from: processes/energy_prices_mr_2026, use: gas_mfh}
+    energy_price_heatpump_power_mfh: {target: market.energy_price.heatpump_power_mfh, from: processes/energy_prices_mr_2026, use: heatpump_power_mfh}
+  parameters:
+    co2_2030: {target: shared.co2_2030, label: "CO2-Preis 2030", dist: triangular, min: 60, mode: 90, max: 200}
+    co2_2040: {target: shared.co2_2040, label: "CO2-Preis 2040", dist: triangular, min: 80, mode: 150, max: 300}
+    network_fee_growth_gas_mfh: {target: shared.network_fee_growth_gas_mfh, from: processes/energy_prices_mr_2026, use: network_fee_growth}
+    bio_premium_factor: {target: shared.bio_premium_factor, from: processes/energy_prices_mr_2026, use: bio_premium_factor, apply: replace}
+    construction_price_shift: {target: shared.construction_price_shift, label: "Abweichung Baupreisindex p. a.", dist: normal, mean: 0, sd: 0.012}
+    rent_growth: {target: unit_groups.bestand.rent_growth, label: "Mietsteigerung § 558", dist: normal, mean: 0.015, sd: 0.006}
+    cost_factor_v1: {target: shared.cost_factor_v1, label: "Kostenabweichung Ohnehin-Sanierung", dist: pert, min: 0.95, mode: 1.05, max: 1.25}
+    cost_factor_v2: {target: shared.cost_factor_v2, label: "Kostenabweichung EH-70-Sanierung", from: processes/cost_risks_2026, use: overrun_retrofit, apply: replace}
+    vacancy: {target: unit_groups.bestand.vacancy_rate, label: "Leerstand", dist: beta, mean: 0.03, sd: 0.02}
+    hardship: {target: unit_groups.bestand.rent_law.hardship_share, label: "Härtefallquote § 559 Abs. 4", dist: beta, mean: 0.08, sd: 0.05}
+    cap_rate_rv: {target: residual_value.cap_rate, label: "Liegenschaftszins 2056", dist: truncnorm, mean: 0.035, sd: 0.005, lower: 0.02, upper: 0.06}
+    rnd_rv: {target: residual_value.remaining_life_years, label: "Restnutzungsdauer 2056", dist: triangular, min: 10, mode: 15, max: 20}
+  correlations:
+    parameters: [[cost_factor_v1, cost_factor_v2, 0.7], [co2_2030, co2_2040, 0.8]]
+    shocks: {from: processes/shock_correlations_2026}
+variants:
+  v2_eh70:
+    label: "V2 Energetische Sanierung EH 70 EE (KfW 261 mit WPB-Bonus)"
+    remove: [financing.bank, measures.ohnehin_fassade, measures.ohnehin_fenster, measures.ohnehin_heizung,
+             measures.ersatz_fassade_2042, measures.ersatz_heizung_2047, energy.stages]
+    replace:
+      energy.after:
+        measure: heizung
+        demand_kwh: 120000                  # 75 kWh/m2 a inkl. Rebound
+        generators:
+          wp: {carrier: heatpump_power_mfh, type: heat_pump, jaz_plan: 2.9, flow_temperature_c: 55, installation_date: 2027-10-01, service_eur_pa: 2016.80672269}   # 2.400 EUR brutto; jaz = jaz_plan (Basis)
+    set:
+      unit_groups.bestand.vacancy_rate: 0.01
+      unit_groups.bestand.extra_loss_share: {series: {2027: 0.075, 2028: 0}, fill: locf, before: first}
+      unit_groups.bestand.growth_from: 2029-01-01
+      unit_groups.bestand.ovm_eur_m2_month: 7.60
+      unit_groups.bestand.rent_law.voluntary_cap_per_m2: 1.10      # Beschluss: 21.120 EUR/a ab 01.01.2028
+      residual_value.remaining_life_years: 25
+      components.instandhaltung.to: 2028-01-01
+      stochastic.parameters.vacancy: {mean: 0.01, sd: 0.008}       # gleicher Schlüssel, CRN
+      stochastic.parameters.rnd_rv: {min: 18, mode: 25, max: 32}
+    add:
+      measures.huelle:
+        label: "WDVS 16 cm, oberste Geschossdecke, Kellerdecke, Fenster 3-fach, Gerüst"
+        measure_type: daemmung_fassade      # 01a
+        year: 2027
+        completion_date: 2027-10-01
+        cost_eur: {expr: "990580.50 * shared.cost_factor_v2"}
+        ohnehin_cost_eur: {expr: "447982.50 * shared.cost_factor_v1"}
+        classification: auto
+        modernization_kind: bgb_555b_1
+        useful_life_years: 40
+      measures.heizung:
+        label: "Luft/Wasser-WP-Kaskade 2 x 45 kW, Heizkörper, Frischwasserstationen, Elektro, Abgleich"
+        measure_type: heizung_tausch        # 01a
+        year: 2027
+        completion_date: 2027-10-01
+        cost_eur: {expr: "371700.00 * shared.cost_factor_v2"}
+        ohnehin_cost_eur: {expr: "129202.50 * shared.cost_factor_v1"}
+        classification: auto
+        modernization_kind: bgb_555b_1a
+        rent_law: {procedure: "559"}        # 01b: § 559 statt § 559e (Teilkappung 0,50 EUR/m2, F14)
+        useful_life_years: 20
+        auto_replacement: false             # 01a: Ersatz 2047 explizit
+      measures.lueftung:
+        label: "Zentrale Abluftanlage"
+        measure_type: lueftung              # 01a
+        year: 2027
+        completion_date: 2027-10-01
+        cost_eur: {expr: "89208.00 * shared.cost_factor_v2"}
+        ohnehin_cost_eur: 0
+        classification: auto
+        modernization_kind: bgb_555b_1
+        useful_life_years: 20
+        auto_replacement: false             # 01a: Memo 07 sieht keinen Ersatz 2047 vor
+      measures.ersatz_wp_2047:
+        label: "WP-Erzeuger und Peripherie"
+        measure_type: heizung_tausch        # 01a
+        year: 2047
+        cost_eur: 180000
+        classification: erhaltung
+        modernization_kind: none
+        useful_life_years: 20
+      measures.ersatz_wdvs_2047:
+        label: "WDVS-Anstrich"
+        measure_type: fassade_instandsetzung   # 01a
+        year: 2047
+        cost_eur: 45000
+        classification: erhaltung
+        modernization_kind: none
+        useful_life_years: 15
+      funding.kfw261:
+        from: funding/kfw_261_eh70
+        measures: [huelle, heizung, lueftung]
+        application_date: 2026-12-15
+        amount_eur: 1264000                 # investiv
+        construction_supervision: {amount_eur: 36000}     # 01b: Baubegleitung, TZ 50 %
+        loan_variant: v30_5_10              # 01b: 30 J., 5 tilgungsfrei, 10 J. fest, 3,65 %
+        payments_per_year: 1                # 01b: Weitergabe an financing.f_kfw261_loan (Spec 00 §15.6)
+        repayment_grant: {date: 2028-01-01, effect: shorten_term}   # 01b
+        approval_probability: 1.0           # Memo 07: kein Zusagerisiko in S1
+      components.instandhaltung_saniert:
+        type: recurring
+        label: "Instandhaltung nach Sanierung (10,00 EUR/m2 a)"
+        category: maintenance
+        amount_eur: {expr: "(14.40 - shared.maintenance_saving_v2) * 1600"}
+        growth: {ref: market.maintenance_index}
+        from: 2028-01-01
+        to: 2043-01-01
+      components.instandhaltung_ab2043:
+        type: recurring
+        label: "Instandhaltung ab 2043 (14,40 EUR/m2 a)"
+        category: maintenance
+        amount_eur: 23040
+        growth: {ref: market.maintenance_index}
+        from: 2043-01-01
+      stochastic.parameters.jaz_v2: {target: energy.after.generators.wp.jaz, label: "JAZ WP-Kaskade (realisiert)", dist: triangular, min: 2.6, mode: 2.9, max: 3.3}
+      stochastic.parameters.demand_after_v2: {target: energy.after.demand_kwh, label: "Nutzwärme nach Sanierung", dist: triangular, min: 104000, mode: 120000, max: 144000}
+      stochastic.parameters.maintenance_saving_v2: {target: shared.maintenance_saving_v2, label: "Instandhaltungsersparnis V2", dist: triangular, min: 2.0, mode: 4.4, max: 6.0}
+scenario_sets:
+  ohne_wpb:
+    label: "ohne WPB-Status (Tilgungszuschuss 0 % statt 10 %)"
+    set: {funding.*.repayment_grant.bonuses.wpb.rate: 0}   # Pfad aus funding/kfw_261_eh70; in base ohne Treffer (Hinweis); Hypothese: V2 verliert 126.400 EUR
+```
+
+Nicht abgebildet (Abweichungen): Mietspiegelvorteil V2 (Memo 07: Dreieck(0; 0,2; 0,5) €/m² ab 2030) wirkt nur in den
+OVM-Modi des Mietpfads; S1 rechnet nach Memo 07 mit fester Steigerung (`fixed_growth`), daher entfällt er
+(Variante `v2_ovm` mit `increase_policy: max` und `measures.huelle.rent_law.ovm_uplift_eur_m2_month` als Beispiel,
+# 01b). Optionale Varianten V0, V3, V4 nicht im Pflichtumfang (Konzept C7).
+
+**Prüfwerte S1 (deterministisch):**
+
+| Nr. | Größe | Soll | Herkunft |
+|---|---|---:|---|
+| S1-T1 | Gesamtinvestition V2 / V1 | 1.451.488,50 / 577.185,00 | Memo 07 |
+| S1-T2 | Modernisierungskosten V2 (§ 559 Abs. 2) | 874.303,50 | Memo 07 |
+| S1-T3 | Tilgungszuschuss KfW 261 (10 % × 1.264.000 + 50 % × 36.000) | 144.400,00 | Memo 07 |
+| S1-T4 | Umlage rechnerisch vor Kappungen: (874.303,50 − 144.400) × 8 % − 1.300.000 × 0,35 % (Zurechnung `full`) | 53.842,28 €/a = 2,804285 €/m²·Monat | **Konzept F14** (Memo 07: 55.651,59) |
+| S1-T4a | nach Teilkappung Heizungsanteil (`heizung` 15.276,37 → 0,50 €/m² = 9.600,00; `huelle` 32.418,90; `lueftung` 6.147,02) | 48.165,91 €/a = 2,508641 €/m²·Monat | WS-S, F14 (neu) |
+| S1-T5 | nach Gesamtkappe 2,00 €/m² (Miete 6,20 < 7,00): proportional `huelle` 25.845,78, `lueftung` 4.900,67, `heizung` 7.653,55 | 38.400,00 €/a | Memo 07, 01b 1.9.5 |
+| S1-T6 | angesetzte Umlage (Beschluss 1,10 €/m²) ab 2028-01-01 | 21.120,00 €/a | Memo 07 |
+| S1-T7 | Annuität V1 (427.185 @ 4 %, 20 J.) / Restschuld 31.12.2036 / Anschluss 4,00 % | 31.433,02 / 254.949,95 / 31.433,02 €/a | Memo 07 |
+| S1-T7a | Sensitivität Anschluss 4,25 % | 31.825,43 €/a | Memo 07 |
+| S1-T8 | KfW-Zinsen 2027 / 2028–2031 / Annuität ab 2032 (Laufzeitverkürzung) / Restschuld 31.12.2036 / Annuitätenjahre | 47.450,00 / 42.179,40 / 80.165,66 €/a / 951.288,32 / 21 | Memo 07 |
+| S1-T8a | Alternative `reduce_installment`: Annuität / Restschuld 31.12.2036 | 71.261,11 €/a / 999.182,07 | Memo 07 |
+| S1-T9 | CO2-Intensität Bestand (280.000 × 0,181 / 1.600) / Vermieteranteil 2027 | 31,675 kg/m²·a (31,7) / 40 % | Memo 07 |
+| S1-T10 | Vermieteranteil CO2 V1 ab 2028 (§ 5a, Kessel 2027-10-01) | 50 % | Memo 07 |
+| S1-T11 | t = 0: Mittelverwendung = Mittelherkunft; V1: 577.185 = 150.000 + 427.185 (Geldanlage 1.488,50); V2: 1.451.488,50 = 151.488,50 + 1.300.000 | Invariante | Memo 07 |
+| S1-T12 | höherer CO2-Preis (Set `co2_hoch`) ⇒ `delta_vs_reference` (V2) steigt | Monotonie | Memo 07 |
+| S1-T13 | Verwaltung 2027 / 2028 (8.808 × 1,028; × 1,022) | 9.054,62 / 9.253,83 | 01b O-1 |
+| S1-T14 | WP-Strom V2 ab 2028 (120.000 / 2,9) / Gas V1 ab 2028 (242.250 / 0,95) / Gas 2027 (9 Monate Altbestand) | 41.379,31 / 255.000,00 / 210.000,00 kWh | Memo 07 |
+| S1-T15 | Pflichtsensitivität `stufe_2045`: `shared.v1_wp_2047` = 1, Ersatz 2047 = 300.000 (Kostenstand 2027) | Strukturtest | Konzept S1 |
+
+**MC-Erwartungen S1:** (m1) Mittel der Eingänge: Kosten V2 1.657.116,04 (PERT-Mittel 1,1416667), V1 615.664,00
+(1,0666667), JAZ 2,9333, Nutzwärme 122.666,67 kWh, Liegenschaftszins 0,0350222, RND V1 15 / V2 25, CO2 2030 116,67 /
+2040 176,67 €/t; Spearman(cost_factor_v1, cost_factor_v2) 0,70 ± 0,02. (m2) Gleiche Schlüssel `vacancy`, `rnd_rv`
+in V1 und V2: identische Uniforms je Lauf (CRN-Test). (m3) Degenerierte Verteilungen (min = mode = max = Basis,
+σ = 0) ⇒ jeder Lauf = deterministischer Basisfall (Spec 00 §15.5 Nr. 2). (m4) Hypothesen (Memo 07, F20 neu zu
+prüfen): P(`delta_vs_reference_ex_rv` > 0) klein (< 0,2), P(`delta_vs_reference` > 0) > 0,5; die drei stärksten
+Treiber im Tornado sind RND, Liegenschaftszins und Kostenfaktor V2; Vorzeichenwechsel bei RND V2 ≲ 18 J. bzw.
+LZ ≳ 4,5 % (`vofi_solve(param = "residual_value.remaining_life_years")`). Ampel höchstens Gelb wegen der
+Restwertregel (Spec 00 §12.9).
+
+### 5.2 S2 – Kommunales WU: Neubau MFH 36 WE mit KfW 298, Anschlussfinanzierung, Entscheidungsknoten (40 Jahre)
+
+Quelle Memo 07 §4.2, Konzept §9 S2 (Entscheidungsknoten EH-55-Stufe mit Ausweichvariante V1b, DSCR ab 2029).
+Basis = V1 (EH 55 mit KfW 298 EH-55-Stufe), Varianten `v1b_ohne_kfw` (Ausweichvariante) und `v2_eh40_qng`.
+Testkonvention (Memo 07): Bank- und KfW-Darlehen voll zum Stichtag ausgezahlt (Restschuld S2-T6 setzt zehn
+Jahresraten ab 2027 voraus; Bereitstellungsprovision 0); der Überschuss der Bauphase liegt als Geldanlage zu 2,0 %.
+
+```yaml
+# inst/extdata/examples/s2_wu_neubau_mfh_36we.yaml
+schema_version: 1
+meta:
+  scenario_id: s2_wu_neubau_mfh_36we
+  title: "S2 – Kommunales Wohnungsunternehmen: Neubau MFH 36 WE mit KfW 298 und Anschlussfinanzierung"
+  author: "WS-S (Referenzszenario, Memo 07 §4.2)"
+  created_date: 2026-10-25
+  tags: [referenzszenario, s2, neubau, entscheidungsknoten]
+project:
+  perspective: wu_kommunal
+  project_type: neubau
+  comparison_mode: absolute
+  valuation_date: 2027-01-01
+  horizon_years: 40                         # 2027-2066, Horizontende 2067-01-01
+  application_date: 2026-12-15              # Antrag EH-55-Stufe bis 31.12.2026, Baugenehmigung liegt vor
+  legal_state: 2026-10-25
+  price_base_year: 2026
+  construction_delay_months: 0
+  reference_variant: base                   # V1
+  report_mode: expert
+grid: {construction_months: 24, construction_step_months: 12}   # Bauzeit 2027-2028, Bezug 2029-01-01
+building:
+  building_type: MFH
+  construction_year: 2028
+  n_units: 36                               # 12 x 50 + 18 x 65 + 6 x 105 m2
+  living_area_m2: 2400
+  efficiency_standard_after: eh55
+  land_value_eur: {start: 900000, growth: {ref: market.land_value_growth}, base_date: 2027-01-01}
+unit_groups:
+  wohnen:
+    label: "36 WE Neubau"
+    n_units: 36
+    living_area_m2: 2400
+    rent_regime: paragraph_558
+    rent_eur_m2_month: {ref: shared.rent_initial}   # Erstvermietungsmiete 13,00 ab rent_start (Token completion)
+    increase_policy: fixed_growth
+    rent_growth: 0.02
+    growth_from: 2030-01-01
+    vacancy_rate: {series: {2029: 0, 2030: 0.01}, fill: locf, before: first}
+    rent_default_rate: {series: {2029: 0, 2030: 0.01}, fill: locf, before: first}
+    extra_loss_share: {series: {2029: 0.08, 2030: 0}, fill: locf, before: first}   # Erstvermietungsabschlag 2029
+    lease_up_months: 0
+    operating:
+      admin_per_unit_eur_pa: 367            # 13.212 EUR/a (2026), VPI
+      nonrecoverable_share_of_rent: 0.01
+      growth: {ref: market.inflation}
+measures:
+  grundstueck:
+    label: "Grundstück 2.000 m2 x 420 EUR inkl. 7,14 % Erwerbsnebenkosten"
+    measure_type: grundstueck               # 01a
+    asset_type: grundstueck                 # 01a: Kategorie land
+    date: 2027-01-01
+    cost_eur: 900000
+    price_index: 0
+    vat_rate: 0
+  bauwerk:
+    label: "Bauwerk KG 300+400 (3.600 EUR/m2)"
+    measure_type: neubau_bauwerk            # 01a
+    kg: 300
+    payment_schedule: {schedule: {2027-12-31: 0.40, 2028-12-31: 0.60}, unit: share}
+    completion_date: 2029-01-01
+    cost_eur: {expr: "8640000 * shared.cost_factor_bau"}
+    price_index: 0                          # Kostenstand 2027/28 nominal
+    useful_life_years: 80
+  nebenkosten:
+    label: "Herrichten/Erschließung KG 200, Außenanlagen KG 500, Baunebenkosten KG 700 (20 %)"
+    measure_type: neubau_nebenkosten        # 01a
+    kg: 700
+    payment_schedule: {schedule: {2027-12-31: 0.40, 2028-12-31: 0.60}, unit: share}
+    completion_date: 2029-01-01
+    cost_eur: 2160000                       # 144.000 + 288.000 + 1.728.000
+    price_index: 0
+    useful_life_years: 80
+  ersatz_wp_2049:
+    label: "WP-Ersatz"
+    measure_type: heizung_tausch            # 01a
+    year: 2049
+    cost_eur: 160000                        # V2: 150.000
+    price_base_year: 2025                   # Preisbasis 2026 (5.0 Nr. 4)
+    classification: erhaltung
+    useful_life_years: 20
+    auto_replacement: false                 # 01a
+  aufzug_2054:
+    label: "Aufzug-Modernisierung"
+    measure_type: aufzug                    # 01a
+    year: 2054
+    cost_eur: 60000
+    price_base_year: 2025
+    classification: erhaltung
+    useful_life_years: 25
+    auto_replacement: false                 # 01a
+shared:
+  from: prices/referenzszenarien_2026
+  use: shared
+  rent_initial: 13.00
+  green_premium_v2: 0
+  cost_factor_bau: 1
+  maintenance_factor: 1
+energy:
+  carriers:
+    heatpump_power_mfh: {class: power_hp, base_fee_eur_pa: 0}
+  after:                                    # Neubau: Zustand ab Fertigstellung (Token completion)
+    demand_kwh: 120000                      # D: 50 kWh/m2 a (EH 55, wie S5 V1)
+    generators:
+      wp: {carrier: heatpump_power_mfh, type: heat_pump, jaz_plan: 3.0, flow_temperature_c: 35, service_eur_pa: 2016.80672269}   # D
+components:
+  stellplaetze:
+    type: recurring
+    label: "Stellplatzmiete 24 x 35 EUR/Monat"
+    category: operating_income
+    amount_eur: 10080
+    growth: 0.02
+    base_date: 2030-01-01                   # 2029: 10.080 EUR (S2-T7)
+    from: completion
+  instandhaltung_1:
+    type: recurring
+    label: "Instandhaltung Jahre 1-5 nach Bezug (4,00 EUR/m2 a)"
+    category: maintenance
+    amount_eur: {expr: "9600 * shared.maintenance_factor"}
+    growth: {ref: market.maintenance_index}
+    from: 2029-01-01
+    to: 2034-01-01
+  instandhaltung_2:
+    type: recurring
+    label: "Instandhaltung Jahre 6-15 (9,00 EUR/m2 a)"
+    category: maintenance
+    amount_eur: {expr: "21600 * shared.maintenance_factor"}
+    growth: {ref: market.maintenance_index}
+    from: 2034-01-01
+    to: 2044-01-01
+  instandhaltung_3:
+    type: recurring
+    label: "Instandhaltung ab Jahr 16 (14,40 EUR/m2 a)"
+    category: maintenance
+    amount_eur: {expr: "34560 * shared.maintenance_factor"}
+    growth: {ref: market.maintenance_index}
+    from: 2044-01-01
+financing:
+  ek: {type: equity, amount_eur: 3000000}
+  bank:
+    type: annuity_loan
+    label: "Kapitalmarktdarlehen"
+    amount_eur: 5100000                     # V1b: 8.700.000; V2: 3.858.400
+    start: 2027-01-01
+    rate_pa: 0.04
+    initial_repayment_pa: 0.02              # Annuität 306.000 EUR/a
+    fixed_years: 10
+    payments_per_year: 1
+    followup_rate_pa: {ref: market.mortgage_rate}
+    refi_rule: keep_payment                 # Fortführung mit gleicher Rate bis Volltilgung
+funding:
+  kfw298:
+    from: funding/kfw_298_khn_eh55_stufe    # 100.000 EUR/WE, 35/5/10, 2,19 %; approval_probability 0,80 (Bibliothek)
+    measures: [bauwerk, nebenkosten]
+    application_date: 2026-12-15
+    amount_eur: 3600000
+    loan_variant: v35_5_10                  # 01b
+    payments_per_year: 1                    # 01b (Spec 00 §15.6)
+    followup_refi_rule: keep_term           # 01b: KfW-Annuität auf Restlaufzeit
+    approval_timing: before_start
+    fallback_variant: v1b_ohne_kfw          # Entscheidungsknoten (Spec 00 §9.11)
+accounts:
+  deposit_rate_pa: 0.02                     # Szenarioeinstellung (F18)
+  overdraft_rate_pa: 0.055
+market:
+  from: prices/referenzszenarien_2026
+  use: market
+  rent_growth_new: 0.02
+residual_value:
+  method: income_value
+  sale_cost_share: 0.03
+  cap_rate: 0.030                           # 01a
+  remaining_life_years: 42                  # 01a: GND 80 - Alter 38
+  land_value_eur: {ref: building.land_value_eur}   # 01a
+  management_costs: {from: costs/bewirtschaftung_immowertv_2026}   # 01a
+tax: {module: none}
+analysis:
+  stabilization_year: 2029
+stochastic:
+  settings: {n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200, store: bands}
+  processes:
+    mortgage_rate: {target: market.mortgage_rate, from: processes/mortgage_rate_vasicek_2026}   # gemeinsamer Pfad für 2037 und 2047
+    inflation: {target: market.inflation, from: processes/inflation_ar1_2026}
+    energy_price_heatpump_power_mfh: {target: market.energy_price.heatpump_power_mfh, from: processes/energy_prices_mr_2026, use: heatpump_power_mfh}
+  parameters:
+    cost_construction: {target: shared.cost_factor_bau, label: "Baukostenabweichung Bauwerk", from: processes/cost_risks_2026, use: overrun_newbuild, apply: replace}
+    delay_construction: {target: project.construction_delay_months, label: "Bauzeitverzug", from: processes/cost_risks_2026, use: delay_newbuild}
+    rent_initial: {target: shared.rent_initial, label: "Erstvermietungsmiete", dist: normal, mean: 13.00, sd: 0.80}
+    rent_growth: {target: unit_groups.wohnen.rent_growth, label: "Mietsteigerung", dist: normal, mean: 0.02, sd: 0.007}
+    cap_rate_rv: {target: residual_value.cap_rate, label: "Liegenschaftszins 2066", dist: truncnorm, mean: 0.030, sd: 0.005, lower: 0.02, upper: 0.06}
+    maintenance_factor: {target: shared.maintenance_factor, label: "Instandhaltungsniveau", dist: triangular, min: 0.8, mode: 1.0, max: 1.3}
+    construction_price_shift: {target: shared.construction_price_shift, label: "Abweichung Baupreisindex p. a.", dist: normal, mean: 0, sd: 0.012}
+    # funding.kfw298.approved: automatisch Bernoulli(0,80), Rolle decision (Spec 00 §11.6 Nr. 4)
+  correlations:
+    parameters: [[delay_construction, cost_construction, 0.5]]
+    shocks: {from: processes/shock_correlations_2026}
+variants:
+  v1b_ohne_kfw:
+    label: "V1b EH 55 ohne KfW (EH-55-Stufe nicht verfügbar)"
+    remove: [funding.kfw298]
+    set: {financing.bank.amount_eur: 8700000}   # Annuität 522.000 EUR/a
+  v2_eh40_qng:
+    label: "V2 EH 40 + QNG mit KfW 298 (150.000 EUR/WE), PV 40 kWp, Lüftung mit WRG"
+    remove: [funding.kfw298]
+    set:
+      building.efficiency_standard_after: eh40_qng
+      measures.bauwerk.cost_eur: {expr: "9072000 * shared.cost_factor_bau"}   # +5 %
+      measures.nebenkosten.cost_eur: 2286400                                  # 144.000 + 288.000 + 1.814.400 + QNG/LCA 40.000
+      measures.ersatz_wp_2049.cost_eur: 150000
+      financing.bank.amount_eur: 3858400                                      # Annuität 231.504 EUR/a
+      unit_groups.wohnen.rent_eur_m2_month: {expr: "shared.rent_initial + shared.green_premium_v2"}
+      energy.after.demand_kwh: 84000                                          # D: 35 kWh/m2 a
+      energy.after.generators.wp.jaz_plan: 3.2                                # D
+    add:
+      funding.kfw298_qng:
+        from: funding/kfw_298_khn_vermietung  # EH 40 + QNG: 150.000 EUR/WE, 35/5/10, 2,94 %
+        measures: [bauwerk, nebenkosten]
+        application_date: 2026-12-15
+        amount_eur: 5400000
+        qng: true                           # 01b
+        loan_variant: v35_5_10              # 01b
+        payments_per_year: 1                # 01b
+        followup_refi_rule: keep_term       # 01b
+        approval_probability: 1.0           # Memo 07: Risiko nur für die EH-55-Stufe
+      measures.pv:
+        label: "PV-Anlage 40 kWp"
+        measure_type: pv                    # 01a
+        asset_type: pv_anlage               # 01a; > 30 kWp: USt-Attribut (Spec 00 §7.10, R-84)
+        payment_schedule: {schedule: {2028-12-31: 1.0}, unit: share}
+        completion_date: 2029-01-01
+        cost_eur: 44000                     # 1.100 EUR/kWp netto (costs/anlagentechnik_marktpreise_2026), 0 % USt
+        vat_rate: 0
+        price_index: 0
+        useful_life_years: 25
+      measures.wechselrichter_2044:
+        label: "Wechselrichtertausch PV"
+        measure_type: pv_wechselrichter     # 01a
+        year: 2044
+        cost_eur: 6000
+        price_base_year: 2025
+        classification: erhaltung
+        useful_life_years: 12
+        auto_replacement: false             # 01a
+      energy.pv:
+        kwp: 40
+        measure: pv
+        specific_yield_kwh_kwp: 950
+        self_consumption_share: 0.30        # D: WP und Allgemeinstrom
+        feed_in_tariff_eur_kwh: 0.0640      # D: 6,66 ct x 0,99^4 (IBN 01/2029)
+        opex_share_of_cost: 0.012
+      stochastic.parameters.green_premium_v2: {target: shared.green_premium_v2, label: "Green Premium EH 40", dist: uniform, min: 0, max: 0.30}
+```
+
+Die Bauwerkskosten V2 sind ohne PV angegeben (Memo 07: PV in der Bauwerkssumme „+5 %“ enthalten; hier getrennt
+ausgewiesen, D). Mit PV-Anlage 44.000 € steigt die V2-Summe auf 12.302.400 €; für S2-T1 (12.258.400 €) zählt WS-S
+die Maßnahme `pv` nicht mit (Test über `measure_id`).
+
+**Prüfwerte S2 (deterministisch):**
+
+| Nr. | Größe | Soll | Herkunft |
+|---|---|---:|---|
+| S2-T1 | Gesamtkosten V1 / V2 (ohne `pv`) | 11.700.000 / 12.258.400 | Memo 07 |
+| S2-T2 | KfW-Beträge V1 / V2 (100.000 bzw. 150.000 €/WE × 36) | 3.600.000 / 5.400.000 | Memo 07 |
+| S2-T3 | Bankdarlehen V1 / V1b / V2 | 5.100.000 / 8.700.000 / 3.858.400 | Memo 07 |
+| S2-T4 | KfW-Zinsen tilgungsfreie Jahre 2027–2031 V1 / V2 | 78.840,00 / 158.760,00 €/a | Memo 07 |
+| S2-T4a | KfW-Annuität ab 2032 (30 J.) V1 / V2 | 164.969,40 / 273.371,56 €/a | Memo 07 |
+| S2-T5 | Bank-Annuität V1 / V1b / V2 | 306.000 / 522.000 / 231.504 €/a | Memo 07 |
+| S2-T6 | Restschuld Bank 31.12.2036 V1 / V2 | 3.875.377,07 (±1) / 2.931.912,73 (±1) | Memo 07 |
+| S2-T7 | Rohertrag Soll 2029 (2.400 × 13,00 × 12 + 10.080) | 384.480,00 | Memo 07 |
+| S2-T8 | Mieterträge 2027 und 2028 | 0 | Memo 07 |
+| S2-T9 | Verwaltung 2029 (13.212 × 1,028 × 1,022²) | 14.186,11 | 01b O-1 |
+| S2-T10 | Entscheidungsknoten deterministisch: Zweig b = 1 → Ergebnis V1; unter `foerderstopp`: b = 0 → Ergebnis V1b, `decision$alternative` = V1 | Strukturtest | Spec 00 §9.11 |
+| S2-T11 | Vergleichbarkeit V1/V2: gleiches Horizontende 2067-01-01, Raster gleich | Strukturtest | R-67 |
+
+**MC-Erwartungen S2:** (m1) Zusageschlüssel `funding.kfw298.approved` (Bernoulli 0,8, Rolle `decision`): je Block
+exakt 160 von 200 Zusagen, `decision$share_approved` = 0,80 exakt; Kompositum je Lauf = V1 bei b_i = 1, V1b bei
+b_i = 0 (Spec 00 §15.5 Nr. 11); `decision$stats_approved` = Statistik einer getrennten MC von V1. (m2) Eingänge:
+Kostenfaktor Mittel 1,0833333 (Bauwerk V1 9.360.000), Verzug 3,3333 Monate, Spearman(Verzug, Kosten) 0,50 ± 0,02,
+Erstvermietungsmiete 13,00 (sd 0,80), Instandhaltungsfaktor 1,0333, Liegenschaftszins 0,0302762 (trunkiert, sd
+0,0047076), Green Premium 0,15. (m3) Hypothesen (Memo 07, F20): V1 > V2 (P(`delta_vs_reference`(V2) < 0) > 0,5,
+gerechnet gegen das Kompositum), V2 > V1b; Streuung dominiert vom Anschlusszins 2037 (globale Sensitivität:
+`mortgage_rate.at2037` größter Beitrag); Break-even-Miete für `roe_mirr` = 4 % (`vofi_solve(param =
+"shared.rent_initial", kpi = "roe_mirr", target = 0.04)`) im Bereich 15–17 €/m².
+
+### 5.3 S3 – Genossenschaft: Heizungstausch Gas → Wärmepumpe + PV 30 kWp, 12 WE (20 Jahre)
+
+Quelle Memo 07 §4.3, Konzept §9 S3, F13, B3, P5. Basis = V1 Gas-Brennwert (Ohnehin), Variante `v2_wp_pv`, Testvariante
+`v2_jaz_test` (Plan-JAZ 2,4, Vorlauf 70 °C: § 559f-Ausnahme nicht erfüllt). Abweichung von Memo 07 nach Konzept B3:
+PV-Strom an Mitglieder 0 ct (`internal_price_eur_kwh: 0`); die Memo-Annahme 20 ct steht als Set `pv_verrechnung_20ct`.
+
+```yaml
+# inst/extdata/examples/s3_eg_waermepumpe_pv.yaml
+schema_version: 1
+meta:
+  scenario_id: s3_eg_waermepumpe_pv
+  title: "S3 – Genossenschaft: Heizungstausch Gas auf Wärmepumpe mit PV im 12-WE-Gebäude (§ 559e)"
+  author: "WS-S (Referenzszenario, Memo 07 §4.3)"
+  created_date: 2026-10-25
+  tags: [referenzszenario, s3, bestand, heizungstausch, genossenschaft]
+project:
+  perspective: wu_genossenschaft
+  project_type: heizungstausch
+  comparison_mode: absolute
+  valuation_date: 2027-01-01
+  horizon_years: 20                         # 2027-2046, Horizontende 2047-01-01
+  application_date: 2027-01-15              # KfW 459 vor Absenkung zum 01.02.2027
+  legal_state: 2026-10-25
+  price_base_year: 2026
+  reference_variant: base                   # V1 Gas-Brennwert (Ohnehin)
+  report_mode: expert
+grid: {construction_months: 0}
+building:
+  building_type: MFH
+  construction_year: 1985
+  n_units: 12
+  living_area_m2: 840
+  heating_existing: {carrier: gas_mfh, installation_year: 2002, efficiency: 0.87}   # Vorlauf 70 °C, Heizlast ≈ 42 kW
+  consumption_kwh: {gas_mfh: 109200}
+unit_groups:
+  mitglieder:
+    label: "12 Genossenschaftswohnungen"
+    n_units: 12
+    living_area_m2: 840
+    rent_regime: cooperative_fee
+    rent_eur_m2_month: 6.40                 # Nutzungsentgelt, 64.512 EUR/a
+    increase_policy: fixed_growth
+    rent_growth: 0.015
+    growth_from: 2028-01-01
+    vacancy_rate: 0.01
+    rent_default_rate: 0
+    rent_law:
+      modernization_levy: auto
+      voluntary_cap_per_m2: null            # V2: 0.35 (Vorstandsbeschluss)
+      hardship_share: 0
+measures:
+  gas_bw:
+    label: "Gas-Brennwertkessel inkl. Abgas und Planung (Ohnehin)"
+    measure_type: heizung_tausch            # 01a
+    year: 2027
+    completion_date: 2027-10-01
+    cost_eur: 45360                         # 38.000 + 4.000 + 8 % Planung
+    ohnehin_share: 1
+    classification: erhaltung
+    modernization_kind: none
+    useful_life_years: 20
+shared:
+  from: prices/referenzszenarien_2026
+  use: shared
+  cost_factor_v2: 1
+energy:
+  carriers:
+    gas_mfh: {class: gas, emission_factor_kg_kwh: 0.181, base_fee_eur_pa: 0}
+    heatpump_power_mfh: {class: power_hp, base_fee_eur_pa: 0}
+  before:
+    consumption_basis: measured
+    generators:
+      kessel_alt: {carrier: gas_mfh, type: boiler, efficiency: 0.87, consumption_kwh_pa: 109200, installation_date: 2002-01-01, flow_temperature_c: 70, service_eur_pa: 714.28571429}   # 600 + 250 EUR brutto
+  after:
+    measure: gas_bw
+    demand_kwh: 95000                       # -> 100.000 kWh Gas bei η 0,95
+    generators:
+      gas_bw: {carrier: gas_mfh, type: boiler, efficiency: 0.95, installation_date: 2027-10-01, service_eur_pa: 714.28571429}
+financing:
+  ek: {type: equity, amount_eur: 50000}     # V1: 45.360 eingesetzt, Rest Geldanlage
+accounts:
+  deposit_rate_pa: 0.02                     # Mindestverzinsung (= Profil wu_genossenschaft)
+  overdraft_rate_pa: 0.055
+market:
+  from: prices/referenzszenarien_2026
+  use: market
+  co2_price: {from: prices/co2_price_path_referenzszenarien_2026}
+  pv_internal_price_s3: 0                   # Verrechnungspreis PV-Strom an Mitglieder (Konzept B3); Set pv_verrechnung_20ct
+residual_value:
+  method: component                         # linearer Komponentenzeitwert, kein Gebäudewerteffekt
+  sale_cost_share: 0
+tax: {module: none}
+analysis:
+  stabilization_year: 2028
+stochastic:
+  settings: {n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200, store: bands}
+  processes:
+    inflation: {target: market.inflation, from: processes/inflation_ar1_2026}
+    energy_price_gas_mfh: {target: market.energy_price.gas_mfh, from: processes/energy_prices_mr_2026, use: gas_mfh}
+    energy_price_heatpump_power_mfh: {target: market.energy_price.heatpump_power_mfh, from: processes/energy_prices_mr_2026, use: heatpump_power_mfh}
+  parameters:
+    co2_2030: {target: shared.co2_2030, label: "CO2-Preis 2030", dist: triangular, min: 60, mode: 90, max: 200}
+    co2_2040: {target: shared.co2_2040, label: "CO2-Preis 2040", dist: triangular, min: 80, mode: 150, max: 300}
+    network_fee_growth_gas_mfh: {target: shared.network_fee_growth_gas_mfh, from: processes/energy_prices_mr_2026, use: network_fee_growth}
+    bio_premium_factor: {target: shared.bio_premium_factor, from: processes/energy_prices_mr_2026, use: bio_premium_factor, apply: replace}
+    hardship: {target: unit_groups.mitglieder.rent_law.hardship_share, label: "Anteil WE mit Härtefall", dist: beta, mean: 0.05, sd: 0.03}
+  correlations:
+    parameters: [[co2_2030, co2_2040, 0.8]]
+    shocks: {from: processes/shock_correlations_2026}
+variants:
+  v2_wp_pv:
+    label: "V2 Wärmepumpen-Kaskade mit PV 30 kWp (KfW 459, § 559e)"
+    remove: [measures.gas_bw]
+    replace:
+      energy.after:
+        measure: heizung_wp
+        demand_kwh: 95000
+        generators:
+          wp: {carrier: heatpump_power_mfh, type: heat_pump, jaz_plan: 3.1, flow_temperature_c: 55, installation_date: 2027-10-01, service_eur_pa: 756.30252101}   # 900 EUR brutto
+    set:
+      unit_groups.mitglieder.rent_law.voluntary_cap_per_m2: 0.35   # Beschluss: 3.528 EUR/a ab 2028
+    add:
+      measures.heizung_wp:
+        label: "WP-Kaskade 2 x 22 kW, Heizkörper, Frischwasserstation, Elektro, Demontage, Planung"
+        measure_type: heizung_tausch        # 01a
+        year: 2027
+        completion_date: 2027-10-01
+        cost_eur: {expr: "153560 * shared.cost_factor_v2"}   # 88.000 + 21.600 + 18.000 + 8.000 + 4.000 + 10 % = 13.960
+        ohnehin_cost_eur: 45360             # nur für den Rückfall auf § 559 (01b 1.9.2)
+        classification: auto
+        modernization_kind: bgb_555b_1a     # Verfahren auto -> § 559e (Drittmittel)
+        useful_life_years: 20
+      measures.pv:
+        label: "PV 30 kWp (1.150 EUR/kWp) + Messkonzept"
+        measure_type: pv                    # 01a
+        asset_type: pv_anlage               # 01a
+        year: 2027
+        completion_date: 2027-01-01         # IBN bis 31.01.2027 (Vergütungssatz), 20 Jahre genutzt
+        cost_eur: {expr: "38500 * shared.cost_factor_v2"}
+        vat_rate: 0                         # § 12 Abs. 3 UStG (<= 30 kWp)
+        classification: auto
+        modernization_kind: none
+        useful_life_years: 25
+      energy.pv:
+        kwp: 30
+        measure: pv
+        commissioning_date: 2027-01-01
+        specific_yield_kwh_kwp: 900
+        self_consumption_share: 0.30        # WP und Allgemeinstrom
+        feed_in_tariff_eur_kwh: {expr: "(10 * market.feed_in_tariff.partial_le10kwp + 20 * market.feed_in_tariff.partial_10_40kwp) / 30"}   # 7,0067 ct
+        tariff_years: 20
+        internal_price_eur_kwh: {ref: market.pv_internal_price_s3}   # Konzept B3: 0 (Memo 07: 0,20)
+        opex_share_of_cost: 0.015           # 577,50 EUR/a
+      funding.kfw459:
+        from: funding/kfw_459_heizung_unternehmen
+        measures: [heizung_wp]
+        application_date: 2027-01-15
+        payout_date: 2028-01-01             # 01b: Auszahlung 2028
+        approval_probability: 1.0           # Memo 07: kein Zusagerisiko
+      financing.bank:
+        type: annuity_loan
+        label: "Bankdarlehen"
+        amount_eur: 142060
+        start: 2027-01-01
+        rate_pa: 0.039
+        term_years: 15
+        fixed_years: 15
+        payments_per_year: 1
+      stochastic.parameters.jaz: {target: energy.after.generators.wp.jaz, label: "JAZ realisiert", dist: triangular, min: 2.6, mode: 3.1, max: 3.4}
+      stochastic.parameters.pv_self_share: {target: energy.pv.self_consumption_share, label: "Eigenverbrauchsquote PV", dist: triangular, min: 0.20, mode: 0.30, max: 0.40}
+      stochastic.parameters.pv_yield: {target: energy.pv.specific_yield_kwh_kwp, label: "PV-Ertrag", dist: normal, mean: 900, sd: 60}
+      stochastic.parameters.cost_factor_v2: {target: shared.cost_factor_v2, label: "Kostenabweichung Komponententausch", from: processes/cost_risks_2026, use: overrun_component, apply: replace}
+  v2_jaz_test:
+    label: "Testfall § 559f: Plan-JAZ 2,4, Vorlauf 70 °C"
+    extends: v2_wp_pv
+    set:
+      energy.after.generators.wp.jaz_plan: 2.4
+      energy.after.generators.wp.flow_temperature_c: 70
+      unit_groups.mitglieder.rent_law.voluntary_cap_per_m2: null
+scenario_sets:
+  pv_verrechnung_20ct:
+    label: "PV-Strom an Mitglieder zu 20 ct/kWh (Memo 07, rechtlich prüfen)"
+    set: {market.pv_internal_price_s3: 0.20}
+```
+
+Szenario-Sets dürfen `energy` nicht ändern (Spec 00 §4.11); deshalb verweist `energy.pv.internal_price_eur_kwh` auf
+den szenarioeigenen Marktpfad `market.pv_internal_price_s3`, den das Set setzt (Muster für Sets auf Domänenwerte).
+
+**Prüfwerte S3 (deterministisch):**
+
+| Nr. | Größe | Soll | Herkunft |
+|---|---|---:|---|
+| S3-T1 | förderfähige Höchstkosten 12 WE (28.000 + 5 × 15.000 + 6 × 8.000) | 151.000 | Memo 07 |
+| S3-T2 | Zuschuss KfW 459 (30 % × min(153.560; 151.000)), Auszahlung 2028-01-01 | 45.300,00 | Memo 07 |
+| S3-T3 | § 559e rechnerisch 0,10 × (0,85 × 153.560 − 45.300) / gekappt 0,50 €/m² / angesetzt 0,35 €/m² | 8.522,60 / 5.040,00 / 3.528,00 €/a | **Konzept F13** (Memo 07: 9.202,10) |
+| S3-T4 | `v2_jaz_test` (§ 559f): `halve_then_subtract` 0,10 × (0,85 × 76.780 − 45.300) / `subtract_then_halve` 0,5 × 0,10 × (0,85 × 153.560 − 45.300) | 1.996,30 / 4.261,30 €/a | **Konzept F13** (Memo 07: 2.675,80 / 4.601,05) |
+| S3-T4a | V2 mit Plan-JAZ 3,1 und Vorlauf 55 °C: keine Halbierung (Ausnahme bzw. JAZ ≥ 2,5) | = S3-T3 | Konzept P5 |
+| S3-T5 | CO2-Stufe Bestand (109.200 × 0,181 / 840) | 23,53 kg/m²·a → 30 % | Memo 07 |
+| S3-T6 | Einspeiseerlös PV (18.900 kWh × 7,00667 ct) | 1.324,26 €/a | Memo 07 |
+| S3-T7 | Annuität Bankdarlehen (142.060 @ 3,9 %, 15 J.) | 12.687,85 €/a | Memo 07 |
+| S3-T8 | Restwert 2047-01-01: PV 5/25 × 38.500 / WP (0,75/20 × 153.560) / Kessel V1 (0,75/20 × 45.360) | 7.700,00 / 5.758,50 / 1.701,00 | Memo 07 (PV); WS-S (Fertigstellung 2027-10-01, Memo rundet auf null) |
+| S3-T9 | WP-Strom V2 (95.000 / 3,1) / PV-Eigenverbrauch / Netzbezug | 30.645,16 / 8.100,00 / 22.545,16 kWh | Memo 07 |
+| S3-T10 | Heizkosten Mitglieder (Preisbasis 2026): V1 100.000 × 11,20234 ct + 850 / V2 22.545,16 × 25 ct + 900 | 12.052,34 / 6.536,29 €/a (0,6484 €/m²·Monat) | WS-S (Memo 07: 12.050 bzw. 8.157 mit 20 ct Verrechnung) |
+| S3-T11 | PV-Betriebskosten (1,5 % × 38.500) | 577,50 €/a | Memo 07 |
+
+**MC-Erwartungen S3:** (m1) Eingänge: JAZ 3,0333, Eigenverbrauch 0,30, PV-Ertrag 900 (sd 60), Kostenfaktor 1,025,
+Härtefall Beta(2,5889; 49,1889) Mittel 0,05. (m2) Die realisierte JAZ ändert die Umlage in keinem Lauf (Plan-JAZ
+`deterministic_only`, R-70): `levy_heizung_wp_computed` je Lauf = 0,10 × (0,85 × 153.560 · f − 0,30 × min(153.560 · f;
+151.000)) mit dem Kostenfaktor f des Laufs, unabhängig von `jaz`; wegen f ≥ 0,95 in jedem Lauf über der Kappe
+(gekappt 5.040 €/a, angesetzt 3.528 €/a). (m3) Hypothesen (Memo 07, F20): `delta_vs_reference`(V2) > 0 mit P > 0,8, Größenordnung +20 bis +60 T€;
+Warmmiete der Mitglieder V2 im ersten vollen Jahr leicht unter V1 (`warm_rent_change_y1` < 0, im Mittel
+≈ −0,04 €/m²·Monat, mit 0-ct-Verrechnung deutlicher); stärkste Treiber Strompreis, realisierte JAZ, Gaspreis.
+
+### 5.4 S4 – Selbstnutzer EFH 1975: stufenweise Sanierung nach iSFP gegenüber „Gaskessel behalten“ (25 Jahre)
+
+Quelle Memo 07 §4.4, §6.1, Konzept §9 S4, B2, B4, B12. Basis = V0 (Gaskessel behalten, Ersatz bei Ausfall),
+Variante `v1_isfp_stufen`, optional `v2_nur_wp`, `v3_alles_2027`. Kostenstand 2026 → `price_base_year: 2025` je
+Maßnahme, Baupreisindex 3,0 % ab 2026 (Memo 07: Ausführungskosten = Kosten × 1,03^(Y − 2026)). Ausfalljahr des
+Altkessels als Verschiebung `delay_months` der Maßnahme `gaskessel` (Basis 2030, MC 2028–2033); der Heizungsersatz
+2050 folgt dieser Verschiebung (Nutzungsdauer 20 J.).
+
+```yaml
+# inst/extdata/examples/s4_efh_1975_isfp.yaml
+schema_version: 1
+meta:
+  scenario_id: s4_efh_1975_isfp
+  title: "S4 – Selbstnutzer EFH Baujahr 1975: stufenweise Sanierung nach iSFP gegenüber Gaskessel behalten"
+  author: "WS-S (Referenzszenario, Memo 07 §4.4)"
+  created_date: 2026-10-25
+  tags: [referenzszenario, s4, bestand, selbstnutzer, haushaltsmodus]
+project:
+  perspective: selbstnutzer
+  project_type: sanierung_stufenweise
+  comparison_mode: absolute
+  valuation_date: 2027-01-01
+  horizon_years: 25                         # 2027-2051, Horizontende 2052-01-01
+  application_date: 2026-12-15              # KfW 458: Bonus 16 % und Höchstkosten 28.000 EUR
+  legal_state: 2026-10-25
+  price_base_year: 2026                     # laufende Beträge Preisbasis 2026
+  reference_variant: base                   # V0 Gaskessel behalten
+  report_mode: household
+grid: {construction_months: 0}
+building:
+  building_type: EFH
+  construction_year: 1975
+  n_units: 1
+  living_area_m2: 140
+  component_areas_m2: {roof: 160, windows: 28, facade: 180, basement_ceiling: 75}
+  heating_existing: {carrier: gas, installation_year: 2005, efficiency: 0.88}   # 21 Jahre: Klimageschwindigkeitsbonus
+  consumption_kwh: {gas: 24500}             # Hs, Nutzwärme 21.560 kWh (iSFP-Bedarf 230 kWh/m2 a -> Prebound ≈ 0,76)
+household:
+  taxable_income_avg_eur: 58000             # Ø 2023/2024; minus 10.000 Familienzuschlag -> 48.000 -> Einkommensbonus 10 %
+  n_children_u18: 1
+  net_income_month_eur: 4800
+  savings_eur: 60000                        # Erspartes (Expander household -> equity)
+unit_groups:
+  haus:
+    label: "Selbstgenutztes EFH"
+    n_units: 1
+    living_area_m2: 140
+    owner_occupied: true
+measures:
+  gaskessel:
+    label: "Gas-Brennwertkessel nach Ausfall des Altkessels"
+    measure_type: heizung_tausch            # 01a
+    year: 2030
+    delay_months: 0                         # MC: -24 ... +36 (Ausfalljahr 2028-2033)
+    cost_eur: 12500                         # Kostenstand 2026 -> 14.068,86 (2030)
+    price_base_year: 2025
+    classification: erhaltung
+    useful_life_years: 20
+    auto_replacement: false                 # 01a: Ersatz explizit (wp_2050)
+  dach_2032:
+    label: "Dach-Neueindeckung mit GModG-Mindestdämmung (U <= 0,24)"
+    measure_type: dach                      # 01a
+    year: 2032
+    cost_eur: 40000                         # -> 47.762,09
+    price_base_year: 2025
+    classification: erhaltung
+    useful_life_years: 50
+  anstrich_2033:
+    label: "Fassadenanstrich inkl. Gerüst"
+    measure_type: fassade_instandsetzung    # 01a
+    year: 2033
+    cost_eur: 11600                         # -> 14.266,54
+    price_base_year: 2025
+    classification: erhaltung
+    useful_life_years: 15
+    auto_replacement: false                 # 01a: Memo 07 ohne Folgeanstrich 2048
+  fenster_2042:
+    label: "Fenstertausch 2-fach (U_w 1,3)"
+    measure_type: fenster                   # 01a
+    year: 2042
+    cost_eur: {expr: "building.component_areas_m2.windows * 700"}   # 19.600 -> 31.452,25
+    price_base_year: 2025
+    classification: erhaltung
+    useful_life_years: 35
+  wp_2050:
+    label: "Heizungsersatz durch Wärmepumpe (Ende Nutzungsdauer Kessel)"
+    measure_type: heizung_tausch            # 01a
+    year: 2050
+    delay_months: {ref: measures.gaskessel.delay_months}
+    cost_eur: 32000                         # -> 65.049,41; ohne Förderung (Memo 07)
+    price_base_year: 2025
+    useful_life_years: 20
+shared:
+  from: prices/referenzszenarien_2026
+  use: shared
+  saving_stage2: 0.25
+  saving_stage3: 0.28
+energy:
+  carriers:
+    gas: {class: gas, emission_factor_kg_kwh: 0.181, base_fee_eur_pa: 151.26050420}           # 180 EUR brutto
+    heatpump_power: {class: power_hp, base_fee_eur_pa: 117.64705882}                          # 140 EUR brutto
+  before:
+    consumption_basis: measured
+    generators:
+      kessel_alt: {carrier: gas, type: boiler, efficiency: 0.88, consumption_kwh_pa: 24500, installation_date: 2005-01-01, service_eur_pa: 252.10084034}   # 300 EUR brutto
+  after:
+    measure: gaskessel
+    demand_kwh: 21560
+    generators:
+      gas_bw: {carrier: gas, type: boiler, efficiency: 0.94, installation_date: 2030-01-01, service_eur_pa: 252.10084034}   # § 43: Bio-Treppe
+  stages:
+    dach:
+      measure: dach_2032
+      demand_kwh: {expr: "21560 * 0.88"}    # 18.972,8 kWh
+    fenster:
+      measure: fenster_2042
+      demand_kwh: {expr: "21560 * 0.88 * 0.95"}   # 18.024,16 kWh
+    wp:
+      measure: wp_2050
+      generators:
+        wp: {carrier: heatpump_power, type: heat_pump, jaz_plan: 3.0, installation_date: 2050-01-01, service_eur_pa: 210.08403361}   # 250 EUR brutto
+financing: {}                               # Einlage aus household.savings_eur (Expander household, # 01b)
+accounts:
+  deposit_rate_pa: 0.025
+  overdraft_rate_pa: 0.060                  # Ergänzungskredit (Memo 07: Fehlbeträge automatisch)
+  overdraft_limit_eur: .inf                 # Szenarioeinstellung (Profil privat: 0 mit Nachschuss)
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+market:
+  from: prices/referenzszenarien_2026
+  use: market
+  construction_price_index_base: {series: {2026: 0.030}, fill: locf, before: first}   # 3,0 % ab 2026
+  co2_price: {from: prices/co2_price_path_referenzszenarien_2026}
+residual_value:
+  method: component                         # Zeitwert der Maßnahmen (linear), Pflichtausweis ohne Restwert
+  sale_cost_share: 0
+tax: {module: none}
+stochastic:
+  settings: {n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200, store: bands}
+  processes:
+    mortgage_rate: {target: market.mortgage_rate, from: processes/mortgage_rate_vasicek_2026}   # Anschluss KfW 358 nach 10 J.
+    inflation: {target: market.inflation, from: processes/inflation_ar1_2026}
+    energy_price_gas: {target: market.energy_price.gas, from: processes/energy_prices_mr_2026, use: gas}
+    energy_price_heatpump_power: {target: market.energy_price.heatpump_power, from: processes/energy_prices_mr_2026, use: heatpump_power}
+  parameters:
+    co2_2030: {target: shared.co2_2030, label: "CO2-Preis 2030", dist: triangular, min: 60, mode: 90, max: 200}
+    co2_2040: {target: shared.co2_2040, label: "CO2-Preis 2040", dist: triangular, min: 80, mode: 150, max: 300}
+    network_fee_growth_gas: {target: shared.network_fee_growth_gas, from: processes/energy_prices_mr_2026, use: network_fee_growth}
+    bio_premium_factor: {target: shared.bio_premium_factor, from: processes/energy_prices_mr_2026, use: bio_premium_factor, apply: replace}
+    construction_price_shift: {target: shared.construction_price_shift, label: "Abweichung Baupreisindex p. a.", dist: normal, mean: 0, sd: 0.012}
+    deposit_rate: {target: accounts.deposit_rate_pa, label: "Habenzins", dist: truncnorm, mean: 0.025, sd: 0.0075, lower: 0, upper: 0.06}
+    boiler_failure: {target: measures.gaskessel.delay_months, label: "Ausfall Altkessel (Verschiebung ggü. 2030)", dist: discrete, values: [-24, -12, 0, 12, 24, 36]}
+  correlations:
+    parameters: [[co2_2030, co2_2040, 0.8]]
+    shocks: {from: processes/shock_correlations_2026}
+variants:
+  v1_isfp_stufen:
+    label: "V1 iSFP stufenweise: WP 2027, Dach + Fenster 2030, Fassade + Kellerdecke 2033"
+    remove: [measures.gaskessel, measures.dach_2032, measures.anstrich_2033, measures.fenster_2042, measures.wp_2050,
+             energy.stages, stochastic.parameters.boiler_failure]
+    replace:
+      energy.after:
+        measure: wp_2027
+        demand_kwh: 21560
+        generators:
+          wp: {carrier: heatpump_power, type: heat_pump, jaz_plan: 2.9, installation_date: 2027-01-01, service_eur_pa: 210.08403361}
+    add:
+      measures.wp_2027:
+        label: "Luft/Wasser-WP 10 kW inkl. 3 Heizkörper, Demontage"
+        measure_type: heizung_tausch        # 01a
+        year: 2027
+        cost_eur: 32000                     # -> 32.960,00
+        price_base_year: 2025
+        useful_life_years: 20
+        auto_replacement: false             # 01a: Ersatz explizit (wp_ersatz_2047)
+      measures.dach_fenster_2030:
+        label: "Dach (Aufsparrendämmung, U <= 0,14) und Fenster 3-fach"
+        measure_type: dach                  # 01a
+        year: 2030
+        cost_eur: {expr: "building.component_areas_m2.roof * 320 + building.component_areas_m2.windows * 900"}   # 76.400 -> 85.988,87
+        price_base_year: 2025
+        useful_life_years: 45               # Dach 50, Fenster 35 (kostengewichtet)
+      measures.fassade_2033:
+        label: "WDVS 16 cm, Kellerdecke, Gerüst"
+        measure_type: daemmung_fassade      # 01a
+        year: 2033
+        cost_eur: {expr: "building.component_areas_m2.facade * 210 + building.component_areas_m2.basement_ceiling * 50 + 3500"}   # 45.050 -> 55.405,82
+        price_base_year: 2025
+        useful_life_years: 40
+      measures.wp_ersatz_2047:
+        label: "WP-Ersatz (Erzeuger)"
+        measure_type: heizung_tausch        # 01a
+        year: 2047
+        cost_eur: 25000                     # -> 46.507,36
+        price_base_year: 2025
+        classification: erhaltung
+        useful_life_years: 20
+      energy.stages:
+        stufe2:
+          measure: dach_fenster_2030
+          demand_kwh: {expr: "21560 * (1 - shared.saving_stage2)"}                               # 16.170
+          generators:
+            wp: {carrier: heatpump_power, type: heat_pump, jaz_plan: 3.2, installation_date: 2027-01-01, service_eur_pa: 210.08403361}
+        stufe3:
+          measure: fassade_2033
+          demand_kwh: {expr: "21560 * (1 - shared.saving_stage2) * (1 - shared.saving_stage3)"}  # 11.642,4
+          generators:
+            wp: {carrier: heatpump_power, type: heat_pump, jaz_plan: 3.5, installation_date: 2027-01-01, service_eur_pa: 210.08403361}
+      funding.kfw458_wp:
+        from: funding/kfw_458_heizung_privat
+        measures: [wp_2027]
+        application_date: 2026-12-15
+        payout_date: 2028-01-01             # 01b
+        approval_probability: 1.0
+      funding.bafa_2030:
+        from: funding/bafa_beg_em_huelle
+        measures: [dach_fenster_2030]
+        application_date: 2029-12-01
+        isfp: true                          # 01b
+        isfp_bonus_mode: excess_over_threshold   # 01b; Alternative whole_amount (Konzept B2)
+        payout_date: 2031-01-01             # 01b
+        approval_probability: 1.0
+      funding.bafa_2033:
+        from: funding/bafa_beg_em_huelle
+        measures: [fassade_2033]
+        application_date: 2032-12-01        # approval_timing auto -> after_start (einfache Ziehung)
+        isfp: true                          # 01b
+        isfp_bonus_mode: excess_over_threshold   # 01b
+        payout_date: 2034-01-01             # 01b
+        approval_probability: 0.7           # Förderverfügbarkeit nach 2030 (Konzept B12)
+        on_reject: balance
+      funding.kfw358_2030:
+        from: funding/kfw_358_ergaenzungskredit_plus
+        measures: [dach_fenster_2030]
+        amount_eur: 70000
+        loan_variant: v25_3_10              # 01b: 25/3/10, 2,53 %
+        start: 2030-01-01                   # 01b
+        payments_per_year: 1                # 01b
+        approval_probability: 1.0
+      funding.kfw358_2033:
+        from: funding/kfw_358_ergaenzungskredit_plus
+        measures: [fassade_2033]
+        amount_eur: 45000
+        loan_variant: v25_3_10              # 01b
+        start: 2033-01-01                   # 01b
+        payments_per_year: 1                # 01b
+        approved: {ref: funding.bafa_2033.approved}   # Ergänzungskredit nur mit BEG-EM-Förderung
+        approval_probability: 1.0
+      stochastic.parameters.saving_stage2: {target: shared.saving_stage2, label: "Einsparwirkung Stufe 2", dist: triangular, min: 0.18, mode: 0.25, max: 0.30}
+      stochastic.parameters.saving_stage3: {target: shared.saving_stage3, label: "Einsparwirkung Stufe 3", dist: triangular, min: 0.20, mode: 0.28, max: 0.33}
+      stochastic.parameters.jaz_s1: {target: energy.after.generators.wp.jaz, label: "JAZ Zustand 1", dist: triangular, min: 2.6, mode: 2.9, max: 3.2}
+      stochastic.parameters.jaz_s2: {target: energy.stages.stufe2.generators.wp.jaz, label: "JAZ Zustand 2", dist: triangular, min: 2.9, mode: 3.2, max: 3.5}
+      stochastic.parameters.jaz_s3: {target: energy.stages.stufe3.generators.wp.jaz, label: "JAZ Zustand 3", dist: triangular, min: 3.2, mode: 3.5, max: 3.8}
+      stochastic.parameters.rate_kfw358_2030: {target: financing.f_kfw358_2030_loan.rate_pa, label: "Zins KfW 358 (2030)", dist: truncnorm, mean: 0.0275, sd: 0.0075, lower: 0.01, upper: 0.05}   # 01b: Pfad des erzeugten Kredits
+      stochastic.parameters.rate_kfw358_2033: {target: financing.f_kfw358_2033_loan.rate_pa, label: "Zins KfW 358 (2033)", dist: truncnorm, mean: 0.0275, sd: 0.0075, lower: 0.01, upper: 0.05}
+    set:
+      stochastic.correlations.parameters: [[co2_2030, co2_2040, 0.8], [jaz_s1, jaz_s2, 0.7], [jaz_s2, jaz_s3, 0.7], [jaz_s1, jaz_s3, 0.7]]   # D: dieselbe Anlage
+  v2_nur_wp:
+    label: "V2 nur Wärmepumpe 2027, Hülle zu den Ohnehin-Terminen"
+    remove: [measures.gaskessel, measures.wp_2050, stochastic.parameters.boiler_failure]
+    replace:
+      energy.after:
+        measure: wp_2027
+        demand_kwh: 21560
+        generators:
+          wp: {carrier: heatpump_power, type: heat_pump, jaz_plan: 2.9, installation_date: 2027-01-01, service_eur_pa: 210.08403361}
+      energy.stages:
+        dach: {measure: dach_2032, demand_kwh: {expr: "21560 * 0.88"}, generators: {wp: {carrier: heatpump_power, type: heat_pump, jaz_plan: 3.0, installation_date: 2027-01-01, service_eur_pa: 210.08403361}}}
+        fenster: {measure: fenster_2042, demand_kwh: {expr: "21560 * 0.88 * 0.95"}}
+    add:
+      measures.wp_2027: {label: "Luft/Wasser-WP 10 kW", measure_type: heizung_tausch, year: 2027, cost_eur: 32000, price_base_year: 2025, useful_life_years: 20, auto_replacement: false}
+      measures.wp_ersatz_2047: {label: "WP-Ersatz", measure_type: heizung_tausch, year: 2047, cost_eur: 25000, price_base_year: 2025, classification: erhaltung, useful_life_years: 20}
+      funding.kfw458_wp: {from: funding/kfw_458_heizung_privat, measures: [wp_2027], application_date: 2026-12-15, payout_date: 2028-01-01, approval_probability: 1.0}
+```
+
+`v3_alles_2027` (optional, Prüfwert Jahresdeckel) entsteht aus `v1_isfp_stufen` mit `year: 2027` für alle Stufen
+und je einem BAFA- und KfW-358-Instrument 2027; Prüfwert der Förderung: Hülle 10.500,00 € (förderfähig gedeckelt auf
+60.000 € in **einem** Kalenderjahr) + WP 15.680,00 € (Memo 07).
+
+**Prüfwerte S4 (deterministisch):**
+
+| Nr. | Größe | Soll | Herkunft |
+|---|---|---:|---|
+| S4-T1 | effektives zvE (58.000 − 10.000) / Einkommensbonus | 48.000 / 10 % | Memo 07, # 01b Regel |
+| S4-T2 | KfW-458-Zuschuss (56 % × min(32.960; 28.000)), Auszahlung 2028-01-01 | 15.680,00 | Memo 07 |
+| S4-T3 | Ausführungskosten V1 2027 / 2030 / 2033 / 2047 | 32.960,00 / 85.988,87 / 55.405,82 / 46.507,36 | Memo 07 |
+| S4-T3a | Ausführungskosten V0 2030 / 2032 / 2033 / 2042 / 2050 | 14.068,86 / 47.762,09 / 14.266,54 / 31.452,25 / 65.049,41 | Memo 07 |
+| S4-T4 | BAFA 2030 / 2033 (`excess_over_threshold`) / Alternative `whole_amount` | 10.500,00 / 9.581,16 / 12.000,00 und 11.081,16 | Memo 07, B2 |
+| S4-T5 | WP-Strom je Zustand (21.560/2,9; 16.170/3,2; 11.642,4/3,5) | 7.434,48 / 5.053,13 / 3.326,40 kWh | Memo 07 |
+| S4-T5a | V0 Gas je Zustand (21.560/0,94; 18.972,8/0,94; 18.024,16/0,94) | 22.936,17 / 20.183,83 / 19.174,64 kWh | Memo 07 |
+| S4-T6 | Energie + Wartung Zustand 1 (Preisbasis 2026): V0 24.500 × 12,50234 ct + 180 + 300 / V1 7.434,48 × 24 ct + 140 + 250 / Ersparnis | 3.543,07 / 2.174,28 €/a / 114,07 €/Monat | WS-S (Memo 07 rundet den Gaspreis auf 12,50 ct: 3.542,50 bzw. 114,02) |
+| S4-T7 | KfW 358 (2030): Zinsen 2030–2032 / Annuität ab 2033 (22 J.); KfW 358 (2033): 2033–2035 / ab 2036 | 1.771,00 / 4.188,12; 1.138,50 / 2.692,36 €/a | Memo 07 |
+| S4-T8 | Regel Klimageschwindigkeitsbonus: Kessel Bj. 2008 (18 J.) → 0 % → 40 % × 28.000 | 11.200,00 | Memo 07 (Variante `building.heating_existing.installation_year: 2008`) |
+| S4-T9 | Regel Antragsdatum 02/2027: Bonus 12 %, Höchstkosten 27.250 → 52 % × 27.250 | 14.170,00 | Memo 07 (`application_date: 2027-02-15`) |
+| S4-T10 | Pflichtsensitivität `habenzins_abgeltung`: Habenzins netto 2,5 % × 0,73625 = 1,840625 % in Variante und Unterlassung | Strukturtest | Konzept S4, 4.4 |
+| S4-T11 | Referenzpflicht: `analysis.primary_kpi = delta_terminal_value` ohne `allow_opportunity_reference` → `validation.reference_variant_missing` | Validierungstest | Spec 00 §12.3a |
+
+**MC-Erwartungen S4:** (m1) Ausfalljahr diskret gleichverteilt: Verschiebung Mittel +6 Monate (2030,5), je Block
+genau 200/6-Schichtung (⌊·⌋/⌈·⌉ je Wert 33 oder 34); `wp_2050` verschiebt sich je Lauf mit, bei +24 und +36 Monaten
+liegt er nach dem Horizontende (entfällt, Hinweis). (m2) BAFA 2033: Zusageanteil je Block exakt 140/200; in Läufen
+ohne Zusage `funding.kfw358_2033.approved` = 0 (Kopplung) und Fehlbetrag über den Ergänzungskredit 6,0 %. (m3)
+Eingänge: Einsparung Stufe 2 0,24333, Stufe 3 0,27, KfW-358-Zins 0,0276653 (trunkiert), Habenzins 0,0250115;
+Spearman(jaz_s1, jaz_s2) 0,70 ± 0,02. (m4) Hypothesen (Memo 07, F20): P(`delta_vs_reference`(V2) > 0) > 0,9;
+P(`delta_vs_reference`(V1) > 0) ≈ 0,4–0,6; `monthly_saving_avg10`(V1) < 0 in den Kreditjahren ab 2036 (+100 bis
++250 €/Monat Mehrbelastung).
+
+### 5.5 S5 – Familie, Neubau EFH: EH 40 mit KfW 300 gegenüber GModG-Standard mit KfW 297 EH-55-Stufe (30 Jahre)
+
+Quelle Memo 07 §4.5, Konzept §9 S5. Basis = V1 (Standard ≈ EH 55, KfW 297 EH-55-Stufe), Variante `v2_eh40_kfw300`,
+optional `v2b_eh40_ohne_kfw300` (Fallback bei fehlender Berechtigung, S5-T3) und `v1b_ohne_kfw`. Festpreis-Bauvertrag
+2027 (`price_index: 0`), Bauzeit 03–12/2027, Bezug 2028-01-01. Monatsraten (`payments_per_year: 12`, S01C-06);
+Testkonvention Memo 07: Darlehen voll zum Stichtag ausgezahlt, Raten ab Januar 2027, Zinsbindung bis 31.12.2036.
+
+```yaml
+# inst/extdata/examples/s5_neubau_efh_eh40.yaml
+schema_version: 1
+meta:
+  scenario_id: s5_neubau_efh_eh40
+  title: "S5 – Familie, Neubau EFH: EH 40 mit KfW 300 gegenüber GModG-Standard mit KfW 297 (EH-55-Stufe)"
+  author: "WS-S (Referenzszenario, Memo 07 §4.5)"
+  created_date: 2026-10-25
+  tags: [referenzszenario, s5, neubau, selbstnutzer, haushaltsmodus]
+project:
+  perspective: selbstnutzer
+  project_type: neubau
+  comparison_mode: absolute
+  valuation_date: 2027-01-01
+  horizon_years: 30                         # 2027-2056, Horizontende 2057-01-01
+  application_date: 2026-12-15              # EH-55-Stufe bis 31.12.2026, Baugenehmigung vorhanden
+  legal_state: 2026-10-25
+  price_base_year: 2026
+  reference_variant: base                   # V1
+  report_mode: household
+grid: {construction_months: 12, construction_step_months: 12}   # Bauzeit 2027, Bezug 2028-01-01
+building:
+  building_type: EFH
+  construction_year: 2027
+  n_units: 1
+  living_area_m2: 140
+  efficiency_standard_after: eh55           # GModG-Mindeststandard (≈ EH 55); V2: eh40
+  land_value_eur: {start: 150000, growth: {ref: market.land_value_growth}, base_date: 2028-01-01}
+household:
+  taxable_income_avg_eur: 85000             # Ø 2023/2024; KfW 300: <= 90.000 + 10.000 je Kind
+  n_children_u18: 2
+  net_income_month_eur: 6300                # inkl. Kindergeld
+  current_rent_month_eur: 1250              # Warmmiete bis Einzug (Doppelbelastung 2027)
+  savings_eur: 180000
+unit_groups:
+  haus:
+    label: "Selbstgenutztes EFH"
+    n_units: 1
+    living_area_m2: 140
+    owner_occupied: true
+measures:
+  grundstueck:
+    label: "Grundstück 500 m2 x 300 EUR + 10 % Erwerbsnebenkosten"
+    measure_type: grundstueck               # 01a
+    asset_type: grundstueck                 # 01a
+    date: 2027-01-01
+    cost_eur: 165000
+    price_index: 0
+    vat_rate: 0
+  bauwerk:
+    label: "Bauwerk KG 300+400 (3.000 EUR/m2)"
+    measure_type: neubau_bauwerk            # 01a
+    kg: 300
+    payment_schedule: {schedule: {2027-07-01: 0.40, 2027-12-31: 0.60}, unit: share}   # D
+    completion_date: 2028-01-01
+    cost_eur: 420000                        # V2: 420.000 x (1 + Mehrkosten EH 40)
+    price_index: 0
+    useful_life_years: 80
+  nebenkosten:
+    label: "Baunebenkosten KG 700 (12 %), Hausanschlüsse KG 200, Außenanlagen KG 500"
+    measure_type: neubau_nebenkosten        # 01a
+    kg: 700
+    payment_schedule: {schedule: {2027-07-01: 0.40, 2027-12-31: 0.60}, unit: share}
+    completion_date: 2028-01-01
+    cost_eur: 95400                         # 50.400 + 20.000 + 25.000; V2: + 3.000 LCA/EEE
+    price_index: 0
+    useful_life_years: 80
+  kueche:
+    label: "Küche KG 600"
+    measure_type: ausstattung               # 01a
+    date: 2027-12-31
+    cost_eur: 15000
+    price_index: 0
+    useful_life_years: 15
+    auto_replacement: false                 # 01a
+    residual_excluded: true                 # 01a: nicht im Sachwert (Memo 07)
+  pv:
+    label: "PV-Anlage 8 kWp"
+    measure_type: pv                        # 01a
+    asset_type: pv_anlage                   # 01a
+    date: 2027-12-31
+    completion_date: 2027-12-01             # IBN 12/2027
+    cost_eur: 11000
+    vat_rate: 0
+    price_index: 0
+    useful_life_years: 25
+shared:
+  from: prices/referenzszenarien_2026
+  use: shared
+  eh40_surcharge: 0.06                      # Mehrkosten EH 40 (Anteil an KG 300+400)
+  efficiency_premium_v2: 0.03               # Effizienzzuschlag Restwert V2
+  feed_in_flag: 1                           # EEG-Vergütung für Neuanlagen < 25 kWp fortgeführt
+energy:
+  carriers:
+    power: {class: power, base_fee_eur_pa: 100.84033613}          # Haushaltsstrom 37 ct, Grundpreis 120 EUR brutto (ein Zähler mit PV)
+  after:
+    demand_kwh: 7000                        # 50 kWh/m2 a; V2: 4.900
+    generators:
+      wp: {carrier: power, type: heat_pump, jaz_plan: 3.5, flow_temperature_c: 35, service_eur_pa: 210.08403361}   # 250 EUR brutto
+    extra_consumption:
+      haushalt: {carrier: power, kwh_pa: 3500, label: "Haushaltsstrom"}
+  pv:
+    kwp: 8
+    measure: pv
+    commissioning_date: 2027-12-01
+    specific_yield_kwh_kwp: 950
+    self_consumption_share: 0.35            # V2: 0,33
+    self_consumption_carrier: power
+    feed_in_tariff_eur_kwh: {expr: "0.0755 * shared.feed_in_flag"}   # IBN 12/2027 (7,70 ct −1 %/Halbjahr), 20 J. fest
+    tariff_years: 20
+    opex_eur_pa: 150
+components:
+  grundsteuer_versicherung:
+    type: recurring
+    label: "Grundsteuer und Gebäudeversicherung"
+    category: other_cost
+    amount_eur: 1600
+    growth: {ref: market.inflation}
+    from: completion
+  ruecklage:
+    type: recurring
+    label: "Instandhaltungsrücklage (10 EUR/m2 a)"
+    category: maintenance
+    amount_eur: 1400
+    growth: {ref: market.maintenance_index}
+    from: completion
+financing:
+  bank:
+    type: annuity_loan
+    label: "Bankdarlehen"
+    amount_eur: 426400                      # V2: 384.600
+    start: 2027-01-01
+    rate_pa: 0.041
+    initial_repayment_pa: 0.02              # 2.167,53 EUR/Monat
+    term_years: 35                          # Ziel Volltilgung bis 2062 (Anschluss keep_term)
+    fixed_years: 10
+    payments_per_year: 12
+    followup_rate_pa: {ref: market.mortgage_rate}
+    refi_rule: keep_term
+    fees: {commitment_fee_rate_month: 0.0025, commitment_free_months: 6}   # ohne Wirkung bei Vollauszahlung
+funding:
+  kfw297:
+    from: funding/kfw_297_khn_eh55_stufe    # 35/5/10, 2,19 %
+    measures: [bauwerk, nebenkosten]
+    application_date: 2026-12-15
+    amount_eur: 100000
+    loan_variant: v35_5_10                  # 01b
+    payments_per_year: 12                   # 01b
+    followup_refi_rule: keep_term           # 01b
+    approval_probability: 1.0               # Memo 07: kein Zusagerisiko modelliert
+accounts:
+  deposit_rate_pa: 0.025
+  overdraft_rate_pa: 0.060
+market:
+  from: prices/referenzszenarien_2026
+  use: market
+  co2_price: {from: prices/co2_price_path_referenzszenarien_2026}
+residual_value:
+  method: asset_value                       # Sachwert vereinfacht: Boden + HK x Index x (1 - Alter/80), MAF 1,0
+  sale_cost_share: 0.03
+  market_adjustment_factor: 1.0             # 01a
+  value_premium_share: 0                    # 01a; V2: {ref: shared.efficiency_premium_v2}
+tax: {module: none}
+analysis:
+  stabilization_year: 2028
+stochastic:
+  settings: {n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200, store: bands}
+  processes:
+    mortgage_rate: {target: market.mortgage_rate, from: processes/mortgage_rate_vasicek_2026}   # Anschluss 2037 (Fächer, Quantile 5/50/95 %)
+    inflation: {target: market.inflation, from: processes/inflation_ar1_2026}
+    energy_price_power: {target: market.energy_price.power, from: processes/energy_prices_mr_2026, use: power}
+  parameters:
+    demand_after: {target: energy.after.demand_kwh, label: "Nutzwärme", dist: triangular, min: 5600, mode: 7000, max: 8400}   # 40/50/60 kWh/m2 a
+    feed_in_flag: {target: shared.feed_in_flag, label: "EEG-Vergütung < 25 kWp fortgeführt", from: processes/funding_risks_2026, use: feed_in_continuation, apply: replace}
+    construction_price_shift: {target: shared.construction_price_shift, label: "Abweichung Baupreisindex p. a.", dist: normal, mean: 0, sd: 0.012}
+  correlations:
+    shocks: {from: processes/shock_correlations_2026}
+variants:
+  v2_eh40_kfw300:
+    label: "V2 EH 40 + LCA mit KfW 300 (170.000 EUR, 1,00 %)"
+    remove: [funding.kfw297]
+    set:
+      building.efficiency_standard_after: eh40
+      measures.bauwerk.cost_eur: {expr: "420000 * (1 + shared.eh40_surcharge)"}   # 445.200
+      measures.nebenkosten.cost_eur: 98400
+      financing.bank.amount_eur: 384600     # 1.955,05 EUR/Monat
+      energy.after.demand_kwh: 4900
+      energy.after.generators.wp.jaz_plan: 3.8
+      energy.pv.self_consumption_share: 0.33
+      residual_value.value_premium_share: {ref: shared.efficiency_premium_v2}
+      stochastic.parameters.demand_after: {min: 3920, mode: 4900, max: 6300}   # 28/35/45 kWh/m2 a; gleicher Schlüssel (CRN)
+    add:
+      funding.kfw300:
+        from: funding/kfw_300_wohneigentum_familien   # Stufe 1 EH 40: 170.000 EUR, 35/5/10, 1,00 %
+        measures: [bauwerk, nebenkosten]
+        application_date: 2026-12-15
+        amount_eur: 170000
+        loan_variant: v35_5_10              # 01b
+        payments_per_year: 12               # 01b
+        followup_refi_rule: keep_term       # 01b
+        approval_probability: 1.0
+      energy.after.extra_consumption.lueftung: {carrier: power, kwh_pa: 400, label: "Lüftung mit WRG"}
+      components.lueftungsfilter:
+        type: recurring
+        label: "Lüftungsfilter"
+        category: maintenance
+        amount_eur: 120
+        growth: {ref: market.inflation}
+        from: completion
+      stochastic.parameters.eh40_surcharge: {target: shared.eh40_surcharge, label: "Mehrkosten EH 40", dist: triangular, min: 0.03, mode: 0.06, max: 0.10}
+      stochastic.parameters.efficiency_premium_v2: {target: shared.efficiency_premium_v2, label: "Effizienzzuschlag Restwert", dist: uniform, min: 0, max: 0.06}
+  v2b_eh40_ohne_kfw300:
+    label: "V2b EH 40 ohne KfW-300-Berechtigung (KfW 297 Standard 100.000 EUR, 2,94 %)"
+    extends: v2_eh40_kfw300
+    remove: [funding.kfw300]
+    set: {financing.bank.amount_eur: 454600}
+    add:
+      funding.kfw297_standard:
+        from: funding/kfw_297_khn_selbstnutzung
+        measures: [bauwerk, nebenkosten]
+        application_date: 2026-12-15
+        amount_eur: 100000
+        loan_variant: v35_5_10              # 01b: 2,94 %
+        payments_per_year: 12               # 01b
+        approval_probability: 1.0
+  v1b_ohne_kfw:
+    label: "V1b Standard ohne KfW (EH-55-Stufe ausgelaufen)"
+    remove: [funding.kfw297]
+    set: {financing.bank.amount_eur: 526400}
+```
+
+**Prüfwerte S5 (deterministisch; Monatsraten):**
+
+| Nr. | Größe | Soll | Herkunft |
+|---|---|---:|---|
+| S5-T1 | Gesamtkosten V1 / V2 | 706.400 / 734.600 | Memo 07 |
+| S5-T2 | KfW-300-Berechtigung: zvE 85.000 ≤ 90.000 + 10.000 · 2 → ja; Höchstbetrag Stufe 1 | ja; 170.000 | Memo 07, # 01b Regel |
+| S5-T3 | Negativtest `household.taxable_income_avg_eur: 105000` in V2 → nicht berechtigt: `vofi_error_validation` (`validation.b.funding.eligibility`, # 01b) mit Hinweis auf `v2b_eh40_ohne_kfw300` | Validierungstest | Memo 07 |
+| S5-T4 | Monatsraten Jahre 1–5 (2027–2031) V1: 2.167,53 + 182,50 / V2: 1.955,05 + 141,67 | 2.350,03 / 2.096,72 | Memo 07 |
+| S5-T5 | Monatsraten Jahre 6–10 (2032–2036) V1: 2.167,53 + 379,19 / V2: 1.955,05 + 546,79 | 2.546,73 / 2.501,84 | Memo 07 |
+| S5-T6 | Restschuld nach 120 Monaten Bank V1 / V2; KfW V1 / V2 | 321.200,85 (±1) / 289.713,52; 87.540,04 / 145.085,47 | Memo 07 (321.201 / 289.714; 87.540 / 145.085) |
+| S5-T7 | KfW-300-Annuität V2 ab Monat 61 | 546,79 €/Monat | Memo 07 |
+| S5-T8 | WP-Strom V1 (7.000 / 3,5) / V2 (4.900 / 3,8) + Lüftung 400 | 2.000,00 / 1.289,47 + 400 kWh | Memo 07 |
+| S5-T9 | Bank V1 2027 (Monatsuhr, Spec 00 §8.5, Rate ungerundet 2.167,5333): Zinsen / Tilgung / Restschuld 31.12.2027; KfW-Zinsen 2027 | 17.320,31 / 8.690,09 / 417.709,91; 2.190,00 | WS-S |
+
+**MC-Erwartungen S5:** (m1) Anschlusszins 2037 als Fächer: `paths$mortgage_rate` Quantile 2037 nach 1.6.3
+(Vasicek r0 = 0,040, y = 11 ab 2027: q05 0,01584159, q50 0,03825299, q95 0,06066439); die Anschlussrate 2037 streut
+entsprechend. (m2) Eingänge: Mehrkosten EH 40 Mittel 0,063333, Nutzwärme V1 7.000 / V2 5.040 (36 × 140),
+Einspeisevergütung je Block exakt 100 von 200 Läufen 7,55 ct, Effizienzzuschlag Mittel 0,03. (m3) Hypothesen
+(Memo 07, F20): P(`delta_vs_reference`(V2) > 0) > 0,8 („wegen der Förderung, nicht wegen der Energiekosten“: die
+Betriebskosten V2 liegen ≈ 50 €/a über V1); `burden_ratio_max` 0,38–0,42 → Restriktion `burden` (Schwelle 0,40)
+in einem Teil der Läufe verletzt; Ampel daher höchstens Gelb, falls P(Verletzung) ≥ 0,30 (Spec 00 §12.9).
