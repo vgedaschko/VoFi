@@ -425,6 +425,126 @@ wsl_select_legal <- function(topic, date, pending = character(0), lib = wsl_lib(
   pool[order(vf, decreasing = TRUE)][1L]
 }
 
+# --- Overlay mit allen Vorlagen (Teil C 2.8 Nr. 4) und Listing-Abgleich ---------------------
+
+#' Ziele, die Schicht 1 (global.yaml, Teil A 2.2) fuer das Walking Skeleton bereitstellt
+#' (neben market.<name>): Baukostenfaktor und Bauzeitverzug des Projekts, Netzentgeltwachstum
+wsl_layer1_targets <- c("project.construction_cost_factor", "project.construction_delay_months",
+                        "shared.network_fee_growth_gas")
+
+#' Overlay mit jeder Vorlage jeder Datei in processes/ genau einmal (Teil C 2.8 Nr. 4).
+#'
+#' Schluessel nach Teil C 1.10.2 (Prozessschluessel = Marktname mit _; statisch <thema>_<objekt>,
+#' so dass die Bibliothekspaare [delay_construction, cost_construction] und [prebound, rebound]
+#' wirksam sind). Ziele: market.<name> und die Projektfelder aus Schicht 1; statische Vorlagen
+#' ohne passendes Feld im Skeleton zielen auf shared.<name> (Teil C 1.9, Spec 00 4.5 Regel 4)
+#' mit dem Basiswert aus `shared` (bei apply: replace im Traeger, bei add 0, bei multiply
+#' der Satz bzw. Faktor). Ergebnis: list(stochastic, shared).
+wsl_overlay_all <- function() {
+  ref <- function(target, id, use = NULL) {
+    x <- list(target = target, from = id)
+    if (!is.null(use)) x$use <- use
+    x
+  }
+  cr <- "processes/cost_risks_2026"
+  ep <- "processes/energy_performance_2026"
+  fr <- "processes/funding_risks_2026"
+  vr <- "processes/valuation_risks_2026"
+  mr <- "processes/energy_prices_mr_2026"
+  processes <- list(
+    inflation = ref("market.inflation", "processes/inflation_ar1_2026"),
+    mortgage_rate = ref("market.mortgage_rate", "processes/mortgage_rate_vasicek_2026"),
+    bund_yield_10y = ref("market.bund_yield_10y", "processes/bund10_vasicek_2026"),
+    mortgage_spread = ref("market.mortgage_spread", "processes/mortgage_spread_ar1_2026"),
+    rent_growth = ref("market.rent_growth", "processes/rent_growth_linked_2026"),
+    rent_growth_new = ref("market.rent_growth_new", "processes/rent_growth_new_linked_2026"),
+    construction_price_index = ref("market.construction_price_index",
+                                   "processes/construction_price_linked_2026"),
+    maintenance_index = ref("market.maintenance_index", "processes/maintenance_cost_linked_2026"),
+    co2_price = ref("market.co2_price", "processes/co2_price_corridor_2026"),
+    vacancy_fluctuation = ref("market.vacancy_fluctuation", vr, "vacancy_fluctuation")
+  )
+  for (c in wsl_carriers()) {
+    processes[[paste0("energy_price_", c)]] <- ref(paste0("market.energy_price.", c), mr, c)
+  }
+  parameters <- list(
+    bio_premium = ref("market.bio_fuel_premium", mr, "bio_premium_factor"),
+    network_fee_growth = ref("shared.network_fee_growth_gas", mr, "network_fee_growth"),
+    # Kosten- und Terminrisiken (Skeleton: neubau)
+    cost_construction = ref("project.construction_cost_factor", cr, "overrun_newbuild"),
+    cost_retrofit = ref("shared.cost_factor_retrofit", cr, "overrun_retrofit"),
+    cost_component = ref("shared.cost_factor_component", cr, "overrun_component"),
+    delay_construction = ref("project.construction_delay_months", cr, "delay_newbuild"),
+    delay_retrofit = ref("shared.delay_months_retrofit", cr, "delay_retrofit"),
+    maintenance_level = ref("shared.maintenance_rate_eur_m2_pa", cr, "maintenance_level"),
+    # Performance Gap und realisierte JAZ
+    prebound = ref("shared.prebound_factor", ep, "prebound"),
+    rebound = ref("shared.rebound_factor", ep, "rebound"),
+    rebound_calculated = ref("shared.rebound_factor_calculated", ep, "rebound_calculated"),
+    realisation = ref("shared.realisation_factor", ep, "realisation"),
+    jaz_air_water_existing = ref("shared.jaz_air_water_existing", ep, "jaz_air_water_existing"),
+    jaz_air_water_newbuild = ref("shared.jaz_air_water_newbuild", ep, "jaz_air_water_newbuild"),
+    jaz_ground_existing = ref("shared.jaz_ground_existing", ep, "jaz_ground_existing"),
+    jaz_air_water_mfh_central = ref("shared.jaz_air_water_mfh_central", ep,
+                                    "jaz_air_water_mfh_central"),
+    jaz_relative = ref("shared.jaz_factor", ep, "jaz_relative"),
+    # Foerder- und Verguetungsrisiken
+    funding_available = ref("shared.funding_available_after_2030", fr, "availability_after_2030"),
+    feed_in_continuation = ref("shared.feed_in_factor", fr, "feed_in_continuation"),
+    payout_delay = ref("shared.payout_delay_months", fr, "payout_delay"),
+    repayment_grant_cut = ref("shared.repayment_grant_cut_share", fr, "repayment_grant_cut"),
+    # Restwert- und Leerstandsrisiken (K7, K9)
+    cap_rate_rv = ref("shared.cap_rate_shock", vr, "cap_rate_shock"),
+    rnd_rv = ref("shared.remaining_life_offset_years", vr, "remaining_life_shock"),
+    vacancy_level = ref("shared.vacancy_level", vr, "vacancy_level"),
+    value_uplift = ref("shared.market_value_uplift_efficiency", vr,
+                       "market_value_uplift_efficiency")
+  )
+  shared <- list(
+    cost_factor_retrofit = 1, cost_factor_component = 1, delay_months_retrofit = 0,
+    maintenance_rate_eur_m2_pa = wsl_get("costs/bewirtschaftung_immowertv_2026",
+                                         "maintenance_eur_m2_pa"),
+    prebound_factor = 0.7, rebound_factor = 1.0, rebound_factor_calculated = 1.1,
+    realisation_factor = 0.8, jaz_air_water_existing = 3.2, jaz_air_water_newbuild = 3.8,
+    jaz_ground_existing = 4.0, jaz_air_water_mfh_central = 2.9, jaz_factor = 1,
+    funding_available_after_2030 = 1, feed_in_factor = 1, payout_delay_months = 0,
+    repayment_grant_cut_share = 0, cap_rate_shock = 0, remaining_life_offset_years = 0,
+    vacancy_level = 0.02, market_value_uplift_efficiency = 0.03
+  )
+  list(
+    stochastic = list(
+      processes = processes,
+      parameters = parameters,
+      correlations = list(shocks = list(from = "processes/shock_correlations_2026"),
+                          parameters = list(from = "processes/param_correlations_2026"))
+    ),
+    shared = shared
+  )
+}
+
+#' Vorlage eines Overlay-Eintrags {from, use}
+wsl_template_of <- function(x, lib = wsl_lib()) {
+  v <- lib[[x$from]]$values
+  if (is.null(x$use)) v else v[[x$use]]
+}
+
+#' Eintrag und Spec-Listing fuer den Vergleich angleichen (dokumentierte Abweichungen).
+#' prices/energy_prices_2026: vat_rate.pellets nach Teil B 7.3 (F-16); dem Listing in Teil C 3.6
+#' fehlt der Schluessel (Aenderungsantrag an Teil C). Die Ausnahme greift nur, solange das Listing
+#' den Schluessel nicht enthaelt; danach zaehlt die Reihenfolge der Map vat_rate nicht.
+wsl_listing_pair <- function(id, actual, listing) {
+  if (identical(id, "prices/energy_prices_2026") && is_map(actual$values$vat_rate)) {
+    if (is.null(listing$values$vat_rate$pellets)) {
+      actual$values$vat_rate$pellets <- NULL
+    } else if (is_map(listing$values$vat_rate)) {
+      ord <- function(m) m[utl_sort(names(m))]
+      actual$values$vat_rate <- ord(actual$values$vat_rate)
+      listing$values$vat_rate <- ord(listing$values$vat_rate)
+    }
+  }
+  list(actual = actual, listing = listing)
+}
+
 # ---------------------------------------------------------------------------------------------
 # Bibliotheksstand, Verzeichnis, Lesbarkeit
 # ---------------------------------------------------------------------------------------------
@@ -2142,55 +2262,122 @@ test_that("Eintr\u00e4ge entsprechen den Listings der Spezifikation (Teil C 2, 3
   lib <- wsl_lib()
   expect_setequal(names(listings), names(lib))
   for (id in names(lib)) {
-    actual <- lib[[id]]
-    if (id == "prices/energy_prices_2026") {
-      # dokumentierte Abweichung: vat_rate.pellets nach Teil B 7.3 (F-16) ergaenzt
-      expect_equal(actual$values$vat_rate$pellets, 0.19)
-      actual$values$vat_rate$pellets <- NULL
-    }
-    expect_identical(actual, listings[[id]], info = id)
+    p <- wsl_listing_pair(id, lib[[id]], listings[[id]])
+    expect_identical(p$actual, p$listing, info = id)
   }
+  # dokumentierte Abweichung: vat_rate.pellets nach Teil B 7.3 (F-16) in der Bibliothek
+  id <- "prices/energy_prices_2026"
+  expect_equal(lib[[id]]$values$vat_rate$pellets, 0.19)
+  # Gegenprobe: nach der Korrektur des Listings (Aenderungsantrag, Schluessel an beliebiger
+  # Stelle) bleibt der Abgleich gruen; eine abweichende Angabe im Listing wird erkannt
+  fixed <- listings[[id]]
+  fixed$values$vat_rate <- c(fixed$values$vat_rate, list(pellets = 0.19))
+  p <- wsl_listing_pair(id, lib[[id]], fixed)
+  expect_identical(p$actual, p$listing)
+  fixed$values$vat_rate$pellets <- 0.07
+  p <- wsl_listing_pair(id, lib[[id]], fixed)
+  expect_false(identical(p$actual, p$listing))
+  # ohne Korrektur: eine fehlerhafte Bibliotheksangabe neben pellets wird weiter erkannt
+  wrong <- lib[[id]]
+  wrong$values$vat_rate$firewood <- 0.19
+  p <- wsl_listing_pair(id, wrong, listings[[id]])
+  expect_false(identical(p$actual, p$listing))
+})
+
+test_that("Overlay mit jeder use:-Vorlage jeder Datei in processes/ genau einmal (2.8 Nr. 4)", {
+  lib <- wsl_lib()
+  ov <- wsl_overlay_all()
+  st <- ov$stochastic
+  expect_named(st, c("processes", "parameters", "correlations"))
+  entries <- c(st$processes, st$parameters)
+  keys <- names(entries)
+  # Overlay-Schluessel (1.3), eindeutig ueber processes und parameters (ein Strom je Schluessel)
+  expect_identical(anyDuplicated(keys), 0L)
+  expect_true(all(grepl("^[a-z][a-z0-9_]*$", keys) & nchar(keys) <= 40L))
+  # jedes Ziel hoechstens einmal (1.1 Nr. 4, Spec 00 11.8)
+  targets <- vapply(entries, function(x) x$target, character(1))
+  expect_identical(anyDuplicated(targets), 0L)
+  # Abdeckung: jede Vorlage jeder Datei genau einmal, use: genau bei Nutzlasten mit mehreren
+  # Vorlagen (R-87); die Korrelationslisten ueber correlations
+  expected <- character(0)
+  for (id in wsl_ids_of("processes")) {
+    tpl <- wsl_templates(lib[[id]]$values)
+    if (is.null(tpl)) next
+    expected <- c(expected, if (identical(names(tpl), ".single")) id else paste(id, names(tpl)))
+  }
+  used <- vapply(entries, function(x) paste(c(x$from, x$use), collapse = " "), character(1))
+  expect_identical(anyDuplicated(used), 0L)
+  expect_setequal(used, expected)
+  corr <- vapply(st$correlations, function(x) x$from, character(1))
+  expect_setequal(c(unique(vapply(entries, function(x) x$from, character(1))), corr),
+                  wsl_ids_of("processes"))
+  expect_identical(length(expected), 45L)                  # 20 Prozesse, 25 statische Vorlagen
+  # Prozessvorlagen unter processes, statische unter parameters (1.3, 1.5)
+  for (k in names(st$processes)) {
+    expect_false(is.null(wsl_template_of(st$processes[[k]], lib)[["type"]]), info = k)
+  }
+  for (k in names(st$parameters)) {
+    expect_true(wsl_is_dist(wsl_template_of(st$parameters[[k]], lib)), info = k)
+  }
+  # Prozesse: Ziel market.<name>, Schluessel = Marktname mit _ (1.10.2 Nr. 1)
+  ptg <- vapply(st$processes, function(x) x$target, character(1))
+  expect_match(ptg, "^market\\.")
+  expect_identical(names(ptg), gsub(".", "_", sub("^market\\.", "", unname(ptg)), fixed = TRUE))
+  expect_true(all(sub("\\..*$", "", sub("^market\\.", "", ptg)) %in% wsl_canonical_markets()))
+  # statische Ziele: market.<name>, Felder aus Schicht 1 oder shared.<name> mit Basiswert
+  for (k in names(st$parameters)) {
+    x <- st$parameters[[k]]
+    tpl <- wsl_template_of(x, lib)
+    tg <- x$target
+    info <- paste(k, tg)
+    if (grepl("^market\\.", tg)) {
+      expect_true(sub("^market\\.", "", tg) %in% wsl_canonical_markets(), info = info)
+      next
+    }
+    if (tg %in% wsl_layer1_targets) next
+    expect_match(tg, "^shared\\.[a-z][a-z0-9_]*$", info = info)
+    b <- ov$shared[[sub("^shared\\.", "", tg)]]
+    expect_true(wsl_num(b), info = info)                     # target_no_base (1.11)
+    if (!wsl_num(b)) next
+    apply <- tpl[["apply"]] %||% "replace"
+    if (identical(apply, "replace")) {                       # base_outside_support (1.11)
+      s <- wsl_support(tpl)
+      expect_true(b >= s[1L] && b <= s[2L], info = info)
+      if (tpl$dist %in% c("bernoulli", "discrete")) {
+        expect_true(b %in% (tpl$values %||% c(0, 1)), info = info)
+      }
+    } else if (identical(apply, "add")) {
+      expect_identical(b, 0, info = info)                    # Zuschlag auf Basis 0 (K7, N-20)
+    } else {
+      expect_true(b >= 0, info = info)                       # Faktor bzw. Satz (R-94)
+    }
+  }
+  expect_setequal(names(ov$shared),
+                  sub("^shared\\.", "", setdiff(grep("^shared\\.", targets, value = TRUE),
+                                                wsl_layer1_targets)))
+  # Basiswerte = deterministische Defaults (Konzept B12, Teil A 2.2, Teil C 2.7)
+  expect_equal(ov$shared$maintenance_rate_eur_m2_pa, 14.4)
+  zero <- c("cap_rate_shock", "remaining_life_offset_years", "delay_months_retrofit",
+            "payout_delay_months", "repayment_grant_cut_share")
+  expect_identical(unlist(ov$shared[zero], use.names = FALSE), rep(0, length(zero)))
+  # die Bibliothekspaare der Parameterkorrelation treffen Schluessel des Overlays (nicht verworfen)
+  pairs <- lib[["processes/param_correlations_2026"]]$values
+  hit <- vapply(pairs, function(p) all(c(p[[1L]], p[[2L]]) %in% keys), logical(1))
+  expect_identical(hit, c(TRUE, TRUE, FALSE))                 # mortgage_rate.theta ist fest
+  shock_keys <- unique(unlist(lapply(lib[["processes/shock_correlations_2026"]]$values,
+                                     function(p) c(p[[1L]], p[[2L]]))))
+  expect_true(all(shock_keys %in% names(st$processes)))
 })
 
 test_that("Overlay-Eintr\u00e4ge mit Bibliotheksvorlagen validieren (2.8 Nr. 4; nach WS-A/WS-B)", {
   # Wirksam, sobald vofi_read_scenario() Bibliotheksverweise aufloest (WS-A) und vofi_validate()
-  # das Overlay prueft (WS-B); bis dahin uebersprungen.
+  # das Overlay prueft (WS-B); bis dahin uebersprungen. Das Overlay enthaelt jede Vorlage jeder
+  # Datei in processes/ (Abdeckung im Test davor).
   skip_if_stub("vofi_read_scenario", "vofi_validate")
   base <- wsl_read(system.file("extdata", "examples", "skeleton.yaml", package = "vofi"))
-  proc <- function(target, id, use = NULL) {
-    x <- list(target = target, from = id)
-    if (!is.null(use)) x$use <- use
-    x
-  }
-  procs <- list(
-    inflation = proc("market.inflation", "processes/inflation_ar1_2026"),
-    mortgage_rate = proc("market.mortgage_rate", "processes/mortgage_rate_vasicek_2026"),
-    bund_yield_10y = proc("market.bund_yield_10y", "processes/bund10_vasicek_2026"),
-    mortgage_spread = proc("market.mortgage_spread", "processes/mortgage_spread_ar1_2026"),
-    rent_growth = proc("market.rent_growth", "processes/rent_growth_linked_2026"),
-    rent_growth_new = proc("market.rent_growth_new", "processes/rent_growth_new_linked_2026"),
-    construction_price_index = proc("market.construction_price_index",
-                                    "processes/construction_price_linked_2026"),
-    maintenance_index = proc("market.maintenance_index", "processes/maintenance_cost_linked_2026"),
-    co2_price = proc("market.co2_price", "processes/co2_price_corridor_2026"),
-    vacancy_fluct = proc("market.vacancy_fluctuation", "processes/valuation_risks_2026",
-                         "vacancy_fluctuation")
-  )
-  for (c in wsl_carriers()) {
-    procs[[paste0("energy_price_", c)]] <- proc(paste0("market.energy_price.", c),
-                                                "processes/energy_prices_mr_2026", c)
-  }
-  base$stochastic <- list(
-    processes = procs,
-    parameters = list(
-      bio_premium = proc("market.bio_fuel_premium", "processes/energy_prices_mr_2026",
-                         "bio_premium_factor"),
-      network_fee_growth = proc("shared.network_fee_growth_gas", "processes/energy_prices_mr_2026",
-                                "network_fee_growth")
-    ),
-    correlations = list(shocks = list(from = "processes/shock_correlations_2026"),
-                        parameters = list(from = "processes/param_correlations_2026"))
-  )
+  ov <- wsl_overlay_all()
+  base$shared <- deep_merge(base$shared %||% list(), ov$shared)
+  base$stochastic <- ov$stochastic
   path <- withr::local_tempfile(fileext = ".yaml")
   yaml::write_yaml(base, path)
   not_yet <- function(e) testthat::skip(paste("noch nicht implementiert:", conditionMessage(e)))
