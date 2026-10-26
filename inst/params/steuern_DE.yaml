@@ -1,0 +1,133 @@
+# Steuerparameter Deutschland für das vereinfachte Pauschalsteuer-Modul tax_flat
+# (WS-X, Spec 00 §10.7; Memo 06 §3, §6.2, §7.6). Eigentümer: WS-X.
+#
+# VEREINFACHTE NÄHERUNG – KEINE STEUERBERATUNG. Alle Werte sind für ein Projekt-Screening
+# vereinfacht (Grenzsteuersatz statt Tarif, keine Mindestbesteuerung, keine Zinsschranke, keine
+# GewSt-Hinzurechnung). Vor einer Verwendung über das Screening hinaus ist der amtliche
+# Gesetzestext zu prüfen (Memo 06, Hinweis im Kopf).
+#
+# Aufbau: je Thema `source` (Norm, Fundstelle), `valid_from`/`valid_to` (Gültigkeit; null = offen)
+# und die Werte. Zeitabhängige Werte stehen als Liste `periods` mit Gültigkeitsdaten bzw. als
+# Tabelle mit Datumsgrenzen (`completed_from`/`completed_to`, `window_from`/`window_to`).
+meta:
+  id: steuern_DE
+  schema_version: 1
+  as_of: 2026-10-26
+  legal_state_as_of: 2026-10-25
+  status: simplified
+  simplified: true
+  disclaimer: "Vereinfachte Näherung – keine Steuerberatung."
+  source: "Memo 06 (docs/recherche/06_steuern_komplexitaet.md), Rechtsstand 2026; Gesetzestexte siehe je Thema"
+  quality: C
+
+# --- Einkommensteuer privat (Grenzsteuersatz als Nutzereingabe, Memo 06 §3.1.1, §6.2) ---
+income_tax:
+  source: "§ 32a EStG (VZ 2026), SolZG 1995; Memo 06 §3.1.1"
+  valid_from: 2026-01-01
+  valid_to: null
+  default_marginal_rate: 0.4431          # 42 % x 1,055 (Soli), ohne Kirchensteuer; Default tax_flat privat
+  solidarity_surcharge: 0.055
+  top_rates: {zone4: 0.42, zone5: 0.45}
+  church_tax_rates: {BY: 0.08, BW: 0.08, other: 0.09}
+  note: "Konstanter Grenzsteuersatz; Progression, Soli-Milderungszone und Splitting erst v2 (Memo 06 Nr. 2-4)."
+  tariff_32a_2026:                       # nur Dokumentation (v2: Differenzverfahren), tax_flat nutzt ihn nicht
+    - {zve_from: 0, zve_to: 12348, formula: "0"}
+    - {zve_from: 12349, zve_to: 17799, formula: "(914.51 * y + 1400) * y; y = (x - 12348) / 10000"}
+    - {zve_from: 17800, zve_to: 69878, formula: "(173.10 * z + 2397) * z + 1034.87; z = (x - 17799) / 10000"}
+    - {zve_from: 69879, zve_to: 277825, formula: "0.42 * x - 11135.63"}
+    - {zve_from: 277826, zve_to: null, formula: "0.45 * x - 19470.38"}
+
+# --- Abgeltungsteuer auf Habenzinsen privat (Memo 06 §3.1.4, §6.2) ---
+capital_income_tax:
+  source: "§§ 20, 32d, 43a EStG; § 51a Abs. 2b EStG (Kirchensteuer)"
+  valid_from: 2009-01-01
+  valid_to: null
+  rate: 0.25
+  solidarity_surcharge: 0.055            # 0,25 x 1,055 = 26,375 %
+  saver_allowance_eur: {single: 1000, joint: 2000}   # Sparer-Pauschbetrag seit VZ 2023
+  church_tax_formula: "Satz = 0,25 / (1 + 0,25 k) x (1 + 0,055 + k), k = Kirchensteuersatz"
+  note: "Habenzinsen privat getrennt mit Abgeltungssatz, keine Verrechnung mit V+V-Verlusten."
+
+# --- Körperschaftsteuer (Memo 06 §3.3.1; StInvSofortPG, BGBl. 2025 I Nr. 161) ---
+corporate_tax:
+  source: "§ 23 Abs. 1 KStG i. d. F. des StInvSofortPG (BGBl. 2025 I Nr. 161); SolZG"
+  solidarity_surcharge: 0.055
+  periods:
+    - {valid_from: 2008-01-01, valid_to: 2027-12-31, rate: 0.15}
+    - {valid_from: 2028-01-01, valid_to: 2028-12-31, rate: 0.14}
+    - {valid_from: 2029-01-01, valid_to: 2029-12-31, rate: 0.13}
+    - {valid_from: 2030-01-01, valid_to: 2030-12-31, rate: 0.12}
+    - {valid_from: 2031-01-01, valid_to: 2031-12-31, rate: 0.11}
+    - {valid_from: 2032-01-01, valid_to: null, rate: 0.10}
+  note: "KSt + Soli: 15,825 % bis 2027, 14,77 % 2028, 13,715 % 2029, 12,66 % 2030, 11,605 % 2031, 10,55 % ab 2032."
+
+# --- Gewerbesteuer (Memo 06 §3.3.1) ---
+trade_tax:
+  source: "§ 11 Abs. 2, § 16 Abs. 4 GewStG; Mindesthebesatz ab EZ 2027 nach 9. StBerRÄndG (BGBl. 2026 I Nr. 197); erweiterte Kürzung § 9 Nr. 1 S. 2 GewStG"
+  base_rate: 0.035                       # Steuermesszahl
+  min_multiplier:                        # Mindesthebesatz als Faktor (2,0 = 200 %)
+    - {valid_from: 2004-01-01, valid_to: 2026-12-31, value: 2.0}
+    - {valid_from: 2027-01-01, valid_to: null, value: 2.8}
+  extended_reduction_default: true       # ohne Hebesatz: erweiterte Kürzung, GewSt auf Mieterträge 0
+  note: "GewSt ist nicht als Betriebsausgabe abziehbar; Satz = Messzahl x Hebesatz. Hinzurechnung § 8 Nr. 1 und einfache Kürzung erst v2."
+
+# --- Absetzung für Abnutzung (Memo 06 §3.1.2, §7.4) ---
+depreciation:
+  buildings_linear:
+    source: "§ 7 Abs. 4 S. 1 Nr. 2 EStG (Wohngebäude bzw. Gebäude im Privatvermögen)"
+    periods:
+      - {completed_from: null, completed_to: 1924-12-31, rate: 0.025}
+      - {completed_from: 1925-01-01, completed_to: 2022-12-31, rate: 0.02}
+      - {completed_from: 2023-01-01, completed_to: null, rate: 0.03}
+    note: "pro rata temporis im Erstjahr (Monat der Fertigstellung zählt); nachträgliche HK erhöhen die Bemessungsgrundlage ab dem Jahr ihrer Entstehung (R 7.4 Abs. 9 EStR)."
+  business_buildings:
+    source: "§ 7 Abs. 4 S. 1 Nr. 1 EStG (Betriebsvermögen, nicht Wohnzwecken, Bauantrag nach 31.03.1985)"
+    rate: 0.03
+  degressive_residential:
+    source: "§ 7 Abs. 5a EStG (Wachstumschancengesetz)"
+    rate: 0.05
+    window_from: 2023-10-01                # Herstellungsbeginn nach dem 30.09.2023
+    window_to: 2029-09-30                  # und vor dem 01.10.2029
+    note: "5 % vom Restwert, Erstjahr pro rata; Wechsel zur linearen AfA zulässig (dann Restwert x Satz nach Abs. 4, § 7 Abs. 5a S. 4); keine AfaA."
+  special_7b:
+    source: "§ 7b EStG i. d. F. des Wachstumschancengesetzes; § 7a Abs. 9 EStG"
+    rate: 0.05
+    years: 4                               # Jahr der Fertigstellung und drei Folgejahre, ohne pro rata
+    window_from: 2023-01-01                # Bauantrag bzw. Bauanzeige nach dem 31.12.2022
+    window_to: 2029-09-30                  # und vor dem 01.10.2029
+    cost_cap_eur_m2: 5200                  # Baukostenobergrenze je m² Wohnfläche
+    basis_cap_eur_m2: 4000                 # höchstens förderfähige Bemessungsgrundlage je m²
+    efficiency_standard: eh40              # Effizienzhaus 40 mit QNG-Siegel
+    note: "Zusätzlich zur AfA; nach Ablauf AfA vom Restwert (§ 7a Abs. 9). Rückgängigmachung (Vermietung 10 Jahre) erst v2."
+  useful_life_years:                       # andere Anlagen, linear (vereinfachte Annahmen)
+    source: "AfA-Tabelle für die allgemein verwendbaren Anlagegüter (BMF 15.12.2000), vereinfacht; Ladeinfrastruktur Annahme"
+    aussenanlage: 19
+    bewegliches_wg: 10
+    pv_anlage: 20
+    ladeinfrastruktur: 10
+
+# --- Erhaltungsaufwand (Memo 06 §3.1.3) ---
+maintenance_spread:
+  source: "§ 82b EStDV (Gebäude im Privatvermögen, überwiegend Wohnzwecke)"
+  years_min: 2
+  years_max: 5
+  private_only: true
+  note: "Gleichmäßige Verteilung auf 2 bis 5 Jahre; bei Veräußerung Restbetrag im Veräußerungsjahr (§ 82b Abs. 2 EStDV). tax_flat setzt offene Raten am Horizont im letzten Veranlagungsjahr ab (unabhängig von § 23)."
+
+acquisition_related:
+  source: "§ 6 Abs. 1 Nr. 1a EStG; BMF-Schreiben vom 26.01.2026 (IV C 1 - S 2253/00082/001/064) Rn. 54 ff."
+  share: 0.15                            # netto (ohne USt) bezogen auf die Anschaffungskosten des Gebäudes
+  years: 3
+  excluded_measure_types: [neubau, erweiterung, aufstockung, erwerb_grundstueck, erwerb_objekt]
+  note: "Instandsetzungs- und Modernisierungsaufwand innerhalb von 3 Jahren nach Anschaffung über 15 % der Gebäude-AK wird zu Herstellungskosten. tax_flat: Maßnahmen mit Einordnung auto an Gebäuden außerhalb des Prüfzeitraums gelten als Erhaltungsaufwand (Ergebnis der Regel); ausgenommene Maßnahmentypen und eigene Anlagen bleiben Herstellungskosten."
+
+# --- Veräußerung, Verluste (Memo 06 §3.1.5, §3.1.6, §7.11) ---
+private_sale:
+  source: "§ 23 Abs. 1 S. 1 Nr. 1 EStG"
+  holding_years: 10
+  note: "Gewinn = Erlös - (AK/HK - kumulierte AfA); außerhalb der Frist steuerfrei. Die Frist beginnt mit der Anschaffung des Grundstücks; ein innerhalb der Frist errichtetes Gebäude wird einbezogen (§ 23 Abs. 1 S. 1 Nr. 1 S. 2 EStG)."
+loss_offset:
+  source: "§ 10d EStG"
+  carryforward_base_eur: 1000000
+  carryforward_share: [{valid_from: 2024-01-01, valid_to: 2027-12-31, value: 0.70}, {valid_from: 2028-01-01, valid_to: null, value: 0.60}]
+  note: "Nur Dokumentation: tax_flat rechnet den Verlustvortrag projektintern ohne Mindestbesteuerung (Memo 06 §6.2)."
