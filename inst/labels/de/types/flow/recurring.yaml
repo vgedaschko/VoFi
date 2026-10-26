@@ -1,0 +1,30 @@
+# Labels des Zahlungstyps recurring (WS-E, Spec 00 Abschnitt 7.12). Phase-0-Minimalfassung.
+label: "Laufender Jahresbetrag"
+description: "Laufende Einnahme oder Ausgabe als Jahresbetrag, fortgeschrieben mit dem Kalenderjahresindex."
+params:
+  amount_eur:
+    label: "Jahresbetrag"
+    help: "Betrag je Jahr in EUR in Preisen von base_date (>= 0)."
+  growth:
+    label: "Wachstum p. a."
+    help: "Konstante oder Pfad, z. B. {ref: market.inflation}."
+  base_date:
+    label: "Preisstand"
+    help: "Default 1. Januar nach project.price_base_year."
+  from:
+    label: "Beginn"
+    help: "Datum, Jahr oder completion (Default: Fertigstellung)."
+  to:
+    label: "Ende"
+    help: "Default Horizontende."
+  category:
+    label: "Kategorie"
+    help: "Kategorie der Abschnitte project oder grants (Default other_cost)."
+  direction:
+    label: "Richtung"
+    help: "inflow oder outflow; nur bei Kategorien ohne festes Vorzeichen."
+  tax_category:
+    label: "Steuerkategorie"
+    help: "Default der Kategorie."
+rows:
+  value: "Jahresbetrag"

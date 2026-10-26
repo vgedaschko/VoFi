@@ -10,14 +10,16 @@ vofi_variants(scenario)
 \item{scenario}{Objekt der Klasse \code{vofi_scenario}.}
 }
 \value{
-Data Frame mit einer Zeile je Variante.
+Data Frame mit den Spalten \code{variant}, \code{label}, \code{extends}.
 }
 \description{
-Listet die Basis und alle Varianten mit Bezeichnung und Elternvariante (Spec 00, Abschnitt
-4.11).
+Listet die Basis und alle Varianten mit Bezeichnung und Elternvariante.
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Phase-0-Minimalfassung (Eigentümer: WS-A).
+}
+\examples{
+vofi_variants(vofi_read_scenario(vofi_example("skeleton")))
 }
 \seealso{
 Other Einlesen: 

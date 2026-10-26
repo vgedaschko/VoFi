@@ -23,7 +23,12 @@ Löst eine Variante auf: Schichten 0–8 mischen, Bibliotheksverweise auflösen,
 Szenario-Sets anwenden, Expander ausführen (Spec 00, Abschnitte 4.7–4.12).
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Phase-0-Minimalfassung (Eigentümer: WS-A): Bibliotheksverweise (\verb{from:}) und die Dateien der
+Schichten 1–4 werden in Welle 2 ergänzt; bis dahin gelten interne Rückfallwerte.
+}
+\examples{
+spec <- vofi_resolve(vofi_read_scenario(vofi_example("skeleton")))
+spec$project$tax_regime
 }
 \seealso{
 Other Einlesen: 

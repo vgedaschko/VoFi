@@ -41,12 +41,19 @@ reg_fun_spec <- function(kind) {
     process = list(required = list(simulate = c("par", "z", "u", "years", "linked"),
                                    expected = c("par", "years"), n_shocks = "par",
                                    n_uniforms = "par", validate = "par"),
-                   optional = list()),
+                   optional = list(quantile_path = c("par", "years", "p"))),
     kpi = list(required = list(compute = c("core", "ctx")), optional = list()),
     tax = list(required = list(constructor = c("params", "spec")), optional = list()),
     rule = list(required = list(fun = NULL), optional = list()),
     list(required = list(), optional = list())
   )
+}
+
+#' Zulässige Domänenblöcke für `domain_reads` (5.2, 6.1 Nr. 3, R-93)
+#' @noRd
+reg_domain_blocks <- function() {
+  c("measures", "funding", "financing", "energy", "unit_groups", "building", "household",
+    "market")
 }
 
 #' Artspezifische Defaults der Typdefinition (5.2, 5.3)
@@ -130,7 +137,7 @@ vofi_type <- function(name, kind, params = list(), ..., example = NULL, label = 
   def <- utl_fill_defaults(def, c(list(labels = NULL, perspectives = NULL, rows = character(0),
                                        validate = NULL),
                                   if (kind %in% c("flow", "instrument")) {
-                                    list(grid_invariant = FALSE)
+                                    list(grid_invariant = FALSE, domain_reads = NULL)
                                   },
                                   reg_kind_defaults(kind)))
   if (kind == "rule") {
@@ -247,6 +254,12 @@ reg_static_findings <- function(def) {
   if (kind %in% c("flow", "instrument") && !utl_is_flag(def$grid_invariant)) {
     add("C3", "core.registry.field_invalid", name = format(name), field = "grid_invariant")
   }
+  dr <- def[["domain_reads"]]
+  if (!is.null(dr) &&
+      (!(kind %in% c("flow", "instrument")) || !is.character(dr) || anyNA(dr) ||
+       anyDuplicated(dr) || !all(dr %in% reg_domain_blocks()))) {
+    add("C3", "core.registry.field_invalid", name = format(name), field = "domain_reads")
+  }
   ex <- def$example
   if (kind %in% c("flow", "instrument", "distribution", "process", "tax")) {
     if (!is.list(ex)) add("C3", "core.registry.example_missing", name = format(name))
@@ -338,7 +351,7 @@ reg_kind_field_findings <- function(def) {
       }
       if (!is.null(def$valid_to) && !inherits(def$valid_to, "Date")) flag("valid_to")
       if (!is.null(def$reform) && !utl_is_string(def$reform)) flag("reform")
-      if (!utl_is_string(def$returns) || !(def$returns %in% c("sim", "path", "params"))) {
+      if (!utl_is_string(def$returns) || !(def$returns %in% vocab_codes("rule_returns"))) {
         flag("returns")
       }
     },
@@ -640,7 +653,7 @@ reg_resolve_name <- function(name, kind = NULL) {
 #' Vertragstests für einen Typ ausführen
 #'
 #' Führt die Vertragstests aus Spec 00, Abschnitt 5.6 (C1–C4 und die artspezifischen Prüfungen
-#' F1–F10, I1–I4, A1–A2, D1–D3, P1–P3, K1, T1) mit dem Prüfkit des Pakets aus. Ein Verstoß ist
+#' F1–F10, I1–I4, A1–A2, D1–D3, P1–P4, K1, T1) mit dem Prüfkit des Pakets aus. Ein Verstoß ist
 #' ein Fehler der Klasse `vofi_error_contract`; das Feld `data$findings` enthält alle Befunde.
 #'
 #' @param name Name des Typs.

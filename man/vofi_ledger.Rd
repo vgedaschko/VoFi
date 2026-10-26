@@ -27,6 +27,7 @@ Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
 }
 \seealso{
 Other Berichten: 
+\code{\link{print.vofi_result}()},
 \code{\link{vofi_app}()},
 \code{\link{vofi_export_excel}()},
 \code{\link{vofi_household_view}()},

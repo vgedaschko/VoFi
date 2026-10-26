@@ -16,7 +16,11 @@ Zeichenkette (Pfad) bzw. Zeichenvektor der Namen.
 Liefert den Pfad eines mitgelieferten Beispielszenarios bzw. die Namen aller Beispiele.
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Phase-0-Minimalfassung (Eigentümer: WS-A).
+}
+\examples{
+vofi_example()
+vofi_example("skeleton")
 }
 \seealso{
 Other Einlesen: 

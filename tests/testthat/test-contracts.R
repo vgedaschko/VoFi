@@ -123,7 +123,7 @@ test_that("vofi_asset und vofi_measure", {
   expect_identical(m$classification, "auto")
   expect_identical(m$funding_choice, "keine")
   expect_true(is.na(m$contractor_certified))
-  m2 <- vofi_measure("wp", "heizung_tausch", classification = "herstellung",
+  m2 <- vofi_measure("wp", "heizung_waermepumpe_luft", classification = "herstellung",
                      funding_choice = "35c", completion_date = "2028-03-01", asset_id = "b1")
   expect_identical(m2$completion_date, as.Date("2028-03-01"))
   expect_error(vofi_measure("x", "gibtsnicht"), class = ec)

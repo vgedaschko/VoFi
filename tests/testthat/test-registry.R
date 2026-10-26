@@ -187,6 +187,22 @@ test_that("statische Vertragspr\u00fcfung C1-C3 bei der Registrierung", {
                   n_uniforms = function(par) 0, validate = function(par) character(),
                   example = list())
   expect_error(vofi_register_type(pr), class = er)
+  # domain_reads (5.2, C3): nur flow/instrument, Codes aus der Blockliste
+  dr_bad <- helper_flow_def("tk_dr", domain_reads = c("measures", "unsinn"))
+  expect_error(vofi_register_type(dr_bad), class = er)
+  dr_ok <- helper_flow_def("tk_dr2", domain_reads = c("measures", "unit_groups"))
+  expect_silent(vofi_register_type(dr_ok))
+  expect_null(helper_flow_def("tk_dr3")$domain_reads)
+  kp_dr <- vofi_type("tk_kdr", "kpi", label = "K", domain_reads = "measures",
+                     compute = function(core, ctx) NULL)
+  expect_error(vofi_register_type(kp_dr), class = er)
+  # Regeln: returns aus vocab rule_returns (inkl. value, R-93)
+  rv <- vofi_type("tk_rv", "rule", fun = function(procedure, P) TRUE, valid_from = "2026-01-01",
+                  returns = "value", label = "R")
+  expect_silent(vofi_register_type(rv))
+  rbad <- vofi_type("tk_rbad", "rule", fun = function(x) x, valid_from = "2026-01-01",
+                    returns = "egal", label = "R")
+  expect_error(vofi_register_type(rbad), class = er)
 })
 
 test_that("Rechtsregeln: Versionen mit identischen Formals", {

@@ -1,27 +1,42 @@
-# Massnahmenarten des Massnahmenregisters (Spec 00, Abschnitt 7.2; Memo 06 Abschnitt 7.5).
-# Vorlaeufiger Bestand fuer Phase 0; Spec 01 (Teil A) konkretisiert, der Integrator uebernimmt.
+# Massnahmenarten des Massnahmenregisters (Spec 00, Abschnitte 2.11, 7.2; R-89, N-01).
+# Genau die 37 Codes der Tabelle Spec 01 Teil A, Abschnitt 4.2 (einzige Quelle). Sammelcodes
+# (heizung_tausch, daemmung_dach, daemmung_ogd, aussentuer, sonnenschutz) gibt es nicht.
 # Labels: vocab.measure_types.<code>.
 codes:
   - neubau
   - erweiterung
   - aufstockung
+  - rueckbau
+  - herrichten_erschliessung
+  - erwerb_grundstueck
+  - erwerb_objekt
   - daemmung_fassade
-  - daemmung_dach
-  - daemmung_ogd
+  - daemmung_dach_steil
+  - daemmung_dach_flach
+  - daemmung_oberste_geschossdecke
   - daemmung_kellerdecke
   - fenster
-  - aussentuer
-  - sonnenschutz
-  - heizung_tausch
-  - heizung_optimierung
-  - lueftung
-  - pv
-  - solarthermie
-  - speicher
-  - ladeinfrastruktur
-  - sanitaer
-  - elektro
-  - aufzug
-  - barrierefreiheit
+  - aussentueren
+  - putz_anstrich
   - instandsetzung
+  - heizung_waermepumpe_luft
+  - heizung_waermepumpe_sole
+  - heizung_gaskessel
+  - heizung_pelletkessel
+  - heizung_fernwaerme
+  - heizungsverteilung
+  - lueftung_zentral
+  - lueftung_dezentral
+  - pv
+  - pv_wechselrichter
+  - batteriespeicher
+  - leitungen
+  - baeder
+  - innenausbau
+  - grundriss
+  - aufzug
+  - ladeinfrastruktur
+  - aussenanlagen
+  - ausstattung
+  - baunebenkosten
   - sonstige

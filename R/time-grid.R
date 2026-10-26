@@ -528,14 +528,27 @@ grid_index_year <- function(grid, g, base_date = NULL) {
   out
 }
 
+#' Monatsposition für laufende Wirkungen (R-98, 3.4 Nr. 1)
+#'
+#' Ein Datum, das kein Monatserster ist, wird auf den folgenden Monatsersten gerundet; Ergebnis
+#' ist die ganze Zahl der Monate vom Stichtag bis zu diesem Monatsersten (`-Inf`/`Inf` bleiben).
+#' @param pos Monatsposition aus [grid_month_pos()].
+#' @noRd
+utl_month_ceiling <- function(pos) ceiling(pos - 1e-9)
+
 #' Anteil der Monate jeder Periode im Intervall [from, to)
+#'
+#' Ein Monat zählt, wenn sein Beginn in [from, to) liegt; Daten, die keine Monatsersten sind,
+#' werden auf den folgenden Monatsersten gerundet (R-98, 3.4 Nr. 1). Damit gilt
+#' `grid_overlap() * months == grid_to_periods(grid_shift_months())` für jedes Datum.
 #' @param grid `vofi_grid`.
 #' @param from,to `NULL` (offen) oder Datum.
 #' @return numerischer Vektor der Länge T+1; t0 = 0.
 #' @noRd
 grid_overlap <- function(grid, from = NULL, to = NULL) {
-  s <- if (is.null(from)) -Inf else grid_month_pos(grid, utl_as_date(from, "from"))
-  e <- if (is.null(to)) Inf else grid_month_pos(grid, utl_as_date(to, "to"))
+  s <- if (is.null(from)) -Inf else
+    utl_month_ceiling(grid_month_pos(grid, utl_as_date(from, "from")))
+  e <- if (is.null(to)) Inf else utl_month_ceiling(grid_month_pos(grid, utl_as_date(to, "to")))
   n_t <- grid$T + 1L
   pe <- grid$month_end
   ps <- c(0, pe[-n_t])
@@ -651,6 +664,9 @@ grid_shift_period <- function(grid, date, months) {
 }
 
 #' Monatsanteil jeder Periode in [from + months[i], to) je Lauf
+#'
+#' Monatsweise wie [grid_overlap()] (R-98): Beginn und Ende werden auf den folgenden
+#' Monatsersten gerundet; identisch zu `grid_to_periods(grid_shift_months()) / months`.
 #' @param grid `vofi_grid`.
 #' @param from Datum (Länge 1).
 #' @param months n-Vektor der Verschiebung in Monaten (wird gerundet).
@@ -658,8 +674,9 @@ grid_shift_period <- function(grid, date, months) {
 #' @return n x (T+1).
 #' @noRd
 grid_shift_overlap <- function(grid, from, months, to = NULL) {
-  s <- grid_month_pos(grid, utl_as_date(from, "from")) + utl_round_shift(months)
-  e <- if (is.null(to)) Inf else grid_month_pos(grid, utl_as_date(to, "to"))
+  s <- utl_month_ceiling(grid_month_pos(grid, utl_as_date(from, "from"))) +
+    utl_round_shift(months)
+  e <- if (is.null(to)) Inf else utl_month_ceiling(grid_month_pos(grid, utl_as_date(to, "to")))
   n <- length(s)
   n_t <- grid$T + 1L
   pe <- grid$month_end
@@ -679,13 +696,14 @@ grid_shift_overlap <- function(grid, from, months, to = NULL) {
 #' @return n x M_T.
 #' @noRd
 grid_shift_months <- function(grid, from, months, to = NULL) {
-  s <- grid_month_pos(grid, utl_as_date(from, "from")) + utl_round_shift(months)
-  e <- if (is.null(to)) Inf else grid_month_pos(grid, utl_as_date(to, "to"))
+  s <- utl_month_ceiling(grid_month_pos(grid, utl_as_date(from, "from"))) +
+    utl_round_shift(months)
+  e <- if (is.null(to)) Inf else utl_month_ceiling(grid_month_pos(grid, utl_as_date(to, "to")))
   n <- length(s)
   big_m <- grid$month_end[grid$T + 1L]
   start <- matrix(seq_len(big_m) - 1, n, big_m, byrow = TRUE)
   s_m <- matrix(s, n, big_m)
-  (start >= s_m - 1e-9 & start < e) * 1
+  (start >= s_m & start < e) * 1
 }
 
 # ---------------------------------------------------------------------------------------------

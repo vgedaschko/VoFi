@@ -1,0 +1,13 @@
+# Texte der Ausgaben (WS-H, Spec 00 Abschnitt 13.6). Phase-0-Minimalfassung.
+print:
+  header: "VoFi-Ergebnis: {title} ({id}), Variante {variant}"
+  subheader: "{mode}, Stichtag {start}, Horizontende {end} (T = {T})"
+  mode_deterministic: "Deterministischer Lauf"
+  mode_mc: "Simulationslauf"
+  mode_design: "Design-Lauf"
+  kpi_header: "Kennzahlen"
+  primary: "(Primärkennzahl)"
+  ex_rv: "ohne Restwert"
+  table_header: "VoFi-Tabelle (gekürzt, Summen je Abschnitt)"
+  checks_ok: "Prüfungen: Finanzierungssaldo 0 in jeder Periode, alle Invarianten erfüllt."
+  checks_failed: "Prüfungen: mindestens eine Invariante ist verletzt (siehe $checks)."

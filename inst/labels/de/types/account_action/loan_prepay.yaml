@@ -1,0 +1,5 @@
+# Labels der Ausgleichsaktion loan_prepay (WS-D, Spec 00 Abschnitt 8.9). Phase-0-Minimalfassung.
+label: "Sondertilgung"
+description: "Ü3: Überschuss tilgt Kredite mit Sondertilgungsrecht in absteigender Zinsfolge (Heuristik, standardmäßig aus)."
+rows:
+  "loan_*_prepay": "{id}: Sondertilgung"

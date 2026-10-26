@@ -200,6 +200,27 @@ test_that("grid_overlap: Anteile der Monate je Periode", {
   expect_equal(grid_overlap(ga), c(0, rep(1, 6)))
 })
 
+test_that("R-98: Daten ohne Monatsersten wirken ab dem folgenden Monatsersten", {
+  ga <- reg_test_grid("annual")
+  gm <- reg_test_grid("mixed")
+  expect_equal(grid_overlap(ga, as.Date("2027-01-15"))[2], 11 / 12)
+  expect_equal(grid_overlap(ga, as.Date("2027-01-01"), as.Date("2027-06-15"))[2], 6 / 12)
+  expect_equal(grid_overlap(ga, as.Date("2027-01-02"), as.Date("2027-07-01"))[2], 5 / 12)
+  so <- grid_shift_overlap(ga, as.Date("2027-01-15"), c(0, 2), to = as.Date("2028-03-10"))
+  expect_equal(so[, 2], c(11, 9) / 12)
+  expect_equal(so[, 3], c(3, 3) / 12)
+  # eine Regel fuer alle Typen: Periodenanteile = summierte aktive Monate
+  for (g in list(ga, gm)) {
+    for (d in c("2027-01-15", "2027-03-31", "2027-10-01", "2028-02-29")) {
+      sm <- grid_shift_months(g, as.Date(d), c(0, 1, 7), to = as.Date("2031-06-20"))
+      so <- grid_shift_overlap(g, as.Date(d), c(0, 1, 7), to = as.Date("2031-06-20"))
+      expect_equal(grid_to_periods(g, sm), so * matrix(g$months, 3, g$T + 1L, byrow = TRUE),
+                   info = d)
+      expect_equal(so[1, ], grid_overlap(g, as.Date(d), as.Date("2031-06-20")), info = d)
+    }
+  }
+})
+
 test_that("Monatsaufl\u00f6sung: grid_months, to_periods, to_months", {
   gm <- reg_test_grid("mixed")
   mt <- grid_months(gm)

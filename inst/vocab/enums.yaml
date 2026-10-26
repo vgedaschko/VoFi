@@ -66,8 +66,8 @@ interpolate:
   codes: [linear, step]
   aliases: {}
   default: linear
-quantity_per:
-  codes: [total, unit, m2_living_area, kw, kwp, kwh]
+quantity_per:                  # Abbildung per -> Feld in 4.5 (R-91)
+  codes: [total, unit, m2_living_area, m2_net_floor_area, parking, kw, kwp, kwh]
   patterns: ["m2_component:*"]
   aliases: {}
   default: total
@@ -79,6 +79,10 @@ schedule_unit:
   codes: [eur, share]
   aliases: {}
   default: eur
+growth_index:                  # Wachstumsform {start, growth, index} (4.5, R-91)
+  codes: [calendar_year, period_end]
+  aliases: {}
+  default: calendar_year
 # --- Massnahmen und Register (4.3.6, 7.2) ---
 classification:
   codes: [auto, erhaltung, herstellung]
@@ -104,6 +108,14 @@ consumption_basis:
   codes: [measured, demand]
   aliases: {}
   default: demand
+levy_procedure:                # Umlageverfahren (Spec 01 Teil B, N-06); Aliase auch fuer die Zahl 559
+  codes: [auto, bgb_559, bgb_559c, bgb_559e]
+  aliases: {"559": bgb_559, "559c": bgb_559c, "559e": bgb_559e}
+  default: auto
+bgb_procedure:                 # Verfahrenscodes in Bibliotheksnutzlasten (z. B. s557a.excludes, rent_law.enables)
+  codes: [bgb_557a, bgb_557b, bgb_558, bgb_559, bgb_559b, bgb_559c, bgb_559e]
+  aliases: {}
+  default: ~
 # --- Foerderung (4.3.7, 9.11) ---
 instrument_type:
   codes: [grant, loan, loan_with_repayment_grant, interest_subsidy, tax_credit, rent_binding]
@@ -243,6 +255,14 @@ static_source:
   codes: [overlay, inline, funding_auto, process_param]
   aliases: {}
   default: overlay
+overlay_apply:                 # Verknuepfung eines Overlay-Eintrags mit dem Basiswert (4.3.15, R-94)
+  codes: [replace, multiply, add]
+  aliases: {}
+  default: replace
+mc_preset:                     # Laufzahl-Voreinstellungen (4.3.15, 12.7, R-97)
+  codes: [preview, standard, report, custom]
+  aliases: {}
+  default: standard
 # --- Registry (5) ---
 type_kind:
   codes: [flow, instrument, account_action, expander, distribution, process, kpi, tax, rule]
@@ -256,8 +276,8 @@ param_shape:
   codes: [scalar, path]
   aliases: {}
   default: scalar
-rule_returns:
-  codes: [sim, path, params]
+rule_returns:                  # 5.3 (R-93)
+  codes: [sim, path, params, value]
   aliases: {}
   default: ~
 type_source:

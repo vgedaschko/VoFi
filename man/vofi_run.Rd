@@ -31,7 +31,12 @@ Berechnet den VoFi deterministisch (\code{n_sim = 1}) oder als Monte-Carlo-Simul
 Delegation an \code{\link[=vofi_mc]{vofi_mc()}}) (Spec 00, Abschnitt 9.2).
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Phase-0-Minimalfassung (Eigentümer: WS-D): deterministischer Lauf vollständig; die
+Monte-Carlo-Simulation folgt mit WS-C/WS-G.
+}
+\examples{
+res <- vofi_run(vofi_build(vofi_read_scenario(vofi_example("skeleton"))))
+res$kpis$terminal_value
 }
 \seealso{
 Other Rechnen: 

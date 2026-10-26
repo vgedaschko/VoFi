@@ -45,6 +45,7 @@ vocab_load <- function(dir) {
   vocab_state$raw <- raw
   vocab_state$data <- data
   vocab_state$dir <- dir
+  vocab_state$cat_index <- NULL                 # Index von vocab_category() neu aufbauen
   invisible(names(data))
 }
 
@@ -267,12 +268,20 @@ vocab_has <- function(name, code) {
 #' @return Liste der Felder oder `NULL`, wenn die Kombination nicht existiert.
 #' @noRd
 vocab_category <- function(section, category) {
-  tab <- vocab("categories")
-  i <- which(tab$section == section & tab$category == category)
-  if (length(i) != 1L) return(NULL)
-  row <- as.list(tab[i, , drop = FALSE])
-  for (f in c("tax_allowed", "tax_excluded", "ids", "ids_optional")) row[[f]] <- row[[f]][[1L]]
-  row
+  if (is.null(vocab_state$cat_index)) {
+    tab <- vocab("categories")
+    idx <- new.env(hash = TRUE, parent = emptyenv())
+    for (i in seq_len(nrow(tab))) {
+      row <- as.list(tab[i, , drop = FALSE])
+      for (f in c("tax_allowed", "tax_excluded", "ids", "ids_optional")) {
+        row[[f]] <- row[[f]][[1L]]
+      }
+      assign(paste0(tab$section[i], "\r", tab$category[i]), row, envir = idx)
+    }
+    vocab_state$cat_index <- idx
+  }
+  if (!utl_is_string(section) || !utl_is_string(category)) return(NULL)
+  get0(paste0(section, "\r", category), envir = vocab_state$cat_index, inherits = FALSE)
 }
 
 #' Erlaubte Steuerkategorien einer Kategorie

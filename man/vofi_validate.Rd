@@ -21,7 +21,11 @@ Prüft ein Szenario bzw. eine aufgelöste Spezifikation auf vier Ebenen (Struktu
 Plausibilität) und sammelt alle Befunde (Spec 00, Abschnitte 2.9, 13.5).
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Phase-0-Minimalfassung (Eigentümer: WS-B): Struktur, Typen und Kettenregeln.
+}
+\examples{
+v <- vofi_validate(vofi_read_scenario(vofi_example("skeleton")))
+nrow(v)
 }
 \seealso{
 Other Validieren: 

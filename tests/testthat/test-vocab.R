@@ -67,11 +67,17 @@ test_that("Steuerkategorien, NA-Codes, Register-Codes", {
     "no_payback", "no_debt_service", "no_market_value", "no_household_income", "no_tenant_data",
     "no_living_area", "no_inflation_path", "no_operation_period", "no_construction_period",
     "no_solution", "run_stopped", "not_applicable_perspective", "not_computed",
-    "no_existing_value", "no_co2_reduction"))
+    "no_existing_value", "no_co2_reduction", "no_liquidity_limit"))
   expect_identical(vocab_codes("asset_types"),
                    c("gebaeude_wohnen", "gebaeude_nichtwohnen", "grund_boden", "aussenanlage",
                      "bewegliches_wg", "pv_anlage", "ladeinfrastruktur"))
-  expect_true(all(c("daemmung_fassade", "heizung_tausch") %in% vocab_codes("measure_types")))
+  mt <- vocab_codes("measure_types")
+  expect_length(mt, 37L)
+  expect_true(all(c("daemmung_fassade", "heizung_waermepumpe_luft", "daemmung_dach_steil",
+                    "aussentueren", "erwerb_objekt", "baunebenkosten", "sonstige") %in% mt))
+  # Sammelcodes gibt es nicht (2.11, N-01)
+  expect_false(any(c("heizung_tausch", "daemmung_dach", "daemmung_ogd", "aussentuer",
+                     "sonnenschutz") %in% mt))
   ef <- vocab("row_extra_fields")
   expect_setequal(names(ef), c("tax_period", "spread_years", "use_share_rented", "activity_type",
                                "stochastic_source", "allocable_to_tenant", "realization",
@@ -99,12 +105,27 @@ test_that("Enums: Form {codes, aliases, default}", {
   expect_identical(vocab("project_type")$existing_building,
                    c("sanierung_eh", "sanierung_einzelmassnahmen", "sanierung_stufenweise",
                      "heizungstausch"))
+  # Enums nach 2.11 (R-89, R-91, R-93, R-94, R-97)
+  expect_identical(vocab_codes("growth_index"), c("calendar_year", "period_end"))
+  expect_identical(vocab("growth_index")$default, "calendar_year")
+  expect_identical(vocab_codes("overlay_apply"), c("replace", "multiply", "add"))
+  expect_identical(vocab_codes("mc_preset"), c("preview", "standard", "report", "custom"))
+  expect_identical(vocab("mc_preset")$default, "standard")
+  expect_identical(vocab_codes("levy_procedure"), c("auto", "bgb_559", "bgb_559c", "bgb_559e"))
+  expect_identical(vocab_codes("bgb_procedure"),
+                   c("bgb_557a", "bgb_557b", "bgb_558", "bgb_559", "bgb_559b", "bgb_559c",
+                     "bgb_559e"))
+  expect_true(all(c("m2_net_floor_area", "parking") %in% vocab_codes("quantity_per")))
+  expect_true("value" %in% vocab_codes("rule_returns"))
   expect_identical(vocab_codes("residual_method"),
                    c("zero", "market_growth", "income_value", "component", "asset_value",
                      "multiplier", "exit_yield", "user_value"))
 })
 
 test_that("vocab_check und vocab_resolve: Aliase und unbekannte Codes", {
+  # levy_procedure: Alias auch für die als Zahl gelesene Eingabe 559 (2.11)
+  expect_warning(r559 <- vocab_resolve("levy_procedure", 559), class = "vofi_warning_input")
+  expect_identical(r559, "bgb_559")
   expect_identical(vocab_check("perspective", c("wu_privat", "selbstnutzer")), character(0))
   expect_warning(res <- vocab_check("repayment_grant_effect", "reduce_annuity", "x"),
                  class = "vofi_warning_input")

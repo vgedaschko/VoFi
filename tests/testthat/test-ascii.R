@@ -5,6 +5,7 @@ test_that("Code-Token in R/ sind ASCII (Quelltext, falls verf\u00fcgbar)", {
   rdir <- testthat::test_path("..", "..", "R")
   skip_if_not(dir.exists(rdir), "Quelltext R/ nicht verf\u00fcgbar (installiertes Paket)")
   files <- list.files(rdir, pattern = "\\.[Rr]$", full.names = TRUE)
+  skip_if(length(files) == 0L, "keine R-Quelldateien (installiertes Paket)")
   expect_true(length(files) > 10L)
   for (f in files) {
     src <- readLines(f, encoding = "UTF-8", warn = FALSE)

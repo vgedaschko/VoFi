@@ -20,3 +20,4 @@ codes:
   - not_computed
   - no_existing_value
   - no_co2_reduction
+  - no_liquidity_limit

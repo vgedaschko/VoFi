@@ -38,8 +38,10 @@ batch_scenario <- function(block_size = 7L, n_sim = 7L, degenerate = FALSE, extr
     project = list(perspective = "wu_privat", project_type = "neubau",
                    valuation_date = as.Date("2027-01-01"), horizon_years = 5L),
     components = list(
+      # Zahlungsplan statt Periodenreihe: identisch auf dem Jahresraster (-100.000 in t0) und
+      # gueltig auf jedem Raster (Test 6 rechnet auch mit monatlicher Bauphase, Spec 00 4.5).
       inv = list(type = "custom_series", label = "Investition",
-                 values = c(-100000, 0, 0, 0, 0, 0)),
+                 values = list(schedule = list("2027-01-01" = -100000))),
       rent = list(type = "recurring", label = "Miete", category = "rent", amount_eur = 9000,
                   growth = list(ref = "market.rent_growth"), base_date = as.Date("2027-01-01"),
                   from = as.Date("2027-01-01")),
@@ -70,6 +72,67 @@ expect_same_ledger_row <- function(batch, single, i, tol = 1e-12) {
     testthat::expect_true(all(abs(a - b) <= tol * pmax(1, abs(a))), info = k)
   }
 }
+
+#' Ledger, Kennzahlen und Pfade eines Laufs mit vorgegebenen Ziehungen (Stufen 2-9 der Engine)
+run_with_draws <- function(model, draws) eng_run_draws(model, draws = draws, store = "full")
+
+#' Lauf i des Batches = Einzellauf mit den Ziehungen von Lauf i (Ledger, Kennzahlen, Opp)
+expect_batch_equals_single <- function(model, draws, tol = 1e-12) {
+  n <- draws$n
+  batch <- run_with_draws(model, draws)
+  expect_identical(batch$ledger$n, n)
+  expect_identical(nrow(batch$kpis), n)
+  for (i in seq_len(n)) {
+    single <- run_with_draws(model, reg_draws_subset(draws, i))
+    expect_same_ledger_row(batch$ledger, single$ledger, i, tol)
+    for (k in names(batch$kpis)) {
+      a <- batch$kpis[[k]][i]
+      b <- single$kpis[[k]][1L]
+      expect_true(abs(a - b) <= tol * max(1, abs(a)), info = paste(k, i))
+    }
+    expect_true(all(abs(batch$opp$BS[i, ] - single$opp$BS[1L, ]) <=
+                      tol * pmax(1, abs(batch$opp$BS[i, ]))), info = paste("opp", i))
+  }
+  invisible(batch)
+}
+
+test_that("0. Walking Skeleton: Lauf i im Batch = Einzellauf i (fake_draws, N = 7 = T+1+3)", {
+  model <- vofi_build(vofi_read_scenario(vofi_example("skeleton")))
+  g <- model$grid
+  i <- seq_len(7L) - 1
+  z <- outer(1 + 0.15 * (i - 3), c(-100000, 30000, 40000, 50000))
+  z[, 4] <- z[, 4] - 20000 * i
+  draws <- fake_draws(7L, g, paths = list("components.z.values" = z),
+                      static = list("accounts.deposit_rate_pa" = 0.02 + 0.005 * i,
+                                    "financing.ek.amount_eur" = 40000 + 2500 * i))
+  batch <- expect_batch_equals_single(model, draws)
+  # Die Läufe unterscheiden sich (Geldanlage und Kontokorrent, Endwerte)
+  expect_true(length(unique(round(batch$kpis$terminal_value, 6))) == 7L)
+  expect_true(any(batch$ledger$values$od_draw > 0))
+  expect_true(all(abs(batch$ledger$values$balance_check) <= 1e-6))
+  # Lauf 4 (i = 3: Faktor 1, Zinssatz 3,5 %) = deterministischer Lauf mit denselben Werten
+  sc <- vofi_read_scenario(vofi_example("skeleton"))
+  sc$components$z$values <- z[4, ]
+  sc$accounts$deposit_rate_pa <- 0.035
+  sc$financing$ek$amount_eur <- 47500
+  det <- vofi_run(vofi_build(sc))
+  expect_same_ledger_row(batch$ledger, det$ledger, 4L, 1e-12)
+  expect_equal(batch$kpis$delta_terminal_value[4], det$kpis$delta_terminal_value,
+               tolerance = 1e-12)
+})
+
+test_that("0b. Orakel (a) mit stochastischen Zinsen: Lauf i im Batch = Einzellauf i", {
+  model <- vofi_build(example_scenario("oracle_a"))
+  i <- seq_len(7L) - 1
+  draws <- fake_draws(7L, model$grid,
+                      static = list("financing.ann.rate_pa" = 0.06 - 0.01 * i,
+                                    "financing.bul.approved" = c(1, 1, 0, 1, 1, 0, 1),
+                                    "accounts.overdraft_rate_pa" = 0.10 + 0.01 * i))
+  batch <- expect_batch_equals_single(model, draws)
+  expect_equal(batch$kpis$terminal_value[1], oracle_a_values()$kpi$terminal_value,
+               tolerance = 1e-9)
+  expect_true(all(batch$ledger$values$loan_bul_draw[c(3L, 6L), 1] == 0))
+})
 
 test_that("1. Lauf i im Batch = Einzellauf i (vofi_sim)", {
   skip_if_stub("vofi_scenario", "vofi_build", "vofi_mc", "vofi_sim")
@@ -196,17 +259,27 @@ test_that("9. Pr\u00e4fix-Stabilit\u00e4t der Bl\u00f6cke (R-73)", {
   expect_identical(big$kpis[seq_len(1000L), cols], small$kpis[, cols])
 })
 
-test_that("10. Feste Kreditbetr\u00e4ge bei amount_eur: auto (R-69)", {
+test_that("10. Feste Kreditbetr\u00e4ge bei amount_eur: auto, topup = Mehrbedarf (R-69)", {
   skip_if_stub("vofi_scenario", "vofi_build", "vofi_run", "vofi_mc")
   sc <- batch_scenario()
   sc$financing$bank$amount_eur <- "auto"
-  sc$stochastic$parameters$inv <- list(target = "components.rent.amount_eur",
-                                       dist = "uniform", min = 8500, max = 9500)
+  sc$financing$extra <- list(type = "bullet_loan", amount_eur = "topup", rate_pa = 0.06,
+                             term_years = 5, payments_per_year = 1L)
+  # stochastische Baukosten: Faktor auf den Zahlungsplan der Investition (apply multiply, R-94);
+  # jedes Overlay-Ziel hoechstens einmal (11.8)
+  sc$stochastic$parameters$inv <- list(target = "components.inv.values", dist = "uniform",
+                                       min = 0.9, max = 1.3, apply = "multiply")
   model <- vofi_build(sc)
   det <- vofi_run(model)
   mc <- vofi_mc(model, n_sim = 7L, block_size = 7L, seed = 8L, store = "full")
   d0 <- det$ledger$values$loan_bank_draw[1L, ]
+  expect_equal(d0[1L], 60000)
   for (i in seq_len(7L)) expect_identical(mc$ledger$values$loan_bank_draw[i, ], d0)
+  # topup: Basisfall 0, je Lauf der Mehrbedarf gegenueber dem Basisfall (8.7)
+  expect_true(all(det$ledger$values$loan_extra_draw == 0))
+  need <- pmax(-mc$ledger$values$inv__value[, 1L] - 40000 - 60000, 0)
+  expect_true(any(need > 0) && any(need == 0))
+  expect_equal(mc$ledger$values$loan_extra_draw[, 1L], need, tolerance = 1e-9)
 })
 
 test_that("11. Entscheidungsknoten: Kompositum = getrennte Rechnung (R-71)", {

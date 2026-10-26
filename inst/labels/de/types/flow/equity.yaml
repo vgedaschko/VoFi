@@ -1,0 +1,31 @@
+# Labels des Zahlungstyps equity (WS-E, Spec 00 Abschnitt 7.12). Phase-0-Minimalfassung.
+label: "Eigenkapital"
+description: "Geplante Einlagen und Entnahmen des Investors: einmalige Einlage, Zahlungspläne und laufende Jahresbeträge."
+params:
+  amount_eur:
+    label: "Einmalige Einlage"
+    help: "Betrag in EUR, eingezahlt zum Termin 'date'."
+  date:
+    label: "Termin der Einlage"
+    help: "Datum, Jahr (1. Januar) oder completion; Default Bewertungsstichtag."
+  contributions:
+    label: "Weitere Einlagen (Zahlungsplan)"
+    help: "Zahlungsplan {schedule: {Datum: Betrag}} mit Beträgen >= 0."
+  contributions_pa:
+    label: "Laufende Einlage je Jahr"
+    help: "Jahresbetrag in EUR im Zeitraum from bis to."
+  withdrawals:
+    label: "Entnahmen (Zahlungsplan)"
+    help: "Zahlungsplan mit Beträgen >= 0; gebucht als Entnahme."
+  withdrawals_pa:
+    label: "Laufende Entnahme je Jahr"
+    help: "Jahresbetrag in EUR im Zeitraum from bis to."
+  from:
+    label: "Beginn der laufenden Beträge"
+    help: "Default Bewertungsstichtag."
+  to:
+    label: "Ende der laufenden Beträge"
+    help: "Default Horizontende."
+rows:
+  in: "Einlage"
+  out: "Entnahme"

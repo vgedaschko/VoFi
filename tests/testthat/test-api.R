@@ -94,7 +94,9 @@ test_that("vofi_app ist in v1 ein Platzhalter mit Hinweis auf v1.1", {
 
 test_that("Stubs melden vofi_error_not_implemented (Phase 0)", {
   ns <- asNamespace("vofi")
+  expect_true(all(vofi_stubs() %in% names(api_signatures)))
   stubs <- names(api_signatures)[vapply(names(api_signatures), is_stub, logical(1))]
+  expect_setequal(stubs, vofi_stubs())
   for (nm in stubs) {
     f <- get(nm, envir = ns)
     fm <- formals(f)
@@ -103,4 +105,15 @@ test_that("Stubs melden vofi_error_not_implemented (Phase 0)", {
     args <- args[names(args) != "..."]
     expect_error(do.call(f, args), class = "vofi_error_not_implemented", info = nm)
   }
+})
+
+test_that("vofi_library_paths: Paketbibliothek, Option vofi.library_paths, add (2.12, 4.9)", {
+  local_vofi_options(vofi.library_paths = c("/tmp/lib_a", "/tmp/lib_b"))
+  p <- vofi_library_paths(add = "/tmp/lib_c")
+  expect_identical(utils::tail(p, 3L), c("/tmp/lib_a", "/tmp/lib_b", "/tmp/lib_c"))
+  local_vofi_options(vofi.library_paths = character(0))
+  expect_true(all(nzchar(vofi_library_paths())))
+  expect_error(vofi_library_paths(add = 1), class = "vofi_error_input")
+  # Default-Argumente der Leser sind auswertbar
+  expect_identical(eval(formals(vofi_read_scenario)$library_paths), vofi_library_paths())
 })

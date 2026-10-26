@@ -24,6 +24,7 @@ v1: Platzhalter (Fehler \code{vofi_error_not_implemented} mit Hinweis auf v1.1).
 }
 \seealso{
 Other Berichten: 
+\code{\link{print.vofi_result}()},
 \code{\link{vofi_export_excel}()},
 \code{\link{vofi_household_view}()},
 \code{\link{vofi_ledger}()},

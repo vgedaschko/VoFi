@@ -197,11 +197,14 @@ reg_example_component <- function(def, example = NULL, id = NULL) {
 #'
 #' `ctx$rebalance(extra_out)` und `ctx$auto(id)` MÜSSEN an `engine_env$rebalance` bzw.
 #' `engine_env$auto` delegieren; `engine_env$stage` (`"flows"`, `"balance"`, `"kpi"`) steuert,
-#' ob `rebalance()` zulässig ist (nur `"kpi"`).
+#' ob `rebalance()` zulässig ist (nur `"kpi"`). `deps` = deklarierte Abhängigkeiten der
+#' geprüften Komponente (`NULL` = keine Prüfung); ein Zugriff auf andere Komponenten über
+#' `ctx$component()`, `ctx$component_base()` oder `ctx$rows()` ist ein Vertragsfehler (F1).
 #' @noRd
-reg_engine_env <- function(stage = "flows", rebalance = NULL, auto = NULL) {
+reg_engine_env <- function(stage = "flows", rebalance = NULL, auto = NULL, deps = NULL) {
   env <- new.env(parent = emptyenv())
   env$stage <- stage
+  env$deps <- deps
   env$rebalance <- rebalance %||% function(extra_out = NULL) {
     vofi_abort("core.testkit.no_rebalance", .class = "vofi_error_contract")
   }
@@ -241,9 +244,12 @@ reg_test_setup <- function(def, n, grid, draws = NULL, example = NULL) {
                                    engine_env = reg_engine_env("flows"))
     deps[[id]] <- dep_defs[[id]]$def$build(dep_defs[[id]]$comp, dctx)
   }
+  declared <- if (is.null(comp)) NULL else {
+    eng_component_deps(comp, def, c(names(dep_raw), comp$id))
+  }
   ctx <- eng_context_from_parts(grid, spec, draws = draws, components = deps,
                                 components_base = deps, mode = mode,
-                                engine_env = reg_engine_env("flows"))
+                                engine_env = reg_engine_env("flows", deps = declared))
   list(ctx = ctx, comp = comp, spec = spec, deps = deps)
 }
 
@@ -298,7 +304,8 @@ reg_fake_draws <- function(def, n, grid, example = NULL) {
       }
     }
   }
-  targets <- data.frame(key = keys, target = keys, kind = kinds, stringsAsFactors = FALSE)
+  targets <- data.frame(key = keys, target = keys, kind = kinds,
+                        apply = rep("replace", length(keys)), stringsAsFactors = FALSE)
   new_vofi_draws("mc", n = n, sims = seq_len(n), blocks = 1L, block_size = n,
                  static = static, targets = targets, paths = paths, years = grid$years,
                  meta = list(seed = NA_real_, sampling = "testkit", block_size = n,
@@ -772,10 +779,40 @@ reg_test_acc <- function(n, grid) {
     KKP = ifelse(i == 4L, 300, 0),
     h = grid_rate_eff(grid, rep(0.02, n)), h_pa = matrix(0.02, n, n_t),
     w = 0, wa = matrix(0, n, n_t),
-    s = grid_rate_eff(grid, rep(0.08, n)), sp = grid_rate_eff(grid, rep(0.10, n)),
+    s = grid_rate_eff(grid, rep(0.08, n)), s_pa = matrix(0.08, n, n_t),
+    sp = grid_rate_eff(grid, rep(0.10, n)),
     KL = matrix(5000, n, n_t), Lmin = matrix(100, n, n_t),
     flag_threshold = 2000, prepay_buffer = 0, prepay_min_spread = 0, j = 2L
   )
+}
+
+#' Testinstrument für Aktionen mit Kreditbezug (Ü3 `loan_prepay`): endfälliges Darlehen "k"
+#' (50.000 zu 6 %, Sondertilgung erlaubt), Zustand nach der Periode t = 1
+#' @return `list(spec, inst)`; `inst` leer, wenn `bullet_loan` nicht registriert ist.
+#' @noRd
+reg_test_inst <- function(grid, spec, draws, mode) {
+  if (!reg_has("instrument", "bullet_loan")) return(list(spec = spec, inst = list()))
+  idef <- reg_get("instrument", "bullet_loan")
+  comp <- reg_example_component(idef, list(type = "bullet_loan", amount_eur = 50000,
+                                           rate_pa = 0.06, term_years = 5,
+                                           payments_per_year = 1L, prepay_allowed = TRUE),
+                                id = "k")
+  spec <- path_set(spec, "financing.k", comp)
+  ictx <- eng_context_from_parts(grid, spec, draws = draws, mode = mode,
+                                 engine_env = reg_engine_env("balance"))
+  st <- idef$init(comp, ictx)
+  for (t in 0:1) st <- idef$step(st, t, ictx)$state
+  list(spec = spec, inst = list(k = list(state = st, def = idef)))
+}
+
+#' Summe der Kreditbestände einer Instrumentliste (für A2)
+#' @noRd
+reg_inst_balance <- function(inst, t, ctx, n) {
+  b <- rep(0, n)
+  for (e in inst) {
+    if (is.function(e$def$capacity)) b <- b + as.double(e$def$capacity(e$state, t, ctx)$balance)
+  }
+  b
 }
 
 #' Vertragstests für Ausgleichsaktionen
@@ -784,17 +821,23 @@ reg_check_action <- function(def, n) {
   g <- reg_test_grid("annual")
   out <- list()
   rng_ok <- TRUE
+  needs_inst <- "loan_*_prepay" %in% def$rows
   for (nn in unique(n)) {
     tag <- sprintf("[n = %d]", nn)
     res <- tryCatch({
       spec <- reg_test_spec(g)
       draws <- if (nn == 1L) NULL else new_vofi_draws("mc", n = nn)
-      ctx <- eng_context_from_parts(g, spec, draws = draws, mode = if (nn == 1L)
-        "deterministic" else "mc", engine_env = reg_engine_env("balance"))
+      mode <- if (nn == 1L) "deterministic" else "mc"
+      ti <- if (needs_inst) reg_test_inst(g, spec, draws, mode) else list(spec = spec,
+                                                                          inst = list())
+      ctx <- eng_context_from_parts(g, ti$spec, draws = draws, mode = mode,
+                                    engine_env = reg_engine_env("balance"))
       acc <- reg_test_acc(nn, g)
       amount <- 750 * (seq_len(nn) - 1) + 50
-      r <- reg_no_rng(def$apply(acc, amount, 1L, ctx, list()))
-      list(r = r$value, rng_ok = r$rng_ok, acc = acc, amount = amount)
+      r <- reg_no_rng(def$apply(acc, amount, 1L, ctx, ti$inst))
+      inst1 <- r$value$inst %||% ti$inst
+      list(r = r$value, rng_ok = r$rng_ok, acc = acc, amount = amount,
+           b0 = reg_inst_balance(ti$inst, 1L, ctx, nn), b1 = reg_inst_balance(inst1, 1L, ctx, nn))
     }, error = function(e) e)
     if (inherits(res, "error")) {
       out[[length(out) + 1L]] <- reg_finding("A1", FALSE, paste(tag, conditionMessage(res)))
@@ -819,11 +862,11 @@ reg_check_action <- function(def, n) {
       all(acc1$KKP >= -tol)
     out[[length(out) + 1L]] <- reg_finding("A1", a1, if (a1) "" else
       paste(tag, msg("core.testkit.action", what = "A1", name = def$name)))
-    wealth <- function(a) a$G - a$KK - a$KKP
+    wealth <- function(a, b) a$G - a$KK - a$KKP - b
     total <- if (length(keys) > 0L) Reduce(`+`, lapply(r$flows, as.double)) else rep(0, nn)
     ext <- Reduce(`+`, lapply(intersect(keys, c("equity_call", "shortfall")),
                               function(k) as.double(r$flows[[k]])), rep(0, nn))
-    d_w <- wealth(acc1) - wealth(acc0)
+    d_w <- wealth(acc1, res$b1) - wealth(acc0, res$b0)
     a2 <- length(d_w) == nn && all(abs(d_w + (total - ext)) <= 1e-9 * pmax(1, res$amount))
     out[[length(out) + 1L]] <- reg_finding("A2", a2, if (a2) "" else
       paste(tag, msg("core.testkit.action", what = "A2", name = def$name)))
@@ -902,7 +945,11 @@ reg_degenerate <- function(par) {
   par
 }
 
-#' Vertragstests für Prozesse
+#' Vertragstests für Prozesse (P1–P4, F8)
+#'
+#' Die Laufzahl n steht dem Prozess immer als `attr(linked, "n")` zur Verfügung (auch bei
+#' `n_shocks = n_uniforms = 0` und skalaren Parametern, wenn `z` und `u` `NULL` sind); der Sampler
+#' (WS-C) übergibt sie ebenso.
 #' @noRd
 reg_check_process <- function(def) {
   par <- def$example
@@ -924,6 +971,7 @@ reg_check_process <- function(def) {
     u
   }
   linked <- stats::setNames(lapply(def$linked, function(l) matrix(0.02, n, y)), def$linked)
+  attr(linked, "n") <- n
   out <- list()
   sim <- reg_try("P1", {
     ns <- def$n_shocks(par)
@@ -933,32 +981,37 @@ reg_check_process <- function(def) {
     rng <- rng && r$rng_ok
     x <- r$value
     ex <- def$expected(par, years)
-    ok <- is.matrix(x) && identical(dim(x), c(n, y)) && length(ex) == y &&
-      all(abs(x[, 1L] - ex[1L]) <= 1e-12 * max(1, abs(ex[1L])))
+    ok <- isTRUE(is.matrix(x) && identical(dim(x), c(n, y)) && is.numeric(x) &&
+                   length(ex) == y &&
+                   all(abs(x[, 1L] - ex[1L]) <= 1e-12 * max(1, abs(ex[1L]))))
     list(f = reg_finding("P1", ok, if (ok) "" else msg("core.testkit.process", what = "P1",
                                                        name = def$name)),
-         x = x, ex = ex, nu = nu)
+         x = x, ex = ex, nu = nu, ok = ok)
   })
   if (is.data.frame(sim)) {
     out[[1L]] <- sim
   } else {
     out[[1L]] <- sim$f
-    if (sim$nu == 0L) {
+    if (sim$ok && isTRUE(sim$nu == 0L)) {
       out[[2L]] <- reg_try("P2", {
         p0 <- reg_degenerate(par)
         x0 <- def$simulate(p0, make_z(as.integer(def$n_shocks(p0))), NULL, years, linked)
         e0 <- def$expected(p0, years)
-        ok <- all(abs(x0 - matrix(e0, n, y, byrow = TRUE)) <=
-                    1e-12 * pmax(1, abs(matrix(e0, n, y, byrow = TRUE))))
+        ok <- isTRUE(all(abs(x0 - matrix(e0, n, y, byrow = TRUE)) <=
+                           1e-12 * pmax(1, abs(matrix(e0, n, y, byrow = TRUE)))))
         reg_finding("P2", ok, if (ok) "" else msg("core.testkit.process", what = "P2",
                                                   name = def$name))
       })
     }
-    if (all(is.finite(sim$ex))) {
+    if (sim$ok && all(is.finite(sim$ex))) {
       se <- apply(sim$x, 2L, stats::sd) / sqrt(n)
-      ok <- all(abs(colMeans(sim$x) - sim$ex) <= 4 * se + 1e-9 * pmax(1, abs(sim$ex)))
+      ok <- isTRUE(all(abs(colMeans(sim$x) - sim$ex) <= 4 * se + 1e-9 * pmax(1, abs(sim$ex))))
       out[[length(out) + 1L]] <- reg_finding("P3", ok, if (ok) "" else
         msg("core.testkit.process", what = "P3", name = def$name))
+    }
+    if (sim$ok && is.function(def$quantile_path)) {
+      out[[length(out) + 1L]] <- reg_try("P4", reg_check_quantile_path(def, par, years, sim$x,
+                                                                       linked))
     }
   }
   out[[length(out) + 1L]] <- reg_try("P1", {
@@ -970,6 +1023,54 @@ reg_check_process <- function(def) {
   out[[length(out) + 1L]] <- reg_finding("F8", rng, if (rng) "" else
     msg("core.testkit.rng", name = def$name))
   reg_bind(out)
+}
+
+#' P4: Quantilpfad monoton in p, entartet = expected(), empirisch innerhalb 4 SE (5.6, R-95)
+#'
+#' Die empirische Prüfung erfolgt auf der Wahrscheinlichkeitsskala: Für q = quantile_path(p) muss
+#' p im Intervall [F_n(q-) - 4 SE, F_n(q) + 4 SE] liegen (SE = sqrt(p (1 - p) / n)); Jahre mit
+#' (nahezu) konstanter Simulation verlangen q = Simulationswert.
+#' @param x Simulation n × length(years) aus P1.
+#' @noRd
+reg_check_quantile_path <- function(def, par, years, x, linked) {
+  y <- length(years)
+  n <- nrow(x)
+  ps <- c(0.05, 0.25, 0.5, 0.75, 0.95)
+  r <- reg_no_rng(lapply(ps, function(p) def$quantile_path(par, years, p)))
+  q <- r$value
+  shape_ok <- r$rng_ok && all(vapply(q, function(v) {
+    is.numeric(v) && length(v) == y && all(is.finite(v))
+  }, logical(1)))
+  if (!shape_ok) {
+    return(reg_finding("P4", FALSE, msg("core.testkit.process", what = "P4", name = def$name)))
+  }
+  qm <- do.call(cbind, q)
+  mono <- all(qm[, -1L, drop = FALSE] - qm[, -ncol(qm), drop = FALSE] >=
+                -1e-12 * pmax(1, abs(qm[, -1L, drop = FALSE])))
+  p0 <- reg_degenerate(par)
+  e0 <- def$expected(p0, years)
+  degen <- all(vapply(ps, function(p) {
+    q0 <- def$quantile_path(p0, years, p)
+    isTRUE(all(abs(q0 - e0) <= 1e-12 * pmax(1, abs(e0))))
+  }, logical(1)))
+  emp <- TRUE
+  tol_x <- 1e-9 * pmax(abs(qm), 1)
+  for (j in seq_len(y)) {
+    xj <- x[, j]
+    if (diff(range(xj)) <= 1e-12 * max(1, abs(xj))) {
+      emp <- emp && all(abs(qm[j, ] - xj[1L]) <= tol_x[j, ])
+      next
+    }
+    for (k in seq_along(ps)) {
+      p <- ps[k]
+      se <- sqrt(p * (1 - p) / n)
+      lo <- mean(xj < qm[j, k] - tol_x[j, k])
+      hi <- mean(xj <= qm[j, k] + tol_x[j, k])
+      emp <- emp && p >= lo - 4 * se && p <= hi + 4 * se
+    }
+  }
+  ok <- isTRUE(mono && degen && emp)
+  reg_finding("P4", ok, if (ok) "" else msg("core.testkit.process", what = "P4", name = def$name))
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -1082,7 +1183,8 @@ reg_check_rule <- function(def, n) {
     rb <- reg_no_rng(do.call(def$fun, vary(ex, nmax)))
     batch <- rb$value
     same <- TRUE
-    if (!identical(def$returns, "params")) {
+    # params und value: deterministische Rückgaben ohne Laufdimension (5.3, R-93)
+    if (!(def$returns %in% c("params", "value"))) {
       for (i in seq_len(nmax)) {
         args_i <- lapply(vary(ex, nmax), function(a) {
           if (is.numeric(a) && length(a) == nmax) a[i] else a

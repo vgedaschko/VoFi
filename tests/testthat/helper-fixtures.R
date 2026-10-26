@@ -53,111 +53,77 @@ oracle_a_values <- function() {
   )
 }
 
-#' Ledger aus einer Zeilentabelle (Schlüssel, Abschnitt, Kategorie, Werte) bauen
-helper_ledger <- function(spec_rows, n = 1L) {
-  meta <- lapply(spec_rows, function(r) {
-    do.call(new_ledger_rows, c(list(key = r$key, section = r$section, category = r$category),
-                               r$meta %||% list()))
-  })
-  rows <- do.call(rbind, meta)
+#' Ledger aus Zeilenmetadaten (new_ledger_rows()) und Werten je Schlüssel (n = 1)
+#'
+#' Die Metadaten entstehen mit denselben Konstruktoren wie in der Engine (eng_loan_rows(),
+#' eng_engine_rows(), eng_stock_rows(), Typlabels nach 7.1); es wird nichts gerechnet. Fehlende
+#' Werte sind Nullzeilen.
+helper_ledger <- function(rows, values, n_t) {
   ord <- order(rows$order, method = "radix")
   rows <- rows[ord, , drop = FALSE]
   rownames(rows) <- NULL
-  values <- stats::setNames(lapply(spec_rows, function(r) {
-    matrix(as.double(r$values), nrow = n, byrow = TRUE)
-  }), vapply(spec_rows, function(r) r$key, ""))
-  new_vofi_ledger(rows, values[rows$key])
+  vals <- lapply(rows$key, function(k) matrix(as.double(values[[k]] %||% rep(0, n_t)), nrow = 1L))
+  new_vofi_ledger(rows, stats::setNames(vals, rows$key))
 }
 
-#' Zeilenangabe für helper_ledger()
-helper_row <- function(key, section, category, values, ...) {
-  list(key = key, section = section, category = category, values = values, meta = list(...))
+#' Metadaten einer Komponentenzeile wie in eng_flow_row_meta() (7.1, 7.3, 7.8)
+helper_flow_rows <- function(id, type, local, section, category, position, label = NULL) {
+  def <- reg_get("flow", type)
+  label_key <- paste0(reg_label_prefix(def), ".rows.", local)
+  new_ledger_rows(paste0(id, "__", local), section, category, source_id = id,
+                  source_type = type, origin = "scenario", local_row = local,
+                  label_key = label_key,
+                  label = eng_type_row_label(def, label_key, local, prefix = label),
+                  order = eng_row_order(section, category, position))
 }
 
 #' Vertragsgemäßes vofi_result aus den Tabellenwerten von Orakel (a), ohne Engine (15.1)
 #'
 #' Lehrbuch-VoFi: Investition -100.000, Annuitätendarlehen 40.000 zu 6 % (5 Jahre), endfälliges
 #' Darlehen 30.000 zu 5 %, EK 30.000, Habenzins 3 %, Sollzins 10 %, Restwert 40.000 in T = 5.
+#' Struktur (Schlüssel, Tags, Labels, Ordnung, Abschnitte der Unterlassungsalternative, meta)
+#' wie das Ergebnis der Engine für fixtures/scenarios/oracle_a.yaml (test-fixtures.R prüft das).
 example_result <- function() {
   o <- oracle_a_values()
   grid <- vofi_time_grid(as.Date("2027-01-01"), 5L)
-  zero <- rep(0, 6)
-  lo <- function(k, ci) 1000 * (400 + k) + 10 * ci
-  loan_rows <- function(id, k, v) {
-    cats <- c("draw", "repay", "repay_balloon", "prepay", "interest", "fees", "repayment_grant",
-              "disagio", "assumed")
-    lapply(seq_along(cats), function(ci) {
-      helper_row(paste0("loan_", id, "_", cats[ci]), "loans", cats[ci],
-                 v[[cats[ci]]] %||% zero, source_id = id, local_row = cats[ci],
-                 source_type = if (id == "ann") "annuity_loan" else "bullet_loan",
-                 origin = "scenario", order = lo(k, ci))
-    })
-  }
-  rows <- c(
-    list(
-      helper_row("z__value", "project", "custom", o$z, source_id = "z",
-                 source_type = "custom_series", origin = "scenario", local_row = "value",
-                 label = "Zahlungsfolge"),
-      helper_row("rv__value", "project", "residual_value", o$rv, source_id = "rv",
-                 source_type = "custom_series", origin = "scenario", local_row = "value",
-                 label = "Restwert"),
-      helper_row("ek__in", "equity", "equity_in", o$ek, source_id = "ek", source_type = "equity",
-                 origin = "scenario", local_row = "in"),
-      helper_row("ek__out", "equity", "equity_out", zero, source_id = "ek",
-                 source_type = "equity", origin = "scenario", local_row = "out"),
-      helper_row("equity_call", "equity", "equity_call", zero),
-      helper_row("shortfall", "equity", "shortfall", zero)
-    ),
-    loan_rows("ann", 1L, list(draw = o$ann_draw, repay = o$ann_repay,
-                               interest = o$ann_interest)),
-    loan_rows("bul", 2L, list(draw = o$bul_draw, repay_balloon = o$bul_repay_balloon,
-                               interest = o$bul_interest)),
-    list(
-      helper_row("od_draw", "overdraft", "draw", o$od_draw),
-      helper_row("od_repay", "overdraft", "repay", o$od_repay),
-      helper_row("od_interest", "overdraft", "interest", o$od_interest),
-      helper_row("odp_draw", "overdraft", "draw", zero),
-      helper_row("odp_repay", "overdraft", "repay", zero),
-      helper_row("odp_interest", "overdraft", "interest", zero),
-      helper_row("dep_invest", "deposit", "invest", o$dep_invest),
-      helper_row("dep_withdraw", "deposit", "withdraw", o$dep_withdraw),
-      helper_row("dep_interest", "deposit", "interest", o$dep_interest),
-      helper_row("dep_wht", "tax", "withholding_tax", zero),
-      helper_row("tax", "tax", "income_tax", zero),
-      helper_row("balance_check", "check", "balance_check", zero),
-      helper_row("loan_ann_balance", "stocks", "balance", o$ann_balance, source_id = "ann",
-                 order = 900001),
-      helper_row("loan_bul_balance", "stocks", "balance", o$bul_balance, source_id = "bul",
-                 order = 900002),
-      helper_row("od_balance", "stocks", "balance", o$od_balance, order = 900100),
-      helper_row("odp_balance", "stocks", "balance", zero, order = 900101),
-      helper_row("dep_balance", "stocks", "balance", o$dep_balance, order = 900102),
-      helper_row("tax_liability", "stocks", "tax_liability", zero, order = 900200),
-      helper_row("net_position", "stocks", "net_position", o$net_position, order = 900300)
-    )
+  n_t <- 6L
+  comp <- function(id) list(id = id, origin = "scenario")
+  rows <- rbind(
+    helper_flow_rows("z", "custom_series", "value", "project", "custom", 1L, "Zahlungsfolge"),
+    helper_flow_rows("rv", "custom_series", "value", "project", "residual_value", 2L,
+                     "Restwert"),
+    helper_flow_rows("ek", "equity", "in", "equity", "equity_in", 3L),
+    helper_flow_rows("ek", "equity", "out", "equity", "equity_out", 3L),
+    eng_loan_rows("ann", 1L, comp("ann"), reg_get("instrument", "annuity_loan")),
+    eng_loan_rows("bul", 2L, comp("bul"), reg_get("instrument", "bullet_loan")),
+    eng_engine_rows(),
+    eng_stock_rows(c("ann", "bul"))
   )
-  ledger <- helper_ledger(rows)
-  opp_rows <- list(
-    helper_row("ek__in", "equity", "equity_in", o$ek, source_id = "ek", source_type = "equity",
-               origin = "scenario", local_row = "in"),
-    helper_row("ek__out", "equity", "equity_out", zero, source_id = "ek",
-               source_type = "equity", origin = "scenario", local_row = "out"),
-    helper_row("opp_equity_call_in", "equity", "equity_in", zero),
-    helper_row("od_draw", "overdraft", "draw", zero),
-    helper_row("od_repay", "overdraft", "repay", zero),
-    helper_row("od_interest", "overdraft", "interest", zero),
-    helper_row("dep_invest", "deposit", "invest", o$opp_dep_invest),
-    helper_row("dep_withdraw", "deposit", "withdraw", zero),
-    helper_row("dep_interest", "deposit", "interest", o$opp_dep_interest),
-    helper_row("dep_wht", "tax", "withholding_tax", zero),
-    helper_row("tax", "tax", "income_tax", zero),
-    helper_row("balance_check", "check", "balance_check", zero),
-    helper_row("od_balance", "stocks", "balance", zero, order = 900100),
-    helper_row("odp_balance", "stocks", "balance", zero, order = 900101),
-    helper_row("dep_balance", "stocks", "balance", o$opp_balance, order = 900102),
-    helper_row("tax_liability", "stocks", "tax_liability", zero, order = 900200),
-    helper_row("net_position", "stocks", "net_position", o$opp_balance, order = 900300)
+  values <- list(
+    z__value = o$z, rv__value = o$rv, ek__in = o$ek,
+    loan_ann_draw = o$ann_draw, loan_ann_repay = o$ann_repay, loan_ann_interest = o$ann_interest,
+    loan_bul_draw = o$bul_draw, loan_bul_repay_balloon = o$bul_repay_balloon,
+    loan_bul_interest = o$bul_interest,
+    od_draw = o$od_draw, od_repay = o$od_repay, od_interest = o$od_interest,
+    dep_invest = o$dep_invest, dep_withdraw = o$dep_withdraw, dep_interest = o$dep_interest,
+    loan_ann_balance = o$ann_balance, loan_bul_balance = o$bul_balance,
+    od_balance = o$od_balance, dep_balance = o$dep_balance, net_position = o$net_position
   )
+  ledger <- helper_ledger(rows, values, n_t)
+  # Unterlassungsalternative wie eng_opportunity(): Einlagen/Entnahmen der Investition,
+  # opp_equity_call_in, Konten, Steuer, Pruefung und Bestaende ohne Kredite (9.5)
+  opp_rows <- rbind(
+    rows[rows$key %in% c("ek__in", "ek__out"), , drop = FALSE],
+    new_ledger_rows("opp_equity_call_in", "equity", "equity_in",
+                    local_row = "opp_equity_call_in",
+                    label_key = "core.rows.opp_equity_call_in",
+                    label = lbl("core.rows.opp_equity_call_in")),
+    eng_engine_rows(),
+    eng_stock_rows(character(0))
+  )
+  opp_values <- list(ek__in = o$ek, dep_invest = o$opp_dep_invest,
+                     dep_interest = o$opp_dep_interest, dep_balance = o$opp_balance,
+                     net_position = o$opp_balance)
   k <- o$kpi
   ex_rv_tv <- k$terminal_value - 40000
   kpis <- data.frame(
@@ -199,7 +165,7 @@ example_result <- function() {
   new_vofi_result(list(
     spec = spec, grid = grid, model_hash = "example_oracle_a", ledger = ledger,
     kpis = kpis, kpi_na = kpi_na, kpi_series = list(),
-    opportunity = list(ledger = helper_ledger(opp_rows),
+    opportunity = list(ledger = helper_ledger(opp_rows, opp_values, n_t),
                        BS = matrix(o$opp_balance, nrow = 1L),
                        EW = k$terminal_value_opp),
     checks = checks, flags = flags, registers = list(assets = list(), measures = list()),
@@ -214,7 +180,8 @@ example_result <- function() {
                                      valid_from = as.Date(character(0)),
                                      valid_to = as.Date(character(0)),
                                      quality = character(0), stringsAsFactors = FALSE),
-                library_version = NA_character_, tax_module = "none",
+                library_version = NA_character_, defaults = scn_defaults_meta("wu_privat"),
+                tax_module = "none",
                 perspective = "wu_privat", tax_regime = "wu_kapges", report_mode = "expert",
                 comparison_mode = "absolute", primary_kpi = "delta_terminal_value",
                 store = "full", runtime_sec = 0,
@@ -223,7 +190,16 @@ example_result <- function() {
   ))
 }
 
-#' Synthetisches, vertragsgemäßes vofi_mc_result (ohne Engine)
+#' Konvergenzausweis (12.7, R-97) mit den Default-Schwellen (rel. Halbbreite 0,005 des
+#' Mittelwerts, abs. Halbbreite 0,01 der Verlustwahrscheinlichkeit); bei R < 10 FALSE
+helper_converged <- function(mean, se, p_neg_se, r_blocks, rel = 0.005, abs_prob = 0.01) {
+  if (r_blocks < 10L) return(FALSE)
+  tq <- stats::qt(0.975, r_blocks - 1L)
+  isTRUE(tq * se / abs(mean) < rel && tq * p_neg_se < abs_prob)
+}
+
+#' Synthetisches, vertragsgemäßes vofi_mc_result (Ziehungen synthetisch, ohne Lauf der Engine;
+#' `model` = gebautes Modell von Orakel (a) für vofi_sim(), 13.2)
 example_mc_result <- function(n_sim = 200L) {
   n_sim <- as.integer(n_sim)
   det <- example_result()
@@ -256,7 +232,10 @@ example_mc_result <- function(n_sim = 200L) {
                q95 = q[7L], p_neg = mean(x < 0),
                p_neg_se = sqrt(mean(x < 0) * (1 - mean(x < 0)) / length(x)),
                es05 = mean(x[x <= q[1L]]), expected_loss = mean(pmax(-x, 0)), na_share = 0,
-               n_valid = length(x), deterministic = det$kpis[[nm]], stringsAsFactors = FALSE)
+               n_valid = length(x), deterministic = det$kpis[[nm]],
+               converged = helper_converged(mean(x), se, sqrt(mean(x < 0) * (1 - mean(x < 0)) /
+                                                               length(x)), r_blocks),
+               stringsAsFactors = FALSE)
   }
   stats <- do.call(rbind, lapply(setdiff(names(kpis), c("sim", "block")), stat_row))
   rownames(stats) <- NULL
@@ -276,8 +255,10 @@ example_mc_result <- function(n_sim = 200L) {
                                                                        "delta_terminal_value"])))
   checks <- det$checks
   checks$n_runs <- n_sim
+  model <- vofi_build(vofi_read_scenario(testthat::test_path("fixtures", "scenarios",
+                                                            "oracle_a.yaml")))
   new_vofi_mc_result(list(
-    spec = det$spec, grid = det$grid, model = NULL, kpis = kpis, kpi_na = kpi_na,
+    spec = det$spec, grid = det$grid, model = model, kpis = kpis, kpi_na = kpi_na,
     kpi_series = list(),
     inputs = data.frame(sim = i, `components.z.values` = 1 + 0.05 * sc, check.names = FALSE),
     features = data.frame(sim = i, `inflation.mean` = 0.02 + 0.002 * sc, check.names = FALSE),

@@ -25,6 +25,30 @@ test_that("example_result: vertragsgem\u00e4\u00df, Orakel (a)", {
                      "dep_balance", "tax_liability", "net_position"))
 })
 
+test_that("example_result hat dieselbe Struktur wie das Ergebnis der Engine (Orakel (a))", {
+  fx <- example_result()
+  en <- vofi_run(vofi_build(example_scenario("oracle_a")))
+  cols <- setdiff(names(en$ledger$rows), "extra")
+  expect_identical(fx$ledger$rows[, cols], en$ledger$rows[, cols])
+  expect_identical(fx$opportunity$ledger$rows[, cols], en$opportunity$ledger$rows[, cols])
+  expect_false(anyNA(fx$ledger$rows$label_key))
+  expect_false(anyNA(fx$ledger$rows$label))
+  for (k in en$ledger$rows$key) {
+    expect_equal(fx$ledger$values[[k]], en$ledger$values[[k]], tolerance = 1e-9, info = k)
+  }
+  for (k in en$opportunity$ledger$rows$key) {
+    expect_equal(fx$opportunity$ledger$values[[k]], en$opportunity$ledger$values[[k]],
+                 tolerance = 1e-9, info = k)
+  }
+  expect_identical(names(fx), names(en))
+  expect_identical(names(fx$meta), names(en$meta))
+  expect_identical(fx$meta$defaults, en$meta$defaults)
+  expect_identical(names(fx$flags), names(en$flags))
+  expect_identical(fx$checks$invariant, en$checks$invariant)
+  expect_true(all(names(en$kpis) %in% names(fx$kpis)))
+  for (k in names(en$kpis)) expect_equal(fx$kpis[[k]], en$kpis[[k]], tolerance = 1e-9, info = k)
+})
+
 test_that("example_core: vertragsgem\u00e4\u00df", {
   core <- example_core()
   expect_identical(core$n, 7L)
@@ -37,8 +61,14 @@ test_that("example_mc_result und example_comparison", {
   mc <- example_mc_result(200L)
   expect_s3_class(mc, "vofi_mc_result")
   expect_identical(nrow(mc$kpis), 200L)
-  expect_true(all(c("kpi", "mean", "sd", "se", "se_df", "q05", "q50", "q95", "p_neg", "es05",
-                    "expected_loss", "na_share", "n_valid", "deterministic") %in% names(mc$stats)))
+  expect_identical(names(mc$stats),
+                   c("kpi", "mean", "sd", "se", "se_df", "q05", "q10", "q25", "q50", "q75",
+                     "q90", "q95", "p_neg", "p_neg_se", "es05", "expected_loss", "na_share",
+                     "n_valid", "deterministic", "converged"))
+  expect_false(any(mc$stats$converged))
+  expect_s3_class(mc$model, "vofi_model")
+  expect_true(isTRUE(helper_converged(100, 0.1, 0.001, 50L)))
+  expect_false(helper_converged(100, 0.1, 0.001, 5L))
   expect_identical(dim(mc$bands$net_position), c(6L, 6L))
   expect_identical(names(mc$run_index), c("p05", "p50", "p95"))
   cmp <- example_comparison()

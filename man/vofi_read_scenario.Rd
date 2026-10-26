@@ -29,7 +29,11 @@ liefert das kanonische Szenario-Objekt mit Herkunft der Blätter (Spec 00, Absch
 Optional wird ein separates Stochastik-Overlay gemischt (Datei gewinnt).
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Phase-0-Minimalfassung (Eigentümer: WS-A): YAML vollständig nach 4.6; Excel folgt mit WS-A2.
+}
+\examples{
+sc <- vofi_read_scenario(vofi_example("skeleton"))
+sc$meta$scenario_id
 }
 \seealso{
 Other Einlesen: 

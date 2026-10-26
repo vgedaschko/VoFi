@@ -6,8 +6,8 @@
 | **Dokument** | `docs/spec/00_kernvertraege.md` |
 | **Vertragsversion** | `contract_version = "1.0.0"` (Konstante `VOFI_CONTRACT_VERSION` in `R/contracts.R`) |
 | **Schemaversion Szenario** | `schema_version = 1` |
-| **Stand** | 25.10.2026 |
-| **Status** | **verbindlich** für alle Arbeitspakete (Phase 0 bis 3); Änderungen nur über den Integrator (Abschnitt 1.4); Review Runde 1 eingearbeitet (Abschnitt 17.2); Runde 2 „Abgleich mit dem Konzept“ eingearbeitet (Abschnitt 17.4, R-66 bis R-84) |
+| **Stand** | 26.10.2026 |
+| **Status** | **verbindlich** für alle Arbeitspakete (Phase 0 bis 3); Änderungen nur über den Integrator (Abschnitt 1.4); Review Runde 1 eingearbeitet (Abschnitt 17.2); Runde 2 „Abgleich mit dem Konzept“ eingearbeitet (Abschnitt 17.4, R-66 bis R-84); Runde 3 „Feldkatalog-Abgleich“ eingearbeitet (Abschnitt 17.5, R-85 bis R-109; Phase-0-Nacharbeit in 17.5.4) |
 | **Grundlage** | Orchestrator-Entscheidungen D1–D14; Recherche-Memos 01, 02, 04, 05, 06, 07 (`docs/recherche/`); Prototypen `docs/recherche/prototypen/`; Konzept `docs/Konzept.md` einschließlich §11.2 (F1–F21), §11.3 (Annahmen bis zur Antwort des Auftraggebers) und Konzept-Review-Protokoll |
 | **Folgedokument** | Spec 01 = Feldkatalog in `docs/spec/01a_*.md`, `01b_*.md`, `01c_*.md` (Felder der Domänenblöcke, Typparameter im Detail, Defaults). Spec 01 darf diese Verträge konkretisieren, aber nicht ändern. |
 
@@ -142,6 +142,8 @@
 | anhängige Reform | `project.pending_reforms` | Codes | Schalter, Standard leer (D10) |
 | Parameterbibliothek, Eintrag | `library`, `entry` | Dateien | ein Eintrag je Datei, id = relativer Pfad (4.9) |
 | Bibliotheksverweis | `from:` | Wertform | 4.9 |
+| Element-Defaults | `item_defaults` (nur `global.yaml`) | reservierter Schlüssel | Vorlage je Sammlung bzw. optionalem Block, nach Schicht 8 und den Ableitungsregeln unter jedes vorhandene Element gemischt (Element gewinnt; 4.7, R-85) |
+| Ableitungsregel | `rule:<name>` (WS-A, `R/scenario-layers.R`) | Funktion | setzt nach Schicht 8 und vor `item_defaults` und den Expandern fehlende Domänenblätter aus anderen Feldern (Werte, Codes, Bezugs- und Ausdrucksknoten); keine Registry-Regel (4.7, R-86) |
 | Perspektive | `project.perspective` | Code | `wu_kommunal`, `wu_genossenschaft`, `wu_privat`, `kleinvermieter`, `selbstnutzer` (R-08) |
 | Steuerregime | `project.tax_regime` | Code | Memo 06 §7.1 (R-08) |
 | Ohnehin-Anteil | `ohnehin_share` / `ohnehin_cost_eur` | Feld | Memo 02 §1.4 |
@@ -221,7 +223,9 @@ VoFi/                                   # Paketwurzel = Repo-Wurzel
 │   └── testthat/
 │       ├── helper-contracts.R  helper-fixtures.R  helper-oracles.R  helper-reference-engine.R
 │       ├── helper-<ws>.R               # optional je Arbeitspaket
-│       ├── test-<R-datei>.R            # je R-Datei eine Testdatei, gleicher Eigentümer
+│       ├── test-<R-datei>.R            # je R-Datei eine Testdatei, gleicher Eigentümer; Name = test- + Name der
+│       │                               # R-Datei (z. B. test-type-flow-capex.R, test-type-inst-loan-core.R)
+│       ├── test-library.R  test-profiles.R   # Datentests ohne R-Datei: Bibliothek (WS-L), Defaults/Profile (WS-A)
 │       ├── test-contract-types.R  test-invariants.R  test-oracles.R  test-batch-invariance.R
 │       ├── test-mc-statistics.R  test-io-roundtrip.R  test-scenarios-s1-s5.R  test-snapshots-*.R
 │       ├── fixtures/{oracles,scenarios,excel,library}/
@@ -248,12 +252,12 @@ Testsuite und `R CMD check`.
 | 1 | 1b | **WS-C** Sampling | `sampling-*`, `dist-*`, `process-*` | Spec 00 §11 |
 | 1 | 1b | **WS-B** Schema/Validierung | `schema.R`, `validate-*`, `expr.R` | Spec 00 §4, §5.4 |
 | 2 | 2a | **WS-F** Instrumente | `type-inst-*` | `make_ctx()`, §8 |
-| 2 | 2a | **WS-A** Eingabe | `io-yaml.R`, `values-normalize.R`, `scenario-*`, Profile, `global.yaml`, Minimal-Fixtures | §4 |
+| 2 | 2a | **WS-A** Eingabe | `io-yaml.R`, `values-normalize.R`, `scenario-*` (inkl. `item_defaults` und Ableitungsregeln `rule:<name>`, 4.7), Profile, `global.yaml`, `test-profiles.R`, Minimal-Fixtures | §4 |
 | 2 | 2b | **WS-E** Zahlungsbausteine und Mietrecht | `type-flow-*` (ohne `grant`, `tax-credit-35c`), `rules-mietrecht.R`, `rules-co2kostaufg.R`, `rules-grest.R` (Regeln, die die eigenen Typen aufrufen, 5.3) | `make_ctx()`, §7 |
 | 2 | 2b | **WS-D2** Kennzahlen | `kpi-*` | `example_core()`, §12 |
 | 3 | 3a | **WS-E2** Expander/Förderung | `expand-*`, `rules-funding.R`, `type-flow-grant.R`, `type-flow-tax-credit-35c.R` | §4.12, WS-E/F |
 | 3 | 3a | **WS-G** Analyse | `mc.R`, `mc-stats.R`, `compare.R`, `sensitivity.R`, `solve.R` | §9, §11, §12 |
-| 3 | 3b | **WS-L** Bibliothek | `inst/extdata/library/**` (nur Daten) | §4.9 |
+| 3 | 3b | **WS-L** Bibliothek | `inst/extdata/library/**` (nur Daten), `test-library.R` | §4.9, §2.11 |
 | 3 | 3b | **WS-H** Ausgabe | `methods-*`, `report-table.R`, `report-views.R`, `report-plot.R`, `report-excel.R` | `example_result()`, §13 |
 | 4 | 4a | **WS-A2** Excel-Eingabe | `io-excel-*`, `data-raw/build_template.R`, `build_examples_xlsx.R` | §4.14 |
 | 4 | 4a | **WS-S** Referenzszenarien | `inst/extdata/examples/s1…s5`, `test-scenarios-s1-s5.R` | alle |
@@ -278,14 +282,14 @@ WS-H in `R/methods-*.R`). Ein Agent ändert ausschließlich Dateien seines Paket
 | `R/vocab.R`, `R/labels.R`, `R/conditions.R` | I | intern: `vocab_*`, `lbl`, `msg`, `vofi_abort`, `vofi_warn`, `vofi_inform` |
 | `R/utils-merge.R`, `utils-path.R`, `utils-format.R`, `utils-hash.R`, `utils-seed.R`, `utils-misc.R` | I | intern: `deep_merge`, `is_value_form`, `path_get/set/remove/exists`, `fmt_*`, `stable_hash`, `with_stream`, `%\|\|%` |
 | `R/time-grid.R` | I | `vofi_time_grid`; intern `grid_*` (Abschnitt 3); Methoden `print`/`as.data.frame` für `vofi_grid` |
-| `R/values-normalize.R` | WS-A | intern: Wertgrammatik → Knoten (4.5): `node_normalize()`, Knotenkonstruktoren `node_const`, `node_ref`, `node_schedule`, `node_growth` |
+| `R/values-normalize.R` | WS-A | intern: Wertgrammatik → Knoten (4.5): `node_normalize()`, Knotenkonstruktoren `node_const`, `node_ref`, `node_schedule`, `node_growth`, `node_expr` (6.4, R-91) |
 | `R/values-resolve.R` | WS-D | intern: Knoten → N-Vektor / N × (T+1) (6.3), Präfix `res_` |
 | `R/expr.R` | WS-B | intern: `expr_parse`, `expr_symbols`, `expr_eval` (4.5); Minimalfassung aus Phase 0 |
 | `R/schema.R` | WS-B | `vofi_param`, `vofi_json_schema` |
 | `R/io-yaml.R` | WS-A | intern: `io_read_yaml_utf8`, `io_write_yaml`, YAML-Handler |
 | `R/io-excel-read.R`, `io-excel-write.R`, `io-excel-template.R` | WS-A2 | `vofi_excel_template` |
 | `R/scenario-read.R` | WS-A | `vofi_read_scenario`, `vofi_write_scenario`, `vofi_scenario`, `vofi_example` |
-| `R/scenario-layers.R`, `scenario-provenance.R` | WS-A | `vofi_resolve`; intern Aufbau des Build-Kontexts `bctx` (`scn_bctx()`, 6.4) |
+| `R/scenario-layers.R`, `scenario-provenance.R` | WS-A | `vofi_resolve`; intern Aufbau des Build-Kontexts `bctx` (`scn_bctx()`, 6.4), reservierte Schlüssel der Defaults-Dateien, Element-Defaults (`item_defaults`) und Ableitungsregeln `rule:<name>` (4.7, R-85, R-86) |
 | `R/scenario-library.R` | WS-A | `vofi_library`, `vofi_library_paths` |
 | `R/scenario-variants.R` | WS-A | `vofi_variants` |
 | `R/validate-*.R` | WS-B | `vofi_validate`; Methoden für `vofi_validation` in `validate-report.R` |
@@ -305,7 +309,7 @@ WS-H in `R/methods-*.R`). Ein Agent ändert ausschließlich Dateien seines Paket
 | `R/type-inst-*.R` | WS-F | `typedef_annuity_loan`, `typedef_installment_loan`, `typedef_bullet_loan`; intern `inst_loan_*` |
 | `R/kpi-*.R` | WS-D2 | `vofi_kpis`, `vofi_register_kpi`; `typedef_kpi_*` |
 | `R/mc.R`, `R/mc-stats.R` | WS-G | `vofi_mc` |
-| `R/compare.R` | WS-G | `vofi_compare` |
+| `R/compare.R` | WS-G | `vofi_compare`; intern Ampel (`cmp_traffic_light()`, 12.9) und generiertes Set „vorsichtig“ (`cmp_cautious()`, 4.11); eine eigene Datei `compare-cautious.R` gibt es nicht (R-104) |
 | `R/sensitivity.R`, `R/solve.R` | WS-G | `vofi_sensitivity`, `vofi_solve` |
 | `R/methods-*.R` | WS-H | S3-Methoden der Klassen ohne Eigentümermarkierung in 13.6 |
 | `R/report-table.R`, `R/report-views.R` | WS-H | `vofi_table`, `vofi_ledger`, `vofi_tenant_view`, `vofi_household_view` |
@@ -335,6 +339,8 @@ WS-H in `R/methods-*.R`). Ein Agent ändert ausschließlich Dateien seines Paket
 | `tests/testthat/helper-oracles.R`, `helper-reference-engine.R`, `test-oracles.R`, `test-invariants.R` | WS-T | |
 | `tests/testthat/helper-tax-test-module.R` | WS-D | Test-Steuermodul mit Pauschalsatz und linearer AfA für die Pflichttests der Schnittstelle ab Phase 1 (10.10, R-78) |
 | `inst/extdata/library/VERSION` | WS-L | Bibliotheksstand `JJJJ.MM.n` (4.9, R-80) |
+| `tests/testthat/test-library.R` | WS-L | Datentest der Bibliothek: Eintragsschema (4.9), Freigabe (4.10), Codes der Nutzlasten ⊆ Vokabulare (2.11), alle `from`/`use`-Verweise lösen auf (R-89, R-104) |
+| `tests/testthat/test-profiles.R` | WS-A | Datentest von `global.yaml` und Profilen: reservierte Schlüssel, Profilpfade (R-76), alle `from`/`use`-Verweise lösen auf (4.7, R-85) |
 | `tests/testthat/test-mc-statistics.R` | WS-C (Sampler-Teil) und WS-G (`test-mc-results.R`) | getrennte Dateien |
 | `vignettes/*` | Phase 3 (Integrator vergibt) | |
 | `bench/bench_engine.R` | WS-D | |
@@ -506,6 +512,13 @@ vofi_inform(key, ..., .class = NULL)                                # Meldung, n
   `types.instrument.annuity_loan.params.rate_pa.label`, `types.instrument.annuity_loan.params.rate_pa.help`,
   `types.instrument.annuity_loan.rows.interest`. `kpi.yaml` enthält nur übergreifende Kennzahlentexte (Überschriften,
   Vermerke wie „unabhängig vom Restwert“); NA-Begründungen stehen **ausschließlich** unter `vocab.na_reasons.*`.
+- **Validierungsmeldungen (R-104):** alle in `inst/labels/de/validation.yaml` (WS-B), Schlüssel
+  `validation.<block>.<code>`; `<block>` ist der oberste Szenarioblock (`project`, `building`, `measures`,
+  `unit_groups`, `energy`, `funding`, `financing`, `accounts`, `residual_value`, `analysis`, `stochastic`, …) bzw.
+  `library`, `variants`, `scenario_set`, `profile`, `quantity`, `maintenance`, `acquisition`; blockübergreifende Meldungen
+  haben die Form `validation.<code>` (bestehend: `validation.not_number`, `validation.unknown_key`,
+  `validation.tax_module_blocked`, `validation.reference_variant_missing`, `validation.profile_path_forbidden`).
+  Andere Namensräume (z. B. `validation.b.*`) und andere Dateien (z. B. `inst/i18n/*`) gibt es nicht.
 - **Pflichtschlüssel je Typ:** `label`, `description`, `params.<p>.label` für jeden Parameter, `rows.<r>` für jede
   deklarierte Zeile bzw. jedes Zeilenmuster (Flows, Instrumente, Aktionen; Muster 5.2), `params.<p>.help` SOLL.
 - **Laden:** `.onLoad` ruft `lbl_load(system.file("labels", "de", package = "vofi"))` auf. Doppelte Schlüssel beim
@@ -545,6 +558,29 @@ vocab_check(name, x, path)       # -> character() oder Fehlertexte; Aliase werde
 
 Jedes Enum in `enums.yaml` hat die Form `name: {codes: [...], aliases: {alt: neu}, default: <code>}`. Aliase dienen
 nur der Eingabe-Normalisierung (R-07, R-09, R-34); die Trennung von Codes und Texten folgt R-48; intern und in Ausgaben erscheinen nur kanonische Codes.
+
+**Inhalt v1 (R-89, verbindlich; der Integrator pflegt die Dateien, Spec 01 liefert die Codes):**
+
+- `measure_types.yaml`: genau die 37 Codes der Tabelle Spec 01 Teil A §4.2 (u. a. `daemmung_fassade`,
+  `daemmung_dach_steil`, `daemmung_dach_flach`, `daemmung_oberste_geschossdecke`, `daemmung_kellerdecke`, `fenster`,
+  `aussentueren`, `heizung_waermepumpe_luft`, `heizung_waermepumpe_sole`, `heizung_gaskessel`, `heizung_pelletkessel`,
+  `heizung_fernwaerme`, `heizungsverteilung`, `pv`, `erwerb_grundstueck`, `erwerb_objekt`, `baunebenkosten`,
+  `sonstige`). Sammelcodes wie `heizung_tausch`, `daemmung_dach`, `daemmung_ogd`, `aussentuer`, `sonnenschutz` gibt es
+  nicht.
+- `enums.yaml`: die Enums aus Spec 01 Teil A §8.1 und Teil B §8, dazu
+  `federal_state: {codes: [BW, BY, BE, BB, HB, HH, HE, MV, NI, NW, RP, SL, SN, ST, SH, TH]}` (Schlüssel von
+  `legal/grunderwerbsteuer`),
+  `levy_procedure: {codes: [auto, bgb_559, bgb_559c, bgb_559e], aliases: {"559": bgb_559, "559c": bgb_559c, "559e":
+  bgb_559e}, default: auto}` (Aliase auch für die als Zahl gelesene Eingabe `559`),
+  `bgb_procedure: {codes: [bgb_557a, bgb_557b, bgb_558, bgb_559, bgb_559b, bgb_559c, bgb_559e]}` (Verfahrenscodes in
+  Bibliotheksnutzlasten, z. B. `s557a.excludes`, `rent_law.enables`), `overlay_apply: {codes: [replace, multiply,
+  add], default: replace}` (R-94), `growth_index: {codes: [calendar_year, period_end], default: calendar_year}`
+  (R-91), `mc_preset: {codes: [preview, standard, report, custom], default: standard}` (R-97); `quantity_per` um
+  `m2_net_floor_area` und `parking` ergänzt (R-91); `rule_returns` um `value` ergänzt (R-93).
+- `na_reasons.yaml` um `no_liquidity_limit` ergänzt (12.4, R-101).
+- **Codes in Bibliotheksnutzlasten** (`eligibility.measure_types`, `eligibility.applicants`,
+  `eligibility.project_types`, Verfahrenslisten der Mietrechtsnutzlast) MÜSSEN Vokabularcodes sein; `test-library.R`
+  (WS-L) prüft das für jeden Eintrag.
 
 ### 2.12 Optionen
 
@@ -688,6 +724,21 @@ grid_period_of_year(grid, year)   # -> integer; Jahr Y bedeutet das Datum Y-01-0
 - Eine Jahresangabe `year: Y` (Maßnahmen, Kredite, Zahlungspläne) bedeutet **„zum 1. Januar Y“** (Memo 07 §4.0:
   `year: 2030` → t = 3 bei Stichtag 01.01.2027). Laufende Wirkungen „ab Jahr Y“ gelten für alle Perioden mit
   `year[j] >= Y`.
+- **Einmalzahlungen und laufende Wirkungen (R-98, MUSS für alle Typen):**
+  1. *Monate.* Monat m (m = 1…M_T) ist das Intervall (b_0 + (m − 1) Monate, b_0 + m Monate] und gehört zur Periode
+     p(m) (3.5); er **beginnt** mit dem Monatsersten d_m = b_0 + (m − 1) Monate. Der Monatsindex eines Monatsersten d
+     ist mi(d) = 1 + (Anzahl der Monate von b_0 bis d), also mi(b_0) = 1; ein Datum, das kein Monatserster ist, wird
+     für laufende Wirkungen auf den folgenden Monatsersten gerundet.
+  2. *Laufende Wirkungen* („wirksam ab d“: Miete, Umlage, Betriebskosten, Energiezustand, Zinsen) gelten für alle
+     Monate m ≥ mi(d); ihre Monatsbeträge werden nach 3.7 je Periode summiert.
+  3. *Einmalzahlungen* (Auszahlung eines Zuschusses, Tilgungszuschuss, § 35c-Tranche, Kaufpreis, Zahlungsplan,
+     Kreditauszahlung, Ersatzinvestition) haben einen **Termin** als Datum und werden nach R-35 in
+     `grid_period_of(Termin)` gebucht. Entsteht der Termin aus einem Bezugsdatum und Monatsfristen
+     (Fertigstellung + `lag_months` + Verzug), ist er `add_months(Bezugsdatum, lag + Verschiebung)`, laufspezifisch über
+     `ctx$shift_period(Bezugsdatum, lag + Verschiebung)` (3.9). Eine Formulierung „Auszahlung im Monat m“ bedeutet
+     den Termin d_m (Monatsbeginn). Beispiel: Fertigstellung 2027-10-01 + 3 Monate → Termin 2028-01-01 → auf dem
+     Jahresraster ab 2027-01-01 Periode t = 1 (2027), für Zuschuss und Tilgungszuschuss gleichermaßen.
+  4. Ein Termin am Stichtag fällt in t = 0.
 
 ### 3.5 Indexkonventionen
 
@@ -789,7 +840,10 @@ ctx$shift_months(from, months, to = NULL)  # -> n x M_T 0/1-Matrix der aktiven M
   (number ≥ 0, Default 0) verschiebt Zahlungen und Wirkungen einer Maßnahme; `measures.<id>.useful_life_years` darf
   stochastisch sein und bestimmt den Termin von Ersatzinvestitionen (`replacement`); `funding.<id>.payout_delay_months`
   (number ≥ 0, stochastisch zulässig) verschiebt die Auszahlung von Zuschüssen und § 35c-Tranchen (Verzug beim
-  Verwendungsnachweis, Konzept B12; Tilgungszuschüsse von Krediten bleiben terminfest, R-47).
+  Verwendungsnachweis, Konzept B12; Tilgungszuschüsse von Krediten bleiben terminfest, R-47). Alle Verschiebungen
+  sind **≥ 0** (Validierungsfehler sonst); ein Termin, der je Lauf auch früher liegen kann (z. B. Ausfalljahr eines
+  Kessels), wird als früherer Basistermin mit nichtnegativer Verschiebung modelliert (Referenzszenario S4, R-105).
+  Verschobene Einmalzahlungen folgen 3.4 (R-98).
 - Parameter der Art `timing` akzeptieren zusätzlich das Token `completion` (= `grid$completion_date`); es ist der
   Default aller Flow-Termine „ab Fertigstellung“ (z. B. `recurring.from`). `ctx$timing(spec, name)` liefert
   `list(date = Date, shift = double n-Vektor)`: `shift` = Wert von `project.construction_delay_months`, wenn der
@@ -814,6 +868,7 @@ YAML / Excel ──► vofi_read_scenario() ──► vofi_scenario   (normalisi
                                              │ vofi_resolve(variant, overrides, scenario_set)
                                              ▼
                                           vofi_spec        (eine Variante: Schichten 0–8 gemischt, from: aufgelöst,
+                                             │              Element-Defaults und Ableitungsregeln angewandt (4.7),
                                              │              Expander gelaufen, Werte als Knoten, Herkunft je Blatt)
                                              │ vofi_validate()   (vier Ebenen, sammelt alle Befunde)
                                              ▼ vofi_build()
@@ -825,7 +880,7 @@ YAML / Excel ──► vofi_read_scenario() ──► vofi_scenario   (normalisi
 
 ### 4.2 Oberste Ebene (Schema v1)
 
-Unbekannte Schlüssel der obersten Ebene sind ein Validierungsfehler (mit Vorschlag per `utils::adist`).
+Unbekannte Schlüssel der obersten Ebene sind ein Validierungsfehler (mit Vorschlag per `utils::adist`).³
 
 | Block | Typ | Pflicht | Ebene | Inhalt |
 |---|---|---|---|---|
@@ -853,8 +908,15 @@ Unbekannte Schlüssel der obersten Ebene sind ein Validierungsfehler (mit Vorsch
 
 ¹ `building` darf fehlen, wenn nur `components`/`financing` angegeben sind (Orakel, Lehrbuchbeispiele).
 ² Defaults aus Profil und `global.yaml` (Schichten 1–2).
+³ Die reservierten Wurzelschlüssel `defaults_meta`, `by_project_type` (beide in `global.yaml` und Profilen) und
+`item_defaults` (nur `global.yaml`) sind ausschließlich in Defaults-Dateien zulässig (4.7, R-85); in einer
+Szenariodatei, einer Overlay-Datei oder einer Nutzerbibliothek sind sie ein Validierungsfehler.
 
 ### 4.3 Blöcke (zwei Ebenen; Feldkatalog im Detail: Spec 01)
+
+Die Feldlisten in 4.3.1–4.3.15 sind **Auszüge**. Maßgeblich für Schema, Defaults und Validierung (Ebene 2) sind die
+Feldtabellen von Spec 01 Teile A–C (Rang 3, 1.2); ein dort genanntes Feld ist ein gültiger Schlüssel, auch wenn es
+hier fehlt (R-106). Strukturen, Semantik und Namen dieser Spezifikation gehen Spec 01 vor.
 
 Typangaben: `chr`, `int`, `num`, `lgl`, `date`, `enum:<vokabular>`, `value` (Wertgrammatik 4.5), `map`, `ids` (Liste
 von ids). Einheiten stehen als Suffix im Schlüssel (`_eur`, `_pa`, `_share`, `_m2`, `_months`, `_years`, `_year`,
@@ -936,8 +998,11 @@ brutto), `vat_rate` (share, Default 0.19), `price_base_year` (int, Default `proj
 `paragraph_558`, `staffel`, `index`, `bound_social`, `cooperative_fee`, `owner_occupied`), `owner_occupied` (lgl),
 `rent_growth` (value, Default `{ref: market.rent_growth}`), `vacancy_rate` (value), `rent_roll` (optional Map je WE für
 § 559-Kappung), `rent_law` (Map: `modernization_levy`, `voluntary_cap_per_m2`, `hardship_share`, Spec 01; eine
-freiwillige Begrenzung „warmmietenneutral“ wird im Basisfall bestimmt und gilt fest in allen Läufen, 6.3, R-70),
-`imputed_rent_eur_m2_month` (value, Selbstnutzer). Der Mietpfad einer Wohnungsgruppe ist **eine** monatlich rechnende
+freiwillige Begrenzung „warmmietenneutral“ wird im Basisfall in der Bezugsperiode nach 6.3 bestimmt und gilt fest in
+allen Läufen, R-70, R-102), `imputed_rent_eur_m2_month` (value, Selbstnutzer). Gemeinsame Defaults aller Gruppen
+stehen in `global.yaml#item_defaults.unit_groups`; von Nutzung bzw. Perspektive abhängige Defaults (z. B.
+Selbstnutzung: keine Verwaltung, kein Leerstand, kein Mietausfall; Genossenschaft: `cooperative_fee`) setzt die
+Ableitungsregel `rule:unit_group_defaults` (4.7, R-85, R-86), nicht das Profil (R-76). Der Mietpfad einer Wohnungsgruppe ist **eine** monatlich rechnende
 Komponente `rent_path` mit den Zeilen Miete, Mietausfall und Modernisierungsumlage je Maßnahme; §§ 558, 559, 559c,
 559e und die Mietpreisbremse sind Rechtsregeln, die diese Komponente aufruft (R-63, 4.12).
 
@@ -951,16 +1016,26 @@ Preise meist `{ref: market.energy_price.<träger>}`), `before` und `after` (Zust
 der Heizung für § 5a CO2KostAufG), `performance_gap` (Map, **Strukturmodell** nach Konzept B7: `prebound_factor` und
 `rebound_factor` (value; Faktoren auf den Bedarf vor bzw. nach der Maßnahme, stochastisch zulässig; mit
 Verbrauchsdaten entfällt der Vorher-Faktor), optional `realisation_factor` (value, Default 1; einfacher
-Realisierungsfaktor, D8)), `pv` (Map, Spec 01).
+Realisierungsfaktor, D8)), `pv` (Map, Spec 01). Weitere Zustände stehen in `stages` (Map nach id, ids ≤ 12 Zeichen).
+Trägerfelder ohne Angabe kommen aus `global.yaml#item_defaults.energy.carriers` (z. B. `price_eur_kwh: {ref:
+market.energy_price.{id}}`) und aus `rule:carrier_defaults` (Trägerklasse, Faktoren aus `legal/*`, Netzentgelt nur bei
+vorhandenem Marktnamen) (4.7, R-85, R-86). Der Energie-Expander erzeugt je Zustand und Träger eigene Komponenten
+(7.10, R-90).
 
 #### 4.3.7 `funding` (je Instrument; Datenmodell Memo 02 §5.8)
 
 `from` (Bibliotheks-id), `instrument_type` (enum `grant`, `loan`, `loan_with_repayment_grant`, `interest_subsidy`,
 `tax_credit`, `rent_binding`), `measures` (ids), `application_date` (date, Default `project.application_date`),
-`approved` (value 0/1, Default 1), `approval_probability` (share, aus Bibliothek `budget_risk`), `payout_delay_months`
+`approved` (value 0/1, Default 1), `approval_probability` (share; Default über die Ableitungsregel
+`rule:approval_probability` (WS-A, 4.7): Basiswert b = `{ref: funding.<f>.budget_risk.approval_probability}` bzw. 1
+ohne `budget_risk`; bei `application_date` ≥ 2031-01-01 `{expr: "<b> * funding.<f>.availability_after_2030"}`, sonst
+b; R-86), `availability_after_2030` (share, Default 0.7 über `global.yaml#item_defaults.funding`; Verfügbarkeit des
+Programms nach 2030, Memo 07 §4.0), `payout_delay_months`
 (number ≥ 0, stochastisch zulässig, 3.9), weitere Felder nach Memo 02 §5.8 (Spec 01). § 35c EStG ist
 `instrument_type: tax_credit` (R-11). **Zusagerisiko (9.11, R-71):** `approval_timing` (enum `auto`, `before_start`,
-`after_start`; `auto` = `before_start`, wenn `application_date` ≤ frühester Termin der Maßnahmen der Variante),
+`after_start`; `auto` = `before_start`, wenn `application_date` ≤ frühester Termin der Maßnahmen der Variante; der Code
+`auto` wird vor den Expandern durch `rule:approval_timing` (WS-A, 4.7, R-86) aufgelöst, sodass alle Verbraucher – Expander,
+Validierung, `smp_plan()` (11.6 Nr. 4), `vofi_build()` (9.11) – nur `before_start` bzw. `after_start` lesen),
 `fallback_variant` (Varianten-id, Default `NULL`; macht ein `before_start`-Instrument zum **Entscheidungsknoten**),
 `on_reject` (enum `balance`, `drop_measures`, Default `balance`; nur ohne Entscheidungsknoten: Lücke über den Ausgleich
 bzw. Wegfall der geförderten Maßnahmen).
@@ -1009,8 +1084,14 @@ adressieren.
 Map Name → value. Namen sind snake_case, Gruppen als verschachtelte Map (`energy_price: {gas: …, power: …}` ergibt
 die Pfade `market.energy_price.gas`). Raten (Inflation, Wachstum, Zinsen) sind Dezimalzahlen p. a. Kanonische Namen
 (Spec 01): `inflation`, `rent_growth`, `rent_growth_new`, `construction_price_index`, `maintenance_index`,
-`land_value_growth`, `market_value_growth`, `mortgage_rate`, `co2_price`, `energy_price.<träger>`,
-`energy_network_fee.<träger>`, `bio_fuel_premium`. Komponenten verweisen per `{ref: market.<name>}` darauf.
+`land_value_growth`, `market_value_growth`, `operating_cost_growth`, `mortgage_rate`, `bund_yield_10y`,
+`mortgage_spread`, `co2_price`, `energy_price.<träger>`, `energy_network_fee.<träger>`, `bio_fuel_premium`,
+`feed_in_tariff.<klasse>` (Klassen `partial_le10kwp`, `partial_10_40kwp`, `partial_40_100kwp`, `full_le10kwp`),
+`vacancy_fluctuation` (R-103). Trägercodes nach Spec 01 Teil B §3.2.1 (`gas`, `gas_mfh`, `oil`, `lpg`, `power`,
+`power_mfh`, `heatpump_power`, `heatpump_power_mfh`, `district_heating`, `pellets`); für jeden kanonischen Träger
+liefern `global.yaml` und die Bibliothek einen Marktpreis `energy_price.<träger>`. **Energiepreise, Netzentgelte,
+Bio-Mehrkosten und CO2-Preis sind netto (ohne USt)**; die USt setzt `energy.carriers.<c>.vat_rate` auf.
+Komponenten verweisen per `{ref: market.<name>}` darauf.
 
 #### 4.3.12 `residual_value`
 
@@ -1036,19 +1117,21 @@ Der Ausweis ohne Restwert ist immer aktiv (12.5).
 | `rv_path_basis` | enum `auto`, `method`, `measures` | `auto` (= `measures` im Haushaltsmodus, sonst `method`); Restwertpfad der Vermögensamortisation (12.2, R-72) |
 | `restrictions` | chr[] aus Enum `restriction` (`enums.yaml`: `dscr`, `liquidity`, `warm_rent`, `burden`, `savings`) | Profil; K.-o.-Kennzeichen der Ampel je Perspektive (12.9, R-74) |
 | `traffic_light` | map | `{green_prob, red_prob, restriction_prob}` (Konzept 1.4, A4: 0.70, 0.40, 0.30; Werte Spec 01) |
-| `mandatory_sensitivities` | Liste | Profil; je Eintrag `{id, path, label}` und genau eines von `value`, `delta`, `add` (`add` hängt Codes an eine Liste an, z. B. `{path: project.pending_reforms, add: stufe_2045}`); Inhalte nach Konzept 5.5 in Spec 01 (R-82) |
+| `mandatory_sensitivities` | Liste | Profil; je Eintrag `{id, path, label}` und genau eines von `value`, `delta`, `add` (`add` hängt Codes an eine Liste an, z. B. `{path: project.pending_reforms, add: stufe_2045}`); Inhalte nach Konzept 5.5 in Spec 01 (R-82). `value` darf eine Wertform sein (z. B. `{ref: market.mortgage_rate}`); sie ersetzt den Knoten am Pfad einschließlich einer `anchor`-Kopplung. `delta` wirkt bei einer Bezugsform mit `anchor` auf den Anker (die Kopplung bleibt erhalten). Ausgeführt wird jede Pflichtsensitivität als Override in Schicht 8 (R-107) |
 | `tenant_view` | lgl | `TRUE` für `wu_*`, sonst `FALSE` |
 
 #### 4.3.15 `stochastic` (Overlay; Semantik Abschnitt 11)
 
 ```yaml
 stochastic:
-  settings:     {n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200, antithetic: false,
+  settings:     {preset: standard, n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200, antithetic: false,
                  copula: iman_conover, start_year: null, store: bands,
                  keep_runs: [p05, p50, p95], keep_runs_kpi: delta_terminal_value,
                  bands: [net_position, dep_balance, od_balance], band_probs: [0.05, 0.25, 0.5, 0.75, 0.95],
-                 auto_funding_approval: true}
-  parameters:   {<key>: {target: <pfad>, label: <de>, dist: <verteilung>, <parameter>, base: <optional>}}
+                 auto_funding_approval: true,
+                 convergence: {rel_halfwidth_mean: 0.005, abs_halfwidth_prob: 0.01}}
+  parameters:   {<key>: {target: <pfad>, label: <de>, dist: <verteilung>, <parameter>, base: <optional>,
+                         apply: replace | multiply | add, from: <optional>}}
   processes:    {<key>: {target: <pfad>, label: <de>, type: <prozess>, <parameter>, from: <optional>}}
   correlations: {parameters: [[<key_a>, <key_b>, <rho_spearman>]], shocks: [[<proc_a>, <proc_b>, <rho>]]}
 ```
@@ -1058,6 +1141,24 @@ Das Overlay kann als eigene Datei vorliegen (`vofi_read_scenario(path, stochasti
 `replicates` (Anzahl der Blöcke, Konzept F21) angegeben werden, beide zugleich sind ein Validierungsfehler (11.4,
 R-73).
 
+- **`preset` (R-97):** `preview` = `n_sim` 1.000, `store: kpi`, `keep_runs: []`; `standard` (Default) = 10.000;
+  `report` = 50.000; `custom` = nur ausdrückliche Felder. Die Blockgröße bleibt 200, jedes Preset ist ein Präfix des
+  größeren (R-73). **Vorrang:** Funktionsargumente (`vofi_mc()`, `vofi_run()`) > ausdrücklich gesetzte Felder aus
+  Schichten ≥ 3 (Szenario, Overlay-Datei, Variante, Set, Override) > Werte des Presets > Felder aus Schichten 0–2.
+  `global.yaml` setzt `preset: standard` und **kein** `n_sim`. `vofi_mc(preview = TRUE)` entspricht `preset:
+  preview`. `convergence` steuert nur den Ausweis `converged` (12.7), keine automatische Verlängerung (v1.1).
+- **`apply` (R-94):** nur für statische Einträge (`parameters`), nicht für `processes`; Default `replace`. `multiply`
+  nur für Verteilungen mit Träger ⊂ [0, ∞) oder `bernoulli`; bei Zielen der Art `share` wird das Ergebnis auf [0, 1]
+  begrenzt (Hinweis). Kurzformen am Ort (4.5) haben immer `apply: replace`. Semantik in 6.3 Schritt 1, 11.2, 11.8,
+  11.11.
+- **Bibliotheksvorlagen (R-87):** Die Nutzlast eines `processes/*`-Eintrags darf eine Map mehrerer Overlay-Vorlagen
+  sein (Auswahl mit `use:`, z. B. `{target: …, from: processes/cost_risks_2026, use: overrun_retrofit}`) bzw. eine
+  Sequenz von Korrelationspaaren (`correlations.shocks: {from: processes/shock_correlations_2026}` ersetzt die lokale
+  Liste, 4.9).
+- **Korrelationspaare (R-96):** Ein Paar aus einer Bibliotheksliste, dessen Schlüssel im Overlay der Variante fehlt,
+  wird mit `vofi_inform` verworfen; ein Paar aus der Szenariodatei (einschließlich Varianten und Sets) mit unbekanntem
+  Schlüssel ist ein Validierungsfehler.
+
 ### 4.4 Sammlungen, ids und Pfade
 
 1. Alle Sammlungen sind **Maps nach id**. Listen mit Feld `id` werden beim Einlesen in Maps umgewandelt (Reihenfolge
@@ -1066,7 +1167,11 @@ R-73).
    (Variante), `engine` und die Präfixe `m_`, `u_`, `f_`, `e_`, `h_`, `rv_`, `x_` für vom Expander erzeugte
    Komponenten (R-18). ids von `components` und `financing` sind gemeinsam eindeutig (4.3.9). Lokale Zeilennamen und
    Parameternamen folgen demselben Muster (ohne doppelten Unterstrich); dadurch ist der Ledger-Trenner `__` (7.3)
-   eindeutig.
+   eindeutig. **Erzeugte ids** (Präfix + Nutzer-id(s) + Rolle, 4.12) unterliegen derselben Grenze von 40 Zeichen; die
+   Validierung (Ebene 3, WS-B) prüft jede erzeugte id und meldet bei Überschreitung einen Fehler mit der zulässigen
+   Höchstlänge der Nutzer-id (R-90). Daraus folgen die Höchstlängen: Maßnahmen und Bestandsbauteile ≤ 29 Zeichen
+   (`m_<m>_purchase`), Wohnungsgruppen ≤ 25 (`u_<g>_property_tax`, `u_<g>_imputed_rent`), Förderinstrumente ≤ 30
+   (`f_<f>_subsidy`), Energiezustände (`stages`) ≤ 12 und Träger ≤ 20 (`e_<s>_<c>_cost`).
 3. **Pfade** sind punktgetrennte Schlüssel, z. B. `financing.bank.rate_pa`, `measures.huelle.cost_eur`,
    `market.energy_price.gas`, `financing.bank.fees.processing_fee_share` (Feld eines `map`-Parameters).
    Typparameter liegen flach in der Komponente; der Pfad `components.<id>.<param>` ist daher identisch in YAML,
@@ -1091,9 +1196,9 @@ wertet Knoten im Laufkontext aus (6.3). Typen sehen nie Rohformen.
 | Stützstellen | `{years: [2026, 2030, 2045], values: [60, {ref: shared.co2_2030}, 200], interpolate: linear}` | `list(kind = "points", years, values = list(<knoten>), interpolate)` | path; linear (bzw. `step`) über Kalenderjahre, außerhalb konstant; Elemente von `values` dürfen skalare Knoten sein (Regel 4) |
 | Zahlungsplan (einmalig) | `{schedule: {2027-01-01: 100000, 2030: 50000}}` | `list(kind = "schedule", dates, amounts)` | path: Betrag in Periode `grid_period_of(date)`; Jahre nach 3.4; Beträge dürfen selbst `value` sein |
 | Bezug | `{ref: market.rent_growth, scale: 1, offset: 0, floor: -.inf, cap: .inf, anchor: null}` | `list(kind = "ref", path, scale, offset, floor, cap, anchor)` | Shape des Ziels; ohne `anchor`: `pmin(pmax(x * scale + offset, floor), cap)`; mit `anchor` a (Zahl): `pmin(pmax(a + scale * (x - x[, 1]) + offset, floor), cap)`, d. h. der Wert folgt dem Pfad x mit festem Abstand, und der Startwert (Spalte 1 = t0) ist a (Habenzins im MC passend zum deterministischen Wert, Konzept F18/A2, R-76) |
-| Wachstum | `{start: 7.2, growth: {ref: market.rent_growth}, base_date: null, real: false}` | `list(kind = "growth", start, growth, base_date, real)` | path: `start * grid_index(g, base_date)` (Wert zum Periodenende, Bestandsgröße; 3.6); `base_date` Default = Preisstand (`price_base_year`); `real: true` → nominal g = (1+g)(1+π) − 1 mit π = `market.inflation` |
+| Wachstum | `{start: 7.2, growth: {ref: market.rent_growth}, base_date: null, real: false, index: calendar_year}` | `list(kind = "growth", start, growth, base_date, real, index)` | path: `index: calendar_year` (Default): `start * grid_index_year(g, base_date)` (Kalenderjahreswert, je Kalenderjahr konstant, R-62; wie Prozesse in Kalenderjahren, 11.7); `index: period_end`: `start * grid_index(g, base_date)` (Stichtagswert zum Periodenende, nur für Bestandsgrößen wie einen Marktwertpfad, z. B. Orakel (c)); `base_date` Default = Preisstand (`price_base_year`); `real: true` → nominal g = (1+g)(1+π) − 1 mit π = `market.inflation`. Stichtagsgrößen, die ein Typ selbst fortschreibt, bildet er über `ctx$index()` (R-91) |
 | Ausdruck | `{expr: "building.living_area_m2 * 150"}` | `list(kind = "expr", text, ast)` | sichere, vektorisierte Auswertung (Regel 5); Symbole mit Punkt = Pfade |
-| Mengenbezug | `{value: 14, per: m2_living_area}` | `list(kind = "quantity", value, per)` | `value × Bezugsgröße`; `per` ∈ `total`, `unit`, `m2_living_area`, `m2_component:<bauteil>`, `kw`, `kwp`, `kwh`; Bezugsgröße zuerst aus den Parametern der Komponente, dann aus `building` |
+| Mengenbezug | `{value: 14, per: m2_living_area}` | `list(kind = "quantity", value, per)` | `value × Bezugsgröße`; `per` ∈ `total`, `unit`, `m2_living_area`, `m2_net_floor_area`, `m2_component:<bauteil>`, `parking`, `kw`, `kwp`, `kwh`; Bezugsgröße zuerst am Bezugsobjekt (Parameter der Komponente bzw. Element des Domänenblocks), dann aus `building`: `unit` → `n_units`, `m2_living_area` → `living_area_m2`, `m2_net_floor_area` → `net_floor_area_m2` (A_N), `m2_component:<b>` → `component_areas_m2.<b>`, `parking` → `n_parking`, `kw`/`kwp`/`kwh` → gleichnamiges Feld des Bezugsobjekts (R-91) |
 | Verteilung (Kurzform) | `{dist: pert, min: …, mode: …, max: …, base: …}` | wird beim Normalisieren ins Overlay verschoben (Schlüssel = Zielpfad); am Ort bleibt `const` mit Basiswert | scalar |
 | Automatisch | `auto` bzw. `topup` | `list(kind = "auto", mode = "auto")` bzw. `mode = "topup"` | nur bei Parametern mit `allow_auto = TRUE` (8.7): `auto` = Betrag aus dem Basisfall, fest in allen Läufen; `topup` = Nachfinanzierung je Lauf (R-69) |
 | Bibliotheksverweis | `{from: prices/co2_paths_2026, use: scenarios.mittel, …}` | wird in Schicht 3 aufgelöst (4.9), kein Knoten | – |
@@ -1117,6 +1222,7 @@ Regeln:
                                      #    -> vofi_error_input mit Position
    expr_symbols(ast)                 # -> character: alle Pfadsymbole (für Abhängigkeiten und Zyklusprüfung)
    expr_eval(ast, resolve, n, T)     # resolve = function(path) -> Skalar, n-Vektor oder n x (T+1) (aus value());
+                                     # bei nicht-numerischen Blättern chr bzw. lgl (setting-Semantik, s. u.)
                                      # -> double n-Vektor oder n x (T+1)
    ```
 
@@ -1128,6 +1234,15 @@ Regeln:
    `pmax`, `abs`, `round`, `floor`, `ceiling`, `sqrt`, `exp`, `log`, `is.na`; `%in%` und `c()` nur mit
    deterministischen Operanden (Codes). `min`, `max`, `&&`, `||` sind **nicht** zugelassen, weil sie über Läufe
    aggregieren (2.8 Nr. 3); die Fehlermeldung schlägt `pmin`/`pmax` bzw. `&`/`|` vor.
+
+   **Nicht-numerische Pfadsymbole (R-91):** Ein Pfadsymbol auf ein deterministisches nicht-numerisches Blatt (Arten
+   `enum`, `ids` bzw. Code-Liste wie `project.pending_reforms`, `logical`, `string`) wird mit der Semantik von
+   `ctx$setting()` zu `character` bzw. `logical` aufgelöst; `resolve()` darf für solche Pfade Zeichen- bzw.
+   Wahrheitswerte liefern. Solche Operanden sind nur zulässig in `==`, `!=`, `%in%`, `!`, `&`, `|`; das Ergebnis
+   ist 0/1 (double). Jede andere Verwendung ist ein Fehler (`vofi_error_input`). `expr_symbols()` meldet auch diese
+   Symbole (Abhängigkeiten, Zyklen). Beispiel: `{expr: "ifelse('stufe_2045' %in% project.pending_reforms, 1, 0)"}`.
+   Da diese Blätter deterministisch sind, ändert sich der Ausdruck nur über Schicht 8 bzw. ein neues Modell (z. B.
+   Pflichtsensitivität mit `add`).
 
 ### 4.6 Zahlen, Einheiten, Datumsangaben (YAML-Leser, verbindlich)
 
@@ -1169,12 +1284,58 @@ denselben Regeln um. Andere Einheiten als die kanonische Einheit eines Parameter
 | 7 | Variante(n) | `extends`-Kette, dann Operationen (4.11); danach ggf. Szenario-Set |
 | 8 | Laufzeit-Overrides | `overrides` von `vofi_resolve()`/`vofi_build()`, Sensitivität, Shiny |
 
+**Defaults-Dateien (Schichten 1–2, R-85).** `global.yaml` und die Profile haben die Gestalt eines Szenario-Teilbaums
+und dürfen daneben diese reservierten Wurzelschlüssel tragen (4.2 Fußnote ³):
+
+1. `defaults_meta: {kind: global | profile, id, schema_version, as_of, quality, source, note}` (Pflicht in jeder
+   Defaults-Datei). Wird **nie** gemischt; erscheint in `meta$defaults` des Ergebnisses (13.1) und als `entry` der
+   Herkunft der aus der Datei stammenden Blätter.
+2. `by_project_type`: Map `project_type → Teilbaum`. Der Teilbaum des aktuellen `project.project_type` wird
+   **unmittelbar nach seiner Datei** gemischt (Schicht 1b bzw. 2b; Herkunft `global` bzw. `profile`, `entry =
+   "<datei>#by_project_type.<code>"`). Im Profil gilt dafür die Profilrestriktion R-76 (unten).
+3. `item_defaults` (**nur** `global.yaml`): einstufige Map Pfad (Zeichenkette mit Punkten, z. B. `"energy.carriers"`)
+   → Vorlage. Ist der Pfad eine **Sammlung** (Map nach id: `unit_groups`, `measures`, `funding`, `financing`,
+   `components`, `energy.carriers`, `energy.stages`, `building.elements`), wird für jedes vorhandene Element
+   `element <- deep_merge(vorlage, element)` gesetzt (das Element gewinnt, einschließlich der Werte, die es über
+   `from:` aus der Bibliothek und über die Ableitungsregeln erhalten hat). Ist der Pfad ein **optionaler Block** (`building`, `household`, `energy`,
+   `energy.pv`, `energy.performance_gap`, `energy.before`, `energy.after`, `building.property_tax`,
+   `building.maintenance`), gilt dasselbe nur, wenn der Block existiert; Defaults optionaler Blöcke stehen deshalb
+   **nur** hier und nie als gewöhnlicher Block in `global.yaml` (sonst entstünde der Block in jedem Szenario, z. B. in
+   den Orakeln ohne `building`). Vorlagen werden in aufsteigender Pfadtiefe angewandt (`energy` vor
+   `energy.carriers`). Der Platzhalter `{id}` in Pfaden von `ref`- und `expr`-Knoten der Vorlage wird durch die
+   Element-id ersetzt (z. B. `price_eur_kwh: {ref: market.energy_price.{id}}`). Herkunft `source_type = "global"`,
+   `layer = 1`, `entry = "global#item_defaults.<pfad>"`. `from:`-Verweise in einer Vorlage werden vor ihrer Anwendung
+   nach den Regeln von Schicht 3 aufgelöst (4.9; Herkunft dann `entry` = Bibliotheks-id, Gültigkeitsprüfung zum
+   Rechtsstand der Variante).
+
+Element-Defaults, die von anderen Feldern (Perspektive, Nutzung, Trägerklasse, Instrumentart, Rechtsstand) abhängen,
+sind keine Vorlagen, sondern Ableitungsregeln (unten). **Reihenfolge:** Schicht 0 → `global.yaml` →
+`global#by_project_type` → Profil → `Profil#by_project_type` → Schichten 3–8 → **Ableitungsregeln** →
+**`item_defaults`** → Expander (4.12). Die spezifische Ableitung läuft also vor der allgemeinen Vorlage; beide füllen
+nur fehlende Blätter (Beispiel: `rule:unit_group_defaults` setzt für eine selbstgenutzte Gruppe `vacancy_rate: 0`,
+danach füllt `item_defaults.unit_groups` bei allen übrigen Gruppen `vacancy_rate: 0.025`).
+
+**Ableitungsregeln (WS-A, `R/scenario-layers.R`, R-86).** Sie laufen in `vofi_resolve()` nach Schicht 8, vor
+`item_defaults` und vor den Expandern, und zwar **je Variante, je Szenario-Set und je Override neu** (Varianten können
+Elemente hinzufügen). Sie setzen nur **fehlende** Domänenblätter oder lösen den Code `auto` eines Enum-Felds auf (z. B.
+`funding.<f>.approval_timing`); ein fehlendes Feld behandeln sie wie `auto`. Sie schreiben Werte, Codes, `ref`- oder
+`expr`-Knoten (Bezüge dürfen auf Blätter zeigen, die erst `item_defaults` füllt), **nie** aus overlay-fähigen
+numerischen Blättern berechnete Konstanten (analog 4.12 Nr. 5); deterministische Termine, Codes, Flags und
+`bctx$legal()`-/`bctx$lib()`-Werte dürfen sie auswerten. Sie sind deterministisch und ziehen keine Zufallszahlen.
+Herkunft `source_type = "type_default"`, `layer = 0`, `entry = "rule:<name>"` bzw. die Bibliotheks-id, aus der der
+Wert stammt. Ableitungsregeln sind **keine** Registry-Regeln (Art `rule`, 5.3); ein Paket, das ihr Ergebnis braucht,
+liest das abgeleitete Domänenblatt. Die Regelliste mit Name, Zielfeld und Ableitung legt Spec 01 fest (Teil A §1.4,
+Teil B u. a. `rule:unit_group_defaults`, `rule:carrier_defaults`, `rule:approval_timing`, `rule:approval_probability`,
+`rule:tax_credit_defaults`; Teil A `rule:measure_catalog` einschließlich des PV-Nullsatzes nach 7.10).
+
 **Perspektiven-Profile (Schicht 2, R-76):** Ein Profil `inst/extdata/profiles/<perspective>.yaml` darf nur diese
 Pfade setzen: `accounts.*` (alle Felder aus 4.3.10 inkl. `deficit_order` und Kopplung über `anchor`), `analysis.*`
 (u. a. `kpis`, `thresholds`, `traffic_light`, `restrictions`, `mandatory_sensitivities`, `rv_path_basis`,
 `lending_value_haircut`), `residual_value.method`, `residual_value.sale_cost_share`, `project.horizon_years`,
 `project.report_mode`, `tax.module` und `scenario_sets` (z. B. `vorsichtig`, `foerderstopp`). Andere Pfade sind ein
-Validierungsfehler der Bibliothek. Die Werte je Perspektive (Konzept A2, A3, A4, F18) legt Spec 01 fest.
+Validierungsfehler der Bibliothek; das gilt auch für `by_project_type` im Profil. Profile setzen insbesondere keine
+Felder von Sammlungselementen (`unit_groups.<g>.*`, `energy.carriers.<c>.*`); perspektivabhängige Element-Defaults
+laufen über Ableitungsregeln (oben). Die Werte je Perspektive (Konzept A2, A3, A4, F18) legt Spec 01 fest.
 
 Merge-Semantik (`R/utils-merge.R`, MUSS):
 
@@ -1197,7 +1358,7 @@ is_value_form <- function(x, path = "") {                     # R/utils-merge.R 
   #    GENAU EINER Wertform liegen und deren Pflichtschlüssel enthalten:
   #      ref {ref*, scale, offset, floor, cap, anchor}    expr {expr*}
   #      series_year {series*, fill, before}              points {years*, values*, interpolate}
-  #      schedule {schedule*, unit}                       growth {start*, growth*, base_date, real}
+  #      schedule {schedule*, unit}                       growth {start*, growth*, base_date, real, index}
   #      quantity {value*, per*}                          dist {dist*, base, <Verteilungsparameter>}
   #      from {from*, use, ...} (Bibliotheksverweis, wird in Schicht 3 aufgelöst)
 }
@@ -1211,7 +1372,9 @@ is_value_form <- function(x, path = "") {                     # R/utils-merge.R 
   mischt also nur den Termin.
 - Schicht 8 auf einen Pfad, der Ziel eines Overlay-Eintrags ist, macht diesen Pfad für den Lauf deterministisch
   (Overlay-Bindung entfällt, `vofi_inform`). Dasselbe gilt für `set`/`replace` einer Variante (Schicht 7) auf ein
-  Overlay-Ziel, sofern die Variante den Overlay-Eintrag nicht selbst neu setzt.
+  Overlay-Ziel, sofern die Variante den Overlay-Eintrag nicht selbst neu setzt. Varianten und Sets dürfen
+  Overlay-Einträge hinzufügen, ändern und entfernen; `from:`-Verweise in ihren Operationen werden nach der Operation
+  aufgelöst (4.11, R-87, R-96).
 
 ### 4.8 Herkunft (Provenienz)
 
@@ -1221,13 +1384,13 @@ is_value_form <- function(x, path = "") {                     # R/utils-merge.R 
 |---|---|---|
 | `path` | chr | Blattpfad |
 | `layer` | int | 0–8 (Schicht, die den Wert zuletzt gesetzt hat) |
-| `source_type` | chr | `type_default`, `global`, `profile`, `legal`, `library`, `user_library`, `scenario`, `overlay`, `variant`, `scenario_set`, `override`, `expander` |
+| `source_type` | chr | `type_default` (auch Ableitungsregeln), `global` (auch `item_defaults`), `profile`, `legal`, `library`, `user_library`, `scenario`, `overlay`, `variant`, `scenario_set`, `override`, `expander` |
 | `file` | chr | Datei (relativ zur Bibliothekswurzel bzw. Szenariodatei) |
-| `entry` | chr | Bibliotheks-id |
+| `entry` | chr | Bibliotheks-id; bei Defaults-Dateien `defaults_meta$id`, `"<datei>#by_project_type.<code>"` bzw. `"global#item_defaults.<pfad>"`; bei Ableitungsregeln `"rule:<name>"` (R-85, R-86) |
 | `location` | chr | `"Blatt!Zelle"` (Excel) bzw. `"Zeile 42"` (YAML, best effort) |
 | `variant` | chr | Variante bzw. Szenario-Set |
 | `valid_from`, `valid_to`, `as_of`, `accessed` | date | aus Bibliotheksmetadaten |
-| `quality` | chr | `A`–`D` |
+| `quality` | chr | `A`–`D`; je Blatt aus `quality_detail` des Eintrags (längster passender Unterpfad), sonst `quality` (R-88) |
 
 `vofi_scenario` trägt die Herkunft der eingelesenen Blätter (Schicht 5) im selben Format.
 
@@ -1254,15 +1417,34 @@ reform: null                      # Code einer anhängigen Reform; Eintrag nur a
 release: null                     # Pflicht bei legal/* mit quality C: {status: released | pending, by: "...", date: ...}
 uncertainty: null                 # optional: Vorschlag für Overlay-Einträge
 from: null                        # optionale Kette auf einen anderen Eintrag
+description: null                 # optional (R-88): Erläuterung (de)
+references: []                    # optional: weitere Quellen, je Eintrag wie source
+quality_detail: {}                # optional: Unterpfad von values -> A–D (Herkunft je Blatt: längster passender Unterpfad)
+legal_state: null                 # Pflicht für legal/* und funding/*: {as_of: <Fassung>, status: <code>, reference: "..."}
+notes: null                       # optional: Hinweise, Prüfpunkte
+fallback: null                    # optional: numerische Ersatzwerte für Tokens base (11.7); wird nie gemischt
 values:                           # Nutzlast, wird unter die lokale Angabe gemischt
   ...
 ```
 
+Andere Wurzelschlüssel eines Eintrags sind ein Validierungsfehler (R-88). Die Codes von `legal_state.status` legt
+Spec 01 Teil C §3.1 fest.
+
 **Auflösung von `from:`** (Schicht 3): An der Fundstelle `{from: <id>, use: <unterpfad>, …lokal}` wird
 `payload <- entry$values` (bzw. `path_get(entry$values, use)`) bestimmt, Ketten über `entry$from` rekursiv aufgelöst
-(Zyklus → Fehler) und `deep_merge(payload, lokal_ohne_from_use)` eingesetzt (lokal gewinnt). Ist die Nutzlast eine
-Wertform (z. B. `{years, values}`), ersetzt sie den Knoten. Die Herkunft erhält `entry`, `valid_from`, `valid_to`,
-`as_of`, `accessed`, `quality`.
+(Zyklus → Fehler) und `deep_merge(payload, lokal_ohne_from_use)` eingesetzt (lokal gewinnt). Ist die Nutzlast (nach
+`use`) **keine Map** (Skalar, Sequenz) **oder eine Wertform** (z. B. `{years, values}`), ersetzt sie den Knoten;
+weitere lokale Schlüssel neben `from` und `use` sind dann ein Validierungsfehler (R-87). Die Herkunft erhält `entry`,
+`valid_from`, `valid_to`, `as_of`, `accessed`, `quality` (bzw. die Stufe aus `quality_detail`).
+
+- **Nutzlasten von `processes/*`** dürfen eine Map mehrerer Overlay-Vorlagen sein (Auswahl mit `use:`) bzw. eine
+  Sequenz von Korrelationspaaren (ersetzt die lokale Liste nach der Regel oben) (R-87, 4.3.15). R-13 (ein Eintrag je
+  Datei) bleibt unberührt.
+- **Verweise außerhalb von Schicht 3:** `from:`-Verweise in Operationen von Varianten und Szenario-Sets (`add`, `set`,
+  `replace`, `overrides`) und in `item_defaults` werden nach der jeweiligen Operation mit denselben Regeln aufgelöst
+  (4.7, 4.11; Herkunft Schicht 7 bzw. 1 mit `entry`).
+- Jeder `from`/`use`-Verweis in `global.yaml` und den Profilen MUSS auflösen; `test-profiles.R` (WS-A) prüft das
+  (R-104).
 
 **Gültigkeit (D10):** Liegt das maßgebliche Datum außerhalb von [`valid_from`, `valid_to`), folgt
 `vofi_warning_library_outdated`. Maßgeblich ist für `funding` das `application_date` des Instruments, sonst
@@ -1284,6 +1466,15 @@ Konzept 5.4, R-80).
   Ableitung) tragen immer einen Schaltercode in `reform` und sind nie automatisch aktiv. Gibt es für ein Thema keinen
   wählbaren Eintrag, ist es **inaktiv**: `ctx$legal(topic)` und `bctx$legal(topic)` liefern `NULL`, die Typen wenden
   die zugehörige Regel nicht an und vermerken das in `meta$notes` (z. B. § 559f ohne Freigabe: keine Halbierung).
+- **Freigabe je Teil (R-88):** Wendet eine Regel einen Teil einer Nutzlast **automatisch** an, dessen Qualität
+  (`quality_detail`) unter der Eintragsstufe liegt (C oder D in einem A/B-Eintrag), MUSS dieser Teil ein eigener
+  `legal/*`-Eintrag mit eigenem `topic` sein (z. B. `mietrecht_559f`), damit die Freigaberegel greift. Teile, die nur
+  auf ausdrückliche Nutzerangabe wirken (Schalter wie § 5b-Neubau, § 5d-Härtefall, Havarie-Übergang § 5a), sind
+  ausgenommen.
+- **Gültigkeitsende und Fortgeltung (R-88):** `valid_to` wird nur gesetzt, wenn die Rechtsquelle tatsächlich endet
+  (Außerkrafttreten, Programmende, Befristung). Gelten Werte bis zu einer Neufassung fort (z. B. Emissionsfaktoren
+  GEG Anlage 9), trägt der Eintrag `valid_to: null` und in `notes` den Prüfpunkt der
+  erwarteten Neufassung; die Veraltung meldet dann `as_of` (4.9). Ein Thema mit abgelaufenem Eintrag ist inaktiv.
 - Reform- und Schaltercodes stehen in `enums.yaml` (`reform: {codes: [mietrecht_ii, stufe_2045, unreleased]}`);
   `stufe_2045` ist der Szenario-Schalter „100 % klimaneutraler Brennstoff ab 2045“ (eigene Ableitung, Standard aus,
   Pflichtsensitivität; Konzept F5, A7, R-82).
@@ -1304,6 +1495,13 @@ variants:
 ```
 
 - Ausführungsreihenfolge je Variante: Eltern auflösen → `remove` → `replace` → `set` → `overrides` → `add`.
+- **Bibliotheksverweise in Operationen (R-87):** `from:`-Verweise in `add`, `set`, `replace` und `overrides` von
+  Varianten und Szenario-Sets werden nach der Operation mit den Regeln von Schicht 3 aufgelöst (4.9; Herkunft
+  Schicht 7, `entry`). So kann eine investive Variante ein Förderinstrument `{from: funding/…}` hinzufügen.
+- **Overlay in Varianten (R-96):** `stochastic.parameters.<key>`, `stochastic.processes.<key>` und
+  `stochastic.correlations.*` dürfen in Varianten (und Sets) hinzugefügt, geändert und entfernt werden. Ein
+  Overlay-Ziel, das in einer Variante fehlt, ist dort ein Validierungsfehler (R-16); CRN über Varianten laufen über den
+  Vereinigungsplan (11.10).
 - `base` ist implizit vorhanden und hat keine Operationen. `vofi_variants(scenario)` listet `base` und alle Varianten.
 - **Szenario-Sets** (`scenario_sets`) haben dieselbe Syntax ohne `extends`, dürfen aber nur Pfade unter `market`,
   `funding`, `accounts`, `residual_value`, `stochastic`, `tax` und `project.pending_reforms` ändern. Sie werden nach
@@ -1313,8 +1511,14 @@ variants:
   (alle ids der Sammlung, z. B. `funding.*.approved`); die Existenzprüfung gilt je Treffer, kein Treffer ergibt einen
   Hinweis. `inst/extdata/defaults/global.yaml` liefert die Sets `foerderstopp` (`set: {funding.*.approved: 0}`,
   Konzept B12) und `vorsichtig` (R-74).
+- **Szenario-Sets setzen keine `shared`-Blätter** (R-109): Wird ein unsicherer oder szenarioabhängiger Wert in mehreren
+  Domänenfeldern gebraucht, legt das Szenario einen eigenen `market`-Pfad an, auf den die Domänenfelder per `ref`
+  zeigen; das Set ändert diesen Pfad.
 - **Generiertes Set „vorsichtig“ (R-74, Konzept 1.4, B5):** `vorsichtig: {label: …, generate: {method: cautious,
-  n_drivers: 5, probs: [0.1, 0.9], kpi: auto}}`. WS-G erzeugt es je Variante aus einem Tornado (11.11) der
+  n_drivers: 5, probs: [0.1, 0.9], kpi: auto, params: auto, exclude: []}}`. `params` (chr[] oder `auto`) nennt die
+  Kandidaten (`auto`: alle statischen Overlay-Schlüssel der Rolle `value`, alle unsicheren Prozessparameter, jeder
+  Prozess mit `quantile_path()` als Quantilpfad und die Entscheidungsschlüssel, Algorithmus Spec 01 Teil C §4.3),
+  `exclude` (chr[]) schließt Kandidaten aus (R-95). WS-G erzeugt es je Variante aus einem Tornado (11.11) der
   Primärkennzahl (12.3a; bei `delta_vs_reference` gemeinsam auf Variante und Referenz angewendet): Die `n_drivers`
   Parameter mit dem größten Ausschlag stehen gleichzeitig auf ihrem für die Kennzahl ungünstigeren Wert (P10 bzw.
   P90 der Overlay-Verteilung bzw. Tornado-Grenze). Ziele dürfen beliebige Designziele sein (11.11, nicht auf die Pfade
@@ -1334,20 +1538,24 @@ typedef_expander_<name> <- function() vofi_type(
   expand = function(block, scenario, bctx) { ... })      # -> list(components, financing, assets, measures, notes)
 ```
 
-| Expander | `block` | `order` | erzeugt (Präfix der ids) |
+| Expander | `block` | `order` | erzeugt (Typ → id; m = Maßnahme, e = Bestandsbauteil, g = Wohnungsgruppe, s = Energiezustand, c = Träger, f = Förderinstrument) |
 |---|---|---|---|
-| `measures` | `measures` | 10 | `capex`, `replacement`, Assets, Maßnahmenregister (`m_<id>_<rolle>`) |
-| `unit_groups` | `unit_groups` | 20 | `rent_path` (eine Komponente je Wohnungsgruppe mit Miete, Mietausfall und Umlage je Maßnahme, R-63), `operating_cost`, `property_tax`, `imputed_rent` (`u_<id>_<rolle>`) |
-| `energy` | `energy` | 30 | `energy_cost`, `co2_cost`, `pv`, `tenant_costs` (`e_<rolle>`) |
-| `funding` | `funding` | 40 | `grant`, `tax_credit_35c` (Komponenten); Förderkredite (`financing`, `f_<id>_loan`); Zinsverbilligung als Parameter (`f_<id>_<rolle>`) |
-| `household` | `household` | 50 | Haushaltseinlagen (`equity`), Belastungs-Hilfszeilen (`h_<rolle>`) |
-| `residual` | `residual_value` | 60 | `residual_value` inkl. Merkzeilen `market_value` (V_t) und `residual_path` (RW_t je Periode, `rv_basis` `method` und `measures`, R-72) (`rv_<rolle>`) |
+| `measures` | `measures` | 10 | `capex` → `m_<m>_capex`; `replacement` → `m_<m>_repl` und `m_<e>_repl` (Bestandsbauteile `building.elements`); `land` → `m_<m>_purchase`; `acquisition_cost` → `m_<m>_acq`; `maintenance` → `m_maintenance` (Gebäude) und `m_<m>_maint` (je Maßnahme); Assets; Maßnahmenregister |
+| `unit_groups` | `unit_groups` | 20 | `rent_path` → `u_<g>_rent` (eine Komponente je vermieteter Gruppe mit Miete, Mietausfall und Umlage je Maßnahme, R-63); `operating_cost` → `u_<g>_opex`; `property_tax` → `u_<g>_property_tax`; `imputed_rent` → `u_<g>_imputed_rent` |
+| `energy` | `energy` | 30 | `energy_cost` → `e_<s>_<c>_cost` und `co2_cost` → `e_<s>_<c>_co2` (je Zustand × Träger, 7.10); `pv` → `e_pv`; `tenant_costs` → `e_tenant` |
+| `funding` | `funding` | 40 | `grant` → `f_<f>_grant`; `tax_credit_35c` → `f_<f>_35c`; Förderkredite → `financing.f_<f>_loan`; Zinsverbilligung als `recurring`-Komponente → `f_<f>_subsidy` |
+| `household` | `household` | 50 | `equity`-Bausteine → `financing.h_equity`, `financing.h_contrib`; keine Belastungs-Hilfszeilen (die Haushaltssicht entsteht in WS-D2/WS-H aus Tags, 12.3) |
+| `residual` | `residual_value` | 60 | `residual_value` → `rv_value` inkl. Merkzeilen `market_value` (V_t) und `residual_path` (RW_t je Periode, `rv_basis` `method` und `measures`, R-72) |
+
+Die Tabelle ist die vollständige id-Liste der Expander in v1 (R-90); ein Expander, der eine weitere Komponente erzeugt,
+braucht einen Eintrag hier. Höchstlängen der Nutzer-ids nach 4.4 Nr. 2.
 
 Vertrag (MUSS):
 
-1. Expander laufen in `order`-Reihenfolge in `vofi_resolve()` nach Schicht 8 auf der aufgelösten Variante. Sie
-   ändern nichts an Domänenblöcken und schreiben nur in `components`, `financing`, die Register und die Herkunft
-   (`source_type = "expander"`).
+1. Expander laufen in `order`-Reihenfolge in `vofi_resolve()` nach Schicht 8, den Ableitungsregeln und
+   `item_defaults` (4.7) auf der aufgelösten Variante. Sie ändern nichts an Domänenblöcken und schreiben nur in
+   `components`, `financing`, die Register und die Herkunft (`source_type = "expander"`). Fehlende Domänenwerte, die
+   ein Expander braucht, setzt eine Ableitungsregel (WS-A), nicht der Expander (R-86).
 2. Erzeugte Komponenten **referenzieren Domänenwerte über `{ref: <domänenpfad>}`** statt Zahlen zu kopieren. Nur so
    wirken Overlay-Ziele auf Domänenpfaden (z. B. `measures.huelle.cost_eur`) und Varianten-Overrides. Produkte
    mehrerer Pfade (z. B. Förderbetrag × `funding.<id>.approved`) entstehen als `expr`-Knoten.
@@ -1360,24 +1568,36 @@ Vertrag (MUSS):
    Expander darf keinen aus numerischen Domänenblättern abgeleiteten Wert als Konstante in eine Komponente schreiben
    (er wäre für Overlay, Tornado und Break-even eingefroren). Prüfung im Expandertest (WS-E2): Jedes numerische
    Domänenblatt, das der Expander liest, wird über Schicht 8 geändert; die erzeugten Komponentenknoten MÜSSEN dabei
-   unverändert bleiben (Bezug statt Kopie, Nr. 2).
+   unverändert bleiben (Bezug statt Kopie, Nr. 2). **Ausgenommen** sind (R-92): (a) Blätter bzw. Parameter mit
+   `deterministic_only = TRUE` oder der Arten `integer`, `enum`, `logical`, `date`, `timing`, `ids` sowie
+   Kreditbeträge und `draw_schedule` (Basisfallwerte, R-69); (b) Elemente von Sequenzen (4.4 Nr. 3), z. B.
+   Staffeltabellen, Degressionsstufen, Einkommensstaffeln; (c) Werte aus `bctx$legal()` und `bctx$lib()`, die nicht über
+   `from:` in einen Domänenblock gemischt sind. Der Expandertest ändert nur Blätter, die Overlay- oder Designziel sein
+   dürfen. Für deterministische Ableitungen nach (a) (z. B. Gewichte von `draw_schedule`, Anzeige-Tag `measure_id`)
+   steht `bctx$value_base()` bereit (6.4).
 6. **Mietrecht (R-63):** §§ 558 und 559/559e hängen wechselseitig voneinander ab (Kappungsbasis des § 558 enthält die
    § 559-Erhöhungen; die Kappe des § 559 Abs. 3a hängt von der aktuellen Miete vor der Maßnahme und den Umlagen der
    letzten 6 Jahre ab; Memo 02 §2.1–2.3). Deshalb gibt es **keine** eigene Umlagekomponente: Der Expander erzeugt je
-   Wohnungsgruppe genau eine `rent_path`-Komponente, die monatlich rechnet und die Zeilen `rent`, `rent_loss` und
+   vermieteter Wohnungsgruppe genau eine `rent_path`-Komponente (`u_<g>_rent`), die monatlich rechnet und die Zeilen `rent`, `rent_loss` und
    `levy_<measure_id>` (Kategorie `modernization_levy`, `measure_id` gesetzt) schreibt. Die betroffenen Maßnahmen und
    Förderkomponenten (Abzug nach § 559a) stehen in ihren Parametern bzw. in `after`.
 7. **Aktivierungsfaktor (R-71):** Für jede Maßnahme m bildet der Maßnahmen-Expander a_m = `measures.<m>.active` ×
    Π_f `funding.<f>.approved` über alle Instrumente f mit `on_reject: drop_measures`, die m fördern, als `expr`-Knoten.
    Alle Expander MÜSSEN a_m auf sämtliche aus m erzeugten Zahlungen und Wirkungen anwenden (Kosten, Ersatz,
    Energiezustand „nachher“, Instandhaltung, Leerstand, Umlage, Förderung, Restwertanteil), maskiert und vektorisiert
-   (2.8). Bei a_m = 0 verhält sich der Lauf so, als fehlte m.
+   (2.8). Bei a_m = 0 verhält sich der Lauf so, als fehlte m. **Förderkredite (R-99):** `financing.f_<f>_loan.approved`
+   = `{expr: "funding.<f>.approved * pmax(<a_m1>, <a_m2>, …)"}` über die von f geförderten Maßnahmen. Fällt nur ein Teil
+   der Maßnahmen weg, bleibt der Kreditbetrag (fest nach R-69); Überschuss bzw. Lücke laufen über den Ausgleich. Ganz
+   entfällt der Kredit nur, wenn alle geförderten Maßnahmen entfallen (bzw. die Zusage fehlt).
 8. **Restwertpfad (R-72):** Die Komponente `residual_value` schreibt neben den Zeilen in T die Merkzeilen
    `market_value` (V_t = Wert nach der gewählten Methode zum Ende von t, vor Verkaufskosten; Grundlage für LTV und
    Beleihungsauslauf) und `residual_path` (RW_t = Liquidationswert bei Verkauf in t nach Verkaufskosten) für t = 0…T,
    je einmal mit `rv_basis = "method"` (gewählte Methode) und `rv_basis = "measures"` (Komponenten-Zeitwert aller
    Maßnahmen und Ersatzinvestitionen des Registers, Konzept 2.5 Haushaltsmodus). MUSS: RW_T(method) = Summe der Zeilen
-   `residual_value` und `sale_cost` in T; bei Methode `zero` sind V_t und RW_t(method) null.
+   `residual_value` und `sale_cost` in T; bei Methode `zero` sind V_t und RW_t(method) null. **Komponenten-Zeitwert
+   (R-108):** ohne Indexierung ist er der nominale Buchwert (nominaler Betrag der letzten Investition × max(0, 1 −
+   Alter/Nutzungsdauer)); mit Indexierung wird dieser Betrag mit dem Baupreisindex vom Investitionstermin bis t
+   fortgeschrieben (Schalter und Default Spec 01 Teil A §6.3.7).
 
 ### 4.13 Objektstrukturen
 
@@ -1482,6 +1702,9 @@ list(
   example      = list() | NULL,# Pflicht für flow, instrument, distribution, process, tax
   validate     = function(spec, scenario) | NULL,   # nur flow/instrument: -> list(<vofi_finding>)
   grid_invariant = lgl,        # flow: Jahresbeträge unabhängig vom Raster (Vertragstest F10), Default FALSE
+  domain_reads = chr | NULL,   # flow/instrument, optional (R-93): Domänenblöcke, die der Typ über ctx$value(),
+                               # ctx$value_base() bzw. ctx$spec liest; Teilmenge von measures, funding, financing,
+                               # energy, unit_groups, building, household, market (C3 prüft die Codes; 6.1 Nr. 3)
   ...                          # artspezifische Felder und Funktionen (5.3)
 )
 ```
@@ -1509,7 +1732,7 @@ normalisiert sie selbst (`node_normalize()`), setzt Defaults (Schicht 0) ein und
 | | `rows` | Ledger-Schlüssel, die die Aktion schreibt (z. B. `c("od_repay", "odp_repay")`; Kredite: Muster `"loan_*_prepay"`) |
 | | `apply` | `apply(acc, amount, t, ctx, inst)` → `list(acc, used, flows = list(<ledger_key> = n-Vektor), flags = list(<flag> = logical n), inst = NULL \| <aktualisierte Instrumentliste>)` (8.9) |
 | `expander` | `block`, `order`, `expand` | 4.12 |
-| `distribution` | `quantile` | `quantile(u, par)` → numeric, gleiche Länge wie `u`, monoton nicht fallend in `u` |
+| `distribution` | `quantile` | `quantile(u, par)` → numeric, gleiche Länge wie `u`, **monoton nicht fallend** in `u` (Voraussetzung für Iman-Conover und CRN); `bernoulli`: Q(u) = 1{u > 1 − p}; `empirical`: `point(par, "mode")` := Median (R-93) |
 | | `point` | `point(par, which = c("mode", "median", "mean"))` → numeric(1) |
 | | `moments` | `moments(par)` → `list(mean = num, var = num)` (`NA` erlaubt, wenn nicht endlich) |
 | | `validate` | `validate(par)` → character (deutsche Meldungstexte über `msg()`), leer = gültig |
@@ -1517,22 +1740,27 @@ normalisiert sie selbst (`node_normalize()`), setzt Defaults (Schicht 0) ein und
 | | `linked` | Namen von Parametern, die auf andere Prozesse verweisen (z. B. `"base"` bei `linked_ar1`) |
 | | `simulate` | `simulate(par, z, u, years, linked)` → n × length(years); `par`: Liste, Elemente Skalar oder n-Vektor (unsichere Prozessparameter); `z`: n × (length(years) − 1) Standardnormal-Schocks oder `NULL`; `u`: n × `n_uniforms` oder `NULL`; `linked`: benannte Liste n × length(years); Attribut `"scenario"` (integer n) optional |
 | | `expected` | `expected(par, years)` → numeric(length(years)) bei Punktparametern |
-| | `n_shocks`, `n_uniforms` | `n_shocks(par)` → 0 oder 1; `n_uniforms(par)` → integer ≥ 0 |
+| | `n_shocks`, `n_uniforms` | `n_shocks(par)` → 0 oder 1; `n_uniforms(par)` → integer ≥ 0; beide hängen **nur von der Struktur** ab (z. B. „`noise` vorhanden“), nie von Parameterwerten, damit Stromzuordnung und Plan-Hash von Variantenparametern unabhängig sind (R-93) |
+| | `quantile_path` (optional) | `quantile_path(par, years, p)` → numeric(length(years)): Randquantil der Ausgabe je Jahr zum Niveau p ∈ (0, 1) bei Punktparametern; geschlossen nach Spec 01 Teil C §4.3 für `ar1`, `linked_ar1`, `vasicek` (mit `floor`), `mr_trend`, `gbm`, `scenario_mix`, `iid`; `fixed_path` hat keine. Prozesse ohne `quantile_path` sind keine Kandidaten des Sets „vorsichtig“ (R-95) |
 | `kpi` | `compute` | `compute(core, ctx)` → `vofi_kpi_value` (12.1) |
 | | `unit`, `shape`, `rv_variant`, `higher_is_better`, `mc_default`, `requires` | `unit` ∈ units.yaml; `shape` `"scalar"`/`"series"`; `rv_variant` lgl; `higher_is_better` lgl oder `NA`; `mc_default` lgl; `requires` ⊆ `c("opportunity", "market_value", "household_income", "living_area", "tenant_data")` |
 | `tax` | `constructor` | `constructor(params, spec)` → Modulobjekt (10.2) |
 | | `perspectives`, `blocked_regimes` | erlaubte Perspektiven bzw. gesperrte Steuerregime |
 | | `uses_inputs` | lgl, Default `TRUE`; `FALSE` (z. B. `tax_none`): die Engine bildet keine `tax_inputs` (10.4) |
-| `rule` | `rule_name`, `fun`, `valid_from`, `valid_to`, `reform`, `source`, `returns` | `valid_from` Date; `valid_to` Date oder `NULL`; `reform` chr oder `NULL`; `returns` ∈ `"sim"` (n-Vektor), `"path"` (n × (T+1)), `"params"` (benannte Liste deterministischer Rechtsparameter) |
+| `rule` | `rule_name`, `fun`, `valid_from`, `valid_to`, `reform`, `source`, `returns` | `valid_from` Date; `valid_to` Date oder `NULL`; `reform` chr oder `NULL`; `returns` ∈ `"sim"` (n-Vektor), `"path"` (n × (T+1)), `"params"` (benannte Liste deterministischer Rechtsparameter), `"value"` (deterministischer Wert beliebiger Form, z. B. `logical` oder ein Code; R-93) |
 
 Die Registrierung prüft `identical(names(formals(f)), <soll>)` für jede Pflichtfunktion.
 
 **Regelkonvention (MUSS):** Alle Versionen eines Regelnamens haben identische Formals (geprüft bei der
 Registrierung); Argumente sind benannt und vektorisiert (n-Vektoren oder n × (T+1), Skalare werden recycelt), die
-Rückgabeform steht in `returns`. Regeln ziehen keine Zufallszahlen und lesen weder `ctx` noch globale Zustände. Eine
-Regel gehört dem Paket, dessen Typen sie aufrufen (2.4: Mietrecht, CO2KostAufG, Grunderwerbsteuer → WS-E; Förderung →
+Rückgabeform steht in `returns`. Regeln ziehen keine Zufallszahlen und lesen weder `ctx` noch globale Zustände; das
+gilt auch für Default-Werte von Formals (kein `legal = ctx$legal(…)`): Der aufrufende Typ übergibt Rechtsparameter als
+Argument (Nutzlast von `ctx$legal()` bzw. Ergebnis einer Abbildungsregel, konventionell als letztes Formal `P`).
+Eine Regel gehört dem Paket, dessen Typen sie aufrufen (2.4: Mietrecht, CO2KostAufG, Grunderwerbsteuer → WS-E; Förderung →
 WS-E2); ruft ein anderes Paket eine Regel auf, MUSS ihr Name mit Formals und Rückgabeform vor dessen Welle in Spec 01
-§ „Regelkatalog“ stehen.
+§ „Regelkatalog“ stehen. Wird ein Ergebnis schon in `vofi_resolve()` oder von Paketen früherer Wellen gebraucht
+(z. B. Zusagezeitpunkt, Zusagewahrscheinlichkeit), ist es keine Registry-Regel, sondern eine Ableitungsregel von WS-A
+(4.7, R-86), deren Ergebnis als Domänenblatt gelesen wird.
 
 ### 5.4 Parameter-DSL `vofi_param()`
 
@@ -1623,7 +1851,7 @@ Die Testhelfer in `tests/testthat/helper-*.R` (15.1) sind dünne Hüllen um dies
 |---|---|---|
 | C1 | alle | Namensmuster, Eindeutigkeit, gültige Art, Version ganzzahlig |
 | C2 | alle | Pflichtfunktionen vorhanden, exakte Formals |
-| C3 | alle | Parameterschema gültig; keine reservierten Metafeldnamen (4.3.8) als Parameter; `example` erfüllt das Schema |
+| C3 | alle | Parameterschema gültig; keine reservierten Metafeldnamen (4.3.8) als Parameter; `example` erfüllt das Schema; `domain_reads` ⊆ zulässige Blöcke (5.2) |
 | C4 | alle | Labels vorhanden: `types.<kind>.<name>.label`, `.description`, je Parameter `.params.<p>.label`, je Zeile bzw. Zeilenmuster `.rows.<r>` (Nutzertypen: Literale) |
 | F1 | flow | `build(example)` liefert `vofi_flows` für alle n und beide Raster |
 | F2 | flow | jede Zeile `dim == c(n, T + 1)`, `storage.mode == "double"`, nur endliche Werte |
@@ -1647,6 +1875,7 @@ Die Testhelfer in `tests/testthat/helper-*.R` (15.1) sind dünne Hüllen um dies
 | P1 | process | `simulate()` liefert n × length(years); Spalte 1 = Startwert |
 | P2 | process | σ = 0 bzw. entartete Parameter: `simulate()` == `expected()` (1e-12) |
 | P3 | process | Mittelwert der Simulation innerhalb 4 SE von `expected()`, wo definiert |
+| P4 | process mit `quantile_path` | monoton nicht fallend in p; σ = 0: `quantile_path(par, years, p) == expected(par, years)` (1e-12); empirisches p-Quantil der Simulation je Jahr innerhalb 4 SE (R-95) |
 | K1 | kpi | `compute(core, ctx)` mit `core <- reg_example_core(n = 7L)` und zugehörigem `ctx` liefert `vofi_kpi_value` mit n Werten; NA nur mit Code aus `na_reasons.yaml` |
 | T1 | tax | Modul mit Nullparametern liefert den Vor-Steuer-VoFi exakt (10.10) |
 
@@ -1683,6 +1912,10 @@ Excel-Vorlage. Überschreiben eingebauter Typen nur mit `overwrite = TRUE` (Warn
 3. Ergebnisse bereits gebauter Komponenten liegen in einer privaten Umgebung der Engine; Zugriff nur über
    `ctx$component()` und `ctx$rows()` und nur für **deklarierte Abhängigkeiten** (Parameter der Art `ref`,
    Wertbezüge `{ref: components.<id>…}`, Feld `after`). Ein Zugriff auf andere Komponenten ist `vofi_error_contract`.
+   Domänenpfade der in `domain_reads` (5.2) genannten Blöcke dürfen über `ctx$value()`, `ctx$value_base()` und
+   `ctx$spec` gelesen werden, endogene Größen nie (4.5 Regel 2). Die Einschränkung auf deklarierte Abhängigkeiten gilt
+   für Ergebnisse gebauter Komponenten, nicht für Domänenpfade (R-93). Das Prüfkit (5.6) und Typtests übergeben die
+   Domänenblöcke über `eng_context_from_parts(grid, spec, …)`.
 4. Werte werden je Chunk zwischengespeichert (Schlüssel: Pfad + Shape).
 
 ### 6.2 Felder und Funktionen
@@ -1714,7 +1947,7 @@ Excel-Vorlage. Überschreiben eingebauter Typen nur mit `overwrite = TRUE` (Warn
 | `period_of(date)`, `period_of_year(year)`, `overlap(from, to)` | | 3.4, 3.6 |
 | `to_periods(x_month)`, `to_months(x, how = c("repeat", "spread"))` | | 3.6 |
 | `component(id)` | id | `vofi_flows` der Abhängigkeit (Zeilen mit lokalen Schlüsseln, `aux`) |
-| `rows(id = NULL, section = NULL, category = NULL, tax_category = NULL)` | Filter | benannte Liste n × (T+1) (Ledger-Schlüssel) aus Abhängigkeiten |
+| `rows(id = NULL, section = NULL, category = NULL, tax_category = NULL, measure_id = NULL, local_row = NULL)` | Filter (`id` darf ein Vektor sein; alle Filter UND-verknüpft, je Filter ein Vektor zulässiger Werte; R-93) | benannte Liste n × (T+1) (Ledger-Schlüssel) aus Abhängigkeiten |
 | `auto(id)` | id | `list(commitment = n-Vektor, draws = n × (T+1))` (8.7): bei `auto` aus dem Basisfall, in allen Läufen gleich; bei `topup` je Lauf |
 | `rule(name)` | chr | Funktion der zum Rechtsstand gültigen Regelversion (4.10) |
 | `legal(topic)` | chr | `values` des gewählten `legal/*`-Eintrags |
@@ -1730,12 +1963,18 @@ Excel-Vorlage. Überschreiben eingebauter Typen nur mit `overwrite = TRUE` (Warn
 p  <- Pfad des Parameters: paste(<sammlung>, spec$id, name, sep = ".") mit <sammlung> = "components" bzw.
       "financing" (z. B. "components.<id>.<name>", "financing.bank.fees.processing_fee_share"); bei value(): Pfad
       wie übergeben (z. B. "market.<name>"). Der Knoten liegt bei path_get(ctx$spec, p) (Pfad-Identität, 4.13).
-1  falls mode != "deterministic" und draws einen statischen Schlüssel mit target == p hat:   n-Vektor
+1  falls mode != "deterministic" und draws einen statischen Schlüssel mit target == p hat:
+     apply = replace:  x                                                                      n-Vektor
+     apply = multiply: b * x;  apply = add: b + x  (R-94)                                     Shape von b
+       mit b = Wert des Knotens am Pfad p nach Schritt 3 (Skalar -> n-Vektor; Pfad: x zeilenweise gehoben wie
+       by_sim()); Ziel der Art share: Ergebnis auf [0, 1] begrenzt
 2  sonst falls draws einen Prozess mit target == p hat:                                     n x (T+1)-Pfad
 3  sonst Knoten am Pfad p auswerten:
      const -> Skalar; series_t / series_year / points / schedule -> Pfad (Elementknoten nach 4.5 Regel 4);
      ref -> value(Zielpfad) (rekursiv, Zyklusschutz), dann scale/offset/floor/cap bzw. anchor (4.5);
-     growth -> start * index(growth, base_date); expr -> expr_eval(ast, resolve = value, n, T) (4.5 Regel 5);
+     growth -> start * index_year(growth, base_date) bei index = calendar_year (Default),
+               start * index(growth, base_date) bei index = period_end (4.5, R-91);
+     expr -> expr_eval(ast, resolve = value, n, T) (4.5 Regel 5; nicht-numerische Symbole mit setting-Semantik);
      quantity -> value * Bezugsgröße; auto -> NULL (nur Instrumente, über ctx$auto())
 4  Shape: "scalar" angefordert und Ergebnis zeitabhängig  -> vofi_error_contract;
           "scalar" angefordert sonst                       -> as.double(rep_len(x, n)) (immer Länge n, double);
@@ -1752,18 +1991,24 @@ p  <- Pfad des Parameters: paste(<sammlung>, spec$id, name, sep = ".") mit <samm
   `param_base() == param()` und `component_base() == component()`. **Verwendung:** Größen, die zum Planungs- bzw.
   Erklärungszeitpunkt feststehen und auf die spätere Pfade nicht wirken: Plan-JAZ für § 559f (Default von
   `energy.<zustand>.jaz_plan`, 4.3.6b), Preisbasis einer warmmietenneutralen Umlage (Begrenzung aus den
-  Basisfall-Heizkosten der Mieter vorher/nachher im Erklärungsjahr), Kreditbeträge `auto` (8.7). Laufspezifische
+  Basisfall-Heizkosten der Mieter vorher/nachher in der **Bezugsperiode**: die erste Periode mit 12 Monaten, die am
+  oder nach dem frühesten Wirksamkeitsmonat der Umlage im Basisfall beginnt; R-102), Kreditbeträge `auto` (8.7). Laufspezifische
   Größen, die zum Erklärungszeitpunkt bekannt sind (realisierte Kosten, tatsächlich gewährte Förderung), lesen Typen
   weiter über `param()` bzw. `component()` (Konzept 3.5).
 
 ### 6.4 Build-Kontext `bctx` (Expander)
 
 `bctx` ist eine gesperrte Umgebung mit `grid`, `spec` (teilaufgelöst), `project`, `building`, `legal(topic)`,
-`rule(name)`, `lib(id)` (gelesener Bibliothekseintrag), `period_of(date)`, `period_of_year(year)`, `lbl`, `abort`,
-`warn`, `inform` sowie den Knotenkonstruktoren `node_const(x)`, `node_ref(path, scale = 1, offset = 0, floor = -Inf,
-cap = Inf)`, `node_schedule(dates, amounts)`, `node_growth(start, growth, base_date = NULL)`. Ziehungen gibt es im
-Build nicht. **Eigentum:** `bctx` baut `scn_bctx(spec, grid)` in `R/scenario-layers.R` (WS-A); die Knotenkonstruktoren
-stehen in `R/values-normalize.R` (WS-A). `rule()`/`legal()` nur auf deterministische Eingaben (4.12 Nr. 5).
+`rule(name)`, `lib(id)` (gelesener Bibliothekseintrag), `period_of(date)`, `period_of_year(year)`,
+`value_base(path, shape = c("scalar", "path"))` (deterministischer Basisfallwert eines numerischen Domänenpfads nach
+6.3 ohne Ziehungen, n = 1; R-92), `lbl`, `abort`, `warn`, `inform` sowie den Knotenkonstruktoren `node_const(x)`,
+`node_ref(path, scale = 1, offset = 0, floor = -Inf, cap = Inf)`, `node_schedule(dates, amounts)`,
+`node_growth(start, growth, base_date = NULL, index = "calendar_year")` und `node_expr(text)` (ruft `expr_parse()`,
+liefert `list(kind = "expr", text, ast)`; R-91). Ziehungen gibt es im Build nicht. **Eigentum:** `bctx` baut
+`scn_bctx(spec, grid)` in `R/scenario-layers.R` (WS-A); die Knotenkonstruktoren stehen in `R/values-normalize.R`
+(WS-A). `rule()`/`legal()` nur auf deterministische Eingaben (4.12 Nr. 5). `value_base()` dient ausschließlich
+deterministischen Ableitungen nach 4.12 Nr. 5 (a) (Gewichte von `draw_schedule`, Anzeige-Tags wie `measure_id`,
+Registerfelder); ein Ergebnis von `value_base()` als Wert eines overlay-fähigen Parameters ist ein Vertragsverstoß.
 
 ---
 
@@ -1828,7 +2073,7 @@ Doppelte ids im Register sind ein Fehler, außer das Objekt ist identisch.
 
 | Quelle | Schlüssel | Beispiel |
 |---|---|---|
-| Zahlungskomponente (flow) | `<component_id>__<lokale_zeile>` (Trenner: doppelter Unterstrich) | `m_huelle_capex__cost`, `pv__feed_in`, `u_standard_rent__levy_huelle` |
+| Zahlungskomponente (flow) | `<component_id>__<lokale_zeile>` (Trenner: doppelter Unterstrich) | `m_huelle_capex__cost`, `e_pv__feed_in`, `u_standard_rent__levy_huelle` |
 | Eigenkapitalbaustein (`financing`, Typ `equity`) | `<financing_id>__<lokale_zeile>` | `ek__in` |
 | Kreditinstrument k | `loan_<k>_<zeile>` (feste Zeilenmenge 8.4, keine Zeile ist `_`-Suffix einer anderen) | `loan_kfw261_interest`, `loan_bank_balance` |
 | Engine (feste Schlüssel) | 7.7 | `od_draw`, `dep_balance`, `balance_check` |
@@ -1931,7 +2176,7 @@ Vorzeichen umgekehrt), Default-`tax_category`, weitere erlaubte `tax_category`, 
 | loans | `prepay` (E) | − | | | `principal` | | T |
 | loans | `interest` (E) | − | | x | `interest_expense` | | T |
 | loans | `fees` (E) | − | | x | `interest_expense` | | T |
-| loans | `repayment_grant` (E, memo) | + | | | `subsidy_repayment_grant` | measure | F |
+| loans | `repayment_grant` (E, memo) | + | | | `subsidy_repayment_grant` | measure oder funding (R-99) | F |
 | loans | `disagio` (E, memo) | + | | | `interest_expense` | | F |
 | loans | `assumed` (E, memo) | + | | | `principal` | | F |
 | overdraft | `draw`, `repay`, `interest` (E) | +, −, − | | | `principal`, `principal`, `interest_expense` | | T |
@@ -1946,7 +2191,7 @@ Vorzeichen umgekehrt), Default-`tax_category`, weitere erlaubte `tax_category`, 
 | memo | `residual_path` | + | | | `not_applicable` | (asset) | F |
 | memo | `tenant_energy_cost`, `tenant_operating_cost` | + | | | `not_applicable` | | F |
 | memo | `tenant_energy_cost_pre` | + | | | `not_applicable` | | F |
-| memo | `energy_quantity` (Einheit kWh), `co2_emission` (t_co2) | + | | | `not_applicable` | | F |
+| memo | `energy_quantity` (Einheit kWh), `co2_emission` (t_co2: t CO2-Äq.; Treibhausgasbilanz **aller** Energieträger nach `ghg_factor_kg_kwh`, GEG Anlage 9; nicht der BEHG-Kostenfaktor; R-101) | + | | | `not_applicable` | | F |
 | memo | `tax_report` | ± | | | `not_applicable` | | F |
 | memo | `aux_memo` | ± | | | `not_applicable` | | F |
 
@@ -1954,7 +2199,10 @@ Merkzeilen der Mietersicht und Mengen werden als **positive Beträge bzw. Mengen
 `residual_path` und Mengen sind `kind = "stock"` bzw. `"memo"`. `market_value` (V_t) und `residual_path` (RW_t, mit
 `rv_basis`) schreibt die Komponente `residual_value` nach 4.12 Nr. 8 (R-72). `tenant_energy_cost_pre` sind die Heiz-
 und Warmwasserkosten der Mieter im Zustand vor der Maßnahme mit denselben Preis- und Mengenpfaden (Mieteranteil,
-Grundlage der Warmmietenänderung „vorher/nachher“, 12.3, R-83); sie schreibt der Typ `tenant_costs`. Zeilen der Kategorie `custom` sind für Lehrbuch- und Orakelfälle gedacht; der
+Grundlage der Warmmietenänderung „vorher/nachher“, 12.3, R-83); sie schreibt der Typ `tenant_costs`. Die Pflicht-id
+der Merkzeile `repayment_grant` (F6 sinngemäß für Instrumente) ist `measure_id` oder `funding_id`; ein Förderkredit
+trägt `funding_id` und als Anzeige-Tag `measure_id` der von ihm geförderten Maßnahme mit den größten Basisfallkosten
+(`bctx$value_base()`, R-99). Zeilen der Kategorie `custom` sind für Lehrbuch- und Orakelfälle gedacht; der
 Test „Steuerbereitschaft“ (15.6) verlangt für S1–S5, dass keine zahlungswirksame Zeile `not_applicable` trägt.
 
 ### 7.7 Engine-Zeilen (feste Schlüssel)
@@ -2011,11 +2259,16 @@ Bestände folgen in `stocks` in der Reihenfolge Kredite (k), `od_balance`, `odp_
   erfüllt (Metadatum `vat_rate` je Zeile, Ableitung deterministisch).
 - Kostenkomponenten mit gemischten Sätzen erzeugen je Satz eine eigene Zeile mit festem Suffix: `<zeile>_vat19`,
   `<zeile>_vat7`, `<zeile>_vat0` (deklariert als Einträge oder Muster `<zeile>_*`, 5.2); eine Komponente mit nur
-  einem Satz verwendet den Grundnamen ohne Suffix. Mehrere Energieträger erzeugt der Expander als **je eine
-  Komponente je Träger** (`e_<träger>_cost`, `e_<träger>_co2`), nicht als dynamische Zeilen. Standardsatz 0.19; 0.07
+  einem Satz verwendet den Grundnamen ohne Suffix. Der Energie-Expander erzeugt je Zustand s und Träger c eine
+  Komponente `e_<s>_<c>_cost` (Typ `energy_cost`) und für Träger mit Emissionsfaktor > 0 `e_<s>_<c>_co2` (Typ
+  `co2_cost`), nicht dynamische Zeilen (R-90). Standardsatz 0.19; 0.07
   nur, wo einschlägig; PV-Lieferung und -Installation auf oder bei Wohngebäuden 0 (§ 12 Abs. 3 Nr. 1 UStG): bis 30 kWp
   ohne Nachweis, größere Anlagen nur mit gesetztem Begünstigungsattribut der Anlage (Feldname Spec 01) und Hinweis auf
-  den Nachweis (Konzept 3.2, P18, R-84). `vat_recoverable = TRUE` ist in v1 ein Validierungsfehler
+  den Nachweis (Konzept 3.2, P18, R-84). Den Default von `measures.<m>.vat_rate` der PV-Maßnahme (`energy.pv.measure`)
+  setzt die Ableitungsregel `rule:measure_catalog` (WS-A, 4.7) als `expr`-Knoten: 0, wenn `energy.pv.kwp` höchstens
+  die Schwelle aus `bctx$legal("umsatzsteuer")` beträgt oder `energy.pv.vat_zero_rate_attested` gilt, sonst 0.19; ein
+  ausdrücklicher Wert gewinnt (Warnung bei Widerspruch; R-86). Das Zeilenmetadatum `vat_rate` ist der Basisfallwert
+  (`ctx$param_base()`). `vat_recoverable = TRUE` ist in v1 ein Validierungsfehler
   (Vorsteuer v2). Bei Gewerbeeinheiten bzw. Mischnutzung: `vofi_warning_plausibility` („Vorsteuerthematik nicht
   abgebildet“).
 
@@ -2081,7 +2334,7 @@ angenommen“); `other_cost` ist NOI-relevant (7.6).
 | Parameter | `vofi_param`-Art | Default | Bedeutung |
 |---|---|---|---|
 | `amount_eur` | `amount`, `allow_auto`, `deterministic_only` | Pflicht | Nennbetrag (Zusage) D, fest in allen Läufen (Basisfallwert, 8.1 Nr. 2); `auto`/`topup` nach 8.7; bei `existing` die Restschuld zum Stichtag |
-| `approved` | `value` (0/1) | `1` | Kredit bewilligt; Auszahlungen D_t × approved je Lauf (Förderkredite: `{ref: funding.<id>.approved}`, R-71) |
+| `approved` | `value` (0/1) | `1` | Kredit bewilligt; Auszahlungen D_t × approved je Lauf (Förderkredite: Zusage × max der Aktivierungsfaktoren der geförderten Maßnahmen, 4.12 Nr. 7, R-71, R-99) |
 | `existing` | `logical` | `FALSE` | **Bestandsdarlehen** (R-68): Bestand B_0 = `amount_eur` in t = 0 ohne Auszahlung (Merkzeile `assumed`), `start = valuation_date`, `term_years` = Restlaufzeit, `fixed_years` = Restzinsbindung; nicht zulässig mit `auto`/`topup`, `draw_schedule`, `fees`, `payout_rate` ≠ 1, `repayment_grant` (Validierungsfehler) |
 | `installment_eur` | `amount` | `NULL` | vertragliche Rate je Vertragszahlung (Annuität: Zins + Tilgung; Ratentilgung: Tilgungsrate); ersetzt `set_installment` (8.6); vorgesehen für Bestandsdarlehen |
 | `rank` | `integer` | `NULL` | Rang der Grundschuld (Anzeige, Beleihungsraum; keine Rechenwirkung in v1) |
@@ -2091,7 +2344,7 @@ angenommen“); `other_cost` ist NOI-relevant (7.6).
 | `payments_per_year` | `integer` ∈ {1, 4, 12} | `12` | Vertragsfrequenz (Orakel verwenden 1) |
 | `term_years` | `number` (Vielfaches von 1/12) | `NULL` | Laufzeit ab Ende der letzten Auszahlung inkl. tilgungsfreier Zeit; Pflicht für `installment_loan`, `bullet_loan`; bei `annuity_loan` Pflicht, wenn `initial_repayment_pa` fehlt |
 | `grace_years` | `number` (Vielfaches von 1/12) | `0` | tilgungsfreie Anlaufzeit ab Ende der letzten Auszahlung |
-| `initial_repayment_pa` | `rate` | `NULL` | nur `annuity_loan`: anfänglicher Tilgungssatz τ, Annuität A = Basis · (i + τ) |
+| `initial_repayment_pa` | `rate` | `NULL` | nur `annuity_loan`: anfänglicher Tilgungssatz τ, Annuität A = Basis · (i + τ); zusammen mit `term_years` zulässig (τ bestimmt die Rate, `term_years` die Fälligkeit mit Schlusstilgung, Hinweis; 8.6, R-100); zusammen mit `installment_eur` ein Validierungsfehler |
 | `fixed_years` | `number` | `NULL` (= bis Laufzeitende bzw. Horizont) | Zinsbindung ab `start` |
 | `followup_rate_pa` | `value` (scalar/path) | `{ref: market.mortgage_rate}` | Anschlusszins (Beobachtung 8.6) |
 | `followup_spread_pa` | `rate` | `0` | Aufschlag auf den Anschlusszins |
@@ -2209,8 +2462,8 @@ Mit i_s = i_pa / ppy und n_s = (m_mat − m_rep) / pay_interval (Anzahl der Vert
 |---|---|
 | Basis | `basis = commitment * approved` bei `effect = shorten_term` oder ohne Tilgungszuschuss; `basis = B` (Bestand bei Tilgungsbeginn) bei `effect = reduce_installment` |
 | vertragliche Rate | ist `installment_eur` gesetzt (Bestandsdarlehen): `inst = installment_eur` (keine Formel; Annuität: Zahlung, Ratentilgung: Tilgungsrate) |
-| Annuität mit τ | `inst = basis * (i_pa + tau) / ppy` |
-| Annuität mit Laufzeit | `inst = basis * i_s / (1 - (1 + i_s)^(-n_s))`; bei i_s = 0: `basis / n_s` |
+| Annuität mit τ | `inst = basis * (i_pa + tau) / ppy`; ist zusätzlich `term_years` gesetzt, bestimmt τ die Rate und `term_years` nur `m_mat` (Schlusstilgung in (f), R-100) |
+| Annuität mit Laufzeit | `inst = basis * i_s / (1 - (1 + i_s)^(-n_s))`; bei i_s = 0: `basis / n_s` (nur ohne τ) |
 | Ratentilgung | `inst = basis / n_s` |
 | endfällig | keine Rate; Tilgung nur in (f) |
 
@@ -2226,6 +2479,14 @@ Mit i_s = i_pa / ppy und n_s = (m_mat − m_rep) / pay_interval (Anzahl der Vert
 | `recalc(B, i)` nach Tilgungszuschuss | Annuität mit Laufzeit: Formel `keep_term`; Annuität mit τ: `B * (i + tau) / ppy`; Ratentilgung: `B / n_rem` |
 
 In Schritt (e) von 8.5 ist `inst` bei Ratentilgung stets die **reine Tilgungsrate** (Zinsen laufen getrennt über (c)).
+
+**Restlaufzeit bei `keep_term` nach Laufzeitverkürzung (R-100):** Ist vor einer Zinsanpassung ein Tilgungszuschuss
+mit `effect = shorten_term` gutgeschrieben (t_tz < t), gilt in `refi(…, keep_term)` statt n_rem(m − 1) die
+**effektive Restzahl** n_eff = min(n_rem(m − 1), ⌈n* − 1e-9⌉) mit n* = Zahl der Vertragszahlungen, die die bisherige
+Rate beim bisherigen Zins für den Bestand B braucht: Annuität n* = −log(1 − B · i_s / inst) / log(1 + i_s) (i_s = 0:
+B / inst; inst ≤ B · i_s: n* = ∞), Ratentilgung n* = B / inst. Die Laufzeitverkürzung bleibt damit über die Anpassung
+erhalten (elementweise über n, keine Verzweigung auf simulierte Werte). Ohne Tilgungszuschuss bzw. mit
+`reduce_installment` bleibt n_rem(m − 1). Test (h) und die Orakel (a)–(f) sind nicht betroffen.
 
 **Zinsanpassung (R-45):** Die erste Anpassung erfolgt nach `m_start + 12 * fixed_years` Monaten (`m_start` =
 `month_end` der Periode von `start`), weitere alle `12 * followup_fixed_years` Monate. Der neue Zins ist der Wert des
@@ -2836,7 +3097,7 @@ zugleich `accounts.deposit_withholding_tax_share > 0`, ist das ein Validierungsf
 
 | Thema | Abbildung in v1 | Grund |
 |---|---|---|
-| § 35c EStG | Förderinstrument (`instrument_type: tax_credit`) → Komponente `tax_credit_35c`: Tranchen 7 %/7 %/6 % der förderfähigen Aufwendungen in den drei Veranlagungsjahren ab Abschluss, je Jahr max. 14.000/14.000/12.000 €, gesamt max. 40.000 € je Objekt; Zahlung mit `payout_delay_months` (Default 12) nach Ende des jeweiligen Veranlagungsjahres; Ausschluss mit BEG/KfW für dieselbe Maßnahme (Validierungsfehler); **Deckel** je Veranlagungsjahr durch `household.expected_income_tax_eur_pa` (Tranche = min(Tranche, voraussichtliche tarifliche ESt); nicht nutzbare Beträge verfallen; `vofi_warning_plausibility`, wenn gedeckelt wird oder das Feld fehlt; ohne Feld keine Deckelung) (Konzept 3.9, L22, R-79) | D5 (R-11) |
+| § 35c EStG | Förderinstrument (`instrument_type: tax_credit`) → Komponente `tax_credit_35c`: Tranchen 7 %/7 %/6 % der förderfähigen Aufwendungen in den drei Veranlagungsjahren ab Abschluss, je Jahr max. 14.000/14.000/12.000 €, gesamt max. 40.000 € je Objekt; die Energieberatung (§ 35c Abs. 1 S. 4, Anteil 0,50) zählt außerhalb des Jahresdeckels, aber innerhalb des Gesamtdeckels von 40.000 € je Objekt; **Zahlung** der Tranche des Veranlagungsjahres Y im Monat, der mit dem Zeitpunkt 31.12.Y + `payout_delay_months` endet, d. h. zum Termin `add_months((Y+1)-01-01, payout_delay_months)` nach 3.4 (R-98; Default 12 = Dezember Y+1, Termin (Y+2)-01-01; Default über `rule:tax_credit_defaults`, R-86); Ausschluss mit BEG/KfW für dieselbe Maßnahme (Validierungsfehler; Prüfung über die ganze `from:`-Kette und `program_code`, Spec 01 Teil B); **Deckel** je Veranlagungsjahr durch `household.expected_income_tax_eur_pa` (Tranche = min(Tranche, voraussichtliche tarifliche ESt); nicht nutzbare Beträge verfallen; `vofi_warning_plausibility`, wenn gedeckelt wird oder das Feld fehlt; ohne Feld keine Deckelung) (Konzept 3.9, L22, R-79) | D5 (R-11) |
 | Abgeltungsteuer auf Habenzinsen | Kontoparameter `deposit_withholding_tax_share` (Default 0, R-40) und `deposit_tax_allowance_eur_pa` (Sparer-Pauschbetrag, Default 0, R-76), Zeile `dep_wht`; gilt auch in der Unterlassungsalternative; Pflichtsensitivität für Selbstnutzer und Kleinvermieter (Konzept B4, über `analysis.mandatory_sensitivities`) | D5 |
 | Grunderwerbsteuer, Grundsteuer, USt | normale Kostenzeilen (7.10, 7.11) | D6 |
 | Steuermodule und `tax_credit`-Zeilen | Module MÜSSEN `tax_credit`-Zeilen ignorieren (keine Doppelzählung) | – |
@@ -2877,6 +3138,8 @@ plan <- structure(list(
                    # block_size: Default 200; replicates: NULL oder Anzahl der Blöcke (Alternative, 11.4)
   static    = data.frame(key, target, dist, label, source,     # source: "overlay" | "inline" | "funding_auto" | "process_param"
                          role,                                 # "value" (wirkt auf target) | "decision" (Zweigwahl, 9.11)
+                         apply,                                # "replace" | "multiply" | "add" (R-94; inline, funding_auto,
+                                                               # process_param und decision: immer "replace")
                          stringsAsFactors = FALSE),
   static_par = list(<key> = list(...)),                        # Verteilungsparameter (Punktwerte)
   processes = list(<key> = list(target, type, par = list(), linked = list(), label, source)),
@@ -2977,6 +3240,8 @@ with_stream(seed, name, expr)   # set.seed(stream_seed(seed, name), kind = "Mers
 4. **Förderzusage** (D8): Ist `stochastic.settings.auto_funding_approval = true` und hat ein Förderinstrument
    `approval_probability < 1` ohne Overlay-Eintrag auf `funding.<id>.approved`, erzeugt `smp_plan()` den Schlüssel
    `funding.<id>.approved` mit `dist: bernoulli, p = approval_probability` (R-55). Der deterministische Basiswert ist 1.
+   `smp_plan()` liest dafür den Basisfallwert des abgeleiteten Felds `approval_probability` und den aufgelösten Code
+   von `approval_timing` (4.3.7, R-86); eine eigene Ableitung im Sampler gibt es nicht.
    Ist das Instrument ein Entscheidungsknoten (9.11), erhält der Schlüssel (automatisch oder aus dem Overlay) die
    **Rolle `decision`**: Er wird wie jeder statische Schlüssel gezogen (Strom `par:<key>:<b>`, CRN), aber nur in
    `draws$decision` abgelegt und nicht auf sein Ziel angewendet (11.8). Entscheidungsschlüssel MÜSSEN 0/1-wertig sein
@@ -2985,6 +3250,9 @@ with_stream(seed, name, expr)   # set.seed(stream_seed(seed, name), kind = "Mers
    Reihenfolge `sort(…, method = "radix")`), Reparatur wie 1, Korrelation je Block über alle Jahresspalten mit einer
    Multiplikation `Z %*% chol(R)` (Memo 04 §3.5).
 6. Unsichere Prozessparameter nehmen unter ihrem Schlüssel `<prozess>.<parameter>` an Parameterkorrelationen teil.
+7. **Korrelationspaare mit fehlendem Schlüssel (R-96):** Paare aus Bibliotheksverweisen (`from:`), deren Schlüssel im
+   Plan der Variante fehlt, verwirft `smp_plan()` mit `vofi_inform`; Paare aus der Szenariodatei, aus Varianten oder
+   Sets mit unbekanntem Schlüssel sind ein Validierungsfehler. `smp_plan_union()` vereinigt die bereinigten Listen.
 
 ### 11.7 Prozesse in Kalenderjahren (R-15, R-58)
 
@@ -3001,15 +3269,22 @@ with_stream(seed, name, expr)   # set.seed(stream_seed(seed, name), kind = "Mers
 | Typ | Parameter | Definition (je Lauf, Jahr y ≥ 2) |
 |---|---|---|
 | `ar1` | `mu`, `phi`, `sigma`, `x0` (Default `mu`) | x_y = μ + φ(x_{y−1} − μ) + σ z_y |
-| `linked_ar1` | `base` (Prozess), `a`, `b`, `phi`, `sigma` | g_y = a + b · base_y + u_y; u_y = φ u_{y−1} + σ z_y; u_1 = 0 |
-| `vasicek` | `r0`, `theta`, `kappa`, `sigma`, `floor` (Default −Inf) | r_y = θ + (r_{y−1} − θ)e^{−κ} + σ√((1 − e^{−2κ})/(2κ)) z_y; Ausgabe `pmax(r, floor)` (Zustand ungekappt) |
-| `mr_trend` | `p0`, `growth`, `phi`, `sigma` | P_y = p0 (1 + g)^{y−1} exp(Y_y − v_y/2); Y_y = φY_{y−1} + σ z_y; v_y = φ² v_{y−1} + σ²; Y_1 = v_1 = 0 |
+| `linked_ar1` | `base` (Prozess), `a`, `b`, `phi`, `sigma`, `u0` (Default 0) | g_y = a + b · base_y + u_y; u_y = φ u_{y−1} + σ z_y; u_1 = u0 (R-95) |
+| `vasicek` | `r0`, `theta`, `kappa`, `sigma`, `floor` (Default −Inf) | r_y = θ + (r_{y−1} − θ)e^{−κ} + σ√((1 − e^{−2κ})/(2κ)) z_y; Ausgabe `pmax(r, floor)` (Zustand ungekappt); `expected` = `pmax(θ + (r0 − θ) e^{−κ(y−1)}, floor)` (P2 gilt auch bei bindendem Floor, R-95) |
+| `mr_trend` | `p0`, `growth`, `phi`, `sigma`, `p_norm` (Default `p0`) | P_y = p̄ (1 + g)^{y−1} exp(Y_y − v_y/2) mit p̄ = `p_norm`; Y_y = φY_{y−1} + σ z_y; v_y = φ² v_{y−1} + σ²; Y_1 = ln(p0/p̄), v_1 = 0; `expected` = p̄ (1 + g)^{y−1} (p0/p̄)^{φ^{y−1}} (Mean-Reversion vom Startniveau p0, z. B. 12-Monats-Mittel, zum Normalpreis p̄, Konzept B8; mit `p_norm = p0` die bisherige Formel; R-95) |
 | `gbm` | `p0`, `growth`, `sigma` | ln P_y = ln P_{y−1} + ln(1 + g) − σ²/2 + σ z_y |
 | `scenario_mix` | `scenarios: {<name>: {prob, years, values}}`, `noise: {phi, sigma}` | Szenario S je Lauf aus einer Uniform (Szenarien **alphabetisch** nach Name geordnet, `method = "radix"`, kumulierte Wahrscheinlichkeiten); X_y = x^{(S)}_y · exp(Y_y − v_y/2) mit AR(1)-Rauschen wie `mr_trend`; Attribut `scenario` |
 | `iid` | `dist_spec` (Verteilung) | X_y = Q(Φ(z_y)); Spalte 1 = `point(dist_spec, "mean")` |
 | `fixed_path` | `years`, `values` | deterministisch, lineare Interpolation; `n_shocks = 0` |
 
 `bootstrap` und Regimewechsel sind v2 (R-39). Jeder numerische Prozessparameter darf eine Verteilung sein (S→P).
+
+**Token `base` für Startparameter (R-95):** Die Startparameter `x0` (`ar1`), `u0` (`linked_ar1`), `r0` (`vasicek`),
+`p0` und `p_norm` (`mr_trend`) sowie `p0` (`gbm`) dürfen das Token `base` tragen. `smp_plan()` setzt dafür den
+Basisfallwert x_det des Ziels (`value_base`, Schichten 0–5, 7, 8, n = 1) in der ersten Rasterspalte j ≥ 2 mit
+`year[j] == start_year` ein (T = 0: Spalte 1); `u0 = base` bedeutet u0 = x_det − a − b · base_1 (g_1 = x_det). Damit
+startet jeder Prozess exakt am deterministischen Basisfall (Konzept F18). Bibliothekseinträge mit Token tragen im
+Metadatenfeld `fallback` (4.9) dokumentierende Zahlenwerte; der Sampler verwendet sie nicht.
 
 **Pfadmerkmale** (`draws$features`, für globale Sensitivität): je Prozess `<key>.mean` (Mittel über die Jahre der
 Betriebsperioden), `<key>.end` (Wert in `year[T+1]`), `<key>.at<jahr>` (Werte an Zinsanpassungsterminen von Krediten,
@@ -3029,10 +3304,13 @@ smp_plan_union(plans)                          # WS-C: Liste von smp_plan -> smp
 
 draws <- structure(list(
   mode = chr, n = int, sims = int, blocks = int, block_size = int,
-  static = list(<key> = num[n]),               # nach Korrelation und Quantilfunktion (nur Rolle "value")
+  static = list(<key> = num[n]),               # nach Korrelation und Quantilfunktion (nur Rolle "value"); bei
+                                               # apply multiply/add die Ziehung x (Faktor bzw. Zuschlag), nicht b*x
+                                               # bzw. b+x (Verknüpfung in 6.3 Schritt 1, R-94)
   decision = list(<key> = num[n]),             # Entscheidungsschlüssel 0/1 (Rolle "decision", 9.11); sonst leer
   u = list(<key> = num[n]),                    # korrelierte Uniforms (Diagnose, CRN-Tests)
   targets = data.frame(key, target, kind,      # kind: "static" | "process" | "decision"
+                       apply,                  # wie plan$static$apply; Prozesse: "replace"
                        stringsAsFactors = FALSE),
   annual = list(<proc> = matrix(n, Y)),
   paths = list(<proc> = matrix(n, T + 1)),
@@ -3075,8 +3353,17 @@ deterministische Wert entspricht im Allgemeinen nicht dem MC-Erwartungswert; Aus
 ### 11.11 Design-Läufe (Tornado, Spider, Break-even)
 
 `smp_design(plan, grid, design)` mit `design` = Data Frame, eine Zeile je Lauf, Spalten = Zielpfade (numerische
-Blätter, z. B. `measures.huelle.cost_eur`, `market.mortgage_rate`) oder Prozessparameter `<proc>.<param>`. Nicht
-genannte Ziele behalten ihren Basiswert. Prozessparameter erzeugen je Zeile den Pfad `expected(par_zeile, years)`.
+Blätter, z. B. `measures.huelle.cost_eur`, `market.mortgage_rate`), Overlay-Schlüssel statischer Einträge,
+Prozessschlüssel `<proc>` oder Prozessparameter `<proc>.<param>`. Nicht genannte Ziele behalten ihren Basiswert.
+Bedeutung der Spalten (R-94, R-95):
+
+- **Zielpfad:** setzt den absoluten Wert des Ziels; eine Overlay-Bindung auf diesem Ziel entfällt in der Zeile.
+- **Overlay-Schlüssel** eines statischen Eintrags: setzt dessen Ziehung x; die Verknüpfung nach `apply` (6.3
+  Schritt 1) gilt wie in der MC (bei `multiply` ist x der Faktor, bei `add` der Zuschlag). Bei Kurzformen ist der
+  Schlüssel der Zielpfad und `apply = replace`, beide Lesarten stimmen überein.
+- **Prozessparameter** `<proc>.<param>`: erzeugt je Zeile den Pfad `expected(par_zeile, years)`.
+- **Prozessschlüssel** `<proc>` mit Wert p ∈ (0, 1): setzt den Pfad `quantile_path(par, years, p)` (5.3); Prozesse
+  ohne `quantile_path` sind keine Designspalten.
 Zeile 1 ist der Basisfall. Ein Tornado mit k Parametern ist **ein** Lauf mit n = 1 + 2k Zeilen (Memo 04 §7.1). Werte
 für `low`/`high`: Default P10/P90 der Overlay-Verteilung des Ziels, sonst Basis × (1 ∓ `delta`). Basisfallgrößen
 (`auto`-Beträge, `ctx$param_base()`, `ctx$component_base()`) bleiben in Design-Läufen fest (R-69, R-70). Eine
@@ -3178,13 +3465,13 @@ Ist `flags$stopped`, sind alle wertbasierten Kennzahlen des Laufs `NA` mit Code 
 | `burden_ratio_max` | Anteil | | max_y `monthly_burden_y` / Einkommen_y; Einkommen = `household.net_income_month_eur` × Index(`income_growth`) | `no_household_income` | x² |
 | `monthly_net_cashflow` (series) | EUR/Monat | | je Betriebsjahr y: [Σ zahlungswirksame Zeilen der Abschnitte `project` und `grants` ohne Kategorien `residual_value`, `sale_cost` − KD_y − FEES_y] / Σ months_t; positiv = monatlicher Überschuss, negativ = monatlicher Zuschuss (Memo 07 §5.2 Persona c) | `no_operation_period` | x⁴ |
 | `monthly_net_cashflow_y1`, `monthly_net_cashflow_min` | EUR/Monat | | erstes volles Betriebsjahr bzw. Minimum über alle Betriebsjahre | `no_operation_period` | x⁴ |
-| `warm_rent` (series), `warm_rent_y1` | EUR/m²/Monat | | (rent + modernization_levy + tenant_energy_cost + tenant_operating_cost) / (living_area_m2 × Monate) je Betriebsjahr | `no_tenant_data`, `no_living_area` | x³ |
-| `warm_rent_change_prepost` (series), `warm_rent_change_prepost_y1` | EUR/m²/Monat | | Warmmietenänderung **„vorher/nachher“** je Betriebsjahr: (modernization_levy + tenant_energy_cost − tenant_energy_cost_pre) / (living_area_m2 × Monate); nur Mieteranteile (ohne Vermieteranteile an CO2-Kosten und § 5a-Netzentgelten; R-83) | `no_tenant_data`, `no_living_area` | x³ |
+| `warm_rent` (series), `warm_rent_y1` | EUR/m²/Monat | | (rent + modernization_levy + tenant_energy_cost + tenant_operating_cost) / (A_vm × Monate) je Betriebsjahr; A_vm = Σ `living_area_m2` der Gruppen mit `owner_occupied = false` (ohne Gruppen: `building.living_area_m2`; R-101) | `no_tenant_data`, `no_living_area` (A_vm ≤ zero_abs) | x³ |
+| `warm_rent_change_prepost` (series), `warm_rent_change_prepost_y1` | EUR/m²/Monat | | Warmmietenänderung **„vorher/nachher“** je Betriebsjahr: (modernization_levy + tenant_energy_cost − tenant_energy_cost_pre) / (A_vm × Monate), A_vm wie `warm_rent`; nur Mieteranteile (ohne Vermieteranteile an CO2-Kosten und § 5a-Netzentgelten; R-83) | `no_tenant_data`, `no_living_area` (A_vm ≤ zero_abs) | x³ |
 | `own_contribution` | EUR | | **Eigenanteil nach Förderung**: −Σ_t (zahlungswirksame Zeilen der Kategorien `land`, `acquisition_cost`, `capex`, `relocation_cost`, `grant`, `tax_credit`) − Σ_t Σ_{k neu} `draw_k` (Investition abzüglich Zuschüsse und neuer Kredite, nominal, ohne Ersatzinvestitionen; R-83) | – | x (², ⁴) |
 | `pv_subsidies` | EUR | | Förderbarwert: Σ_t (Zeilen der Kategorien `grant`, `operating_subsidy`, `tax_credit` + Merkzeilen `repayment_grant`) / q_t (ohne Zinsverbilligung; R-83) | – | |
-| `co2_emissions` | t CO2 | | Σ_t Merkzeilen `co2_emission` (R-83) | – | |
+| `co2_emissions` | t CO2 | | Σ_t Merkzeilen `co2_emission` (Treibhausgasbilanz aller Träger, 7.6; R-83, R-101) | – | |
 | `restriction_dscr` | 0/1 | | 1, wenn DSCR_y < `thresholds$dscr` für ein y ∈ P_stab (Objektebene) | `no_debt_service` | x⁵ |
-| `restriction_liquidity` | 0/1 | | 1, wenn in einer Periode KKP > zero_abs (Limit überschritten), `stop` ausgelöst oder KK + KKP > `overdraft_flag_threshold_eur` | – | x⁵ |
+| `restriction_liquidity` | 0/1 | | 1, wenn in einer Periode KKP > zero_abs (Limit überschritten), `stop` ausgelöst oder KK + KKP > `overdraft_flag_threshold_eur`; nicht prüfbar, wenn `overdraft_limit_eur` in allen Perioden unendlich ist und `overdraft_flag_threshold_eur` = ∞ (R-101; die Validierung meldet dann `vofi_warning_plausibility` `validation.accounts.liquidity_unchecked`) | `no_liquidity_limit` | x⁵ |
 | `restriction_warm_rent` | 0/1 | | 1, wenn `warm_rent_change_prepost_y1` > `thresholds$warm_rent_increase_eur_m2` | `no_tenant_data` | x⁵ |
 | `restriction_burden` | 0/1 | | 1, wenn `burden_ratio_max` > `thresholds$burden_share` | `no_household_income` | x⁵ |
 | `restriction_savings` | 0/1 | | 1, wenn `flags$equity_call_over_savings` (Nachschuss eines Betriebsjahres über der Sparfähigkeit) | `no_household_income` | x⁵ |
@@ -3224,7 +3511,8 @@ Referenzvariante empfohlen (Hinweis).
 `no_debt_service`, `no_market_value`, `no_household_income`, `no_tenant_data`, `no_living_area`,
 `no_inflation_path`, `no_operation_period`, `no_construction_period`, `no_solution` (keine eindeutige Lösung im
 Suchintervall), `run_stopped`, `not_applicable_perspective`, `not_computed`, `no_existing_value` (Bestandsprojekt ohne
-Bestandswert, R-68), `no_co2_reduction` (keine CO2-Minderung gegenüber der Referenz, R-83). Labels ausschließlich unter `vocab.na_reasons.<code>` (2.10). Undefinierte Renditen sind **nie** −100 % (D9, R-05); Grafiken DÜRFEN sie nur als ausdrücklich
+Bestandswert, R-68), `no_co2_reduction` (keine CO2-Minderung gegenüber der Referenz, R-83), `no_liquidity_limit`
+(Liquiditätsrestriktion ohne endliches Limit und ohne endliche Markierungsschwelle nicht prüfbar, R-101). Labels ausschließlich unter `vocab.na_reasons.<code>` (2.10). Undefinierte Renditen sind **nie** −100 % (D9, R-05); Grafiken DÜRFEN sie nur als ausdrücklich
 gekennzeichnete Zensur darstellen. Die MC-Statistik weist den NA-Anteil je Kennzahl getrennt aus.
 
 ### 12.5 Mit und ohne Restwert (D9, R-52)
@@ -3259,7 +3547,9 @@ Je skalarer Kennzahl x über gültige Läufe: `mean`, `sd`, `se` (Replikat-SE = 
 der Werte ≤ q05 (EUR, nicht negiert; Label „Mittel der schlechtesten 5 %“), `expected_loss` = mean(pmax(−x, 0)),
 `na_share`, `n_valid`; optional verteilungsfreie Konfidenzintervalle der Quantile über Ordnungsstatistiken
 (Memo 04 §4.4). Für 0/1-Kennzahlen (u. a. `restriction_*` = Verletzungswahrscheinlichkeit): Anteil mit SE. Der
-deterministische Wert steht daneben. Bei Entscheidungsknoten gilt die Statistik für das Kompositum; die bedingten
+deterministische Wert steht daneben. **Konvergenzausweis (R-97, R-101):** Spalte `converged` (lgl) =
+(t_{R−1; 0,975} · se / |mean| < `convergence.rel_halfwidth_mean`) und (t_{R−1; 0,975} · `p_neg_se` <
+`convergence.abs_halfwidth_prob`); bei R < 10 stets `FALSE` (Hinweis „grob“); keine automatische Verlängerung in v1. Bei Entscheidungsknoten gilt die Statistik für das Kompositum; die bedingten
 Statistiken stehen in `decision` (9.11 Nr. 5, 13.2).
 
 ### 12.8 Löser (`vofi_solve()`, `R/kpi-withdrawal.R`, `R/solve.R`)
@@ -3338,6 +3628,7 @@ Stufe 1 (Wirtschaftlichkeit, gewählte Restwertmethode):
 Stufe 2 (Restriktionen als K.-o.-Kennzeichen, je c):
   violated_base = restriction_c im Basisfall == 1;  prob = MC-Mittel von restriction_c (NA ohne MC)
   ko_c = violated_base | (prob >= restriction_prob)
+  restriction_c NA (z. B. no_liquidity_limit) -> ko_c = FALSE, Hinweis „Restriktion nicht prüfbar“ (R-101)
 level = Stufe 1, gedeckelt auf yellow, falls ein ko_c zutrifft
 ```
 
@@ -3378,6 +3669,7 @@ structure(list(
   meta        = list(package_version, contract_version, schema_version, scenario_id, project_id, building_id,
                      variant, scenario_set, mode, n_sim, seed, sim_index, legal_state, pending_reforms,
                      library = data.frame(entry, as_of, valid_from, valid_to, quality), library_version,
+                     defaults = list(<defaults_meta von global.yaml und Profil>),   # 4.7 (R-85)
                      tax_module, perspective, tax_regime, report_mode, comparison_mode, primary_kpi, store,
                      runtime_sec, created, r_version, notes = chr)
 ), class = "vofi_result")
@@ -3399,7 +3691,7 @@ structure(list(
   run_index  = c(p05 = int, p50 = int, p95 = int),
   deterministic = <vofi_result>,
   stats      = data.frame(kpi, mean, sd, se, se_df, q05, q10, q25, q50, q75, q90, q95, p_neg, p_neg_se, es05,
-                          expected_loss, na_share, n_valid, deterministic),
+                          expected_loss, na_share, n_valid, deterministic, converged),   # converged: 12.7 (R-97)
   checks     = data.frame(invariant, max_dev, tol, ok, n_runs),
   ledger     = <vofi_ledger> | NULL,              # nur store = "full"
   decision   = NULL | list(funding_id, fallback_variant, key, p_approval, share_approved,   # 9.11 (R-71)
@@ -3501,7 +3793,7 @@ Jede Funktion existiert nach Phase 0 als Stub mit dieser Signatur in der Datei i
 | 12 | `vofi_time_grid(valuation_date, horizon_years, construction_months = 0L, construction_step_months = 12L, operation_step_months = 12L, operation_alignment = c("calendar", "completion"), periods_months = NULL, start_year = NULL)` | `vofi_grid` | Erzeugt das Zeitraster (Vektor der Periodenlängen) mit festem Horizontende (R-67). | I |
 | 13 | `vofi_build(x, variant = "base", overrides = NULL, scenario_set = NULL)` | `vofi_model` | Baut aus Szenario oder Spezifikation ein rechenfertiges Modell. | WS-D |
 | 14 | `vofi_run(model, n_sim = 1L, seed = NULL, store = c("auto", "full", "bands", "kpi"), chunk_size = getOption("vofi.chunk_size", 2000L))` | `vofi_result` bzw. `vofi_mc_result` | Berechnet den VoFi deterministisch (n_sim = 1) oder als Monte-Carlo-Simulation. | WS-D |
-| 15 | `vofi_mc(model, n_sim = NULL, seed = NULL, sampling = NULL, block_size = NULL, store = NULL, bands = NULL, keep_runs = NULL, parallel = FALSE, chunk_size = getOption("vofi.chunk_size", 2000L), preview = FALSE)` | `vofi_mc_result` | Monte-Carlo-Simulation; nicht gesetzte (`NULL`) Argumente aus `stochastic$settings` (dort alternativ `replicates`, 11.4), `store` zulässig `"bands"`, `"kpi"`, `"full"` (Default `"bands"`); `preview = TRUE` rechnet 1.000 Läufe (= die ersten 1.000 Läufe des Standardlaufs, R-73); Entscheidungsknoten als Kompositum (9.11). | WS-G |
+| 15 | `vofi_mc(model, n_sim = NULL, seed = NULL, sampling = NULL, block_size = NULL, store = NULL, bands = NULL, keep_runs = NULL, parallel = FALSE, chunk_size = getOption("vofi.chunk_size", 2000L), preview = FALSE)` | `vofi_mc_result` | Monte-Carlo-Simulation; nicht gesetzte (`NULL`) Argumente aus `stochastic$settings` (dort alternativ `replicates`, 11.4), `store` zulässig `"bands"`, `"kpi"`, `"full"` (Default `"bands"`); `preview = TRUE` rechnet 1.000 Läufe (= die ersten 1.000 Läufe des Standardlaufs, R-73) und entspricht `stochastic.settings.preset: preview` (4.3.15, R-97); Entscheidungsknoten als Kompositum (9.11). | WS-G |
 | 16 | `vofi_sim(x, i)` | `vofi_result` | Rechnet Lauf i einer Simulation mit vollständiger VoFi-Tabelle nach (identisch zum Batch). | WS-D |
 | 17 | `vofi_opportunity(x)` | `vofi_result` | Unterlassungsalternative zu einem Modell oder Ergebnis. | WS-D |
 | 18 | `vofi_compare(x, variants = NULL, baseline = NULL, scenario_sets = NULL, n_sim = 1L, seed = NULL, store = c("auto", "bands", "kpi"), allow_unequal = FALSE)` | `vofi_comparison` | Vergleicht Varianten als vollständige VoFis mit gemeinsamen Zufallszahlen (Vergleichsregel ΔEW_A − ΔEW_B, Ausweichvarianten, Set „vorsichtig“, Ampel; 9.6, 9.11, 12.9). | WS-G |
@@ -3605,7 +3897,8 @@ nur in T); Bausteine `ek` (equity), Kredite `ann`, `bul`, `foe`, `bau` mit `paym
 (b) und (c): Einzahlungsüberschüsse als `recurring` mit Kategorie `rent` (NOI-relevant, für DSCR), z. B. (c):
 `amount_eur: 12000`, `growth: 0.02`, `base_date: 2028-01-01` (Break-even-Pfad `components.noi.amount_eur`); die
 Investition als `custom_series` (Kategorie `custom`); (c): Marktwert als `custom_series` mit `section: memo`,
-`category: market_value`, `values: {start: 280000, growth: 0.02}`. (e): `grid.periods_months: [3, 3, 3, 3, 12, 12, 12]`, `construction_months: 12`.
+`category: market_value`, `values: {start: 280000, growth: 0.02, index: period_end}` (Stichtagswert zum Periodenende,
+V_t = 280.000 · 1,02^t; R-91). (e): `grid.periods_months: [3, 3, 3, 3, 12, 12, 12]`, `construction_months: 12`.
 
 **Abbildung Ledger → Orakelzeilen (`oracle_view()`):**
 
@@ -3696,8 +3989,9 @@ Für alle Beispielszenarien und Orakel deterministisch sowie für **alle** Läuf
 | Labels | jeder in `R/` verwendete Schlüssel (`lbl("…")`, `msg("…")`, `vofi_abort("…")`) existiert; jede Typdatei hat ihre Pflichtlabels | I |
 | ASCII | Code-Token aller Dateien in `R/` sind ASCII: `utils::getParseData(parse(f, keep.source = TRUE))`, geprüft werden alle Token außer `COMMENT` (insbesondere `STR_CONST`, `SYMBOL`, `SYMBOL_FUNCTION_CALL`); deutsche Kommentare und roxygen-Doku sind erlaubt (2.7 Nr. 1). Ergänzend muss `R CMD check` die Prüfung „non-ASCII characters“ bestehen | I |
 | Steuerbereitschaft | 10.10 Nr. 7 für S1–S5 | WS-S |
-| Referenzszenarien | alle Prüfwerte S*-T* aus Memo 07 §4; Testkatalog Memo 07 §6.2. Konventionen für S1–S5: Kredite mit `payments_per_year: 1` (die Prüfwerte sind Jahresannuitäten); „Kostenstand Y“ einer Maßnahme zum 1. Januar Y wird als `price_base_year: Y − 1` erfasst (R-35); die Validierung meldet `vofi_warning_plausibility`, wenn eine Maßnahme in t = 0 einen Preisindex < 1 erhält | WS-S |
-| Rechtsregeln | Rechenbeispiele 1–7 aus Memo 02, Mietpfad-Testfall Memo 02 §2.2, Regeltests Memo 07 §6.2 | WS-E2 |
+| Referenzszenarien | alle Prüfwerte S*-T* aus Memo 07 §4 bzw. Spec 01 Teil C §5; Testkatalog Memo 07 §6.2. Konventionen: Kredite in S1–S4 mit `payments_per_year: 1` (die Prüfwerte sind Jahresannuitäten), in **S5 mit `payments_per_year: 12`** (Monatsraten, Memo 07 §4.5; R-105); „Kostenstand Y“ einer Maßnahme zum 1. Januar Y wird als `price_base_year: Y − 1` erfasst (R-35); die Validierung meldet `vofi_warning_plausibility`, wenn eine Maßnahme in t = 0 einen Preisindex < 1 erhält; Verschiebungen sind ≥ 0 (3.9) | WS-S |
+| Rechtsregeln | Rechenbeispiele 1–7 aus Memo 02, Mietpfad-Testfall Memo 02 §2.2, Regeltests Memo 07 §6.2 | WS-E (Mietrecht, CO2KostAufG, GrESt); Förderregeln WS-E2 (R-104) |
+| Bibliothek, Defaults | `test-library.R`: Eintragsschema, Freigabe, Codes ⊆ Vokabulare, Verweise; `test-profiles.R`: reservierte Schlüssel, Profilpfade, alle `from`/`use`-Verweise lösen auf (2.4) | WS-L, WS-A |
 | Metamorphe Tests | Skalierung aller Beträge mit k ⇒ EW × k; Komponente mit Betrag 0 ändert nichts; höhere Miete ⇒ EW ≥; höherer KK-Zins ⇒ EW ≤; Restwert aus ⇒ EW sinkt; nur Label geändert ⇒ identisch | Phase 3 |
 | Differenztests | Referenz-Engine vs. Engine auf 200 Zufallsszenarien (1e-8 relativ) | WS-T / Phase 3 |
 | Snapshots | `print`/`format` aller Klassen, Validierungsbericht, VoFi-Tabelle, deutsche Meldungen; `skip_if_not(l10n_info()[["UTF-8"]])` | WS-H, WS-B |
@@ -3842,6 +4136,37 @@ Deutsche roxygen-Doku (exportierte Funktionen mit Beispiel), Testabdeckung ≥ 9
 | R-83 | Ergänzende Kennzahlen | Konzept 1.4, 2.5, P6, P23, L3 | `warm_rent_change_prepost(_y1)` mit Merkzeile `tenant_energy_cost_pre`; `own_contribution`; `pv_subsidies`; `co2_emissions`, `co2_reduction`, `co2_abatement_cost`; `vofi_kpis(per = …)` je WE und m²; Haushaltssicht „ohne Tilgung“ (7.6, 12.3, 12.6, 14 Nr. 21, 28) |
 | R-84 | Feldauszüge | Konzept 3.2 (P18), B7, B12 | PV über 30 kWp per Attribut 0 % USt (7.10); Performance Gap als Strukturmodell (4.3.6b); `funding.<id>.payout_delay_months` stochastisch (3.9, 4.3.7); `repayment_grant.cut_share` (8.2) |
 
+**Runde 3: Feldkatalog-Abgleich** (Änderungsanträge S01A/S01B/S01C und Befunde X-nn/F-nn der Konsistenzprüfung von
+Spec 01; Einzelnachweis in 17.5):
+
+| Nr. | Thema | Positionen | Festlegung |
+|---|---|---|---|
+| R-85 | Defaults-Dateien | S01A-01 (`by_project_type`, `defaults_meta`), X-06 (Element-Defaults von Teil B ohne zulässigen Ort, Profilwerte für Gruppenfelder entgegen R-76) | reservierte Wurzelschlüssel `defaults_meta`, `by_project_type` (unmittelbar nach der eigenen Datei gemischt, im Profil mit R-76) und `item_defaults` (nur `global.yaml`; Vorlage je Sammlung bzw. optionalem Block, nach Schicht 8 und den Ableitungsregeln unter jedes Element gemischt, Element gewinnt, Platzhalter `{id}`; Defaults optionaler Blöcke nur dort); sonst Validierungsfehler (4.2, 4.7, 4.8, 13.1) |
+| R-86 | Ableitungsregeln | S01A-06, X-06, X-07 (Förderregeln von WS-E2 in früheren Wellen aufgerufen), S01B-13, X-25 (PV-USt) | WS-A-Regeln `rule:<name>` nach Schicht 8, **vor** `item_defaults` (spezifisch vor allgemein; abweichend vom Antrag) und vor den Expandern, je Variante/Set/Override neu; setzen nur fehlende Blätter bzw. lösen `auto` auf, schreiben Werte, Codes, `ref`-/`expr`-Knoten, nie berechnete Konstanten; Herkunft `type_default`/`rule:<name>`; `rule:approval_timing`, `rule:approval_probability` (mit neuem Feld `availability_after_2030`) statt Registry-Regeln `fund_approval_*`; PV-Nullsatz als `expr`-Knoten aus `rule:measure_catalog` (4.3.7, 4.7, 5.3, 7.10, 11.6) |
+| R-87 | Auflösung von `from:` | S01A-02 (`deep_merge(Skalar, {})`), S01C-11 (a), S01C-13 | Nutzlast ohne Map-Struktur (Skalar, Sequenz) oder Wertform ersetzt den Knoten, lokale Zusatzschlüssel sind dann Fehler; `from:` in Varianten-/Set-Operationen und `item_defaults` wird nach der Operation aufgelöst; `processes/*`-Nutzlasten als Map mehrerer Vorlagen (`use:`) bzw. als Korrelationsliste (4.3.15, 4.7, 4.9, 4.11) |
+| R-88 | Bibliothekseintrag und Freigabe | S01C-08, S01C-02 (`fallback`), S01B-09, X-29 | Eintragsschema um `description`, `references`, `quality_detail` (Herkunft je Blatt), `legal_state` (Pflicht für `legal/*`, `funding/*`), `notes`, `fallback` ergänzt, andere Wurzelschlüssel Fehler; automatisch angewandte C/D-Teile eines A/B-Eintrags als eigener Eintrag mit eigenem Thema; `valid_to` nur bei tatsächlichem Ende, Fortgeltung mit `valid_to: null` (4.8, 4.9, 4.10) |
+| R-89 | Vokabulare v1 | S01A-09, X-01 (Codes der Fördernutzlasten nicht im Katalog), X-08 (`559` vs. `bgb_559`), X-27 | 37 Maßnahmentypen aus Teil A §4.2 (keine Sammelcodes), Enums aus Teil A §8.1/Teil B §8, `federal_state`, `levy_procedure` mit `bgb_`-Codes und Aliasen, `bgb_procedure`, `overlay_apply`, `growth_index`, `mc_preset`; Codes in Bibliotheksnutzlasten ⊆ Vokabulare (Test WS-L) (2.11, Anhang B) |
+| R-90 | Expander-ids | S01A-04, S01B-01, X-33, X-20 | vollständige id-Liste je Expander (u. a. `m_<m>_purchase`, `m_<m>_acq`, `m_maintenance`, `m_<e>_repl`, `u_<g>_opex`, `e_<s>_<c>_cost`/`_co2`, `e_pv`, `e_tenant`, `f_<f>_35c`, `f_<f>_subsidy`, `h_equity`, `h_contrib`, `rv_value`); Energiekomponenten je Zustand × Träger; Prüfung „erzeugte id ≤ 40“ mit Höchstlängen der Nutzer-ids (4.4, 4.12, 7.10) |
+| R-91 | Wertgrammatik | S01A-03, S01A-05, S01B-06, X-12 | `quantity.per` + `m2_net_floor_area`, `parking`; `node_expr()`; Wachstumsform als **Kalenderjahreswert** (`index: calendar_year`, Default) bzw. Stichtagswert (`index: period_end`, Orakel (c)); nicht-numerische Pfadsymbole in Ausdrücken mit `setting`-Semantik nur in Vergleichen und Logik (4.5, 4.7, 6.3, 6.4, 15.3) |
+| R-92 | Expandertest, Basisfall im Build | S01B-04, S01B-10 | Ausnahmen des Expandertests (deterministische Arten, Kreditbeträge, `draw_schedule`, Sequenzelemente, Rechts- und Bibliothekswerte); `bctx$value_base()` nur für deterministische Ableitungen (4.12 Nr. 5, 6.4) |
+| R-93 | Typverträge | S01B-02, S01B-05, S01C-04, S01C-05, X-21 | optionales Typdef-Feld `domain_reads` und Domänenlesezugriff (6.1 Nr. 3); `ctx$rows()` mit Filtern `measure_id`, `local_row`, `id` als Vektor; Quantilfunktionen monoton (Bernoulli 1{u > 1 − p}, `empirical` mode = Median); `n_shocks`/`n_uniforms` nur strukturabhängig; `returns: value`; Regeln ohne `ctx` auch in Defaults von Formals (5.2, 5.3, 5.6, 6.2) |
+| R-94 | Overlay-Verknüpfung `apply` | S01C-01 | `apply` ∈ `replace`, `multiply`, `add` für statische Einträge; `ctx$param()` liefert b · x bzw. b + x; `draws$static` = x; Designspalte „Schlüssel“ setzt x, Designspalte „Zielpfad“ den absoluten Wert (4.3.15, 6.3, 11.2, 11.8, 11.11) |
+| R-95 | Prozesse | S01C-02, S01C-03, S01C-10, S01C-12 | Token `base` für Startparameter (Start am Basisfall); `linked_ar1.u0`; `mr_trend.p_norm` (Mean-Reversion zum Normalpreis); `vasicek.expected` mit Floor; optionale Funktion `quantile_path()` und Prozess-Designspalten; `generate.params`/`exclude` des Sets „vorsichtig“ (4.11, 5.3, 5.6 P4, 11.7, 11.11) |
+| R-96 | Overlay in Varianten, Korrelationspaare | S01C-11 (b), S01C-08 | Overlay-Einträge dürfen in Varianten und Sets hinzugefügt, geändert, entfernt werden; fehlende Ziele sind dort Fehler; Bibliothekspaare mit fehlendem Schlüssel werden verworfen, Szenariopaare sind Fehler (4.3.15, 4.7, 4.11, 11.6) |
+| R-97 | Presets, Konvergenz | S01C-14 | `settings.preset` (`preview`/`standard`/`report`/`custom`) mit Vorrangregel (Argumente > Schichten ≥ 3 > Preset > Schichten 0–2), `global.yaml` ohne `n_sim`; `settings.convergence`, Spalte `converged` (4.3.15, 12.7, 13.2, 14 Nr. 15) |
+| R-98 | Termine von Einmalzahlungen | F-07, X-11 (zwei Konventionen für Monate und Daten), S01B-12 | eine Regel: Monat m = (b_0 + (m − 1), b_0 + m] Monate; laufende Wirkungen ab mi(d); Einmalzahlungen haben ein Datum als Termin (Bezugsdatum + Fristen + Verschiebung) und werden nach R-35 gebucht; „im Monat m“ = Monatsbeginn; § 35c-Termin `add_months((Y+1)-01-01, payout_delay_months)`; Energieberatung außerhalb des Jahres-, innerhalb des Gesamtdeckels. X-11-Vorschlag „Monatsereignis in p(m)“ abgelehnt (3.4, 3.9, 10.9) |
+| R-99 | Förderkredite | S01B-10, S01B-11 | `approved` = Zusage × max a_m der geförderten Maßnahmen, Kreditbetrag bei Teilwegfall fest; Merkzeile `repayment_grant` mit `measure_id` oder `funding_id`, Anzeige-Tag `measure_id` = größte geförderte Maßnahme im Basisfall (4.12 Nr. 7, 7.6, 8.2) |
+| R-100 | Annuitätendarlehen | X-13, F-10 | τ und `term_years` zugleich zulässig (Rate aus τ, Fälligkeit aus `term_years`), τ mit `installment_eur` Fehler; nach Gutschrift eines Tilgungszuschusses mit `shorten_term` rechnet `keep_term` mit der effektiven Restzahl der Raten (Laufzeitverkürzung bleibt erhalten) (8.2, 8.6) |
+| R-101 | Kennzahlen | S01B-03, S01B-07, X-30, S01C-14 | Warmmiete je **vermietetem** m²; `co2_emission` = Treibhausgasbilanz aller Träger; `restriction_liquidity` ohne endliches Limit und ohne endliche Schwelle NA `no_liquidity_limit` (kein K.-o.); `converged` (7.6, 12.3, 12.4, 12.7, 12.9) |
+| R-102 | Bezugsperiode „warmmietenneutral“ | S01B-08 | erste Periode mit 12 Monaten, die am oder nach dem frühesten Wirksamkeitsmonat der Umlage im Basisfall beginnt (4.3.6a, 6.3) |
+| R-103 | Marktnamen | S01C-07, X-32 | kanonische Namen + `operating_cost_growth`, `bund_yield_10y`, `mortgage_spread`, `feed_in_tariff.<klasse>`, `vacancy_fluctuation`; Trägercodes nach Teil B §3.2.1 mit Marktpreis für jeden kanonischen Träger; Energiepreise, Netzentgelte, Bio-Mehrkosten und CO2-Preis netto (4.3.11) |
+| R-104 | Dateien, Tests, Labels | X-07 (Testeigentum Rechtsregeln), X-22, X-23 | Set „vorsichtig“ in `R/compare.R`; Testdateien `test-<R-datei>.R`, Datentests `test-library.R` (WS-L) und `test-profiles.R` (WS-A); Validierungsschlüssel `validation.<block>.<code>` in `inst/labels/de/validation.yaml`; Rechtsregeltests bei WS-E bzw. WS-E2 (2.2, 2.4, 2.10, 15.6) |
+| R-105 | Referenzszenario-Konventionen | S01C-06, X-14 | S5 mit `payments_per_year: 12`, S1–S4 mit 1; Verschiebungen ≥ 0, vorgezogene Termine als früherer Basistermin mit Verschiebung (3.9, 15.6, 17.2 F-18) |
+| R-106 | Feldlisten | S01A-07 | Feldlisten in 4.3 sind Auszüge; maßgeblich für Schema und Validierung sind die Feldtabellen von Spec 01 (4.3) |
+| R-107 | Pflichtsensitivitäten | S01C-09 | `value` darf eine Wertform sein und ersetzt den Knoten einschließlich `anchor`; `delta` wirkt bei `anchor` auf den Anker; Ausführung als Override in Schicht 8 (4.3.14) |
+| R-108 | Komponenten-Zeitwert | F-09 | ohne Indexierung nominaler Buchwert der letzten Investition × Restanteil, mit Indexierung zusätzlich Baupreisindex; Prüfwert RV8 = 82.853,16 (4.12 Nr. 8; Spec 01 Teil A §6.7) |
+| R-109 | Abgelehnte Anträge | S01A-08 (Umlenkung von Overlay-Zielen), S01C-15 (`shared` in Szenario-Sets) | keine stille Umlenkung (Pfad-Identität, R-16): Ziel auf abgeleitetes `cost_eur` bzw. auf `remaining_life_years` bei Methode ≠ `manual` ist ein Validierungsfehler mit Vorschlag des Ersatzziels; Szenario-Sets bleiben auf die Umfeldpfade beschränkt, szenarioeigener `market`-Pfad als Muster (4.11) |
+
 ---
 
 ## 17. Review-Protokoll
@@ -3853,6 +4178,7 @@ Deutsche roxygen-Doku (exportierte Funktionen mit Beispiel), Testabdeckung ≥ 9
 | 1.0.0 | 25.10.2026 | Erstfassung | alle |
 | 1.0.0 | 25.10.2026 | Überarbeitung nach Review Runde 1 (49 Befunde, 17.2); vor dem Einfrieren in Phase 0, daher ohne Versionssprung. Neue Auflösungen R-60 bis R-65 | alle |
 | 1.0.0 | 25.10.2026 | **Runde 2: Abgleich mit Konzept** (Konzept §11.1–11.3 und Konzept-Review-Protokoll; 21 Abgleichpunkte, 17.4); vor dem Einfrieren in Phase 0, daher ohne Versionssprung. Neue Auflösungen R-66 bis R-84; R-02 und R-14 ersetzt; Signaturänderungen in 14 Nr. 12, 15, 19, 20, 21 | alle; Schwerpunkte WS-D, WS-G, WS-D2, WS-C, WS-F, WS-E/E2, WS-A, WS-L, WS-T, Spec 01 |
+| 1.0.0 | 26.10.2026 | **Runde 3: Feldkatalog-Abgleich** (37 Änderungsanträge S01A-01–09, S01B-01–13, S01C-01–15 und 19 Befunde mit Spec-00-Bezug aus der Konsistenzprüfung von Spec 01; 17.5): 35 Anträge angenommen (davon 17 mit Änderung), 2 abgelehnt (S01A-08, S01C-15). Neue Auflösungen R-85 bis R-109; verbindliche Namens- und Eigentumsentscheidungen N-01 bis N-31 (17.5.3). Vor dem Einfrieren, daher ohne Versionssprung; die Änderungen sind additiv (MINOR/PATCH) bis auf den Vokabularbestand `measure_types` und die Auswertung der Wachstumsform, die bereits geschriebenen Phase-0-Code betreffen (**Phase-0-Nacharbeit**, 17.5.4) | I (Phase-0-Nacharbeit), WS-A, WS-B, WS-C, WS-D, WS-E, WS-E2, WS-F, WS-G, WS-L, WS-S, WS-T, Spec 01 A–C |
 
 ### 17.2 Review-Befunde Runde 1 (zwei adversariale Reviews: Linse „finanz“ F-nn, Linse „software“ S-nn)
 
@@ -3879,7 +4205,7 @@ eingeschränkte Lösung), **abgelehnt** (Befund ungültig). Kein Befund wurde ab
 | F-15 | finanz | minor | 10.4 | übernommen | Bestätigt. `tax_inputs` zeilengenau mit Metadaten und `extra`; Vorzeichenkonvention im Steuer-Input (Aufwand negativ, `disagio` negativ eingestellt). |
 | F-16 | finanz | minor | 7.6, 7.12 | übernommen | Bestätigt. `other_cost` ist NOI-relevant; Hinweis bei `recurring` ohne Kategorie für `wu_*`. |
 | F-17 | finanz | minor | 3.2, 3.3, 3.8, 12.2 | übernommen | Bestätigt (G4: 15-monatiges Betriebsjahr 1). `calendar`: Betriebsjahre = Kalenderjahre, Stub als Teiljahr, neues Feld `op_year_full`; `_y1`-Kennzahlen auf das erste volle Jahr; Sollwerte G4/G5. |
-| F-18 | finanz | minor | 4.3.2, 15.6 | übernommen | Bestätigt. S1–S5 mit `payments_per_year: 1`; „Kostenstand Y“ → `price_base_year: Y − 1`; Plausibilitätswarnung bei Preisindex < 1 in t = 0. |
+| F-18 | finanz | minor | 4.3.2, 15.6 | übernommen | Bestätigt. S1–S5 mit `payments_per_year: 1`; „Kostenstand Y“ → `price_base_year: Y − 1`; Plausibilitätswarnung bei Preisindex < 1 in t = 0. **Runde 3 (R-105, S01C-06):** S5 abweichend mit `payments_per_year: 12` (Monatsraten nach Memo 07 §4.5). |
 | F-19 | finanz | minor | 4.3.5, 12.3, 12.4 | übernommen | Bestätigt (Memo 07 Persona e). Kennzahl `monthly_burden_construction` mit optionaler bisheriger Miete `household.current_rent_month_eur` (ohne Ledger-Zeile, ΔEW unberührt), NA-Code `no_construction_period`. |
 | F-20 | finanz | minor | Anhang B | übernommen | Bestätigt. Variante `ohnehin` entfernt `modernization_kind` und setzt `ohnehin_share: 1`, `classification: erhaltung` (Map-Merge am existierenden Pfad, 4.11). |
 | F-21 | finanz | minor | 3.6 | teilweise | Bestätigt. Jahreswerte vor dem Stichtag aus `series_year`/`points` über das Pfadattribut `annual_before`; fehlen sie, Rate des Bewertungsjahres mit Hinweis. Keine neue ctx-Funktion. |
@@ -3943,6 +4269,13 @@ F-12, F-21, S-09, S-20), 0 abgelehnt.
    deterministisch (12.6, 12.8).
 7. **Entscheidungsknoten:** v1 erlaubt höchstens einen Knoten je Variante und keine Ketten von Ausweichvarianten
    (9.11 Nr. 1); mehrstufige Entscheidungsbäume sind v2.
+8. **Neu aus Runde 3:** (a) Maßnahmentyp `sonnenschutz` (sommerlicher Wärmeschutz, BAFA-förderfähig) ist in v1 kein
+   Katalogcode (N-01); Aufnahme als 38. Code nur über einen Antrag von Teil A mit Katalogzeile. (b) Automatische
+   Blockerweiterung bis zum Konvergenzkriterium (`converged`) ist v1.1 (R-97). (c) Energiepreis-Basisfall: Ob der
+   deterministische Pfad dem Erwartungswert des `mr_trend` folgt (Mean-Reversion zum Normalpreis, Befund F-08 von
+   Teil B/C), entscheidet Teil C mit der Bibliothek; Spec 00 stellt dafür `p_norm` und `quantile_path()` bereit (R-95).
+   (d) Regel `mr_levy_allowed`: Abbildung `bgb_559c` → `bgb_559` für die Ausschlussprüfung nach § 557a (N-06) ist
+   fachlich durch Teil B zu bestätigen.
 
 ### 17.4 Runde 2: Abgleich mit dem Konzept (Einzelnachweis)
 
@@ -3974,6 +4307,139 @@ Nr. 1). Spalte „Änderung“ nennt die geänderten Abschnitte.
 | K-19 | 2.6, F13-Grundsatz | offener Punkt 17.3 Nr. 3 aus Runde 1 (Zins der Fehlbeträge der Unterlassungsalternative) | entschieden (R-81) | 9.5 Nr. 5, 17.3 |
 | K-20 | 8.4 (Reihenfolge D → C → F → E → A → B → A2 → H), 5.3 (Schichten), 5.4 („Abrufdatum“), 4.2 (Verzug → Bereitstellungszinsen) | weitere Abweichungen geprüft | keine Vertragsänderung: Wellen und Merge-Reihenfolge regelt 2.3 (Spezifikation geht in technischen Details vor, Konzept Anhang B); Schichtenmodell 4.7 deckungsgleich; maßgeblich für die Veraltungswarnung bleibt `as_of`; Bereitstellungszinsen bei Verzug bleiben v2 (17.3 Nr. 2) | – |
 | K-21 | – | redaktionell | Pipe-Zeichen in Codeabschnitten von Tabellenzellen maskiert (`\|`), damit die Tabellen in 2.4, 5.3, 8.6 und 17.2 korrekt dargestellt werden | 2.4, 5.3, 8.6, 17.2 |
+
+### 17.5 Runde 3: Feldkatalog-Abgleich (Einzelnachweis)
+
+Geprüft wurden die Änderungsanträge der drei Teile von Spec 01 (Abschnitte „Änderungsanträge an Spec 00“:
+S01A-01–09, S01B-01–13, S01C-01–15) mit der Vorbewertung durch den Auditor sowie die Befunde der teilübergreifenden
+Konsistenzprüfung (X-nn) und der fachlichen Prüfung (F-nn), soweit sie Spec 00 betreffen. Spalte „Auditor“ =
+Vorbewertung (`accept`, `accept_modified`, `reject`), Spalte „Entscheidung“ = Integrator (**bestätigt** bzw.
+**geändert** mit Begründung). SemVer-Einstufung nach 1.4 Nr. 3; die Version bleibt 1.0.0 (vor dem Einfrieren).
+
+#### 17.5.1 Änderungsanträge
+
+| Nr. | Auditor | Entscheidung | Begründung | Änderung in Spec 00 | R | SemVer |
+|---|---|---|---|---|---|---|
+| S01A-01 | accept_modified | angenommen mit Änderung (bestätigt, ergänzt) | `by_project_type` für Konzept A3 nötig, `defaults_meta` braucht einen Platz, Teil B braucht Element-Defaults (X-06). Ergänzt: `from:` in Vorlagen zulässig, Defaults optionaler Blöcke nur in `item_defaults` (sonst entstünde z. B. `building` in den Orakeln), Anwendung in Pfadtiefe, Reihenfolge **nach** den Ableitungsregeln | 4.2 Fn. ³, 4.7 „Defaults-Dateien“, 4.8, 4.3.6a, 4.3.6b, 4.3.7, 13.1 `meta$defaults`, 1.5 | R-85 | MINOR |
+| S01A-02 | accept | angenommen (bestätigt) | `deep_merge(Skalar, {})` liefert die leere Map; `global.yaml` und S1–S5 brauchen skalare bzw. Listen-Nutzlasten | 4.9 „Auflösung von `from:`“ | R-87 | PATCH |
+| S01A-03 | accept | angenommen (bestätigt) | IWU-Kostenfunktionen je A_N, Stellplatzkosten; additiv | 4.5 Mengenbezug (mit Abbildung `per` → Feld) | R-91 | MINOR |
+| S01A-04 | accept_modified | angenommen mit Änderung (bestätigt) | Tabelle unvollständig und widersprüchlich (X-33); einmalig vollständig neu gefasst, inkl. S01B-01 | 4.12 Tabelle | R-90 | PATCH |
+| S01A-05 | accept | angenommen (bestätigt) | 4.12 Nr. 2 und Nr. 7 verlangen `expr`-Knoten | 6.4, 2.4 | R-91 | MINOR |
+| S01A-06 | accept_modified | angenommen mit Änderung (Reihenfolge geändert) | Ableitungsregeln nötig (Overlay- und Designziele auf Katalogpfaden). **Geändert:** sie laufen **vor** `item_defaults`, weil spezifische Defaults (Selbstnutzung, Instrumentart) sonst von der allgemeinen Vorlage verdeckt würden; fehlendes Feld = `auto`; Bezüge auf später gefüllte Blätter zulässig | 4.7 „Ableitungsregeln“, 4.8, 4.12 Nr. 1, 5.3 Regelkonvention, 1.5 | R-86 | MINOR |
+| S01A-07 | accept_modified | angenommen mit Änderung (bestätigt) | vollständige Feldliste in Spec 00 wäre eine zweite Quelle | 4.3 Kopf | R-106 | PATCH |
+| S01A-08 | reject | abgelehnt (bestätigt) | stille Umlenkung bricht die Pfad-Identität (R-16); Teil C zielt direkt auf `cost_factor` bzw. `remaining_life_offset_years` | keine (N-20) | R-109 | – |
+| S01A-09 | accept_modified | angenommen mit Änderung (bestätigt, ergänzt) | Codes für Ebene 2 nötig; ergänzt um `bgb_procedure` (Verfahrenslisten der Mietrechtsnutzlast, X-08), `overlay_apply`, `growth_index`, `mc_preset`, `quantity_per`, `rule_returns`, `na_reasons` | 2.11 „Inhalt v1“, Anhang B | R-89 | MINOR |
+| S01B-01 | accept | angenommen (bestätigt) | Menge, Einbaudatum, Bio-Treppe je Zustand verschieden; ids ≤ 40 bei Zustand ≤ 12, Träger ≤ 20 | 7.10, 4.12, 4.4 Nr. 2 | R-90 | PATCH |
+| S01B-02 | accept_modified | angenommen mit Änderung (bestätigt) | Lesezugriff über `ctx$spec`/`ctx$value()` besteht; nur deklarative Angabe und Klarstellung | 5.2, 5.6 C3, 6.1 Nr. 3 | R-93 | MINOR |
+| S01B-03 | accept | angenommen (bestätigt) | Mieterzeilen nur für vermietete Flächen | 12.3 `warm_rent`, `warm_rent_change_prepost` | R-101 | PATCH |
+| S01B-04 | accept_modified | angenommen mit Änderung (bestätigt) | Sequenzen und Rechtswerte sind keine Domänenblätter; deterministische Arten keine Designziele | 4.12 Nr. 5 | R-92 | PATCH |
+| S01B-05 | accept_modified | angenommen mit Änderung (bestätigt) | Mietpfad, Förderung und `share_of` lesen Zeilen je Maßnahme bzw. lokaler Zeile | 6.2 `rows()` | R-93 | MINOR |
+| S01B-06 | accept | angenommen **mit Änderung** (Integrator) | Kalenderjahreswert richtig für laufende Preise (F10). **Geändert:** Die Wachstumsform beschreibt auch Stichtagsgrößen ohne Typlogik (Orakel (c): Marktwert-Merkzeile `{start: 280000, growth: 0.02}`, LTV t = 0 = 107,14 %); mit reinem Kalenderjahresindex wäre V_0 = 285.600 und das Orakel verletzt. Daher Schlüssel `index` (`calendar_year` Default, `period_end` für Stichtagswerte) | 4.5 Wachstum, 4.7 `is_value_form`, 6.3 Schritt 3, 6.4, 15.3 (c) | R-91 | MINOR, **Phase-0-Nacharbeit** |
+| S01B-07 | accept | angenommen (bestätigt) | Minderung und Vermeidungskosten sonst ohne Strom/Fernwärme | 7.6 Merkzeile, 12.3 `co2_emissions` | R-101 | PATCH |
+| S01B-08 | accept | angenommen (bestätigt) | im Erklärungsjahr gilt der Zustand nur anteilig | 6.3 Verwendung, 4.3.6a | R-102 | PATCH |
+| S01B-09 | accept | angenommen (bestätigt) | Freigabe gilt je Eintrag | 4.10 | R-88 | PATCH |
+| S01B-10 | accept | angenommen mit Änderung (Integrator, ergänzt) | Widerspruch 8.2/7.6. Ergänzt: der Anzeige-Tag „größte Maßnahme im Basisfall“ braucht einen Basisfallwert im Build; dafür `bctx$value_base()` (nur deterministische Ableitungen) | 7.6, 6.4, 4.12 Nr. 5 | R-99, R-92 | PATCH/MINOR |
+| S01B-11 | accept | angenommen (bestätigt) | verträglich mit R-69, R-71 | 4.12 Nr. 7, 8.2 | R-99 | PATCH |
+| S01B-12 | accept | angenommen (bestätigt; Termin über R-98 formuliert) | eindeutige Termine und Deckel; „Monat, der mit 31.12.Y + Verzug endet“ = Termin `add_months((Y+1)-01-01, Verzug)` nach 3.4 | 10.9 | R-98 | PATCH |
+| S01B-13 | accept_modified | angenommen mit Änderung (bestätigt, präzisiert) | Default nach Memo 07 nötig, Registry-Regel von WS-E2 in früheren Wellen nicht nutzbar (X-07). Präzisiert: ohne `budget_risk` Basiswert 1, der Verfügbarkeitsfaktor gilt trotzdem ab 2031 | 4.3.7, 11.6 Nr. 4 | R-86 | MINOR |
+| S01C-01 | accept_modified | angenommen mit Änderung (bestätigt, ergänzt) | Faktorform der Bibliothek ohne Umbau des Ziels; ergänzt: Kurzformen immer `replace`, Spalte `apply` in `draws$targets` | 4.3.15, 6.3 Schritt 1, 11.2, 11.8, 11.11 | R-94 | MINOR |
+| S01C-02 | accept_modified | angenommen mit Änderung (bestätigt) | Start am Basisfall (F18); `fallback` nur dokumentierend | 11.7, 4.9 | R-95, R-88 | MINOR |
+| S01C-03 | accept | angenommen (bestätigt) | Defaults erhalten die bisherigen Formeln; Konzept B8 | 11.7 Tabelle | R-95 | MINOR |
+| S01C-04 | accept | angenommen (bestätigt) | Iman-Conover und CRN brauchen monotone Quantile | 5.3 | R-93 | PATCH |
+| S01C-05 | accept | angenommen (bestätigt) | Stromzuordnung und Plan-Hash unabhängig von Parametern | 5.3 | R-93 | PATCH |
+| S01C-06 | accept | angenommen (bestätigt) | Prüfwerte S5 sind Monatsraten | 15.6, 17.2 F-18 | R-105 | PATCH |
+| S01C-07 | accept_modified | angenommen mit Änderung (bestätigt, ergänzt) | Zwei-Faktor-Zins, PV, Leerstand; ergänzt: Marktpreis für jeden kanonischen Träger (X-32) | 4.3.11 | R-103 | MINOR |
+| S01C-08 | accept_modified | angenommen mit Änderung (bestätigt) | Herkunft je Blatt, Rechtsstand je Eintrag; vollständige Liste der Wurzelschlüssel | 4.8, 4.9, 4.3.15, 11.6 Nr. 7 | R-88, R-96 | MINOR |
+| S01C-09 | accept | angenommen (bestätigt) | „Habenzins = vermiedener FK-Zins“ als Bezug; Ausführung in Schicht 8 | 4.3.14 | R-107 | PATCH |
+| S01C-10 | accept_modified | angenommen mit Änderung (bestätigt) | stärkste Treiber sind Prozesse; Quantilpfad braucht Vertragsfunktion und eindeutige Designspalte | 4.11, 5.3, 5.6 P4, 11.11 | R-95 | MINOR |
+| S01C-11 | accept | angenommen (bestätigt) | S1–S5 brauchen Förderinstrumente und Overlay-Schlüssel nur in der investiven Variante | 4.7, 4.9, 4.11 | R-87, R-96 | MINOR |
+| S01C-12 | accept | angenommen (bestätigt) | P2 auch bei bindendem Floor | 11.7 | R-95 | PATCH |
+| S01C-13 | accept | angenommen (bestätigt) | verträglich mit R-13 über `use`; Korrelationslisten über S01A-02 | 4.9, 4.3.15 | R-87 | PATCH |
+| S01C-14 | accept_modified | angenommen mit Änderung (bestätigt) | Presets nützlich; ohne Vorrangregel wirkungslos | 4.3.15, 12.7, 13.2, 14 Nr. 15 | R-97, R-101 | MINOR |
+| S01C-15 | reject | abgelehnt (bestätigt) | Sets ändern nur das Umfeld; `shared` würde die Pfadbeschränkung umgehen | 4.11 (Muster) | R-109 | – |
+
+Summe: 37 Anträge; 18 unverändert angenommen, 17 mit Änderung angenommen (davon S01B-06 und S01B-10 abweichend vom
+Auditor, S01A-06 mit geänderter Reihenfolge), 2 abgelehnt.
+
+#### 17.5.2 Befunde mit Spec-00-Bezug
+
+| Nr. | Schwere | Entscheidung | Änderung in Spec 00 | R |
+|---|---|---|---|---|
+| X-01 | blocker | übernommen | Vokabular `measure_types` = 37 Codes aus Teil A, keine Sammelcodes; Anhang B `heizung_waermepumpe_luft`; Prüfregel „Codes der Nutzlasten ⊆ Vokabular“ (WS-L); Listen der Fördereinträge N-01 | R-89 |
+| X-06 | blocker | übernommen | `item_defaults` und Ableitungsregeln; Profile setzen keine Elementfelder | R-85, R-86 |
+| X-07 | major | übernommen | Zusagezeitpunkt und -wahrscheinlichkeit als WS-A-Ableitungsregeln; Regelkonvention 5.3; Testeigentum Rechtsregeln in 15.6 (WS-E, Förderregeln WS-E2) | R-86, R-104 |
+| X-11 | major | teilweise | ausdrückliche Regel in 3.4, aber **eine** Konvention statt zwei (siehe F-07): Einmalzahlungen mit Datumstermin nach R-35, laufende Wirkungen nach Monaten; der Vorschlag „Monatsereignis in p(m)“ entfällt | R-98 |
+| X-12 | major | übernommen | 4.5 Regel 5: nicht-numerische Pfadsymbole mit `setting`-Semantik, nur in Vergleich und Logik | R-91 |
+| X-13 | major | übernommen | 8.2, 8.6: τ + `term_years` zulässig, τ + `installment_eur` Fehler | R-100 |
+| X-14 | major | übernommen (Klarstellung) | 3.9: Verschiebungen ≥ 0, vorgezogene Termine als früherer Basistermin | R-105 |
+| X-20 | minor | übernommen | 4.4 Nr. 2: Prüfung erzeugter ids ≤ 40 mit Höchstlängen der Nutzer-ids | R-90 |
+| X-21 | minor | übernommen | 5.3: `returns: value`; Regeln ohne `ctx` auch in Defaults von Formals | R-93 |
+| X-22 | minor | übernommen | 2.2, 2.4, 15.6: Datentests `test-library.R`, `test-profiles.R`; Set „vorsichtig“ in `R/compare.R` | R-104 |
+| X-23 | minor | übernommen | 2.10: Namensraum `validation.<block>.<code>` in `inst/labels/de/validation.yaml` | R-104 |
+| X-25 | minor | übernommen | 7.10: PV-Nullsatz als `expr`-Knoten aus `rule:measure_catalog`; Zeilenmetadatum = Basisfallwert | R-86 |
+| X-27 | minor | übernommen | 2.11: Codes `federal_state` | R-89 |
+| X-29 | minor | übernommen | 4.10: `valid_to` nur bei tatsächlichem Ende; Fortgeltung mit `valid_to: null` | R-88 |
+| X-30 | minor | übernommen (Variante „nur bei endlichem Limit zählen“) | 12.3, 12.4, 12.9: NA `no_liquidity_limit`, kein K.-o., Plausibilitätswarnung; ein endlicher WU-Default ist Sache von Teil A | R-101 |
+| X-33 | minor | übernommen | 4.12 Tabelle neu (mit S01A-04, S01B-01) | R-90 |
+| F-07 | major | übernommen (Variante „Datumssemantik“) | 3.4 Nr. 3: Termin = Bezugsdatum + Fristen, Buchung nach R-35; Zuschuss und Tilgungszuschuss mit gleicher Ableitung fallen in dieselbe Periode; F-1, F-16, S3-T2 und Kommentare in Teil B/C anzupassen (N-13) | R-98 |
+| F-09 | major | übernommen | 4.12 Nr. 8: Komponenten-Zeitwert ohne Indexierung = nominaler Buchwert; RV8 = 82.853,16 | R-108 |
+| F-10 | major | übernommen | 8.6: `keep_term` nach `shorten_term` mit effektiver Restzahl; L1 und S1-T8 neu rechnen | R-100 |
+
+#### 17.5.3 Verbindliche Namens- und Eigentumsentscheidungen (für die Überarbeitung von Spec 01)
+
+Die Bearbeiter der Teile A–C übernehmen diese Festlegungen wörtlich; bei Widerspruch zu Spec 01 gilt diese Liste.
+
+| Nr. | Gegenstand | Festlegung | umsetzen in |
+|---|---|---|---|
+| N-01 | Maßnahmentypen (X-01, F-03) | einzige Quelle: 37 Codes Teil A §4.2. KfW 458 (vererbt an 459): `eligibility.measure_types: [heizung_waermepumpe_luft, heizung_waermepumpe_sole, heizung_pelletkessel, heizung_fernwaerme, heizungsverteilung]`. BAFA Hülle: `[daemmung_fassade, daemmung_dach_steil, daemmung_dach_flach, daemmung_oberste_geschossdecke, daemmung_kellerdecke, fenster, aussentueren]`. `sonnenschutz`, `heizung_tausch`, `daemmung_dach`, `daemmung_ogd`, `aussentuer` gibt es nicht | 01c §3.4; 01b §4.3.1 (unverändert E) |
+| N-02 | II. BV (X-05a) | Bibliotheks-id `costs/bewirtschaftung_ii_bv_2026` | 01a §2.2, §3.3, §8.2 |
+| N-03 | ImmoWertV-Bewirtschaftung (X-05b, F-17) | `use`-Schlüssel der Bibliothek gelten: `admin_per_unit_or_efh_eur_pa`, `admin_per_garage_eur_pa` | 01b §7.1 |
+| N-04 | Defaults von Teil B (X-06) | `unit_groups_defaults` → `item_defaults."unit_groups"`; `energy_defaults.carriers` → `item_defaults."energy.carriers"` (mit `price_eur_kwh: {ref: market.energy_price.{id}}`, `co2_price_eur_t`, `bio_premium_eur_kwh` als Bezüge); `energy_defaults.performance_gap` → `item_defaults."energy.performance_gap"`; `energy_defaults.pv` → `item_defaults."energy.pv"`; übrige `energy_defaults.*` → `item_defaults."energy"`; `funding_defaults` → `item_defaults."funding"` (`on_reject: balance`, `approval_timing: auto`, `payout_delay_months: 0`, `availability_after_2030: 0.7`); `payout_delay_months_tax_credit` → `rule:tax_credit_defaults` (12 bei `instrument_type: tax_credit`); `building_defaults.property_tax` → `item_defaults."building.property_tax"`; `scenario_sets.foerderstopp` bleibt gewöhnlicher Block. 01b §7.2 (Profiltabelle) entfällt (Inhalt N-08). `network_fee_eur_kwh` „falls der Marktname existiert“ → `rule:carrier_defaults` | 01b §7.1, §7.2, §1.2, §2.2, §3.2.1 (Spalten (G)/(P)); 01a §2.1, §2.2 (Datei = Vereinigung) |
+| N-05 | Defaults optionaler Blöcke (R-85) | Felder von `building`, `household`, `energy` (z. B. `building_id`, `building.maintenance`) stehen nur unter `item_defaults."building"` usw., nie als gewöhnlicher Block in `global.yaml`; Profile setzen keine Elementfelder | 01a §2.2 |
+| N-06 | Mietrechtliche Verfahrenscodes (X-08) | `levy_procedure` = `auto`, `bgb_559`, `bgb_559c`, `bgb_559e` (Aliase `559`, `559c`, `559e`, auch als Zahl gelesen); Bibliothekslisten (`s557a.excludes`, `s558.excludes_increases`, `rent_law.enables`) nur mit `bgb_procedure`-Codes; `mr_levy_allowed` vergleicht innerhalb der `bgb_`-Familie, `bgb_559c` zählt bei der Ausschlussprüfung als `bgb_559` (fachlich zu bestätigen, 17.3 Nr. 8 d); S1: `rent_law: {procedure: bgb_559}` | 01b §1.4, §1.9.2, §5.1, §8; 01c §3.5, S1 |
+| N-07 | Ableitungsregeln (R-86, X-07) | Eigentümer WS-A (`R/scenario-layers.R`); Namen: Teil A `rule:tax_regime`, `rule:report_mode`, `rule:dates`, `rule:price_base_year`, `rule:project_id`, `rule:tenant_view`, `rule:building_aggregates`, `rule:first_occupancy`, `rule:measure_catalog` (inkl. PV-USt nach 7.10 und `modernization_kind: none` bei Erhaltung bzw. Ohnehin-Anteil 1, X-09), `rule:cost_from_kg` (inkl. `payment_schedule` mit `unit: eur`, X-28), `rule:maintenance_from`; Teil B `rule:unit_group_defaults`, `rule:carrier_defaults`, `rule:approval_timing`, `rule:approval_probability`, `rule:tax_credit_defaults`. Die Registry-Regeln `fund_approval_probability`, `fund_approval_timing` entfallen; Expander, Validierung, Sampler und `vofi_build()` lesen `funding.<f>.approval_timing` bzw. `.approval_probability` | 01a §1.4; 01b §4.2, §4.9, §5.1, §5.4 (neuer Unterabschnitt „Ableitungsregeln“) |
+| N-08 | `rule:unit_group_defaults` (X-06) | `owner_occupied` fehlt → `true` bei `project.perspective = selbstnutzer`, sonst `false`; bei `owner_occupied = true`: `rent_regime: owner_occupied`, `vacancy_rate: 0`, `rent_default_rate: 0`, `operating.admin_per_unit_eur_pa: 0`, `operating.admin_per_parking_eur_pa: 0`, `operating.nonrecoverable_share_of_rent: 0`; bei `wu_genossenschaft` und vermieteter Gruppe: `rent_regime: cooperative_fee`; alle übrigen Gruppenwerte aus `item_defaults."unit_groups"` (z. B. `vacancy_rate: 0.025`) | 01b §1.2, §2.2 |
+| N-09 | Verfügbarkeit nach 2030 (S01B-13) | Feld `funding.<f>.availability_after_2030` (statt `funding_defaults.post2030_availability`); die Overlay-Vorlage in `processes/funding_risks_2026` heißt `availability_after_2030` (statt `availability_post2030`) | 01b §4.2, §5.4; 01c §1.9, §2.1, §2.7 |
+| N-10 | Fakten der Neubauförderung (X-04, F-06) | zwei Symbole: `facts.lca_thg` (Bedingung `conditions.lca_thg: required`, ersetzt `lca_qng_plus_thg`; Grundförderung) und `facts.qng` (nur Deckel `*_qng`); S5 V2/V2b `facts: {lca_thg: true}`, S2 V2 `facts: {lca_thg: true, qng: true}` | 01b §4.3.1, §4.3.2, §4.4; 01c kfw_297/298/300, S2, S5 |
+| N-11 | Kreditanteil (X-17) | einheitlich `loan.max_share_of_eligible_costs` | 01c kfw_358/359; 01b §4.6 |
+| N-12 | Kumulierung (X-18, F-20) | `cumulation.exclusive_with` gilt gegen die ganze `from:`-Kette und `program_code`; `estg_35c.exclusive_with` um KfW 358/359 ergänzt | 01b §4.11; 01c `funding/estg_35c` |
+| N-13 | Termine (R-98, F-07, X-11) | Monat m = (b_0 + (m − 1), b_0 + m] Monate (01b §0.4 anpassen); Auszahlungen als Datum (Fertigstellung + `lag_months` + Verzug) nach R-35; F-1 (KfW 459: Termin 2028-01-01 → t = 1), F-16 (2029-01-01 → Periode 2028), Vertragsbeispiel `grant` (Zusage am Stichtag → t = 0), S3-T2-Periode und Kommentare S1/S3/S4 angleichen | 01b §0.4, §4.5, §4.8, §4.12; 01c S1, S3, S4 |
+| N-14 | Energiekomponenten (R-90) | `e_<s>_<c>_cost`, `e_<s>_<c>_co2`; Zustands-ids `before`, `after`, `stages.<s>` (≤ 12 Zeichen); Träger-ids ≤ 20 | 01b §3.1, §3.5 |
+| N-15 | Trägercodes und Marktpreise (X-32, R-103) | kanonisch: `gas`, `gas_mfh`, `oil`, `lpg`, `power`, `power_mfh`, `heatpump_power`, `heatpump_power_mfh`, `district_heating`, `pellets`; für **jeden** ein `market.energy_price.<c>` in `global.yaml` und `prices/energy_prices_2026` (`lpg`, `power_mfh` ergänzen, Qualität C/D); `market.energy_network_fee.gas`, `.gas_mfh` mit `growth: {ref: shared.network_fee_growth_<c>}` und `shared.network_fee_growth_gas`, `_gas_mfh` (0.03) in `global.yaml` wie in den Referenzszenarien | 01a §2.2 (`market`, `shared`); 01b §3.2.1; 01c §2.4, §3.6 |
+| N-16 | Marktnamen (S01C-07) | zusätzlich `operating_cost_growth`, `bund_yield_10y`, `mortgage_spread`, `feed_in_tariff.{partial_le10kwp, partial_10_40kwp, partial_40_100kwp, full_le10kwp}`, `vacancy_fluctuation`; der PV-Default-Ausdruck nutzt `partial_40_100kwp` (X-24 d) | 01a §2.2; 01b §3.9.1; 01c §1.9.1 |
+| N-17 | Validierungsschlüssel (X-23) | `validation.<block>.<code>` in `inst/labels/de/validation.yaml` (WS-B); `validation.b.*` → z. B. `validation.unit_groups.ovm_missing`; neue Schlüssel `validation.accounts.liquidity_unchecked`, `validation.measures.cost_derived`, `validation.residual.rnd_target` | 01a §9; 01b §0.3, §8; 01c §1.11 |
+| N-18 | Testdateien (X-22) | `test-<R-datei>.R`: `test-type-flow-capex.R`, `test-type-flow-replacement.R`, `test-type-flow-maintenance.R`, `test-type-flow-residual-value.R`, `test-type-inst-loan-core.R` usw.; Datentests `test-library.R` (WS-L), `test-profiles.R` (WS-A); Set „vorsichtig“ in `R/compare.R` (`cmp_cautious()`) | 01a §4.6.6, §4.10.3, §4.11.5, §5.6, §6.7; 01b §1.15 ff.; 01c §4.3 |
+| N-19 | Regelsignaturen (X-21) | `grest(basis_eur, federal_state, rate, P)` ohne Defaults (P = Nutzlast `grunderwerbsteuer`, vom Typ übergeben), `returns: sim`; `mr_levy_allowed`, `co2_section43`: `returns: value`; Aufrufe mit allen Formals (01b §1.6 Nr. 4) | 01a §4.8, §7; 01b §1.6, §5.1 |
+| N-20 | Overlay-Ziele (S01A-08 abgelehnt) | Kostenrisiko auf `measures.<id>.cost_factor` bzw. `project.construction_cost_factor`, RND-Zuschlag auf `residual_value.income_value.remaining_life_offset_years`; ein Ziel `measures.<id>.cost_eur` bei `cost_kg` bzw. `remaining_life_years` bei Methode ≠ `manual` ist E mit Vorschlag (`validation.measures.cost_derived`, `validation.residual.rnd_target`); Hinweis „Umlenkung, S01A-08“ streichen | 01a §4.6.1, §6.1, OP-13; 01c §1.9 |
+| N-21 | Szenario-Sets (S01C-15 abgelehnt) | keine `shared.*`-Pfade in Sets; Muster „szenarioeigener `market`-Pfad, auf den das Domänenfeld per `ref` zeigt“ | 01c §4.1, §5 |
+| N-22 | Label `foerderstopp` (X-24 f) | maßgeblich ist 01c §4.2 („Förderstopp: keine Förderzusage“) | 01a §2.2; 01b §7.1 |
+| N-23 | Höchstlängen der ids (X-20) | Maßnahmen und Bauteile ≤ 29, Gruppen ≤ 25, Förderinstrumente ≤ 30, Zustände ≤ 12, Träger ≤ 20 (4.4 Nr. 2) | 01a §4.5.2 Nr. 1; 01b §1.2, §3.2.2, §4.2 |
+| N-24 | Komponenten-Zeitwert (F-09) | `indexed: false` = nominaler Buchwert; RV8 = 82.853,16 | 01a §6.3.7, §6.7 |
+| N-25 | Annuitätendarlehen (X-13, F-10) | τ + `term_years` zulässig (I „Schlusstilgung bei Fälligkeit“), E nur τ + `installment_eur`; `keep_term` nach `shorten_term` mit effektiver Restzahl (8.6): L1 und S1-T8 neu rechnen | 01a §5.2, §5.6; 01c S1, S5 |
+| N-26 | Referenzszenarien (R-105) | S5 `payments_per_year: 12`; S4 `gaskessel` mit `year: 2028`, `delay_months: 24`, Verteilung `discrete [0, 12, 24, 36, 48, 60]`, `wp_2050` → `year: 2048` mit `delay_months: {ref: measures.gaskessel.delay_months}` (X-14) | 01c S4, S5 |
+| N-27 | Wachstumsform (R-91) | Marktpfade als Wachstumsform sind Kalenderjahreswerte (Prüffall 01c z3 unverändert); `index: period_end` nur für Stichtagsgrößen; Orakel (c) mit `index: period_end` (WS-T) | 01b §0.7 (Verweis); 01c §4.2; WS-T Fixture (c) |
+| N-28 | Bibliothekseintrag (R-88) | Teil C §3.1 ist die Konkretisierung von 4.9; `legal_state` Pflicht für `legal/*` und `funding/*`; `legal/emission_factors_geg_anlage9` mit `valid_to: null` und Prüfpunkt „Neuwerte ab 2027“ (X-29) | 01c §3.1, §3.5; 01b §3.2.1 (Spalte `ghg_factor_kg_kwh`) |
+| N-29 | Regel-Eigentum | Mietrecht, CO2KostAufG, GrESt: WS-E (`rules-mietrecht.R`, `rules-co2kostaufg.R`, `rules-grest.R`, Welle 2b); Förderregeln `fund_degression`, `fund_income_rate`, `fund_staffel_cap`, `fund_35c_params`: WS-E2 (`rules-funding.R`), nur vom Expander `funding` und den Typen `grant`, `tax_credit_35c` aufgerufen; Ableitungsregeln: WS-A (N-07); Tests beim jeweiligen Eigentümer | 01b §5.1 |
+| N-30 | Katalogeintrag `costs/massnahmentypen_2026` (X-15) | Datenträger WS-L, vollständig mit 37 Typen in Teil C §3.3/§3.7 (Schema Teil A §8.3); `useful_life_key` verweist auf `costs/nutzungsdauern_2026`, Herkunft von `useful_life_years` ist dieser Eintrag (XM1); `kfw_297_*` und `kfw_261_eh40/55/85/denkmal` als eigene Listings | 01c §3.3, §3.4, §3.7; 01a §4.5.5 |
+| N-31 | Domänenlesezugriff (S01B-02) | `rent_path`, `grant`, `tax_credit_35c`, `energy_cost`, `co2_cost`, `tenant_costs`, `pv` deklarieren `domain_reads`; die Übergangsregel 01b §0.5 wird zur Vertragsregel (6.1 Nr. 3) | 01b §0.5 und Typabschnitte |
+
+#### 17.5.4 Phase-0-Nacharbeit (Integrator; betrifft bereits geschriebenen Code)
+
+Version bleibt 1.0.0. Die folgenden Punkte ändern Dateien, die in Phase 0 bereits angelegt sind; sie sind vor dem
+Einfrieren (1.4 Nr. 4) und vor Welle 1 zu erledigen. Nicht betroffen sind Signaturen exportierter Funktionen (14).
+
+| Nr. | Datei(en) | Änderung | Art | Grund |
+|---|---|---|---|---|
+| P0-01 | `inst/vocab/measure_types.yaml`, `inst/labels/de/vocab.yaml`, `tests/testthat/test-vocab.R` | vorläufige 23 Codes durch die 37 Codes aus Teil A §4.2 ersetzen (entfallen: `heizung_tausch`, `daemmung_dach`, `daemmung_ogd`, `aussentuer`, `sonnenschutz`, `heizung_optimierung`, `lueftung`, `solarthermie`, `speicher`, `sanitaer`, `elektro`, `barrierefreiheit`); Labels `vocab.measure_types.*`; Test Z. 74 (`heizung_tausch`) auf `heizung_waermepumpe_luft` | inkompatibel (Vokabular) | R-89, X-01 |
+| P0-02 | `inst/vocab/enums.yaml`, `inst/labels/de/vocab.yaml` | neue Enums `levy_procedure` (Aliase auch für numerische Eingabe), `bgb_procedure`, `overlay_apply`, `growth_index`, `mc_preset` sowie die Enums aus Teil A §8.1 und Teil B §8 nach deren Überarbeitung; `quantity_per` + `m2_net_floor_area`, `parking`; `rule_returns` + `value` | additiv | R-89, R-91, R-93, R-94, R-97 |
+| P0-03 | `inst/vocab/na_reasons.yaml`, Labels | `no_liquidity_limit` | additiv | R-101 |
+| P0-04 | `R/utils-merge.R` (`utl_value_form_keys()`), `tests/testthat/test-utils-merge.R` | Wachstumsform: optionaler Schlüssel `index` | additiv | R-91 |
+| P0-05 | `R/values-normalize.R` | `node_growth(start, growth, base_date = NULL, index = "calendar_year")`, `node_growth_raw()` liest `index`; neuer Konstruktor `node_expr(text)` | additiv | R-91 |
+| P0-06 | `R/values-resolve.R` | `res_growth()`: Default `grid_index_year()`, `grid_index()` nur bei `index: period_end` (**Verhaltensänderung**); `res_quantity()`: Abbildung `per` → Feld (`unit` → `n_units`, `m2_net_floor_area` → `net_floor_area_m2`, `parking` → `n_parking`); `res_draw()`: `apply` multiply/add (Spalte `apply` in `draws$targets`); `res_expr()`: nicht-numerische Symbole mit `setting`-Semantik an `expr_eval()` | Verhalten + additiv | R-91, R-94 |
+| P0-07 | `R/engine-context.R` | `ctx$rows(id, section, category, tax_category, measure_id = NULL, local_row = NULL)`, `id` als Vektor | additiv | R-93 |
+| P0-08 | `R/registry.R`, `R/registry-testkit.R` | optionales Feld `domain_reads` (flow, instrument; C3 prüft Codes); optionale Prozessfunktion `quantile_path(par, years, p)` (C2-Formals, Prüfung P4); `returns: value` bei Regeln (Batch-Prüfung wie `params`) | additiv | R-93, R-95 |
+| P0-09 | `R/scenario-layers.R` | Rückfallwerte der Schichten 1–2: Felder optionaler Blöcke (z. B. `building.building_id`) nur, wenn der Block existiert (`item_defaults`-Semantik), damit Szenarien ohne `building` keinen Block erhalten; abgeleitete Projekt-Defaults mit Herkunft `entry = "rule:<name>"`; Reihenfolge Ableitungsregeln → `item_defaults` → Expander | Verhalten | R-85, R-86 |
+| P0-10 | `R/expr.R` (Minimalfassung) | Codes und Wahrheitswerte als Operanden nur in `==`, `!=`, `%in%`, `!`, `&`, `\|` (Fehler sonst), Ergebnis 0/1 | Präzisierung | R-91 |
 
 ---
 
@@ -4024,7 +4490,7 @@ measures:
   huelle: {label: "Dämmung Fassade/Dach, Fenster", year: 2027, cost_eur: 1350000, ohnehin_share: 0.25,
            useful_life_years: 40, measure_type: daemmung_fassade, modernization_kind: bgb_555b_1}
   waermepumpe: {label: "Wärmepumpe", year: 2027, cost_eur: 450000, useful_life_years: 20,
-                measure_type: heizung_tausch, modernization_kind: bgb_555b_1a}
+                measure_type: heizung_waermepumpe_luft, modernization_kind: bgb_555b_1a}
 funding:
   kfw261: {from: funding/kfw_261_eh55, measures: [huelle, waermepumpe], amount_eur: 1200000}
 components:

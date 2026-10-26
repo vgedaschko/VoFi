@@ -1,0 +1,3 @@
+# Labels des Steuermoduls none (WS-D, Spec 00 Abschnitt 10.6). Phase-0-Minimalfassung.
+label: "Ohne Ertragsteuern"
+description: "Vor-Steuer-VoFi: Ertragsteuern werden nicht berücksichtigt (Zeile Ertragsteuern = 0)."

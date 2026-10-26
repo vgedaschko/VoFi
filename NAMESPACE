@@ -2,9 +2,13 @@
 
 S3method(as.data.frame,vofi_grid)
 S3method(print,vofi_grid)
+S3method(print,vofi_result)
 S3method(tax_finalize,default)
+S3method(tax_finalize,tax_none)
 S3method(tax_init,default)
+S3method(tax_init,tax_none)
 S3method(tax_step,default)
+S3method(tax_step,tax_none)
 export(tax_finalize)
 export(tax_init)
 export(tax_step)

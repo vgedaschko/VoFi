@@ -71,7 +71,7 @@ fake_draws <- function(n, grid, static = list(), paths = list(), mode = "mc") {
   keys <- c(names(st), names(pa))
   targets <- data.frame(key = keys, target = keys,
                         kind = c(rep("static", length(st)), rep("process", length(pa))),
-                        stringsAsFactors = FALSE)
+                        apply = rep("replace", length(keys)), stringsAsFactors = FALSE)
   new_vofi_draws(mode, n = n, sims = seq_len(n), blocks = 1L, block_size = n, static = st,
                  paths = pa, targets = targets, years = grid$years)
 }
@@ -143,8 +143,19 @@ expect_no_rng <- function(expr) {
   invisible(TRUE)
 }
 
-#' Invarianten I1, I2, I3a, I3b, N1 eines Ledgers bzw. Ergebnisses als Data Frame
-helper_invariants <- function(x, tol = vofi_tol, lmin_zero = TRUE) {
+#' Kontokorrentlimit KL eines Ergebnisses (Konstante; sonst Inf = I3c nicht geprüft)
+helper_limit <- function(x) {
+  kl <- if (inherits(x, "vofi_ledger")) NULL else x$spec$accounts$overdraft_limit_eur
+  if (is.list(kl) && identical(kl$kind, "const")) return(as.double(kl$value))
+  if (is.numeric(kl) && length(kl) == 1L) return(as.double(kl))
+  Inf
+}
+
+#' Invarianten I1, I2, I3a, I3b, I3c, N1 eines Ledgers bzw. Ergebnisses als Data Frame
+#'
+#' I3c (KK <= KL + stock_abs, 9.7) mit `kl` (Default: konstantes Limit aus `x$spec`, sonst
+#' ungeprüft).
+helper_invariants <- function(x, tol = vofi_tol, lmin_zero = TRUE, kl = helper_limit(x)) {
   led <- if (inherits(x, "vofi_ledger")) x else x$ledger
   rows <- led$rows
   v <- led$values
@@ -170,18 +181,20 @@ helper_invariants <- function(x, tol = vofi_tol, lmin_zero = TRUE) {
   g <- v[["dep_balance"]] %||% z
   kk <- (v[["od_balance"]] %||% z) + (v[["odp_balance"]] %||% z)
   i3b <- if (lmin_zero) max(pmin(g, kk), 0) else 0
+  od <- v[["od_balance"]] %||% z
+  i3c <- if (is.finite(kl)) max(od - kl, 0) else 0
   n1 <- all(vapply(v, function(m) all(is.finite(m)), logical(1)))
   out <- data.frame(
-    invariant = c("I1", "I2", "I3a", "I3b", "N1"),
-    max_dev = c(i1, i2, i3a, i3b, if (n1) 0 else Inf),
-    tol = c(tol$balance_rel, tol$balance_rel, tol$stock_abs, tol$stock_abs, 0),
+    invariant = c("I1", "I2", "I3a", "I3b", "I3c", "N1"),
+    max_dev = c(i1, i2, i3a, i3b, i3c, if (n1) 0 else Inf),
+    tol = c(tol$balance_rel, tol$balance_rel, tol$stock_abs, tol$stock_abs, tol$stock_abs, 0),
     stringsAsFactors = FALSE
   )
   out$ok <- out$max_dev <= out$tol
   out
 }
 
-#' Invarianten I1-I3, N1 (und N2 über `checks`, falls vorhanden) prüfen
+#' Invarianten I1-I3c, N1 (und N2 über `checks`, falls vorhanden) prüfen
 expect_vofi_invariants <- function(x, tol = vofi_tol) {
   inv <- helper_invariants(x, tol)
   bad <- inv[!inv$ok, , drop = FALSE]
@@ -212,8 +225,22 @@ local_vofi_options <- function(..., .env = parent.frame()) {
 
 #' Ist eine Funktion des Pakets noch ein Stub (Phase 0)?
 is_stub <- function(fun) {
-  f <- get(fun, envir = asNamespace("vofi"))
-  any(grepl("core.not_implemented", deparse(body(f)), fixed = TRUE))
+  fun %in% vofi_stubs()
+}
+
+#' Stubs der Phase 0 (Spec 00 2.6 Nr. 2), ausdrücklich gepflegt vom Integrator
+#'
+#' Der Integrator entfernt eine Funktion beim Wellen-Merge, sobald ihr Eigentümer sie liefert.
+#' Eine Teilimplementierung, die für einzelne Optionen weiter `core.not_implemented` meldet, gilt
+#' damit nicht mehr als Stub, und die abhängigen Tests (15.5) laufen. Umgekehrt prüft
+#' test-api.R, dass jede gelistete Funktion tatsächlich `vofi_error_not_implemented` meldet;
+#' eine gelieferte, aber noch gelistete Funktion fällt dort auf.
+vofi_stubs <- function() {
+  c("vofi_compare", "vofi_excel_template", "vofi_export_excel", "vofi_household_view",
+    "vofi_json_schema", "vofi_kpis", "vofi_ledger", "vofi_library", "vofi_mc",
+    "vofi_opportunity", "vofi_plot", "vofi_register_kpi", "vofi_register_tax_module",
+    "vofi_report", "vofi_sensitivity", "vofi_sim", "vofi_solve", "vofi_table",
+    "vofi_tax_module_simple", "vofi_tenant_view", "vofi_write_scenario")
 }
 
 #' Test überspringen, solange eine der Funktionen ein Stub ist

@@ -24,7 +24,12 @@ Zeitraster, sortierte Komponenten, Instrumente, Ausgleichsketten, Basisfall-Vorl
 Sampler-Plan, Steuermodul und Kennzahlen (Spec 00, Abschnitt 9.1).
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Phase-0-Minimalfassung (Eigentümer: WS-D): ohne Sampler-Plan (WS-C), ohne \code{amount_eur: auto}
+und ohne Entscheidungsknoten.
+}
+\examples{
+model <- vofi_build(vofi_read_scenario(vofi_example("skeleton")))
+names(model$nodes)
 }
 \seealso{
 Other Rechnen: 

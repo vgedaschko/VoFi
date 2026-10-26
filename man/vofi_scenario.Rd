@@ -15,10 +15,23 @@ vofi_scenario(x, source = NULL)
 Objekt der Klasse \code{vofi_scenario}.
 }
 \description{
-Erzeugt ein kanonisches, normalisiertes Szenario aus einer R-Liste in YAML-Form.
+Erzeugt ein kanonisches, normalisiertes Szenario aus einer R-Liste in YAML-Form (Datumswerte
+als \code{Date} oder ISO-Zeichenkette, Zahlen, Wertformen der Wertgrammatik). Die Normalisierung
+ist idempotent: ein bereits normalisiertes Szenario bleibt unverändert.
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Phase-0-Minimalfassung (Eigentümer: WS-A).
+}
+\examples{
+sc <- vofi_scenario(list(
+  schema_version = 1L,
+  meta = list(scenario_id = "mini", title = "Mini"),
+  project = list(perspective = "wu_privat", project_type = "neubau",
+                 valuation_date = as.Date("2027-01-01"), horizon_years = 2L),
+  components = list(z = list(type = "custom_series", values = c(-100, 50, 60))),
+  financing = list(ek = list(type = "equity", amount_eur = 100))
+))
+sc$components$z$values
 }
 \seealso{
 Other Einlesen: 

@@ -40,6 +40,7 @@ test_that("is_value_form: strukturell genau eine Wertform, schemagest\u00fctzt m
   expect_true(is_value_form(list(years = c(2026, 2030), values = c(1, 2))))
   expect_true(is_value_form(list(schedule = list(`2027-01-01` = 1))))
   expect_true(is_value_form(list(start = 7.2, growth = 0.02)))
+  expect_true(is_value_form(list(start = 280000, growth = 0.02, index = "period_end")))
   expect_true(is_value_form(list(value = 14, per = "m2_living_area")))
   expect_true(is_value_form(list(dist = "pert", min = 1, mode = 2, max = 3)))
   expect_true(is_value_form(list(from = "prices/co2", use = "mittel")))
@@ -56,4 +57,30 @@ test_that("is_value_form: strukturell genau eine Wertform, schemagest\u00fctzt m
   expect_true(is_map(list()))
   expect_false(is_map(list(1, 2)))
   expect_false(is_map(data.frame(a = 1)))
+})
+
+test_that("deep_merge ohne kind_of: Sammlungseinträge sind nie Wertformen (from-Termin)", {
+  base <- list(components = list(r = list(type = "recurring", amount_eur = 100,
+                                          from = "completion")))
+  m <- deep_merge(base, list(components = list(r = list(from = 2030))))
+  expect_identical(m$components$r$type, "recurring")
+  expect_identical(m$components$r$amount_eur, 100)
+  expect_identical(m$components$r$from, 2030)
+  expect_false(is_value_form(list(from = "2030"), "components.r"))
+  expect_false(is_value_form(list(from = "completion"), "x.y"))
+  expect_false(is_value_form(list(from = 2030)))
+  expect_true(is_value_form(list(ref = "market.x"), "rate"))
+  expect_false(is_value_form(list(ref = "market.x"), "market", kind_of = scn_kind_of))
+  expect_false(is_value_form(list(start = 1, growth = 0.02), "energy.carriers.gas"))
+  expect_true(is_value_form(list(start = 1, growth = 0.02), "energy.carriers.gas.price"))
+  expect_true(is_value_form(list(from = "prices/co2", use = "mittel"), "market.co2_price"))
+  eq <- deep_merge(list(financing = list(ek = list(type = "equity", contributions_pa = 1000,
+                                                   from = 2028))),
+                   list(financing = list(ek = list(from = 2029))))
+  expect_identical(eq$financing$ek$contributions_pa, 1000)
+  expect_identical(utl_default_kind_of("components.x"), "map")
+  expect_true(is.na(utl_default_kind_of("components")))
+  expect_identical(scn_kind_of("components"), "map")
+  expect_true(is.na(utl_default_kind_of("components.x.amount_eur")))
+  expect_true(is.na(utl_default_kind_of("")))
 })

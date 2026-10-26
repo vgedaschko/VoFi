@@ -1,0 +1,27 @@
+# Labels des Zahlungstyps custom_series (WS-E, Spec 00 Abschnitt 7.12). Phase-0-Minimalfassung.
+label: "Zahlungsreihe"
+description: "Freie Zahlungsreihe je Periode (Periodenbeträge ohne Umrechnung auf die Periodenlänge), z. B. für Lehrbuch- und Orakelfälle."
+params:
+  values:
+    label: "Beträge je Periode"
+    help: "Wertform mit Pfad, z. B. [v0, v1, ..., vT]; Vorzeichen: Zufluss +, Abfluss -."
+  section:
+    label: "Abschnitt"
+    help: "project, grants oder memo."
+  category:
+    label: "Kategorie"
+    help: "Kategorie des Abschnitts (Default custom)."
+  tax_category:
+    label: "Steuerkategorie"
+    help: "Default der Kategorie; principal ist nicht zulässig."
+  cash:
+    label: "Zahlungswirksam"
+    help: "Default der Kategorie; Merkzeilen sind nie zahlungswirksam."
+  kind:
+    label: "Zeilenart"
+    help: "flow, stock oder memo (Default der Kategorie)."
+  unit:
+    label: "Einheit"
+    help: "Default der Kategorie (EUR)."
+rows:
+  value: "Zahlung"

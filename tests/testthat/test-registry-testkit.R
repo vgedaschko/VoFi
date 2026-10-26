@@ -261,6 +261,43 @@ test_that("Abh\u00e4ngigkeiten \u00fcber example$.deps", {
   expect_true(all(f$ok), info = paste(f$check[!f$ok], f$message[!f$ok]))
 })
 
+test_that("6.1 Nr. 3: Zugriff nur auf deklarierte Abhaengigkeiten (echter Kontext)", {
+  local_registry()
+  vofi_register_type(flow_def("tk_base", grid_invariant = FALSE))
+  # ctx$rows() ohne id liest nur deklarierte Abhaengigkeiten
+  rows_all <- vofi_type(
+    name = "tk_rows", kind = "flow", label = "Zeilen",
+    labels = list(description = "d", params = list(), rows = list(value = "Summe")),
+    rows = "value",
+    build = function(spec, ctx) {
+      r <- ctx$rows(category = "other_income")
+      v <- if (length(r) == 0L) ctx$zeros() else -Reduce(`+`, r)
+      vofi_flows(vofi_row("value", v, section = "project", category = "other_cost"))
+    },
+    example = list(type = "tk_rows", after = "b",
+                   .deps = list(b = list(type = "tk_base", amount_eur = 500),
+                                c = list(type = "tk_base", amount_eur = 700)))
+  )
+  vofi_register_type(rows_all)
+  setup <- reg_test_setup(rows_all, 2L, reg_test_grid("annual"))
+  expect_identical(names(setup$ctx$rows()), "b__value")
+  expect_error(setup$ctx$component("c"), class = "vofi_error_contract")
+  expect_error(setup$ctx$component_base("c"), class = "vofi_error_contract")
+  expect_error(setup$ctx$rows(id = "c"), class = "vofi_error_contract")
+  expect_true(all(findings_of("tk_rows")$ok))
+  # undeklarierter Zugriff ueber component(): F1 meldet den Verstoss
+  sneaky <- rows_all
+  sneaky$name <- "tk_sneaky"
+  sneaky$example$type <- "tk_sneaky"
+  sneaky$build <- function(spec, ctx) {
+    v <- -ctx$component("c")$rows[[1]]$values
+    vofi_flows(vofi_row("value", v, section = "project", category = "other_cost"))
+  }
+  vofi_register_type(sneaky)
+  f <- findings_of("tk_sneaky")
+  expect_false(all(f$ok[f$check == "F1"]))
+})
+
 test_that("Kreditinstrument: I1-I4, F7, F8", {
   local_registry()
   local_testkit_mocks()
@@ -399,6 +436,57 @@ test_that("Prozess: P1-P3", {
   f <- findings_of("tk_ar1")
   expect_true(all(f$ok), info = paste(f$check[!f$ok], f$message[!f$ok]))
   expect_true(all(c("P1", "P2", "P3") %in% f$check))
+  expect_false("P4" %in% f$check)
+  # P4 (R-95): geschlossener Quantilpfad des stationär gestarteten AR(1) (x_1 = mu)
+  qp <- ar1
+  qp$name <- "tk_ar1_q"
+  qp$quantile_path <- function(par, years, p) {
+    k <- seq_along(years) - 1
+    v <- par$sigma^2 * (1 - par$phi^(2 * k)) / (1 - par$phi^2)
+    par$mu + sqrt(v) * stats::qnorm(p)
+  }
+  vofi_register_type(qp)
+  f <- findings_of("tk_ar1_q")
+  expect_true(all(f$ok), info = paste(f$check[!f$ok], f$message[!f$ok]))
+  expect_true("P4" %in% f$check)
+  qbad <- qp
+  qbad$name <- "tk_ar1_qbad"
+  qbad$quantile_path <- function(par, years, p) {
+    rep(par$mu + 3 * par$sigma * stats::qnorm(p), length(years))
+  }
+  vofi_register_type(qbad)
+  f <- findings_of("tk_ar1_qbad")
+  expect_false(all(f$ok[f$check == "P4"]))
+  # falsche Formals von quantile_path: C2 bei der Registrierung
+  qform <- qp
+  qform$name <- "tk_ar1_qform"
+  qform$quantile_path <- function(wrong) 1
+  expect_error(vofi_register_type(qform), class = "vofi_error_registry")
+})
+
+test_that("Prozess ohne Schocks: n kommt über attr(linked, 'n'); falsche Form ist ein Befund", {
+  local_registry()
+  fixed <- vofi_type(
+    name = "tk_fixed", kind = "process", label = "fest", output = "rate",
+    labels = list(description = "d", params = list(mu = "mu"), rows = list()),
+    params = list(mu = vofi_param("rate")),
+    simulate = function(par, z, u, years, linked) {
+      matrix(par$mu, attr(linked, "n"), length(years))
+    },
+    expected = function(par, years) rep(par$mu, length(years)),
+    n_shocks = function(par) 0L, n_uniforms = function(par) 0L,
+    validate = function(par) character(0), example = list(mu = 0.02)
+  )
+  vofi_register_type(fixed)
+  f <- findings_of("tk_fixed")
+  expect_true(all(f$ok), info = paste(f$check[!f$ok], f$message[!f$ok]))
+  one_row <- fixed
+  one_row$name <- "tk_fixed_1"
+  one_row$simulate <- function(par, z, u, years, linked) matrix(par$mu, 1L, length(years))
+  vofi_register_type(one_row)
+  f <- findings_of("tk_fixed_1")
+  expect_false(all(f$ok[f$check == "P1"]))
+  expect_error(vofi_check_type("tk_fixed_1"), class = "vofi_error_contract")
 })
 
 test_that("synthetisches core: vertragsgem\u00e4\u00df und konsistent", {
@@ -426,7 +514,11 @@ test_that("synthetisches core: vertragsgem\u00e4\u00df und konsistent", {
   expect_identical(rows$extra[[which(rows$key == "rv__path_method")]]$rv_basis, "method")
   one <- reg_example_core(1L, 6L, runs = 4L)
   expect_equal(one$stocks$BS[1, ], core$stocks$BS[4, ])
-  expect_null(attr(core, "ctx"))
+  ctx <- attr(core, "ctx")
+  expect_s3_class(ctx, "vofi_ctx")
+  expect_identical(ctx$n, 7L)
+  expect_equal(ctx$rebalance(NULL)$BS_T, core$stocks$BS[, n_t])
+  expect_equal(ctx$rebalance(NULL)$BS_T_ex_rv, core$terminal_ex_rv$BS)
 })
 
 test_that("rebalance()-Attrappe und Kennzahltests K1, F7", {
@@ -493,4 +585,13 @@ test_that("Steuermodul T1 und Rechtsregel F7", {
                     returns = "sim", example = list(x = 10, cap = 12))
   vofi_register_type(rule)
   expect_true(all(findings_of("tk_cap@2026-01-01", "rule")$ok))
+  # returns: value (R-93, N-19): deterministischer Wert ohne Batch-Prüfung
+  rv <- vofi_type("tk_allowed", "rule", label = "Zulässig",
+                  labels = list(description = "d", params = list(), rows = list()),
+                  fun = function(procedure, P) procedure %in% P$allowed,
+                  valid_from = "2026-01-01", returns = "value",
+                  example = list(procedure = "bgb_559", P = list(allowed = "bgb_559")))
+  vofi_register_type(rv)
+  f <- findings_of("tk_allowed@2026-01-01", "rule")
+  expect_true(all(f$ok), info = paste(f$check[!f$ok], f$message[!f$ok]))
 })

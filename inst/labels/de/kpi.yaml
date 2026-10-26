@@ -1,0 +1,4 @@
+# Übergreifende Texte der Kennzahlen (WS-D2, Spec 00 Abschnitt 12). Phase-0-Minimalfassung.
+not_kpi_value: "Kennzahl '{kpi}': compute() liefert kein Objekt der Klasse vofi_kpi_value."
+length: "Kennzahl '{kpi}': erwartet {n} Werte (ein Wert je Lauf)."
+rv_independent: "unabhängig vom Restwert"

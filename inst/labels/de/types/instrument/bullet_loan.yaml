@@ -1,0 +1,94 @@
+# Labels des Kredittyps bullet_loan (WS-F, Spec 00 Abschnitte 8.1-8.6). Phase-0-Minimalfassung.
+label: "Endfälliges Darlehen"
+description: "Darlehen mit laufenden Zinsen und Tilgung in einer Summe am Laufzeitende."
+params:
+  amount_eur:
+    label: "Nennbetrag"
+    help: "Zusagebetrag in EUR, fest in allen Läufen (auto/topup nach Spec 00 8.7)."
+  approved:
+    label: "Bewilligt"
+    help: "0/1; Auszahlungen x approved je Lauf."
+  existing:
+    label: "Bestandsdarlehen"
+    help: "Restschuld zum Stichtag ohne Auszahlung."
+  rank:
+    label: "Rang der Grundschuld"
+    help: "Nur Anzeige."
+  start:
+    label: "Auszahlungstermin"
+    help: "Termin der ersten Auszahlung; Default Bewertungsstichtag."
+  draw_schedule:
+    label: "Auszahlungsplan"
+    help: "Teilauszahlungen als Anteile (unit: share) oder Beträge (unit: eur)."
+  rate_pa:
+    label: "Sollzins p. a."
+    help: "Nominaler Sollzins der ersten Zinsbindung."
+  payments_per_year:
+    label: "Zahlungen je Jahr"
+    help: "1, 4 oder 12."
+  term_years:
+    label: "Laufzeit in Jahren"
+    help: "Ab Ende der letzten Auszahlung inklusive tilgungsfreier Zeit."
+  grace_years:
+    label: "Tilgungsfreie Jahre"
+    help: "Tilgungsfreie Anlaufzeit."
+  fixed_years:
+    label: "Zinsbindung in Jahren"
+    help: "Ab Auszahlungstermin; danach Anschlusszins."
+  followup_rate_pa:
+    label: "Anschlusszins"
+    help: "Default {ref: market.mortgage_rate}."
+  followup_spread_pa:
+    label: "Aufschlag auf den Anschlusszins"
+    help: "Dezimalzahl p. a."
+  followup_fixed_years:
+    label: "Weitere Zinsbindungen"
+    help: "Länge der Anschlussbindungen in Jahren."
+  refi_rule:
+    label: "Regel nach Zinsanpassung"
+    help: "keep_term, keep_tilg_rate oder keep_payment."
+  payout_rate:
+    label: "Auszahlungskurs"
+    help: "Disagio = 1 - Auszahlungskurs."
+  fees:
+    label: "Gebühren"
+    help: "processing_fee_share, commitment_fee_rate_month, commitment_free_months, commitment_date."
+  repayment_grant:
+    label: "Tilgungszuschuss"
+    help: "share oder amount_eur, date bzw. year, effect, approved, cut_share."
+  planned_prepayments:
+    label: "Geplante Sondertilgungen"
+    help: "Zahlungsplan der Sondertilgungen."
+  prepay_allowed:
+    label: "Sondertilgung durch Überschüsse erlaubt"
+    help: "Für die Ausgleichsaktion loan_prepay."
+  prepay_cap_share_pa:
+    label: "Sondertilgung je Vertragsjahr höchstens"
+    help: "Anteil der Zusage."
+  auto_buffer_share:
+    label: "Puffer bei auto/topup"
+    help: "Anteil."
+  auto_round_eur:
+    label: "Rundung bei auto"
+    help: "Vielfaches in EUR."
+  round_payments:
+    label: "Raten auf Cent runden"
+    help: "Bankpraxis; Standard aus."
+rows:
+  draw: "Aufnahme"
+  repay: "Tilgung"
+  repay_balloon: "Schlusstilgung"
+  prepay: "Sondertilgung"
+  interest: "Sollzinsen"
+  fees: "Gebühren und Provisionen"
+  repayment_grant: "Tilgungszuschuss (zahlungsunwirksam)"
+  disagio: "Disagio (zahlungsunwirksam)"
+  assumed: "Übernommene Restschuld (zahlungsunwirksam)"
+  balance: "Bestand"
+errors:
+  start_outside: "Kredit '{id}': der Auszahlungstermin {date} liegt außerhalb des Horizonts."
+  ppy: "Kredit '{id}': payments_per_year muss 1, 4 oder 12 sein (erhalten: {value})."
+  term_missing: "Kredit '{id}': die Laufzeit term_years fehlt (bei Annuitätendarlehen alternativ initial_repayment_pa)."
+  term_nonpositive: "Kredit '{id}': die Laufzeit term_years muss größer als 0 sein (erhalten: {value})."
+  grace_too_long: "Kredit '{id}': die tilgungsfreie Zeit ({value} Jahre) muss kürzer als die Laufzeit ({term} Jahre) sein."
+  tau_installment: "Kredit '{id}': initial_repayment_pa und installment_eur schließen sich aus (Spec 00, 8.6)."
