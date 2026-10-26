@@ -1,0 +1,76 @@
+# Labels des Zahlungstyps acquisition_cost (WS-E, Spec 01 Teil A 4.8).
+label: "Erwerbsnebenkosten"
+description: "Grunderwerbsteuer (Regel grest), Notar, Grundbuch, Makler und sonstige Erwerbsnebenkosten mit Aufteilung in Grund und Boden und Gebäude."
+params:
+  basis_eur:
+    label: "Gegenleistung"
+    help: "Kaufpreis in EUR (Bemessungsgrundlage)."
+  land_share:
+    label: "Bodenanteil"
+    help: "Anteil Grund und Boden am Kaufpreis."
+  uniform_contract:
+    label: "Einheitlicher Vertragsgegenstand"
+    help: "TRUE: Grunderwerbsteuer auch auf die vereinbarte Bauleistung."
+  construction_basis_eur:
+    label: "Vereinbarte Bauleistung"
+    help: "Basisfallwert (Vertragspreis); spätere Kostenabweichungen ändern die Grunderwerbsteuer nicht."
+  federal_state:
+    label: "Bundesland"
+    help: "Code des Landes für den Steuersatz; Default project.federal_state."
+  grest_rate:
+    label: "Grunderwerbsteuersatz"
+    help: "Ausdrücklicher Satz; ohne Angabe Satz des Landes nach der Regel grest."
+  notary_share:
+    label: "Notar (Anteil)"
+    help: "Anteil am Kaufpreis (Default 1,0 %)."
+  land_registry_share:
+    label: "Grundbuch (Anteil)"
+    help: "Anteil am Kaufpreis (Default 0,5 %)."
+  broker_share:
+    label: "Makler (Anteil)"
+    help: "Maklerprovision des Käufers (z. B. 3,57 %)."
+  other_share:
+    label: "Sonstige (Anteil)"
+    help: "Gutachten, Due Diligence u. a."
+  notary_vat_rate:
+    label: "USt-Satz Notar"
+    help: "In den Notarkosten enthaltener Satz."
+  broker_vat_rate:
+    label: "USt-Satz Makler"
+    help: "In der Provision enthaltener Satz."
+  other_vat_rate:
+    label: "USt-Satz Sonstige"
+    help: "In den sonstigen Kosten enthaltener Satz."
+  date:
+    label: "Fälligkeit"
+    help: "Termin der Erwerbsnebenkosten."
+  delay_months:
+    label: "Verschiebung in Monaten"
+    help: "Laufspezifische Verschiebung (>= 0)."
+  active:
+    label: "Aktivierungsfaktor"
+    help: "0/1: Erwerb findet statt."
+  land_asset_id:
+    label: "Anlage Grund und Boden"
+    help: "Default <building_id>_land."
+  building_asset_id:
+    label: "Anlage Gebäude"
+    help: "Default <building_id>_building."
+rows:
+  grest_land: "Grunderwerbsteuer (Grund und Boden)"
+  grest_building: "Grunderwerbsteuer (Gebäude)"
+  notary_land: "Notar (Grund und Boden)"
+  notary_building: "Notar (Gebäude)"
+  registry_land: "Grundbuch (Grund und Boden)"
+  registry_building: "Grundbuch (Gebäude)"
+  broker_land: "Makler (Grund und Boden)"
+  broker_building: "Makler (Gebäude)"
+  other_land: "Sonstige Erwerbsnebenkosten (Grund und Boden)"
+  other_building: "Sonstige Erwerbsnebenkosten (Gebäude)"
+msg:
+  after_horizon: "Komponente '{id}': die Erwerbsnebenkosten fallen jenseits des Horizonts an und entfallen (Anteil der Läufe {share:pct})."
+  no_date: "Komponente '{id}': Fälligkeit date fehlt."
+  no_basis: "Komponente '{id}': Gegenleistung basis_eur fehlt."
+  grest_inactive: "Komponente '{id}': das Thema grunderwerbsteuer ist inaktiv (kein freigegebener Bibliothekseintrag) und grest_rate fehlt; Satz angeben oder legal/grunderwerbsteuer_2026 freigeben."
+  federal_state_missing: "Komponente '{id}': Grunderwerbsteuer fällig, aber weder federal_state (bzw. project.federal_state) noch grest_rate angegeben."
+  grest_topic_inactive: "Komponente '{id}': das Thema grunderwerbsteuer ist inaktiv; es gelten der angegebene Satz grest_rate und die Freigrenze von {threshold:eur} (§ 3 Nr. 1 GrEStG)."

@@ -1,10 +1,10 @@
-# Labels des Zahlungstyps equity (WS-E, Spec 00 Abschnitt 7.12). Phase-0-Minimalfassung.
+# Labels des Zahlungstyps equity (WS-E, Spec 00 Abschnitt 7.12, Spec 01 Teil A 4.12).
 label: "Eigenkapital"
 description: "Geplante Einlagen und Entnahmen des Investors: einmalige Einlage, Zahlungspläne und laufende Jahresbeträge."
 params:
   amount_eur:
     label: "Einmalige Einlage"
-    help: "Betrag in EUR, eingezahlt zum Termin 'date'."
+    help: "Betrag in EUR, eingezahlt zum Termin 'date' (auto ist nur bei Krediten zulässig)."
   date:
     label: "Termin der Einlage"
     help: "Datum, Jahr (1. Januar) oder completion; Default Bewertungsstichtag."
@@ -13,13 +13,13 @@ params:
     help: "Zahlungsplan {schedule: {Datum: Betrag}} mit Beträgen >= 0."
   contributions_pa:
     label: "Laufende Einlage je Jahr"
-    help: "Jahresbetrag in EUR im Zeitraum start_event bis to."
+    help: "Jahresbetrag in EUR ohne Fortschreibung im Zeitraum start_event bis to."
   withdrawals:
     label: "Entnahmen (Zahlungsplan)"
     help: "Zahlungsplan mit Beträgen >= 0; gebucht als Entnahme."
   withdrawals_pa:
     label: "Laufende Entnahme je Jahr"
-    help: "Jahresbetrag in EUR im Zeitraum start_event bis to."
+    help: "Jahresbetrag in EUR ohne Fortschreibung im Zeitraum start_event bis to."
   start_event:
     label: "Beginn der laufenden Beträge"
     help: "Beginn des Zeitraums start_event bis to: Datum, Jahr oder completion (Default Bewertungsstichtag)."
@@ -29,3 +29,6 @@ params:
 rows:
   in: "Einlage"
   out: "Entnahme"
+msg:
+  negative_clamped: "Komponente '{id}': negative Beträge in '{param}' werden auf 0 begrenzt (Anteil der Läufe {share:pct}); Einlagen und Entnahmen sind als Beträge >= 0 anzugeben."
+  after_horizon: "Komponente '{id}': die einmalige Einlage liegt außerhalb des Horizonts und entfällt."

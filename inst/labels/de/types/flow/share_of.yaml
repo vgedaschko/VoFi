@@ -1,0 +1,37 @@
+# Labels des Zahlungstyps share_of (WS-E, Spec 01 Teil A 4.15).
+label: "Anteil an anderen Zeilen"
+description: "Anteil an Zeilen anderer Komponenten, z. B. Verwaltungskosten in % der Miete oder Mietausfallwagnis als Kosten."
+params:
+  of:
+    label: "Quellkomponenten"
+    help: "ids der Komponenten, deren Zeilen die Basis bilden (zugleich in after)."
+  categories:
+    label: "Kategorien der Basis"
+    help: "Filter nach Kategorie; leer = alle."
+  local_rows:
+    label: "Zeilen der Basis"
+    help: "Filter nach lokalem Zeilennamen; leer = alle."
+  share:
+    label: "Anteil"
+    help: "Anteil an der Basis (Pfad zulässig)."
+  invert:
+    label: "Vorzeichen umkehren"
+    help: "TRUE: Kosten als Anteil von Erlösen."
+  lag_periods:
+    label: "Verzögerung in Perioden"
+    help: "Ganze Zahl >= 0."
+  category:
+    label: "Kategorie der Zielzeile"
+    help: "Default other_cost."
+  tax_category:
+    label: "Steuerkategorie"
+    help: "Default der Kategorie."
+  section:
+    label: "Abschnitt der Zielzeile"
+    help: "project, grants oder memo."
+rows:
+  value: "Anteil"
+msg:
+  no_source: "Komponente '{id}': keine Quellkomponente (of) angegeben."
+  no_share: "Komponente '{id}': der Anteil share fehlt."
+  sign: "Komponente '{id}': das Vorzeichen des Anteils widerspricht der Kategorie '{category}' (invert prüfen)."

@@ -1,4 +1,4 @@
-# Labels des Zahlungstyps recurring (WS-E, Spec 00 Abschnitt 7.12). Phase-0-Minimalfassung.
+# Labels des Zahlungstyps recurring (WS-E, Spec 00 Abschnitt 7.12, Spec 01 Teil A 4.14).
 label: "Laufender Jahresbetrag"
 description: "Laufende Einnahme oder Ausgabe als Jahresbetrag, fortgeschrieben mit dem Kalenderjahresindex."
 params:
@@ -22,9 +22,12 @@ params:
     help: "Kategorie der Abschnitte project oder grants (Default other_cost)."
   direction:
     label: "Richtung"
-    help: "inflow oder outflow; nur bei Kategorien ohne festes Vorzeichen."
+    help: "inflow oder outflow; Pflicht bei Kategorien ohne festes Vorzeichen."
   tax_category:
     label: "Steuerkategorie"
     help: "Default der Kategorie."
 rows:
   value: "Jahresbetrag"
+msg:
+  direction_missing: "Komponente '{id}': die Kategorie '{category}' hat kein festes Vorzeichen; direction (inflow oder outflow) angeben."
+  no_amount: "Komponente '{id}': der Jahresbetrag amount_eur fehlt."
