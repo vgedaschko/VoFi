@@ -46,6 +46,15 @@ test_that("Prüffall Sacheinlage (R-68): Sollwerte der Investition und der Alter
   expect_equal(res$opportunity$ledger$values$opp_in_kind_sale[1L, ], c(285000, 0))
   expect_true(all(res$checks$ok))
   expect_true(all(res$opportunity$checks$ok))
+  # Restwert nur aus der eigenen Reihe: rv_value (Expander, Methode zero) mit Nullzeilen,
+  # RW_T = 510.000 - 15.300 = 494.700 genau einmal (Integration C5)
+  rr <- res$ledger$rows
+  expect_true(all(c("rv_value__value", "rv_value__sale_cost") %in% rr$key))
+  expect_true(all(v$rv_value__value == 0))
+  expect_true(all(v$rv_value__sale_cost == 0))
+  rv_keys <- rr$key[rr$category %in% c("residual_value", "sale_cost")]
+  expect_equal(sum(vapply(rv_keys, function(k) v[[k]][1L, 2L], double(1))), 494700)
+  expect_equal(res$kpis$terminal_value_ex_rv, 318700 - 494700)
   # die Alternative erhält statt der Sacheinlage nur den Verkauf (9.5 Nr. 7, WSD-01)
   ol <- res$opportunity$ledger
   expect_false("equity_in_kind" %in% ol$rows$key)
@@ -59,6 +68,35 @@ test_that("Prüffall Sacheinlage (R-68): Sollwerte der Investition und der Alter
   expect_equal(r0$kpis$terminal_value, 318700)
   expect_equal(r0$kpis$terminal_value_opp, 0)
   expect_false("opp_in_kind_sale" %in% r0$opportunity$ledger$rows$key)
+})
+
+test_that("Prüffall Sacheinlage mit Restwert über den Expander (user_value) statt eigener Reihen", {
+  # Dieselben Sollwerte (9.5), wenn rv_value den Restwert trägt (Spec 01 Teil A 6.2): Restwert
+  # 510.000 als user_value, Verkaufskosten aus sale_cost_share; keine eigenen Reihen rv, sc
+  sc <- wsd_scenario(
+    c(0, 30000), ek = NULL,
+    accounts = list(deposit_rate_pa = 0.02, overdraft_rate_pa = 0.08),
+    financing = list(alt = list(type = "bullet_loan", existing = TRUE, amount_eur = 200000,
+                                rate_pa = 0.03, term_years = 5, payments_per_year = 1L)),
+    project = list(project_type = "sanierung_einzelmassnahmen"),
+    kpis = c("terminal_value", "terminal_value_opp", "delta_terminal_value", "roe_mirr")
+  )
+  sc$building <- list(existing_value_eur = 500000, construction_year = 1972L, n_units = 6L,
+                      maintenance = list(enabled = FALSE))
+  sc$residual_value <- list(method = "user_value", user_value = list(value_eur = 510000),
+                            sale_cost_share = 0.03)
+  res <- suppressMessages(suppressWarnings(vofi_run(vofi_build(sc))))
+  v <- res$ledger$values
+  expect_equal(v$rv_value__value[1L, ], c(0, 510000))
+  expect_equal(v$rv_value__sale_cost[1L, ], c(0, -15300))
+  expect_equal(v$equity_in_kind[1L, ], c(300000, 0))
+  expect_equal(res$kpis$terminal_value, 318700)
+  expect_equal(res$kpis$terminal_value_opp, 290700)
+  expect_equal(res$kpis$delta_terminal_value, 28000)
+  expect_equal(res$kpis$roe_mirr, 318700 / 300000 - 1, tolerance = 1e-12)
+  expect_equal(res$opportunity$ledger$values$opp_in_kind_sale[1L, ], c(285000, 0))
+  expect_true(all(res$checks$ok))
+  expect_true(all(res$opportunity$checks$ok))
 })
 
 test_that("Verkauf unter den Bestandsdarlehen: opp_in_kind_sale als Entnahme", {

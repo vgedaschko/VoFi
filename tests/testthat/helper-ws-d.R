@@ -65,12 +65,17 @@ wsd_in_kind_scenario <- function(existing_value = 500000) {
     project = list(project_type = "sanierung_einzelmassnahmen")
   )
   # Pflichtangaben bei Block building (Spec 01 Teil A 3.3, 3.4, 6.2; WS-B): Baujahr bzw. WE-Zahl,
-  # Instandhaltungspauschale abgeschaltet; ohne Expander (WS-E2) ohne Zahlungswirkung
+  # Instandhaltungspauschale abgeschaltet
   if (!is.null(existing_value)) {
     sc$building <- list(existing_value_eur = existing_value, construction_year = 1972L,
                         n_units = 6L, maintenance = list(enabled = FALSE))
   }
-  sc$residual_value <- list(sale_cost_share = 0.03)
+  # Der Restwert 510.000 und die Verkaufskosten -15.300 stehen als eigene Reihen rv und sc im
+  # Szenario; kein Restwert-Expander: Methode zero (Spec 01 Teil A 6.2 Nr. 1, nur Nullzeilen).
+  # Sonst entstünde mit building zusätzlich rv_value nach der Profilmethode (component mit
+  # include_existing = auto: W_0 fortgeschrieben), der Restwert zählte doppelt (Integration C5).
+  # sale_cost_share bleibt für opp_in_kind_sale (Spec 00 9.5 Nr. 7) maßgeblich.
+  sc$residual_value <- list(method = "zero", sale_cost_share = 0.03)
   sc
 }
 

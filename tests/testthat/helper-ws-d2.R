@@ -263,9 +263,13 @@ d2_oracle_in_kind <- function(existing_value = 500000) {
                     list(alt = list(type = "bullet_loan", existing = TRUE, amount_eur = 200000,
                                     rate_pa = 0.03, term_years = 5, payments_per_year = 1L)),
                     d2_accounts(0.02, 0.08), project_type = "sanierung_einzelmassnahmen",
-                    residual_value = list(sale_cost_share = 0.03))
+                    residual_value = list(method = "zero", sale_cost_share = 0.03))
+  # Restwert 510.000 und Verkaufskosten -15.300 als eigene Reihen rv und sc; kein
+  # Restwert-Expander: Methode zero (Spec 01 Teil A 6.2 Nr. 1, nur Nullzeilen), sonst entstünde
+  # mit building zusätzlich rv_value nach der Profilmethode (component, W_0 fortgeschrieben) und
+  # der Restwert zählte doppelt (Integration C5). sale_cost_share gilt für opp_in_kind_sale (9.5).
   # Pflichtangaben bei Block building (Spec 01 Teil A 3.3, 3.4, 6.2; WS-B): Baujahr bzw. WE-Zahl,
-  # Instandhaltungspauschale abgeschaltet; ohne Expander (WS-E2) ohne Zahlungswirkung
+  # Instandhaltungspauschale abgeschaltet
   if (!is.null(existing_value)) {
     sc$building <- list(existing_value_eur = existing_value, construction_year = 1972L,
                         n_units = 6L, maintenance = list(enabled = FALSE))
