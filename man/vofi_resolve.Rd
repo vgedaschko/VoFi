@@ -11,24 +11,45 @@ vofi_resolve(scenario, variant = "base", overrides = NULL, scenario_set = NULL)
 
 \item{variant}{Variante (Default \code{"base"}).}
 
-\item{overrides}{optional: Laufzeit-Overrides (Schicht 8) als verschachtelte Liste.}
+\item{overrides}{optional: Laufzeit-Overrides (Schicht 8) in Baum- oder Pfadform.}
 
-\item{scenario_set}{optional: Name eines Szenario-Sets.}
+\item{scenario_set}{optional: Name eines Szenario-Sets (aus \code{global.yaml}, Profil oder
+Szenario).}
 }
 \value{
 Objekt der Klasse \code{vofi_spec}.
 }
 \description{
 Löst eine Variante auf: Schichten 0–8 mischen, Bibliotheksverweise auflösen, Varianten und
-Szenario-Sets anwenden, Expander ausführen (Spec 00, Abschnitte 4.7–4.12).
+Szenario-Sets anwenden, Ableitungsregeln und Element-Defaults (\code{item_defaults}) anwenden,
+Rechtsstand wählen und Expander ausführen (Spec 00, Abschnitte 4.7–4.12).
 }
 \details{
-Phase-0-Minimalfassung (Eigentümer: WS-A): Bibliotheksverweise (\verb{from:}) und die Dateien der
-Schichten 1–4 werden in Welle 2 ergänzt; bis dahin gelten interne Rückfallwerte.
+Reihenfolge: Typ-Defaults (Schicht 0), \code{global.yaml} (1) und sein Teilbaum
+\verb{by_project_type.<project_type>}, Perspektiven-Profil (2) und dessen Teilbaum, Bibliothek und
+Nutzerbibliotheken (3, 4; Verweise \verb{from:} an ihrer Fundstelle), Szenario (5), Overlay (6,
+bleibt in \code{spec$stochastic} und wirkt nur in MC-Läufen), Variante mit ihrer \code{extends}-Kette
+und Szenario-Set (7), Overrides (8). Danach laufen je Auflösung die Ableitungsregeln
+\verb{rule:<name>} (Spec 01 Teil A 1.4, Teil B 5.5), die Vorlagen \code{item_defaults} aus
+\code{global.yaml}, die automatische Wahl der \verb{legal/*}-Einträge (4.10) und die Expander (4.12).
+Ein Pfad, den eine Variante, ein Set oder ein Override deterministisch setzt, verliert seinen
+Overlay-Eintrag (Hinweis). Liegt das maßgebliche Datum eines verwendeten
+Bibliothekseintrags außerhalb seiner Gültigkeit oder ist sein Stand zu alt, folgt
+\code{vofi_warning_library_outdated}.
+
+\code{analysis.kpis: default} bedeutet den Wert der Schicht 2 (Kennzahlenliste des Profils, Spec 01
+Teil A 2.1); die Liste steht danach in \code{spec$analysis$kpis} (Herkunft \code{profile}). Mengenbezüge
+(\verb{\{value, per\}}) brauchen ihre Bezugsgröße am Bezugsobjekt bzw. in \code{building}
+(\code{validation.quantity.reference_missing}, Spec 01 Teil A 3.5).
+
+Die Spezifikation trägt die Herkunft je Blatt (\code{attr(spec, "provenance")}, 4.8), die Metadaten
+der Defaults-Dateien (\code{attr(spec, "defaults_meta")}) und den Bibliotheksstand
+(\code{attr(spec, "library_version")}, \code{spec$library}).
 }
 \examples{
 spec <- vofi_resolve(vofi_read_scenario(vofi_example("skeleton")))
 spec$project$tax_regime
+head(attr(spec, "provenance")[, c("path", "layer", "source_type", "entry")])
 }
 \seealso{
 Other Einlesen: 

@@ -7,21 +7,31 @@
 vofi_library(block = NULL, library_paths = vofi_library_paths(), date = NULL)
 }
 \arguments{
-\item{block}{\code{NULL} oder Zielblock (z. B. \code{"funding"}).}
+\item{block}{\code{NULL} oder Zielblock (z. B. \code{"funding"}, \code{"market"}).}
 
-\item{library_paths}{Wurzeln der Nutzerbibliotheken.}
+\item{library_paths}{Bibliothekswurzeln (Paketbibliothek wird stets zuerst durchsucht).}
 
 \item{date}{Stichtag der Gültigkeitsprüfung (Default: heute).}
 }
 \value{
-Data Frame mit einer Zeile je Eintrag.
+Data Frame mit einer Zeile je Eintrag (sortiert nach id).
 }
 \description{
-Listet die Einträge der Parameterbibliothek mit Metadaten und Gültigkeit zum Datum (Spec 00,
-Abschnitt 4.9).
+Listet die Einträge der Parameterbibliothek (Paketbibliothek und Nutzerbibliotheken) mit
+Metadaten und Gültigkeit zum Datum (Spec 00, Abschnitte 4.9, 4.10). Bei gleicher id gewinnt
+die spätere Wurzel; überschattete Einträge erscheinen nicht, die Spalte \code{shadows} nennt die
+überschattete Wurzel.
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Spalten: \code{entry} (id), \code{block}, \code{topic}, \code{label}, \code{quality}, \code{as_of}, \code{accessed},
+\code{valid_from}, \code{valid_to}, \code{reform}, \code{release_status}, \code{legal_status}, \code{valid} (Datum liegt in
+\verb{[valid_from, valid_to)}), \code{outdated} (außerhalb der Gültigkeit oder Stand älter als 6 Monate
+vor dem Datum, bei Prozess- und Kalibrierungseinträgen 12 Monate), \code{source_type} (\code{library}
+bzw. \code{user_library}), \code{root}, \code{file}, \code{shadows}, \code{problems} (Schemaverstöße des Eintrags).
+}
+\examples{
+lib <- vofi_library()
+nrow(lib)
 }
 \seealso{
 Other Einlesen: 

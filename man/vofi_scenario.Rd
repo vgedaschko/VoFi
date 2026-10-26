@@ -9,7 +9,7 @@ vofi_scenario(x, source = NULL)
 \arguments{
 \item{x}{Liste mit den Blöcken der obersten Ebene (Spec 00, Abschnitt 4.2).}
 
-\item{source}{optional: Herkunftsangaben (\code{path}, \code{format}, ...).}
+\item{source}{optional: Herkunftsangaben (\code{path}, \code{format}, \code{library_paths}, ...).}
 }
 \value{
 Objekt der Klasse \code{vofi_scenario}.
@@ -20,7 +20,12 @@ als \code{Date} oder ISO-Zeichenkette, Zahlen, Wertformen der Wertgrammatik). Di
 ist idempotent: ein bereits normalisiertes Szenario bleibt unverändert.
 }
 \details{
-Phase-0-Minimalfassung (Eigentümer: WS-A).
+Sammlungen (\code{unit_groups}, \code{measures}, \code{funding}, \code{components}, \code{financing}, \code{variants},
+\code{scenario_sets}, \code{building.elements}, \code{energy.carriers}, \code{energy.stages}) dürfen als Listen
+mit Feld \code{id} angegeben werden und werden Maps nach id.
+Felder mit Schema (Spec 00, Abschnitt 4.3; Typparameter der Registry) werden nach ihrer Art
+normalisiert, übrige numerische Blätter und Wertformen werden Knoten. Kurzform-Verteilungen
+wandern ins Overlay (Schlüssel = Zielpfad), am Ort bleibt der Basiswert.
 }
 \examples{
 sc <- vofi_scenario(list(

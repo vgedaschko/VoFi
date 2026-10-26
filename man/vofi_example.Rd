@@ -15,9 +15,6 @@ Zeichenkette (Pfad) bzw. Zeichenvektor der Namen.
 \description{
 Liefert den Pfad eines mitgelieferten Beispielszenarios bzw. die Namen aller Beispiele.
 }
-\details{
-Phase-0-Minimalfassung (Eigentümer: WS-A).
-}
 \examples{
 vofi_example()
 vofi_example("skeleton")

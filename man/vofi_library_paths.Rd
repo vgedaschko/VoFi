@@ -16,11 +16,7 @@ Zeichenvektor der Pfade.
 Gibt die Bibliothekspfade zurück (Paketbibliothek und Option \code{vofi.library_paths}) bzw. ergänzt
 Nutzerpfade. Die Reihenfolge ist die Suchreihenfolge der Schichten 3 und 4 (Spec 00,
 Abschnitte 2.12, 4.7, 4.9): zuerst die Paketbibliothek, dann die Option, dann \code{add}; bei
-gleicher id gewinnt der spätere Pfad.
-}
-\details{
-Phase-0-Minimalfassung (Eigentümer: WS-A): Pfade werden nur zusammengestellt; die Bibliothek
-wird erst mit WS-A ausgewertet.
+gleicher id gewinnt der spätere Pfad (Überschattung mit Warnung).
 }
 \examples{
 vofi_library_paths()

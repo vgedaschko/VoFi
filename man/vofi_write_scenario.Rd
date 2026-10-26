@@ -30,10 +30,20 @@ vofi_write_scenario(
 \code{invisible(path)}.
 }
 \description{
-Schreibt ein Szenario (auf Wunsch eine aufgelöste Variante) als YAML oder Excel.
+Schreibt ein Szenario als YAML (bzw. Excel über WS-A2), auf Wunsch die aufgelöste Variante:
+Schichten 1–8 gemischt (Defaults-Dateien, Profil, Bibliotheksverweise aufgelöst, Szenario,
+Overlay, Variante, Szenario-Set, Overrides). Was beim Auflösen nach Schicht 8 entsteht, entfällt,
+weil es beim erneuten Auflösen wieder entsteht: Werte der Ableitungsregeln (\verb{rule:*}), der
+Vorlagen \code{item_defaults}, der Typ-Defaults (Schicht 0) und die Expander-Komponenten. Knoten
+werden in die Wertgrammatik zurückgeführt. Das erneute Einlesen ergibt dieselbe kanonische
+Liste; bei \code{resolved = TRUE} ergibt das erneute Auflösen dieselbe Spezifikation (Round-Trip,
+Spec 00, Abschnitte 4.6, 4.14).
 }
-\details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+\examples{
+sc <- vofi_read_scenario(vofi_example("skeleton"))
+f <- tempfile(fileext = ".yaml")
+vofi_write_scenario(sc, f)
+identical(vofi_read_scenario(f)$components, sc$components)
 }
 \seealso{
 Other Einlesen: 

@@ -18,22 +18,28 @@ vofi_read_scenario(
 
 \item{stochastic}{optional: Pfad einer YAML-Datei mit Wurzelschlüssel \code{stochastic}.}
 
-\item{library_paths}{Wurzeln der Nutzerbibliotheken (später gewinnt).}
+\item{library_paths}{Bibliothekswurzeln (Paketbibliothek und Nutzerbibliotheken; später
+gewinnt).}
 }
 \value{
 Objekt der Klasse \code{vofi_scenario}.
 }
 \description{
 Liest ein Szenario aus YAML oder Excel, normalisiert es (Wertgrammatik, Einheiten, Aliase) und
-liefert das kanonische Szenario-Objekt mit Herkunft der Blätter (Spec 00, Abschnitte 4.1, 4.6).
-Optional wird ein separates Stochastik-Overlay gemischt (Datei gewinnt).
+liefert das kanonische Szenario-Objekt mit Herkunft der Blätter (Spec 00, Abschnitte 4.1,
+4.6, 4.8). YAML wird UTF-8-sicher gelesen (auch unter der Locale \code{C}); mehrdeutige Zahlen
+(Dezimalkomma, Tausenderpunkt) werden nach 4.6 gemeldet bzw. abgewiesen. Optional wird ein
+separates Stochastik-Overlay (Wurzelschlüssel \code{stochastic}) über den Block der Szenariodatei
+gemischt (Datei gewinnt; Herkunft Schicht 6).
 }
 \details{
-Phase-0-Minimalfassung (Eigentümer: WS-A): YAML vollständig nach 4.6; Excel folgt mit WS-A2.
+Bibliotheksverweise \verb{from:} bleiben im Szenario unaufgelöst; \code{vofi_resolve()} löst sie mit
+den hier übergebenen Bibliothekspfaden auf.
 }
 \examples{
 sc <- vofi_read_scenario(vofi_example("skeleton"))
 sc$meta$scenario_id
+head(attr(sc, "provenance")[, c("path", "layer", "location")])
 }
 \seealso{
 Other Einlesen: 
