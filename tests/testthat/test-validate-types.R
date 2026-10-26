@@ -294,3 +294,44 @@ test_that("iid: dist_spec ist die Jahresverteilung, ihre Parameter sind nicht ve
   expect_identical(run(list(dist = "pert", min = 3, mode = 1, max = 2))$code,
                    "validation.stochastic.dist_invalid")
 })
+
+test_that("K2: Bezugs- und Ausdrucksknoten in ganzzahligen Feldern (R-86, Teil B 5.5)", {
+  # Ableitungsregeln setzen ganzzahlige Domänenblätter als Bezug bzw. Ausdruck (Bezüge statt
+  # Kopien): Ebene 2 lässt sie zu und prüft den Basisfallwert, wenn er auflösbar ist.
+  hits <- function(v, path) v$code[v$path == path & v$severity == "error"]
+  sn <- wsb_with("domain", function(x) {
+    x$project$perspective <- "selbstnutzer"
+    x$building$n_units <- 1L
+    x$unit_groups <- NULL
+    x
+  })
+  expect_identical(suppressWarnings(vofi_resolve(sn))$unit_groups$main$n_units,
+                   node_ref("building.n_units"))
+  v <- suppressWarnings(wsb_validate(sn))
+  expect_false("validation.not_integer" %in% v$code)
+  expect_length(hits(v, "unit_groups.main.n_units"), 0L)
+  ag <- wsb_with("domain", function(x) {
+    x$building$n_units <- NULL
+    x
+  })
+  expect_identical(suppressWarnings(vofi_resolve(ag))$building$n_units$kind, "expr")
+  expect_length(hits(suppressWarnings(wsb_validate(ag)), "building.n_units"), 0L)
+  sp <- suppressWarnings(wsb_spec(g = function(s) {
+    grp <- function(n) {
+      x <- s$unit_groups$a
+      x$n_units <- n
+      x
+    }
+    s$unit_groups$b <- grp(node_expr("building.n_units / 5"))
+    s$unit_groups$c <- grp(node_ref("building.n_units", offset = -12))
+    s$unit_groups$d <- grp(node_ref("building.gibts_nicht"))
+    s$unit_groups$a$n_units <- node_ref("building.n_units")
+    s
+  }))
+  v <- suppressWarnings(wsb_validate(sp))
+  expect_length(hits(v, "unit_groups.a.n_units"), 0L)
+  expect_identical(hits(v, "unit_groups.b.n_units"), "validation.not_integer")
+  expect_match(v$message[v$path == "unit_groups.b.n_units"], "2.4", fixed = TRUE)
+  expect_identical(hits(v, "unit_groups.c.n_units"), "validation.range")
+  expect_identical(hits(v, "unit_groups.d.n_units"), "validation.ref_target_missing")
+})
