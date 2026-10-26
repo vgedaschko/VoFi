@@ -14,9 +14,10 @@ vofi_kpis(
 \arguments{
 \item{x}{Objekt der Klasse \code{vofi_result}, \code{vofi_mc_result} oder \code{vofi_comparison}.}
 
-\item{which}{\code{NULL} (alle) oder Namen von Kennzahlen.}
+\item{which}{\code{NULL} (alle) oder Namen von Kennzahlen (Grundnamen oder Spaltennamen).}
 
-\item{rv}{\code{"both"}, \code{"with"} (mit Restwert) oder \code{"without"} (ohne Restwert).}
+\item{rv}{\code{"both"}, \code{"with"} (mit Restwert) oder \code{"without"} (ohne Restwert); Kennzahlen
+ohne Restwertbezug erscheinen in beiden Sichten.}
 
 \item{per}{\code{"total"}, \code{"unit"} (je Wohneinheit) oder \code{"m2"} (je m² Wohnfläche).}
 }
@@ -24,11 +25,33 @@ vofi_kpis(
 Data Frame der Kennzahlen.
 }
 \description{
-Liefert die Kennzahlen eines Ergebnisses mit Bezeichnung, Einheit und NA-Begründung;
-EUR-Kennzahlen optional je Wohneinheit bzw. je m² Wohnfläche (Spec 00, Abschnitt 12).
+Liefert die skalaren Kennzahlen eines Ergebnisses mit Bezeichnung, Einheit, Restwertbezug
+und NA-Begründung (Spec 00, Abschnitte 12.3 bis 12.6). EUR-Kennzahlen (Einheiten \code{EUR},
+\code{EUR_pa}, \code{EUR_month}) werden auf Wunsch je Wohneinheit (\code{building.n_units}) bzw. je m²
+Wohnfläche (\code{building.living_area_m2}) ausgewiesen (Konzept 1.4, R-83); übrige Kennzahlen
+bleiben unverändert. Reihenkennzahlen (z. B. \code{monthly_burden}) stehen in \code{x$kpi_series}.
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Spalten: \code{kpi} (Spaltenname inkl. \verb{_ex_rv}), \code{base} (Grundname), \code{label}, \code{unit}, \code{rv}
+(\code{"with"} = Wert mit Restwert, auch ohne Gegenstück ohne Restwert wie beim Kapitalwert der
+Zahlungsfolge; \code{"without"} = ohne Restwert; \code{"independent"} = unabhängig vom Restwert;
+\code{"unknown"} = Restwertbezug unbekannt, z. B. nicht mehr registrierte Nutzerkennzahl), \code{per},
+\code{note} (Vermerke, durch „; “ getrennt: „unabhängig vom Restwert“, bei LTV und
+Beleihungsauslauf der Hinweis auf den Wertpfad, bei der Endwertdifferenz von
+Bestandsprojekten „enthält Bestandszahlungen“ bzw. „gegenüber Verkauf zum Stichtag“, beim
+Kapitalwert und internen Zinsfuß der Zahlungsfolge „finanzierungsneutral, vereinfachte
+Annahmen“, in Simulationen bei Renditen mit undefinierten Läufen der Zensurvermerk),
+\code{primary} (Primärkennzahl nach 12.3a), bei
+deterministischen Ergebnissen \code{value}, \code{na_reason}, \code{na_label} (bei mehreren Läufen zusätzlich
+\code{sim}), bei Simulationen \code{deterministic}, \code{mean}, \code{sd}, \code{q05}, \code{q50}, \code{q95}, \code{p_neg},
+\code{na_share}, \code{n_valid}, \code{na_reason} und \code{na_label} des deterministischen Laufs, bei Vergleichen
+zusätzlich \code{variant} (je Variante die Kennzahlen, danach die Vergleichskennzahlen als
+Mittel über die Läufe).
+}
+\examples{
+res <- vofi_run(vofi_build(vofi_read_scenario(vofi_example("skeleton"))))
+vofi_kpis(res)
+vofi_kpis(res, which = "terminal_value", rv = "without")
 }
 \seealso{
 Other Analysieren: 

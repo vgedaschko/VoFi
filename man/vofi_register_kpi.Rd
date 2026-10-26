@@ -19,11 +19,11 @@ vofi_register_kpi(
 )
 }
 \arguments{
-\item{name}{Name der Kennzahl.}
+\item{name}{Name der Kennzahl (\verb{^[a-z][a-z0-9_]*$}, ohne Endung \verb{_ex_rv}).}
 
 \item{compute}{Funktion \code{compute(core, ctx)}, die ein \code{\link[=vofi_kpi_value]{vofi_kpi_value()}} liefert.}
 
-\item{label}{Anzeigename.}
+\item{label}{Anzeigename (Default: \code{name}).}
 
 \item{unit}{Einheit aus \code{inst/vocab/units.yaml}.}
 
@@ -46,10 +46,24 @@ vofi_register_kpi(
 \code{invisible(def)}.
 }
 \description{
-Registriert eine Nutzerkennzahl \code{compute(core, ctx)} (Spec 00, Abschnitte 5.7, 12.1).
+Registriert eine Nutzerkennzahl \code{compute(core, ctx)} (Spec 00, Abschnitte 5.7, 12.1). Die
+Funktion erhält das Ergebnis der Periodenschleife \code{core} (Ledger, Bestände, Markierungen,
+Raten, Unterlassungsalternative) und den Laufkontext \code{ctx} und liefert ein
+\code{\link[=vofi_kpi_value]{vofi_kpi_value()}} mit einem Wert je Lauf (bzw. einer Matrix n × P bei Reihen). Mit
+\code{rv_variant = TRUE} wird sie zusätzlich auf der Sicht ohne Restwert als \verb{<name>_ex_rv}
+berechnet; ohne \code{rv_variant} gilt sie als restwertunabhängig und trägt in \code{vofi_kpis()} den
+Vermerk „unabhängig vom Restwert“ (R-52). Die Kennzahl steht danach in \code{analysis.kpis} zur
+Verfügung; Perspektiven außerhalb von \code{perspectives} ergeben \code{NA} mit Code
+\code{not_applicable_perspective}.
 }
-\details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+\examples{
+vofi_register_kpi(
+  "ew_tausend", function(core, ctx) {
+    vofi_kpi_value(core$stocks$BS[, core$grid$T + 1L] / 1000)
+  },
+  label = "Endwert in Tausend Euro", unit = "EUR", overwrite = TRUE
+)
+"ew_tausend" \%in\% vofi_types("kpi")$name
 }
 \seealso{
 Other Erweitern: 
