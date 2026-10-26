@@ -6,6 +6,88 @@
 # Keine Abhängigkeit von anderen Arbeitspaketen außer dem Prüfkit (Integrator) und dem
 # Laufkontext eng_context_from_parts() (WS-D, Phase-0-Vertrag 6.1).
 
+#' Texte der Validierungsbefunde validation.financing.<code> der Kredittypen (Spec 00 2.10, R-104)
+#'
+#' ZULIEFERUNG an WS-B bzw. den Integrator für inst/labels/de/validation.yaml (Block financing):
+#' validation.yaml gehört WS-B, deshalb stehen die Texte bis zur Integration hier. Die Tests
+#' ergänzen nur Schlüssel, die im Katalog noch fehlen (loan_ensure_validation_labels()); nach der
+#' Integration gelten die Texte aus validation.yaml. Den Platzhalter {path} setzt vofi_validate().
+loan_validation_labels <- function() {
+  c(
+    payments_per_year = "'{path}': payments_per_year muss 1, 4 oder 12 sein (erhalten: {value}).",
+    amount_nonpositive = "'{path}': der Kreditbetrag muss gr\u00f6\u00dfer als 0 sein.",
+    months_fraction = "'{path}' muss ein Vielfaches von 1/12 Jahr sein (erhalten: {value:raw}).",
+    term_missing = paste0("'{path}' fehlt (Pflicht bei Raten- und endf\u00e4lligen Darlehen ",
+                          "sowie bei Annuit\u00e4tendarlehen ohne initial_repayment_pa und ohne ",
+                          "installment_eur)."),
+    term_nonpositive = paste0("'{path}': die Laufzeit muss gr\u00f6\u00dfer als 0 sein ",
+                              "(erhalten: {value:raw})."),
+    grace_too_long = paste0("'{path}': die tilgungsfreie Zeit ({value:raw} Jahre) muss ",
+                            "k\u00fcrzer als die Laufzeit ({term:raw} Jahre) sein."),
+    fixed_nonpositive = paste0("'{path}': die Zinsbindung muss gr\u00f6\u00dfer als 0 sein ",
+                               "(erhalten: {value:raw})."),
+    installment_nonpositive = "'{path}': die vertragliche Rate muss gr\u00f6\u00dfer als 0 sein.",
+    refi_rule_invalid = paste0("'{path}': {rule} ist bei Ratendarlehen nicht zul\u00e4ssig ",
+                               "(keep_term oder keep_payment)."),
+    tau_missing = paste0("'{path}': keep_tilg_rate braucht initial_repayment_pa oder ",
+                         "followup_repayment_pa."),
+    keep_term_needs_term = paste0("'{path}': keep_term braucht eine endliche Laufzeit ",
+                                  "term_years (mit vertraglicher Rate ohne Laufzeit nur ",
+                                  "keep_payment oder keep_tilg_rate)."),
+    rate_path = paste0("'{path}': ein zeitabh\u00e4ngiger Sollzins ist nur bei amount_eur topup ",
+                       "zul\u00e4ssig (Spec 00 8.7)."),
+    payout_rate_range = paste0("'{path}': der Auszahlungskurs muss gr\u00f6\u00dfer als 0,9 und ",
+                               "h\u00f6chstens 1 sein (erhalten: {value:raw})."),
+    commitment_date_range = paste0("'{path}': das Zusagedatum {value:date} muss zwischen ",
+                                   "Bewertungsstichtag und start liegen."),
+    repayment_grant_empty = paste0("'{path}': der Tilgungszuschuss braucht genau eines von ",
+                                   "share und amount_eur."),
+    repayment_grant_date_year = paste0("'{path}': repayment_grant.date und repayment_grant.year ",
+                                       "schlie\u00dfen sich aus."),
+    repayment_grant_before_start = "'{path}': der Gutschrifttermin {value:date} liegt vor start.",
+    followup_repayment_unused = "'{path}' wirkt nur mit refi_rule keep_tilg_rate.",
+    auto_params_unused = "'{path}' wirkt nur mit amount_eur auto oder topup.",
+    rate_high = "'{path}': der Sollzins {value:pct} ist ungew\u00f6hnlich hoch.",
+    prepay_exceeds = paste0("'{path}': die geplanten Sondertilgungen ({value:eur}) ",
+                            "\u00fcbersteigen die Zusage ({amount:eur})."),
+    existing_installment_missing = paste0("'{path}' fehlt beim Bestandsdarlehen: die Rate wird ",
+                                          "aus der Restlaufzeit berechnet."),
+    draw_after_horizon = paste0("'{path}': Auszahlungen ab {value:date} liegen nach dem ",
+                                "Horizontende und entfallen; die Tilgung beginnt nach dem ",
+                                "Horizont."),
+    commitment_fee_window = paste0("'{path}': ohne Auszahlungsplan f\u00e4llt die ",
+                                   "Bereitstellungsprovision nur zwischen Zusagedatum und ",
+                                   "Vollauszahlung bei start an."),
+    fixed_after_horizon = "'{path}': die Zinsbindung ({value:raw} Jahre) endet nach dem Horizont.",
+    followup_truncated = paste0("'{path}': die letzte Anschlussbindung ({value:raw} Jahre) ",
+                                "reicht \u00fcber die F\u00e4lligkeit hinaus und wird ",
+                                "gek\u00fcrzt."),
+    prepay_capped = paste0("'{path}': geplante Sondertilgungen \u00fcber prepay_cap_share_pa je ",
+                           "Vertragsjahr werden gekappt."),
+    repayment_grant_after_horizon = paste0("'{path}': der Gutschrifttermin {value:date} liegt ",
+                                           "nach dem Horizontende; der Tilgungszuschuss ",
+                                           "entf\u00e4llt.")
+  )
+}
+
+#' Fehlende Schlüssel validation.financing.* im Label-Katalog ergänzen (nur Tests)
+#' @return `invisible(Namen der ergänzten Schlüssel)`.
+loan_ensure_validation_labels <- function() {
+  labs <- loan_validation_labels()
+  added <- character(0)
+  for (k in names(labs)) {
+    key <- paste0("validation.financing.", k)
+    if (!lbl_has(key)) {
+      assign(key, enc2utf8(labs[[k]]), envir = lbl_state$labels)
+      assign(key, "tests/testthat/helper-ws-f.R", envir = lbl_state$sources)
+      added <- c(added, key)
+    }
+  }
+  invisible(added)
+}
+
+loan_ensure_validation_labels()
+
 loan_cols <- function() {
   c("draw", "repay", "repay_balloon", "prepay", "interest", "fees", "repayment_grant", "disagio",
     "assumed", "balance")
@@ -65,9 +147,12 @@ loan_payment <- function(run, t, i = 1L) {
 #' Unabhängige skalare Monatsuhr (Spec 00 8.5, 8.6; Spec 01 Teil A 5.2)
 #'
 #' `a` sind die Rohparameter wie in YAML (Daten als Zeichenketten), Zinsen als Zahlen;
-#' `followup` = Anschlusszinspfad als Vektor der Länge T+1 (Spalte = Periode) bzw. Zahl.
+#' `followup` = Anschlusszinspfad als Vektor der Länge T+1 (Spalte = Periode) bzw. Zahl;
+#' `prepay_at` = regelbasierte Sondertilgungen (Ü3) am Periodenende wie in loan_run()
+#' (`list("<t>" = Betrag)`, begrenzt auf die Obergrenze je Vertragsjahr und den Bestand).
 #' @return Matrix (T+1) x 10 mit den Spalten loan_cols().
-loan_ref_clock <- function(grid, type, a, followup = a$followup_rate_pa %||% 0.04) {
+loan_ref_clock <- function(grid, type, a, followup = a$followup_rate_pa %||% 0.04,
+                           prepay_at = NULL) {
   g <- grid
   big_t <- g$T
   n_t <- big_t + 1L
@@ -92,6 +177,7 @@ loan_ref_clock <- function(grid, type, a, followup = a$followup_rate_pa %||% 0.0
       s <- a$draw_schedule
       for (nm in names(s$schedule)) {
         tt <- per(nm)
+        if (is.na(tt)) next                          # nach dem Horizont: entfällt
         v <- s$schedule[[nm]]
         if (identical(s$unit, "share")) v <- v * amount
         dd[tt + 1L] <- dd[tt + 1L] + v
@@ -103,6 +189,15 @@ loan_ref_clock <- function(grid, type, a, followup = a$followup_rate_pa %||% 0.0
   t_last <- if (existing) 0L else max(draw_t)
   m_start <- if (existing) 0 else me[t_start + 1L]
   m_a <- if (existing) 0 else me[t_last + 1L]
+  d_last <- g$date_end[t_last + 1L]
+  if (!existing && !is.null(a$draw_schedule)) {
+    d_max <- max(as.Date(names(a$draw_schedule$schedule)))
+    if (d_max > g$date_end[n_t]) {
+      # letzter Termin nach dem Horizont: m_A = Monatsindex des Termins (Tilgung danach)
+      m_a <- grid_months_between(g$valuation_date, d_max)
+      d_last <- d_max
+    }
+  }
   grace <- if (existing) 0 else a$grace_years %||% 0
   m_rep <- m_a + round(12 * grace)
   m_mat <- if (is.null(a$term_years)) Inf else m_a + round(12 * a$term_years)
@@ -137,7 +232,7 @@ loan_ref_clock <- function(grid, type, a, followup = a$followup_rate_pa %||% 0.0
     tz_date <- if (!is.null(rg$date)) as.Date(rg$date) else if (!is.null(rg$year)) {
       as.Date(sprintf("%04d-01-01", as.integer(rg$year)))
     } else {
-      max(g$completion_date, g$date_end[t_last + 1L])
+      max(g$completion_date, d_last)
     }
     t_tz <- per(tz_date)
   }
@@ -149,7 +244,8 @@ loan_ref_clock <- function(grid, type, a, followup = a$followup_rate_pa %||% 0.0
     }
   }
   cap <- a$prepay_cap_share_pa %||% 1
-  rnd <- function(x) if (isTRUE(a$round_payments)) floor(100 * x + 0.5) / 100 else x
+  # Zuschlag 1e-7 Cent wie inst_loan_round(): Halbcent-Grenzen unabhängig vom letzten Bit
+  rnd <- function(x) if (isTRUE(a$round_payments)) floor(100 * x + 0.5 + 1e-7) / 100 else x
   n_rem <- function(m) {
     if (!is.finite(m_mat)) return(Inf)
     k <- seq_len(m_mat)
@@ -253,8 +349,14 @@ loan_ref_clock <- function(grid, type, a, followup = a$followup_rate_pa %||% 0.0
                            installment = b / max(nr, 1), inst))
       }
     }
-    out[t + 1L, ] <- c(kappa * d, -r_sum, -rb_sum, -stp, -z_sum, -p_sum, tz, (1 - kappa) * d,
-                       assumed, b)
+    u3 <- 0
+    if (!is.null(prepay_at[[as.character(t)]]) && isTRUE(a$prepay_allowed)) {
+      u3 <- min(max(prepay_at[[as.character(t)]], 0), max(cap * amount - ytd, 0), b)
+      b <- b - u3
+      ytd <- ytd + u3
+    }
+    out[t + 1L, ] <- c(kappa * d, -r_sum, -rb_sum, -stp - u3, -z_sum, -p_sum, tz,
+                       (1 - kappa) * d, assumed, b)
   }
   out
 }
@@ -279,14 +381,14 @@ loan_capture_msgs <- function(expr) {
   list(value = value, keys = keys)
 }
 
-#' Codes der Befunde einer Validierung (validate() des Typs)
+#' Codes der Befunde einer Validierung (validate() des Typs, ohne Präfix validation.financing.)
 loan_val_codes <- function(type, ..., spec_fun = NULL, grid = make_grid("annual", T = 10L)) {
   comp <- make_component(type, ..., id = "k")
   spec <- reg_test_spec(grid)
   spec <- path_set(spec, "financing.k", comp)
   if (is.function(spec_fun)) spec <- spec_fun(spec)
   fd <- reg_get("instrument", type)$validate(comp, spec)
-  vapply(fd, function(f) sub(paste0("^types\\.instrument\\.", type, "\\."), "", f$code), "")
+  vapply(fd, function(f) sub("^validation\\.financing\\.", "", f$code), "")
 }
 
 #' Ergebnis von loan_run() (Lauf i) als Matrix (T+1) x 10 wie loan_ref_clock()

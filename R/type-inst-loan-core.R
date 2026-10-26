@@ -21,8 +21,15 @@
 # effektiver Restzahl nach Tilgungszuschuss mit shorten_term (R-100), Tilgungszuschuss (share
 # bzw. amount_eur, approved, cut_share, Wirkung shorten_term/reduce_installment), geplante
 # Sondertilgungen mit Obergrenze je Vertragsjahr, prepay()/capacity() fuer Ue3 (loan_prepay),
-# Bestandsdarlehen (existing, Merkzeile assumed), Rundung auf Cent (round_payments),
-# Kombinationsregeln und Plausibilitaeten in validate() (Spec 01 Teil A 5.2, 5.3, 5.5).
+# Bestandsdarlehen (existing, Merkzeile assumed), Rundung auf Cent (round_payments).
+#
+# validate() meldet unter validation.financing.<code> (Spec 00 2.10, R-104) nur die
+# typspezifischen Kombinationsregeln, die WS-B nicht selbst prueft (Spec 01 Teil A 5.5: Ebene 2/3
+# WS-B, Laufzeit WS-F): Bereichsgrenzen meldet die Schema-Pruefung (validation.range),
+# Bezuege wie market.mortgage_rate die Bezugspruefung (validation.ref_target_missing, R-115),
+# Bestandsdarlehen, auto/topup, Auszahlungsplan, Gebuehren, tau/installment_eur, negative
+# Tilgung, Tilgungszuschuss-Kennung und Overlay-Bezuege die Plausibilitaetspruefung von WS-B.
+# Die Termine leitet validate() wie init() aus dem Zeitraster ab (Periodenenden).
 
 # ---------------------------------------------------------------------------------------------
 # Parameterschema, Labels, Hilfsfunktionen
@@ -88,33 +95,47 @@ inst_loan_params <- function(repayment) {
   p
 }
 
-#' Codes der Meldungen der Kredittypen (Label-Abschnitte `errors` und `msg`)
+#' Codes der Laufzeitmeldungen der Kredittypen (Label-Abschnitte `errors` und `msg`)
 #'
-#' Jeder Code existiert in den Label-Dateien aller drei Kredittypen (Test).
+#' Jeder Code existiert in den Label-Dateien aller drei Kredittypen (Test). `errors`: Fehler aus
+#' init() (Klasse `vofi_error_input` bzw. `vofi_error_contract`), `msg`: Hinweise und Warnungen
+#' des Laufs (Spec 01 Teil A 5.5, Spalte Laufzeit).
 #' @return `list(errors = chr, msg = chr)`.
 #' @noRd
 inst_loan_codes <- function() {
   list(
-    errors = c("ppy", "term_missing", "term_nonpositive", "months_fraction", "grace_too_long",
-               "nonpositive", "tau_with_installment", "refi_rule_invalid", "tau_missing",
-               "keep_term_needs_term", "existing_forbidden", "existing_start",
-               "auto_draw_schedule", "auto_start", "amount_nonpositive",
-               "installment_nonpositive", "rank_invalid", "start_before", "draw_share_sum",
-               "draw_eur_sum", "draws_exceed", "draw_before_start", "rate_path",
-               "payout_rate_range", "commitment_date_range", "grant_share_xor_amount",
-               "grant_needs_id", "grant_exceeds", "grant_before_start", "grant_date_year",
-               "followup_missing"),
-    msg = c("balloon_at_maturity", "existing_installment_missing", "existing_new_build",
-            "auto_params_unused", "rate_high", "fee_high", "commitment_fee_high",
-            "commitment_fee_window", "prepay_exceeds", "prepay_capped", "prepay_program",
-            "negative_amortization", "followup_repayment_unused", "fixed_after_horizon",
-            "followup_truncated", "start_after_horizon", "grant_after_horizon",
-            "measure_delay", "amount_fixed", "inactive", "auto_zero", "grant_capped",
-            "neg_amort_run")
+    errors = c("ppy", "term_missing", "term_nonpositive", "start_before", "refi_rule_invalid",
+               "tau_missing", "keep_term_needs_term", "auto_shape"),
+    msg = c("inactive", "auto_zero", "grant_capped", "neg_amort_run")
   )
 }
 
-#' Label-Schlüssel einer Meldung eines Kredittyps
+#' Codes und Schweregrade der Validierungsbefunde (`validation.financing.<code>`, R-104)
+#'
+#' Die Texte stehen in `inst/labels/de/validation.yaml` (WS-B); bis zur Integration liefert
+#' `tests/testthat/helper-ws-f.R` sie für die Tests nach.
+#' @return benannter Zeichenvektor Code -> `"error"`, `"warning"` bzw. `"info"`.
+#' @noRd
+inst_loan_val_codes <- function() {
+  c(payments_per_year = "error", amount_nonpositive = "error", months_fraction = "error",
+    term_missing = "error", term_nonpositive = "error", grace_too_long = "error",
+    fixed_nonpositive = "error", installment_nonpositive = "error",
+    refi_rule_invalid = "error", tau_missing = "error", keep_term_needs_term = "error",
+    rate_path = "error", payout_rate_range = "error", commitment_date_range = "error",
+    repayment_grant_empty = "error", repayment_grant_date_year = "error",
+    repayment_grant_before_start = "error",
+    followup_repayment_unused = "warning", auto_params_unused = "warning",
+    rate_high = "warning", prepay_exceeds = "warning",
+    existing_installment_missing = "info", draw_after_horizon = "info",
+    commitment_fee_window = "info", fixed_after_horizon = "info", followup_truncated = "info",
+    prepay_capped = "info", repayment_grant_after_horizon = "info")
+}
+
+#' Label-Schlüssel eines Validierungsbefunds
+#' @noRd
+inst_loan_val_key <- function(code) paste0("validation.financing.", code)
+
+#' Label-Schlüssel einer Laufzeitmeldung eines Kredittyps
 #' @param type Typname (z. B. `"annuity_loan"`).
 #' @param section `"errors"` oder `"msg"`.
 #' @param code Code aus `inst_loan_codes()`.
@@ -133,9 +154,9 @@ inst_loan_type <- function(spec, repayment = NULL) {
 
 #' Laufzeitfehler eines Kredittyps (Eingabe unzulässig; die Validierung meldet ihn vorher)
 #' @noRd
-inst_loan_abort <- function(spec, code, ...) {
+inst_loan_abort <- function(spec, code, ..., .class = "vofi_error_input") {
   vofi_abort(inst_loan_key(inst_loan_type(spec), "errors", code), id = spec[["id"]] %||% "?",
-             ..., .class = "vofi_error_input")
+             ..., .class = .class)
 }
 
 #' Deterministischer Skalar eines Parameters (Basisfallwert, erster Lauf)
@@ -166,8 +187,12 @@ inst_loan_const <- function(x) {
 }
 
 #' Kaufmännische Rundung auf Cent (Spec 01 Teil A 5.2: floor(100 x + 0,5) / 100)
+#'
+#' Der Zuschlag 1e-7 Cent fängt Gleitkomma-Abweichungen an exakten Halbcent-Grenzen ab: ein
+#' Bestand, der geschlossen (B - k r bzw. Annuitätenformel) statt Monat für Monat entsteht,
+#' unterscheidet sich im letzten Bit; ohne Zuschlag kippte die Rundung dann (8.1 Nr. 3).
 #' @noRd
-inst_loan_round <- function(x) floor(100 * x + 0.5) / 100
+inst_loan_round <- function(x) floor(100 * x + 0.5 + 1e-7) / 100
 
 #' Annuität aus Bestand, Zins je Vertragszahlung und Zahl der Zahlungen (i_s = 0: B / n)
 #' @param b n-Vektor Bestand.
@@ -292,14 +317,18 @@ inst_loan_runs <- function(pay, other, gap, pay_int) {
 
 #' Geschlossene Rechnung einer Folge von K einfachen Vertragszahlungen (8.1 Nr. 3)
 #'
-#' Ohne Begrenzung gilt je Zahlungsintervall B' = B (1 + i_s) - inst (Annuität) bzw.
-#' B' = B - inst (Ratentilgung) mit i_s = i_pa / ppy. Läufe mit Volltilgung innerhalb der Folge
-#' und Läufe mit Rate <= Zins rechnet die Funktion für die betroffenen Zeilen Monat für Monat
-#' bzw. als konstanten Bestand (identisch zur Monatsuhr).
+#' Ohne Begrenzung gilt je Zahlungsintervall: neuer Bestand = B (1 + i_s) - inst (Annuität),
+#' B - inst (Ratentilgung) bzw. B (endfällig, keine Tilgung) mit i_s = i_pa / ppy.
+#' Läufe mit Volltilgung innerhalb der Folge und Läufe mit Rate <= Zins rechnet die Funktion für
+#' die betroffenen Zeilen Monat für Monat bzw. als konstanten Bestand (identisch zur Monatsuhr).
 #' @return `list(b, z, r)` (n-Vektoren: Bestand danach, Zinsen, Tilgung).
 #' @noRd
 inst_loan_run_closed <- function(b, inst, i_pa, k_run, ppy, pay_int, rep_code) {
   j <- i_pa / ppy
+  if (rep_code == 3L) {
+    # endfällig: keine Vertragstilgung, Bestand konstant, Zinsen k * B * j (auch bei j < 0)
+    return(list(b = b, z = k_run * b * j, r = 0 * b))
+  }
   if (rep_code == 2L) {
     r_cyc <- inst + 0 * b
     r_cyc[r_cyc < 0] <- 0
@@ -361,9 +390,10 @@ inst_loan_resets <- function(m_start, fixed, ffix, m_mat, big_m) {
 #' Gutschrifttermin des Tilgungszuschusses (Spec 00 8.2, Spec 01 Teil A 5.2)
 #'
 #' `date` bzw. `year`; sonst die spätere von Fertigstellung (Maßnahme `measure_id`, sonst
-#' Raster) und Ende der letzten Auszahlungsperiode.
+#' Raster) und Ende der letzten Auszahlungsperiode (`d_last`; liegt der letzte Termin des
+#' Auszahlungsplans nach dem Horizont, dieser Termin).
 #' @noRd
-inst_loan_grant_date <- function(ctx, spec, rg, t_last) {
+inst_loan_grant_date <- function(ctx, spec, rg, d_last) {
   g <- ctx$grid
   d <- inst_loan_date(ctx, spec, "repayment_grant.date", NULL)
   if (!is.null(d)) return(d)
@@ -376,58 +406,100 @@ inst_loan_grant_date <- function(ctx, spec, rg, t_last) {
     if (utl_is_string(md)) md <- as.Date(md, optional = TRUE)
     if (inherits(md, "Date") && length(md) == 1L && !is.na(md)) comp <- md
   }
-  max(comp, g$date_end[t_last + 1L])
+  max(comp, d_last)
 }
 
-#' Auszahlungsplan (Nennbeträge n x (T+1)) und Perioden der ersten und letzten Auszahlung
-#' @return `list(commitment, draws, t_first, t_last, inactive)`.
+#' Auszahlungen aus ctx$auto() auf n x (T+1) heben (Spec 00 8.7)
+#'
+#' Zulässig sind eine n x (T+1)-Matrix, eine 1 x (T+1)-Matrix bzw. ein Vektor der Länge T+1
+#' (je Lauf derselbe Plan, zeilenweise gehoben) sowie eine Zusage der Länge 1 oder n; jede
+#' andere Form ist ein Vertragsfehler (`vofi_error_contract`).
+#' @return `list(commitment = n-Vektor, draws = n x (T+1))`.
+#' @noRd
+inst_loan_auto_plan <- function(spec, a, n, n_t) {
+  bad <- function(what, actual) {
+    inst_loan_abort(spec, "auto_shape", what = what, actual = utl_collapse(format(actual)),
+                    .class = "vofi_error_contract")
+  }
+  draws <- a[["draws"]]
+  if (!is.numeric(draws) || anyNA(draws)) bad("draws", class(draws)[1L])
+  dims <- dim(draws)
+  if (is.null(dims)) {
+    if (length(draws) != n_t) bad("draws", length(draws))
+    draws <- matrix(as.double(draws), n, n_t, byrow = TRUE)
+  } else if (length(dims) == 2L && dims[2L] == n_t && dims[1L] %in% c(1L, n)) {
+    rows <- rep_len(seq_len(dims[1L]), n)
+    draws <- matrix(as.double(draws), dims[1L], n_t)[rows, , drop = FALSE]
+  } else {
+    bad("draws", paste(dims, collapse = " x "))
+  }
+  commitment <- a[["commitment"]]
+  if (!is.numeric(commitment) || anyNA(commitment) || !(length(commitment) %in% c(1L, n))) {
+    bad("commitment", length(commitment))
+  }
+  list(commitment = rep_len(as.double(commitment), n), draws = draws)
+}
+
+#' Auszahlungsplan (Nennbeträge n x (T+1)), Perioden der ersten und letzten Auszahlung im
+#' Horizont, Monat `m_last` = m_A (Spec 01 Teil A 5.2: Ende der Periode des letzten
+#' Auszahlungstermins) und Datum `d_last` (Ende dieser Periode)
+#'
+#' Liegt der letzte Termin des Auszahlungsplans nach dem Horizont, entfallen die Auszahlungen
+#' nach dem Horizont; m_A ist dann der Monatsindex dieses Termins (> M_T, Tilgungsbeginn nach
+#' dem Horizont) und `d_last` der Termin selbst.
+#' @return `list(commitment, draws, t_first, t_last, m_last, d_last, inactive)`.
 #' @noRd
 inst_loan_draw_plan <- function(spec, ctx, existing, auto_mode, t_start) {
   g <- ctx$grid
   n <- ctx$n
   n_t <- g$T + 1L
+  me <- g$month_end
+  at <- function(t) list(m_last = as.integer(me[t + 1L]), d_last = g$date_end[t + 1L])
   if (!is.null(auto_mode)) {
-    a <- ctx$auto(spec[["id"]])
-    draws <- a$draws
-    if (!is.matrix(draws) || !identical(dim(draws), c(as.integer(n), n_t))) {
-      draws <- matrix(rep_len(as.double(draws), n * n_t), n, n_t)
-    }
+    a <- inst_loan_auto_plan(spec, ctx$auto(spec[["id"]]), n, n_t)
     win <- which(g$phase == "construction") - 1L
     if (length(win) == 0L) win <- 0L
-    return(list(commitment = rep_len(as.double(a$commitment), n), draws = draws * 1,
-                t_first = as.integer(min(win)), t_last = as.integer(max(win)),
-                inactive = FALSE))
+    return(c(list(commitment = a$commitment, draws = a$draws,
+                  t_first = as.integer(min(win)), t_last = as.integer(max(win)),
+                  inactive = FALSE), at(max(win))))
   }
   commitment <- rep_len(as.double(ctx$param_base(spec, "amount_eur")), n)
   draws <- matrix(0, n, n_t)
   if (existing) {
     return(list(commitment = commitment, draws = draws, t_first = 0L, t_last = 0L,
-                inactive = FALSE))
+                m_last = 0L, d_last = g$valuation_date, inactive = FALSE))
+  }
+  none <- function(dr) {
+    c(list(commitment = commitment, draws = dr, t_first = NA_integer_, t_last = NA_integer_,
+           inactive = TRUE), at(g$T))
   }
   sched <- path_get(spec, "draw_schedule")
   if (is.null(sched)) {
-    if (is.na(t_start)) {
-      return(list(commitment = commitment, draws = draws, t_first = NA_integer_,
-                  t_last = NA_integer_, inactive = TRUE))
-    }
+    if (is.na(t_start)) return(none(draws))
     draws[, t_start + 1L] <- commitment
-    return(list(commitment = commitment, draws = draws, t_first = as.integer(t_start),
-                t_last = as.integer(t_start), inactive = FALSE))
+    return(c(list(commitment = commitment, draws = draws, t_first = as.integer(t_start),
+                  t_last = as.integer(t_start), inactive = FALSE), at(t_start)))
   }
   amt <- ctx$param_base(spec, "draw_schedule", "path")
   draws <- if (identical(sched$unit, "share")) amt * commitment else amt
-  tt <- if (identical(sched$kind, "schedule")) {
+  is_sched <- identical(sched$kind, "schedule") && length(sched$dates) > 0L
+  tt <- if (is_sched) {
     as.integer(grid_period_of(g, sched$dates))
   } else {
     which(colSums(abs(amt)) > 0) - 1L
   }
   tt <- tt[!is.na(tt)]
-  if (length(tt) == 0L) {
-    return(list(commitment = commitment, draws = draws * 0, t_first = NA_integer_,
-                t_last = NA_integer_, inactive = TRUE))
+  if (length(tt) == 0L) return(none(draws * 0))
+  out <- c(list(commitment = commitment, draws = draws, t_first = as.integer(min(tt)),
+                t_last = as.integer(max(tt)), inactive = FALSE), at(max(tt)))
+  if (is_sched) {
+    d_max <- max(sched$dates)
+    if (d_max > g$date_end[n_t]) {
+      out$m_last <- as.integer(utl_month_ceiling(grid_month_pos(g, d_max)))
+      out$d_last <- d_max
+    }
   }
-  list(commitment = commitment, draws = draws, t_first = as.integer(min(tt)),
-       t_last = as.integer(max(tt)), inactive = FALSE)
+  out
 }
 
 #' Zustand initialisieren (Spec 00 8.3)
@@ -482,7 +554,7 @@ inst_loan_init <- function(spec, ctx, repayment) {
   if (is.na(t_ref)) t_ref <- g$T
   m_start <- if (existing) 0L else as.integer(me[t_ref + 1L])
   t_last <- if (is.na(dp$t_last)) g$T else dp$t_last
-  m_a <- if (existing) 0L else as.integer(me[t_last + 1L])
+  m_a <- if (existing) 0L else dp$m_last
   m_rep <- m_a + round(12 * grace)
   m_mat <- if (is.null(term)) Inf else m_a + round(12 * term)
   resets <- inst_loan_resets(m_start, inst_loan_det(ctx, spec, "fixed_years"),
@@ -530,7 +602,7 @@ inst_loan_init <- function(spec, ctx, repayment) {
   tz_appr <- rep(1, n)
   by_amount <- FALSE
   if (has_tz) {
-    tz_date <- inst_loan_grant_date(ctx, spec, rg, t_last)
+    tz_date <- inst_loan_grant_date(ctx, spec, rg, dp$d_last)
     t_tz <- as.integer(grid_period_of(g, tz_date))
     tz_appr <- ctx$param(spec, "repayment_grant.approved") %||% rep(1, n)
     tz_cut <- ctx$param(spec, "repayment_grant.cut_share") %||% zero
@@ -848,53 +920,50 @@ inst_loan_prepay <- function(state, amount, t, ctx) {
 }
 
 # ---------------------------------------------------------------------------------------------
-# validate(): Kombinationsregeln und Plausibilitäten (Spec 00 8.2, 8.6, 8.7; Spec 01 Teil A
-# 5.2, 5.3, 5.5)
+# validate(): typspezifische Kombinationsregeln (Spec 00 8.2, 8.6, 8.7; Spec 01 Teil A 5.2,
+# 5.3, 5.5); Befunde unter validation.financing.<code> (Spec 00 2.10, R-104)
 # ---------------------------------------------------------------------------------------------
 
-#' Termine der Spezifikation für die Validierung (Stichtag, Fertigstellung, Horizontende)
-#' @return Liste oder `NULL`, wenn der Stichtag fehlt.
+#' Zeitraster der Spezifikation für die Validierung (wie `vofi_build()`, Spec 00 3.3)
+#'
+#' Die Termine der Kredite leitet validate() wie init() aus den Periodenenden ab (Spec 01
+#' Teil A 5.2, Terminableitung). Ist das Raster nicht konstruierbar (Stichtag oder Horizont
+#' fehlen bzw. sind ungültig; das meldet die Strukturprüfung), entfallen die Terminregeln.
+#' @param scenario Spezifikation (`vofi_spec`).
+#' @return `vofi_grid` oder `NULL`.
 #' @noRd
-inst_loan_val_dates <- function(scenario) {
+inst_loan_val_grid <- function(scenario) {
   p <- scenario[["project"]] %||% list()
-  vd <- p[["valuation_date"]]
-  if (utl_is_string(vd)) vd <- as.Date(vd, optional = TRUE)
-  if (!inherits(vd, "Date") || length(vd) != 1L || is.na(vd)) return(NULL)
   gr <- scenario[["grid"]] %||% list()
-  pm <- gr[["periods_months"]]
-  hy <- p[["horizon_years"]]
-  months <- if (!is.null(pm) && is.numeric(pm)) {
-    sum(pm)
-  } else if (is.numeric(hy) && length(hy) == 1L && is.finite(hy)) {
-    12 * hy
-  } else {
-    NA_real_
-  }
-  cm <- gr[["construction_months"]]
-  cm <- if (is.numeric(cm) && length(cm) == 1L && is.finite(cm)) cm else 0
-  list(valuation = vd, completion = grid_add_months(vd, cm),
-       end = if (is.na(months)) as.Date(NA) else grid_add_months(vd, months))
+  tryCatch(
+    suppressMessages(vofi_time_grid(
+      p[["valuation_date"]], p[["horizon_years"]],
+      construction_months = gr[["construction_months"]] %||% 0L,
+      construction_step_months = gr[["construction_step_months"]] %||% 12L,
+      operation_step_months = gr[["operation_step_months"]] %||% 12L,
+      operation_alignment = gr[["operation_alignment"]] %||% "calendar",
+      periods_months = gr[["periods_months"]]
+    )),
+    error = function(e) NULL
+  )
 }
 
 #' Datum eines Terminknotens (Date oder Token `completion`) bzw. `NULL`
 #' @noRd
-inst_loan_val_date <- function(x, dates) {
+inst_loan_val_date <- function(x, g) {
   if (inherits(x, "Date") && length(x) == 1L && !is.na(x)) return(x)
-  if (identical(x, "completion") && !is.null(dates)) return(dates$completion)
+  if (identical(x, "completion") && !is.null(g)) return(g$completion_date)
   NULL
 }
 
-#' Ziele des stochastischen Overlays (parameters und processes)
+#' Monat m = month_end der Periode eines Termins (wie init(); nach dem Horizont der Monatsindex
+#' des Termins, > M_T; vor dem Stichtag `NA`)
 #' @noRd
-inst_loan_overlay_targets <- function(scenario) {
-  sto <- scenario[["stochastic"]] %||% list()
-  out <- character(0)
-  for (blk in c("parameters", "processes")) {
-    for (e in sto[[blk]] %||% list()) {
-      if (is.list(e) && utl_is_string(e[["target"]])) out <- c(out, e[["target"]])
-    }
-  }
-  out
+inst_loan_val_month <- function(g, d) {
+  t <- grid_period_of(g, d)
+  if (isTRUE(attr(t, "before"))) return(NA_real_)
+  if (is.na(t)) return(utl_month_ceiling(grid_month_pos(g, d)))
+  as.double(g$month_end[t + 1L])
 }
 
 #' Summe konstanter Elemente eines Zahlungsplans (`NULL`, wenn ein Element keine Konstante ist)
@@ -913,6 +982,9 @@ inst_loan_is_path_node <- function(x) {
 }
 
 #' Validierung eines Kredits (Ebene 2/3; Befunde `list(severity, code, path, args)`)
+#'
+#' Nur die Regeln, die WS-B nicht selbst prüft (Kopf der Datei). Den Platzhalter `{path}` setzt
+#' `vofi_validate()`; die übrigen Platzhalter stehen in `args`.
 #' @param spec normalisierte Komponente.
 #' @param scenario Spezifikation (`vofi_spec`).
 #' @param repayment `"annuity"`, `"installment"` oder `"bullet"`.
@@ -921,275 +993,208 @@ inst_loan_is_path_node <- function(x) {
 inst_loan_validate <- function(spec, scenario, repayment) {
   acc <- new.env(parent = emptyenv())
   acc$out <- list()
-  type <- inst_loan_type(spec, repayment)
+  sev <- inst_loan_val_codes()
   base <- path_join("financing", spec[["id"]] %||% "?")
-  add <- function(severity, section, code, field, ...) {
+  # Das Formal heißt `at` (Feld relativ zum Kredit), damit kein Platzhalterwert (z. B. `field`)
+  # von einem Formal verschluckt wird
+  add <- function(code, at, ...) {
     acc$out[[length(acc$out) + 1L]] <- list(
-      severity = severity, code = inst_loan_key(type, section, code),
-      path = if (is.null(field)) base else path_join(base, field),
+      severity = sev[[code]], code = inst_loan_val_key(code),
+      path = if (is.null(at)) base else path_join(base, at),
       args = list(id = spec[["id"]] %||% "?", ...)
     )
   }
-  err <- function(code, field, ...) add("error", "errors", code, field, ...)
-  wrn <- function(code, field, ...) add("warning", "msg", code, field, ...)
-  inf <- function(code, field, ...) add("info", "msg", code, field, ...)
-  dates <- inst_loan_val_dates(scenario)
-  inst_loan_val_core(spec, repayment, err, wrn, inf)
-  inst_loan_val_special(spec, scenario, repayment, dates, err, wrn, inf)
-  inst_loan_val_terms(spec, scenario, dates, err, wrn, inf)
-  inst_loan_val_grant(spec, scenario, dates, err, wrn, inf)
+  g <- inst_loan_val_grid(scenario)
+  inst_loan_val_core(spec, repayment, add)
+  inst_loan_val_special(spec, repayment, add)
+  inst_loan_val_terms(spec, g, add)
+  inst_loan_val_grant(spec, g, add)
   acc$out
 }
 
 #' Laufzeit, Raten, Zinsanpassung (Spec 00 8.2, 8.6; Spec 01 Teil A 5.2)
+#'
+#' Werte < 0 meldet die Bereichsprüfung des Parameterschemas (`min = 0`); hier nur die Grenze 0.
 #' @noRd
-inst_loan_val_core <- function(spec, repayment, err, wrn, inf) {
+inst_loan_val_core <- function(spec, repayment, add) {
   cst <- inst_loan_const
   ppy <- spec$payments_per_year %||% 12L
-  if (!(length(ppy) == 1L && ppy %in% c(1L, 4L, 12L))) {
-    err("ppy", "payments_per_year", value = utl_collapse(format(ppy)))
+  if (is.numeric(ppy) && length(ppy) == 1L && !(ppy %in% c(1, 4, 12))) {
+    add("payments_per_year", "payments_per_year", value = utl_collapse(format(ppy)))
   }
   amount <- cst(spec$amount_eur)
-  if (!is.null(amount) && amount == 0) err("amount_nonpositive", "amount_eur", value = amount)
+  if (!is.null(amount) && amount == 0) add("amount_nonpositive", "amount_eur")
   for (f in c("term_years", "grace_years", "fixed_years", "followup_fixed_years")) {
     v <- cst(spec[[f]])
-    if (!is.null(v) && abs(12 * v - round(12 * v)) > 1e-9) err("months_fraction", f, value = v)
+    if (!is.null(v) && v > 0 && abs(12 * v - round(12 * v)) > 1e-9) {
+      add("months_fraction", f, value = v)
+    }
   }
   term <- cst(spec$term_years)
   grace <- cst(spec$grace_years) %||% 0
-  has_tau <- identical(repayment, "annuity") && !is.null(spec$initial_repayment_pa)
+  annuity <- identical(repayment, "annuity")
+  has_tau <- annuity && !is.null(spec$initial_repayment_pa)
   has_inst <- !identical(repayment, "bullet") && !is.null(spec$installment_eur)
-  if (is.null(spec$term_years) && !(identical(repayment, "annuity") && (has_tau || has_inst))) {
-    err("term_missing", "term_years")
+  if (is.null(spec$term_years) && !(annuity && (has_tau || has_inst))) {
+    add("term_missing", "term_years")
   }
-  if (!is.null(term) && term <= 0) err("term_nonpositive", "term_years", value = term)
+  if (!is.null(term) && term == 0) add("term_nonpositive", "term_years", value = term)
   if (!is.null(term) && term > 0 && grace >= term) {
-    err("grace_too_long", "grace_years", value = grace, term = term)
+    add("grace_too_long", "grace_years", value = grace, term = term)
   }
   for (f in c("fixed_years", "followup_fixed_years")) {
     v <- cst(spec[[f]])
-    if (!is.null(v) && v <= 0) err("nonpositive", f, field = f, value = v)
+    if (!is.null(v) && v == 0) add("fixed_nonpositive", f, value = v)
   }
-  if (has_tau && has_inst) err("tau_with_installment", "initial_repayment_pa")
-  if (has_tau && !is.null(spec$term_years)) inf("balloon_at_maturity", "initial_repayment_pa")
   inst <- cst(spec$installment_eur)
-  if (!is.null(inst) && inst == 0) err("installment_nonpositive", "installment_eur")
-  rate <- cst(spec$rate_pa)
-  if (identical(repayment, "annuity") && !is.null(inst) && inst > 0 && !is.null(amount) &&
-        !is.null(rate) && inst <= amount * rate / ppy) {
-    wrn("negative_amortization", "installment_eur", value = inst)
-  }
+  if (!is.null(inst) && inst == 0) add("installment_nonpositive", "installment_eur")
   if (identical(repayment, "bullet")) return(invisible(NULL))
   rule <- spec$refi_rule %||% (if (has_tau) "keep_tilg_rate" else "keep_term")
   if (identical(repayment, "installment") && identical(rule, "keep_tilg_rate")) {
-    err("refi_rule_invalid", "refi_rule", rule = rule)
+    add("refi_rule_invalid", "refi_rule", rule = rule)
   }
-  if (identical(repayment, "annuity") && identical(rule, "keep_tilg_rate") && !has_tau &&
+  if (annuity && identical(rule, "keep_tilg_rate") && !has_tau &&
         is.null(spec$followup_repayment_pa)) {
-    err("tau_missing", "refi_rule")
+    add("tau_missing", "refi_rule")
   }
   if (identical(rule, "keep_term") && is.null(spec$term_years) && !is.null(spec$fixed_years)) {
-    err("keep_term_needs_term", "refi_rule")
+    add("keep_term_needs_term", "refi_rule")
   }
   if (!is.null(spec$followup_repayment_pa) && !identical(rule, "keep_tilg_rate")) {
-    wrn("followup_repayment_unused", "followup_repayment_pa")
+    add("followup_repayment_unused", "followup_repayment_pa")
   }
   invisible(NULL)
 }
 
-#' Bestandsdarlehen und auto/topup (Spec 00 8.2, 8.7; Spec 01 Teil A 5.3)
+#' Bestandsdarlehen, auto/topup, Zins, Auszahlungskurs (Spec 00 8.2, 8.7; Spec 01 Teil A 5.2,
+#' 5.3)
 #' @noRd
-inst_loan_val_special <- function(spec, scenario, repayment, dates, err, wrn, inf) {
+inst_loan_val_special <- function(spec, repayment, add) {
   cst <- inst_loan_const
   a_node <- spec$amount_eur
   auto <- node_is(a_node) && identical(a_node$kind, "auto")
-  start <- inst_loan_val_date(spec$start, dates)
-  vd <- dates$valuation
-  if (isTRUE(spec$existing)) {
-    forb <- character(0)
-    if (auto) forb <- c(forb, "amount_eur")
-    if (!is.null(spec$draw_schedule)) forb <- c(forb, "draw_schedule")
-    if (!is.null(spec$fees)) forb <- c(forb, "fees")
-    kappa <- cst(spec$payout_rate)
-    if (!is.null(spec$payout_rate) && !identical(kappa, 1)) forb <- c(forb, "payout_rate")
-    if (!is.null(spec$repayment_grant)) forb <- c(forb, "repayment_grant")
-    if ((cst(spec$grace_years) %||% 0) > 0) forb <- c(forb, "grace_years")
-    for (f in forb) err("existing_forbidden", f, field = f)
-    if (!is.null(start) && !is.null(vd) && start != vd) err("existing_start", "start", date = start)
-    if (!identical(repayment, "bullet") && is.null(spec$installment_eur)) {
-      inf("existing_installment_missing", "installment_eur")
-    }
-    ptype <- scenario[["project"]][["project_type"]] %||% ""
-    if (utl_is_string(ptype) && (identical(ptype, "neubau") || startsWith(ptype, "erwerb"))) {
-      wrn("existing_new_build", "existing")
-    }
+  if (isTRUE(spec$existing) && !identical(repayment, "bullet") &&
+        is.null(spec$installment_eur) && is.null(spec$initial_repayment_pa)) {
+    add("existing_installment_missing", "installment_eur")
   }
-  if (auto) {
-    if (!is.null(spec$draw_schedule)) err("auto_draw_schedule", "draw_schedule")
-    if (!is.null(start) && !is.null(vd) && start != vd) err("auto_start", "start", date = start)
-  } else {
+  if (!auto) {
     used <- vapply(c("auto_buffer_share", "auto_round_eur"), function(f) {
       v <- cst(spec[[f]])
       !is.null(v) && v != 0
     }, logical(1))
-    if (any(used)) wrn("auto_params_unused", names(used)[used][1L])
+    if (any(used)) add("auto_params_unused", names(used)[used][1L])
   }
   if (inst_loan_is_path_node(spec$rate_pa) && !(auto && identical(a_node$mode, "topup"))) {
-    err("rate_path", "rate_pa")
+    add("rate_path", "rate_pa")
   }
+  # über 0,25 bzw. außerhalb [0, 1] meldet die Bereichsprüfung (validation.range)
   rate <- cst(spec$rate_pa)
-  if (!is.null(rate) && rate > 0.12) wrn("rate_high", "rate_pa", value = rate)
+  if (!is.null(rate) && rate > 0.12 && rate <= 0.25) add("rate_high", "rate_pa", value = rate)
   kappa <- cst(spec$payout_rate)
-  if (!is.null(kappa) && kappa <= 0.9) err("payout_rate_range", "payout_rate", value = kappa)
-  rank <- spec$rank
-  if (!is.null(rank) && is.numeric(rank) && rank < 1) err("rank_invalid", "rank", value = rank)
-  prog <- spec$program
-  if (isTRUE(spec$prepay_allowed) && utl_is_string(prog) && grepl("^kfw", tolower(prog))) {
-    wrn("prepay_program", "prepay_allowed", program = prog)
-  }
-  targets <- inst_loan_overlay_targets(scenario)
-  if (is.list(a_node) && identical(a_node$kind, "ref") && utl_is_string(a_node$path) &&
-        a_node$path %in% targets) {
-    wrn("amount_fixed", "amount_eur", target = a_node$path)
-  }
-  mids <- if (utl_is_string(spec$measure_id)) spec$measure_id else character(0)
-  if (utl_is_string(spec$funding_id)) {
-    fm <- path_get(scenario, path_join("funding", spec$funding_id, "measures"))
-    if (is.character(fm)) mids <- c(mids, fm)
-  }
-  for (mid in unique(mids)) {
-    dpath <- path_join("measures", mid, "delay_months")
-    dn <- path_get(scenario, dpath)
-    if (dpath %in% targets || (is.list(dn) && identical(dn$kind, "dist"))) {
-      wrn("measure_delay", if (utl_is_string(spec$measure_id)) "measure_id" else "funding_id",
-          measure = mid)
-    }
+  if (!is.null(kappa) && kappa >= 0 && kappa <= 0.9) {
+    add("payout_rate_range", "payout_rate", value = kappa)
   }
   invisible(NULL)
 }
 
-#' Termine: Start, Auszahlungsplan, Gebühren, Zinsbindung, Sondertilgungen
+#' Termine: Auszahlungen nach dem Horizont, Zusagedatum, Zinsbindung, Sondertilgungen
 #' @noRd
-inst_loan_val_terms <- function(spec, scenario, dates, err, wrn, inf) {
+inst_loan_val_terms <- function(spec, g, add) {
   cst <- inst_loan_const
-  amount <- cst(spec$amount_eur)
-  vd <- dates$valuation
-  start <- inst_loan_val_date(spec$start, dates) %||% vd
-  if (!is.null(start) && !is.null(vd) && start < vd) err("start_before", "start", date = start)
-  if (!is.null(start) && !is.null(dates) && !is.na(dates$end) && start > dates$end) {
-    inf("start_after_horizon", "start", date = start)
-  }
-  sched <- spec$draw_schedule
-  last_draw <- start
-  if (is.list(sched) && identical(sched$kind, "schedule")) {
-    vals <- inst_loan_schedule_sum(sched)
-    if (!is.null(vals)) {
-      s <- sum(vals)
-      if (identical(sched$unit, "share")) {
-        if (abs(s - 1) > 1e-6) err("draw_share_sum", "draw_schedule", value = s)
-      } else if (!is.null(amount)) {
-        if (s > amount + 1e-6) {
-          err("draws_exceed", "draw_schedule", value = s, amount = amount)
-        } else if (s < amount - 1e-6) {
-          err("draw_eur_sum", "draw_schedule", value = s, amount = amount)
-        }
-      }
-    }
-    if (length(sched$dates) > 0L && inherits(sched$dates, "Date")) {
-      if (!is.null(start) && min(sched$dates) < start) {
-        err("draw_before_start", "draw_schedule", date = min(sched$dates), start = start)
-      }
-      last_draw <- max(sched$dates)
-    }
-  }
-  fees <- spec$fees
-  if (is_map(fees)) {
-    pf <- cst(fees$processing_fee_share)
-    if (!is.null(pf) && pf > 0.02) wrn("fee_high", "fees.processing_fee_share", value = pf)
-    cf <- cst(fees$commitment_fee_rate_month)
-    if (!is.null(cf) && cf > 0.005) {
-      wrn("commitment_fee_high", "fees.commitment_fee_rate_month", value = cf)
-    }
-    cd <- inst_loan_val_date(fees$commitment_date, dates)
-    if (!is.null(cd) && ((!is.null(start) && cd > start) || (!is.null(vd) && cd < vd))) {
-      err("commitment_date_range", "fees.commitment_date", date = cd)
-    }
-    if (!is.null(cf) && cf > 0 && is.null(sched) && !is.null(cd) && !is.null(start) &&
-          cd < start) {
-      inf("commitment_fee_window", "fees.commitment_fee_rate_month")
-    }
-  }
-  inst_loan_val_fixation(spec, scenario, dates, start, last_draw, err, wrn, inf)
   pp <- spec$planned_prepayments
+  amount <- cst(spec$amount_eur)
   if (is.list(pp) && identical(pp$kind, "schedule") && !identical(pp$unit, "share")) {
     vals <- inst_loan_schedule_sum(pp)
     if (!is.null(vals) && !is.null(amount)) {
       if (sum(vals) > amount + 1e-6) {
-        wrn("prepay_exceeds", "planned_prepayments", value = sum(vals), amount = amount)
+        add("prepay_exceeds", "planned_prepayments", value = sum(vals), amount = amount)
       }
       cap <- cst(spec$prepay_cap_share_pa) %||% 1
-      if (any(vals > cap * amount + 1e-6)) inf("prepay_capped", "planned_prepayments")
+      if (any(vals > cap * amount + 1e-6)) add("prepay_capped", "planned_prepayments")
     }
   }
+  if (is.null(g)) return(invisible(NULL))
+  vd <- g$valuation_date
+  end <- g$date_end[g$T + 1L]
+  start <- inst_loan_val_date(spec$start, g) %||% vd
+  sched <- spec$draw_schedule
+  last_draw <- start
+  if (is.list(sched) && identical(sched$kind, "schedule") && inherits(sched$dates, "Date") &&
+        length(sched$dates) > 0L) {
+    late <- sched$dates[sched$dates > end]
+    if (length(late) > 0L) add("draw_after_horizon", "draw_schedule", value = min(late))
+    last_draw <- max(sched$dates)
+  }
+  fees <- spec$fees
+  if (is_map(fees)) {
+    cf <- cst(fees$commitment_fee_rate_month)
+    cd <- inst_loan_val_date(fees$commitment_date, g)
+    if (!is.null(cd) && (cd > start || cd < vd)) {
+      add("commitment_date_range", "fees.commitment_date", value = cd)
+    }
+    if (!is.null(cf) && cf > 0 && is.null(sched) && !is.null(cd) && cd < start) {
+      add("commitment_fee_window", "fees.commitment_fee_rate_month")
+    }
+  }
+  inst_loan_val_fixation(spec, g, start, last_draw, add)
   invisible(NULL)
 }
 
-#' Zinsbindung und Anschlusszins (Spec 00 8.6, R-45; Spec 01 Teil A 5.2, 5.5)
+#' Zinsbindung und Anschlussbindungen (Spec 00 8.6, R-45; Spec 01 Teil A 5.2, 5.5)
+#'
+#' m_start, m_A und m_mat wie in init() aus den Periodenenden (Terminableitung Spec 01 Teil A
+#' 5.2), damit die Hinweise zu den tatsächlichen Zinsanpassungen passen. Ein fehlendes
+#' `market.mortgage_rate` meldet die Bezugsprüfung von WS-B (R-115).
 #' @noRd
-inst_loan_val_fixation <- function(spec, scenario, dates, start, last_draw, err, wrn, inf) {
+inst_loan_val_fixation <- function(spec, g, start, last_draw, add) {
   cst <- inst_loan_const
   fixed <- cst(spec$fixed_years)
-  if (is.null(fixed) || fixed <= 0 || is.null(dates) || is.null(start)) return(invisible(NULL))
+  if (is.null(fixed) || fixed <= 0) return(invisible(NULL))
+  existing <- isTRUE(spec$existing)
+  a_node <- spec$amount_eur
+  auto <- node_is(a_node) && identical(a_node$kind, "auto")
+  me <- g$month_end
+  big_m <- me[g$T + 1L]
+  win <- which(g$phase == "construction") - 1L
+  m_start <- if (existing) 0 else inst_loan_val_month(g, start)
+  m_a <- if (existing) 0 else if (auto) me[max(c(win, 0L)) + 1L] else
+    inst_loan_val_month(g, last_draw)
+  if (is.na(m_start) || is.na(m_a)) return(invisible(NULL))
   term <- cst(spec$term_years)
-  ffix <- cst(spec$followup_fixed_years)
-  m_start <- grid_months_between(dates$valuation, start)
-  m_a <- grid_months_between(dates$valuation, last_draw %||% start)
   m_mat <- if (is.null(term)) Inf else m_a + round(12 * term)
-  m_end <- if (is.na(dates$end)) Inf else grid_months_between(dates$valuation, dates$end)
   m_reset <- m_start + round(12 * fixed)
-  if (m_reset > m_end) inf("fixed_after_horizon", "fixed_years", value = fixed)
-  fu <- spec$followup_rate_pa
-  if (m_reset < m_mat && m_reset < m_end && is.list(fu) && identical(fu$kind, "ref") &&
-        identical(fu$path, "market.mortgage_rate") &&
-        is.null(path_get(scenario, "market.mortgage_rate"))) {
-    err("followup_missing", "followup_rate_pa")
-  }
+  if (m_reset > big_m) add("fixed_after_horizon", "fixed_years", value = fixed)
+  ffix <- cst(spec$followup_fixed_years)
   if (!is.null(ffix) && ffix > 0 && is.finite(m_mat) && m_reset < m_mat) {
     rest <- (m_mat - m_reset) %% round(12 * ffix)
-    if (rest > 0) inf("followup_truncated", "followup_fixed_years", value = ffix)
+    if (rest > 0) add("followup_truncated", "followup_fixed_years", value = ffix)
   }
   invisible(NULL)
 }
 
-#' Tilgungszuschuss (Spec 00 8.2, 8.6; Spec 01 Teil A 5.2)
+#' Tilgungszuschuss: Angabe, Termin (Spec 00 8.2, 8.6; Spec 01 Teil A 5.2)
+#'
+#' share und amount_eur zugleich, fehlende measure_id/funding_id und ein Betrag über der Zusage
+#' meldet WS-B (repayment_grant_both, repayment_grant_tag, repayment_grant_high).
 #' @noRd
-inst_loan_val_grant <- function(spec, scenario, dates, err, wrn, inf) {
+inst_loan_val_grant <- function(spec, g, add) {
   rg <- spec$repayment_grant
   if (!is_map(rg) || length(rg) == 0L) return(invisible(NULL))
-  cst <- inst_loan_const
-  has_share <- !is.null(rg$share)
-  has_amount <- !is.null(rg$amount_eur)
-  if (has_share == has_amount) err("grant_share_xor_amount", "repayment_grant")
-  if (!utl_is_string(spec$measure_id) && !utl_is_string(spec$funding_id)) {
-    err("grant_needs_id", "repayment_grant")
+  if (is.null(rg$share) && is.null(rg$amount_eur)) add("repayment_grant_empty", "repayment_grant")
+  if (!is.null(rg$date) && !is.null(rg$year)) {
+    add("repayment_grant_date_year", "repayment_grant.date")
   }
-  amount <- cst(spec$amount_eur)
-  ga <- cst(rg$amount_eur)
-  if (!is.null(ga) && !is.null(amount) && ga > amount + 1e-6) {
-    err("grant_exceeds", "repayment_grant.amount_eur", value = ga, amount = amount)
-  }
-  if (!is.null(rg$date) && !is.null(rg$year)) err("grant_date_year", "repayment_grant.date")
-  d <- inst_loan_val_date(rg$date, dates)
+  if (is.null(g)) return(invisible(NULL))
+  d <- inst_loan_val_date(rg$date, g)
+  at <- "repayment_grant.date"
   if (is.null(d) && !is.null(rg$year) && is.numeric(rg$year)) {
     d <- as.Date(sprintf("%04d-01-01", as.integer(rg$year)))
+    at <- "repayment_grant.year"
   }
-  start <- inst_loan_val_date(spec$start, dates) %||% dates$valuation
-  if (!is.null(d) && !is.null(start) && d < start) {
-    err("grant_before_start", "repayment_grant.date", date = d)
-  }
-  if (!is.null(d) && !is.null(dates) && !is.na(dates$end) && d > dates$end) {
-    inf("grant_after_horizon", "repayment_grant.date", date = d)
-  }
+  if (is.null(d)) return(invisible(NULL))
+  start <- inst_loan_val_date(spec$start, g) %||% g$valuation_date
+  if (d < start) add("repayment_grant_before_start", at, value = d)
+  if (d > g$date_end[g$T + 1L]) add("repayment_grant_after_horizon", at, value = d)
   invisible(NULL)
 }
 

@@ -40,7 +40,7 @@ test_that("Test (h): Ratendarlehen mit Zinsanpassung keep_term; keep_tilg_rate i
   expect_near(loan_row(r, "balance")[9], 24000)
   expect_near(loan_row(r, "balance")[11], 0)
   expect_identical(r$state$reset_months, 60L)
-  expect_true("errors.refi_rule_invalid" %in%
+  expect_true("refi_rule_invalid" %in%
                 loan_val_codes("installment_loan", amount_eur = 120000, rate_pa = 0.02,
                                term_years = 10, fixed_years = 5, followup_rate_pa = 0.04,
                                refi_rule = "keep_tilg_rate"))
@@ -236,9 +236,10 @@ test_that("L11: Tilgungssatz und Laufzeit zugleich (R-100): Schlusstilgung bei F
   expect_near(c(loan_row(r, "interest")[11], loan_row(r, "repay")[11],
                 loan_row(r, "repay_balloon")[11]), c(-2344.64, -2655.36, -76709.76))
   expect_identical(loan_row(r, "balance")[11], 0)
-  expect_true("msg.balloon_at_maturity" %in%
-                loan_val_codes("annuity_loan", amount_eur = 100000, rate_pa = 0.03,
-                               initial_repayment_pa = 0.02, term_years = 10))
+  # I validation.financing.balloon_at_maturity meldet die Plausibilitätsprüfung von WS-B
+  # (Spec 01 Teil A 5.5); validate() des Typs meldet den Sachverhalt nicht doppelt
+  expect_identical(loan_val_codes("annuity_loan", amount_eur = 100000, rate_pa = 0.03,
+                                  initial_repayment_pa = 0.02, term_years = 10), character(0))
 })
 
 # ---------------------------------------------------------------------------------------------
@@ -296,7 +297,20 @@ loan_cases <- function() {
     # Rate <= Zins in einer Folge (keep_payment nach Zinsanstieg)
     ann_negative = list(type = "annuity_loan", amount_eur = 100000, rate_pa = 0.01,
                         existing = TRUE, installment_eur = 300, payments_per_year = 12L,
-                        fixed_years = 2, followup_rate_pa = 0.06, refi_rule = "keep_payment")
+                        fixed_years = 2, followup_rate_pa = 0.06, refi_rule = "keep_payment"),
+    # endfällig mit negativem Zins bzw. negativem Anschlusszins in Folgen unterjähriger
+    # Vertragszahlungen (Review F1: keine Tilgung, Bestand konstant)
+    bullet_neg_quarter = list(type = "bullet_loan", amount_eur = 100000, rate_pa = -0.005,
+                              term_years = 5, payments_per_year = 4L),
+    bullet_neg_followup = list(type = "bullet_loan", amount_eur = 70000, rate_pa = 0.01,
+                               term_years = 9, payments_per_year = 12L, fixed_years = 2,
+                               followup_rate_pa = -0.004, start = "2027-04-01"),
+    inst_neg_rate = list(type = "installment_loan", amount_eur = 60000, rate_pa = -0.003,
+                         term_years = 6, payments_per_year = 12L, fixed_years = 3,
+                         followup_rate_pa = -0.01),
+    ann_neg_rate = list(type = "annuity_loan", amount_eur = 60000, rate_pa = -0.004,
+                        term_years = 8, payments_per_year = 4L, fixed_years = 3,
+                        followup_rate_pa = -0.008)
   )
 }
 
@@ -463,9 +477,6 @@ test_that("keep_payment: negative Tilgung wird markiert und gewarnt (vofi_warnin
   expect_true(all(r$state$neg_amort))
   expect_true(all(loan_row(r, "repay")[3:4] == 0))
   expect_near(loan_row(r, "balance")[3], loan_row(r, "balance")[2])
-  expect_true("msg.negative_amortization" %in%
-                loan_val_codes("annuity_loan", amount_eur = 100000, rate_pa = 0.06,
-                               installment_eur = 400, payments_per_year = 12L, term_years = 30))
 })
 
 test_that("keep_term nach shorten_term bei Ratentilgung: effektive Restzahl (R-100)", {
@@ -705,143 +716,239 @@ test_that("Geplante Sondertilgungen als Anteil der Zusage; Kappung je Vertragsja
                                            unit = "share"))
   expect_identical(loan_row(r, "prepay")[2:3], c(-3000, -5000))
   expect_identical(loan_row(r, "balance")[3], 92000)
-  expect_true("msg.prepay_capped" %in%
+  expect_true("prepay_capped" %in%
                 loan_val_codes("bullet_loan", amount_eur = 100000, rate_pa = 0.04,
                                term_years = 6, prepay_cap_share_pa = 0.05,
                                planned_prepayments = list(schedule = list("2029-01-01" = 9000))))
 })
 
 # ---------------------------------------------------------------------------------------------
-# Validierung (Kombinationsregeln, Spec 01 Teil A 5.2, 5.3, 5.5) und Labels
+# Validierung (typspezifische Kombinationsregeln unter validation.financing.*, Spec 00 2.10,
+# R-104; Spec 01 Teil A 5.2, 5.3, 5.5) und Labels
 # ---------------------------------------------------------------------------------------------
 
 test_that("Validierung: Laufzeit, Raster der Monate, Zinsbindung, Raten", {
   v <- function(type, ...) loan_val_codes(type, ...)
   expect_identical(v("annuity_loan", amount_eur = 1e5, rate_pa = 0.03, term_years = 10),
                    character(0))
-  expect_true("errors.ppy" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03,
-                                  term_years = 5, payments_per_year = 2L))
-  expect_true("errors.term_missing" %in% v("installment_loan", amount_eur = 1e5,
-                                           rate_pa = 0.03))
-  expect_true("errors.term_missing" %in% v("annuity_loan", amount_eur = 1e5, rate_pa = 0.03))
-  expect_false("errors.term_missing" %in% v("annuity_loan", amount_eur = 1e5, rate_pa = 0.03,
-                                            installment_eur = 900))
-  expect_true("errors.term_nonpositive" %in% v("bullet_loan", amount_eur = 1e5,
-                                               rate_pa = 0.03, term_years = 0))
-  expect_true("errors.months_fraction" %in% v("bullet_loan", amount_eur = 1e5,
-                                              rate_pa = 0.03, term_years = 10.3))
-  expect_true("errors.grace_too_long" %in% v("bullet_loan", amount_eur = 1e5,
-                                             rate_pa = 0.03, term_years = 5, grace_years = 5))
-  expect_true("errors.nonpositive" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03,
-                                          term_years = 5, fixed_years = 0))
-  expect_true("errors.tau_with_installment" %in%
-                v("annuity_loan", amount_eur = 1e5, rate_pa = 0.03, initial_repayment_pa = 0.02,
-                  installment_eur = 500))
-  expect_true("errors.tau_missing" %in%
+  expect_true("payments_per_year" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03,
+                                         term_years = 5, payments_per_year = 2L))
+  expect_true("term_missing" %in% v("installment_loan", amount_eur = 1e5, rate_pa = 0.03))
+  expect_true("term_missing" %in% v("annuity_loan", amount_eur = 1e5, rate_pa = 0.03))
+  expect_false("term_missing" %in% v("annuity_loan", amount_eur = 1e5, rate_pa = 0.03,
+                                     installment_eur = 900))
+  expect_true("term_nonpositive" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03,
+                                        term_years = 0))
+  expect_true("months_fraction" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03,
+                                       term_years = 10.3))
+  expect_true("grace_too_long" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03,
+                                      term_years = 5, grace_years = 5))
+  expect_identical(v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03, term_years = 5,
+                     fixed_years = 0, followup_fixed_years = 0),
+                   c("fixed_nonpositive", "fixed_nonpositive"))
+  expect_true("tau_missing" %in%
                 v("annuity_loan", amount_eur = 1e5, rate_pa = 0.03, term_years = 10,
                   fixed_years = 5, refi_rule = "keep_tilg_rate"))
-  expect_true("errors.keep_term_needs_term" %in%
+  expect_true("keep_term_needs_term" %in%
                 v("annuity_loan", amount_eur = 1e5, rate_pa = 0.03, installment_eur = 800,
                   existing = TRUE, fixed_years = 2))
-  expect_true("msg.followup_repayment_unused" %in%
+  expect_true("followup_repayment_unused" %in%
                 v("annuity_loan", amount_eur = 1e5, rate_pa = 0.03, term_years = 10,
                   followup_repayment_pa = 0.02))
-  expect_true("errors.amount_nonpositive" %in% v("bullet_loan", amount_eur = 0, rate_pa = 0.03,
-                                                 term_years = 5))
-  expect_true("errors.installment_nonpositive" %in%
+  expect_true("amount_nonpositive" %in% v("bullet_loan", amount_eur = 0, rate_pa = 0.03,
+                                          term_years = 5))
+  expect_true("installment_nonpositive" %in%
                 v("installment_loan", amount_eur = 1e5, rate_pa = 0.03, term_years = 5,
                   installment_eur = 0))
-  expect_true("errors.rank_invalid" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03,
-                                           term_years = 5, rank = 0L))
-  expect_true("msg.rate_high" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.13,
-                                     term_years = 5))
-  expect_true("errors.payout_rate_range" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03,
-                                                term_years = 5, payout_rate = 0.85))
-  expect_true("errors.rate_path" %in% v("bullet_loan", amount_eur = 1e5,
-                                        rate_pa = c(0.03, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04,
-                                                    0.04, 0.04, 0.04, 0.04),
-                                        term_years = 5))
-  expect_false("errors.rate_path" %in% v("bullet_loan", amount_eur = "topup",
-                                         rate_pa = list(ref = "market.mortgage_rate",
-                                                        offset = 0.01),
-                                         term_years = 5))
+  expect_true("rate_high" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.13,
+                                 term_years = 5))
+  expect_true("payout_rate_range" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03,
+                                         term_years = 5, payout_rate = 0.85))
+  expect_true("rate_path" %in% v("bullet_loan", amount_eur = 1e5,
+                                 rate_pa = c(0.03, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04,
+                                             0.04, 0.04, 0.04, 0.04),
+                                 term_years = 5))
+  expect_false("rate_path" %in% v("bullet_loan", amount_eur = "topup",
+                                  rate_pa = list(ref = "market.mortgage_rate", offset = 0.01),
+                                  term_years = 5))
+})
+
+test_that("Validierung: kein Doppelbefund mit der Bereichspr\u00fcfung des Schemas (F7)", {
+  v <- function(...) loan_val_codes("bullet_loan", amount_eur = 1e5, rate_pa = 0.03, ...)
+  # Werte außerhalb von min/max meldet allein validation.range (Parameterschema)
+  expect_identical(v(term_years = 5, rank = 0L), character(0))
+  expect_identical(v(term_years = 5, fixed_years = -1, followup_fixed_years = -2),
+                   character(0))
+  expect_identical(v(term_years = -1), character(0))
+  expect_identical(v(term_years = -1.05), character(0))
+  expect_identical(v(term_years = 5, payout_rate = -0.1), character(0))
+  expect_identical(loan_val_codes("bullet_loan", amount_eur = 1e5, rate_pa = 0.3,
+                                  term_years = 5), character(0))
+  sc <- vofi_read_scenario(vofi_example("skeleton"))
+  for (f in list(list(rank = 0L), list(fixed_years = -1), list(followup_fixed_years = -1),
+                 list(term_years = -1))) {
+    b <- sc
+    b$financing$bank <- utils::modifyList(b$financing$bank, f)
+    vv <- vofi_validate(b)
+    p <- paste0("financing.bank.", names(f))
+    expect_identical(vv$code[vv$path == p], "validation.range", info = names(f))
+  }
 })
 
 test_that("Validierung: Bestandsdarlehen und auto/topup (5.3, 8.7)", {
   v <- function(type, ...) loan_val_codes(type, ...)
+  # unzulässige Felder, Starttermin und Projektart des Bestandsdarlehens sowie auto mit
+  # Auszahlungsplan bzw. späterem Start prüft WS-B (existing_forbidden, existing_start,
+  # existing_new_build, validation.auto_conflict); der Typ ergänzt nur den Ratenhinweis
   ex <- v("annuity_loan", amount_eur = 1e5, rate_pa = 0.03, term_years = 10, existing = TRUE,
           draw_schedule = list(schedule = list("2027-01-01" = 1), unit = "share"),
           fees = list(processing_fee_share = 0.01), payout_rate = 0.98, grace_years = 1,
           repayment_grant = list(share = 0.1), measure_id = "m1", start = "2028-01-01")
-  expect_identical(sum(ex == "errors.existing_forbidden"), 5L)
-  expect_true(all(c("errors.existing_start", "msg.existing_installment_missing",
-                    "msg.existing_new_build") %in% ex))
-  expect_true("errors.existing_forbidden" %in%
-                v("bullet_loan", amount_eur = "auto", rate_pa = 0.03, term_years = 5,
-                  existing = TRUE))
+  expect_identical(ex, "existing_installment_missing")
+  expect_identical(v("annuity_loan", amount_eur = 1e5, rate_pa = 0.03, existing = TRUE,
+                     installment_eur = 900, term_years = 10), character(0))
+  expect_identical(v("annuity_loan", amount_eur = 1e5, rate_pa = 0.03, existing = TRUE,
+                     initial_repayment_pa = 0.02), character(0))
+  expect_identical(v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03, term_years = 5,
+                     existing = TRUE), character(0))
   au <- v("bullet_loan", amount_eur = "auto", rate_pa = 0.03, term_years = 5,
           start = "2028-01-01",
           draw_schedule = list(schedule = list("2028-01-01" = 1), unit = "share"))
-  expect_true(all(c("errors.auto_draw_schedule", "errors.auto_start") %in% au))
-  expect_true("msg.auto_params_unused" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03,
-                                              term_years = 5, auto_buffer_share = 0.1))
+  expect_identical(au, character(0))
+  expect_true("auto_params_unused" %in% v("bullet_loan", amount_eur = 1e5, rate_pa = 0.03,
+                                          term_years = 5, auto_buffer_share = 0.1))
+  expect_false("auto_params_unused" %in% v("bullet_loan", amount_eur = "auto", rate_pa = 0.03,
+                                           term_years = 5, auto_buffer_share = 0.1))
 })
 
-test_that("Validierung: Termine, Auszahlungsplan, Geb\u00fchren, Sondertilgungen", {
+test_that("Validierung: Termine, Auszahlungen nach dem Horizont, Geb\u00fchren, Sondertilgungen", {
   v <- function(type, ...) loan_val_codes(type, ...)
   base <- list(amount_eur = 1e5, rate_pa = 0.03, term_years = 5)
   vb <- function(...) do.call(v, c(list("bullet_loan"), utils::modifyList(base, list(...))))
-  expect_true("errors.start_before" %in% vb(start = "2026-01-01"))
-  expect_true("msg.start_after_horizon" %in% vb(start = "2040-01-01"))
-  expect_true("errors.draw_share_sum" %in%
-                vb(draw_schedule = list(schedule = list("2027-01-01" = 0.5), unit = "share")))
-  expect_true("errors.draws_exceed" %in%
-                vb(draw_schedule = list(schedule = list("2027-01-01" = 150000), unit = "eur")))
-  expect_true("errors.draw_eur_sum" %in%
-                vb(draw_schedule = list(schedule = list("2027-01-01" = 50000), unit = "eur")))
-  expect_true("errors.draw_before_start" %in%
-                vb(start = "2028-01-01",
-                   draw_schedule = list(schedule = list("2027-06-01" = 1), unit = "share")))
-  expect_true("msg.fee_high" %in% vb(fees = list(processing_fee_share = 0.03)))
-  expect_true("msg.commitment_fee_high" %in% vb(fees = list(commitment_fee_rate_month = 0.01)))
-  expect_true("errors.commitment_date_range" %in%
-                vb(fees = list(commitment_date = "2029-01-01")))
-  expect_true("msg.commitment_fee_window" %in%
+  # Start vor dem Stichtag bzw. nach dem Horizont, Summen und erster Termin des
+  # Auszahlungsplans und hohe Gebühren prüft WS-B (Spec 01 Teil A 5.5)
+  expect_identical(vb(start = "2026-01-01"), character(0))
+  expect_identical(vb(start = "2040-01-01"), character(0))
+  expect_identical(vb(draw_schedule = list(schedule = list("2027-01-01" = 0.5), unit = "share")),
+                   character(0))
+  expect_identical(vb(fees = list(processing_fee_share = 0.03,
+                                  commitment_fee_rate_month = 0.01)), character(0))
+  # F6: Auszahlungstermine nach dem Horizont
+  expect_identical(vb(draw_schedule = list(schedule = list("2027-01-01" = 0.5,
+                                                           "2040-01-01" = 0.5),
+                                           unit = "share")),
+                   "draw_after_horizon")
+  expect_true("commitment_date_range" %in% vb(fees = list(commitment_date = "2029-01-01")))
+  expect_true("commitment_fee_window" %in%
                 vb(start = "2028-01-01",
                    fees = list(commitment_fee_rate_month = 0.001,
                                commitment_date = "2027-01-01")))
-  expect_true("msg.prepay_exceeds" %in%
+  expect_true("prepay_exceeds" %in%
                 vb(planned_prepayments = list(schedule = list("2028-01-01" = 60000,
                                                               "2029-01-01" = 60000))))
-  expect_true("msg.prepay_program" %in% vb(prepay_allowed = TRUE, program = "KfW 261"))
-  expect_true("msg.fixed_after_horizon" %in% vb(term_years = 20, fixed_years = 15))
-  expect_true("msg.followup_truncated" %in% vb(term_years = 10, fixed_years = 5,
-                                               followup_fixed_years = 3))
+  expect_true("fixed_after_horizon" %in% vb(term_years = 20, fixed_years = 15))
+  expect_true("followup_truncated" %in% vb(term_years = 10, fixed_years = 5,
+                                           followup_fixed_years = 3))
+  # ein fehlendes market.mortgage_rate meldet die Bezugsprüfung von WS-B (R-115)
   no_rate <- function(s) {
     s$market$mortgage_rate <- NULL
     s
   }
-  expect_true("errors.followup_missing" %in% vb(fixed_years = 2, spec_fun = no_rate))
-  expect_false("errors.followup_missing" %in% vb(fixed_years = 2))
+  expect_identical(vb(fixed_years = 2, spec_fun = no_rate), character(0))
 })
 
-test_that("Validierung: Tilgungszuschuss, Overlay-Bez\u00fcge, Verzug der Ma\u00dfnahme", {
+test_that("Validierung: Terminableitung wie init() aus den Periodenenden (F8)", {
+  v <- function(...) loan_val_codes("bullet_loan", amount_eur = 1e5, rate_pa = 0.03, ...)
+  # Jahresraster T = 10: start 2027-07-01 liegt in t = 1, m_start = 12; Bindung 9,5 Jahre endet
+  # nach Monat 126 > M_T = 120 (nach dem Stichtagsmonat gerechnet wären es 120)
+  expect_true("fixed_after_horizon" %in% v(term_years = 10, start = "2027-07-01",
+                                           fixed_years = 9.5))
+  r <- loan_run("bullet_loan", amount_eur = 1e5, rate_pa = 0.03, term_years = 10,
+                start = "2027-07-01", fixed_years = 9.5, payments_per_year = 1L)
+  expect_identical(r$state$reset_months, integer(0))
+  expect_identical(r$state$m_start, 12L)
+  # Bindung 9 Jahre: Anpassung nach Monat 120 = M_T, also weder im noch nach dem Horizont
+  expect_false("fixed_after_horizon" %in% v(term_years = 10, start = "2027-07-01",
+                                            fixed_years = 9))
+  # m_A = Ende der Periode der letzten Auszahlung (2027-07-01 -> 12): m_mat = 132, Anpassungen
+  # nach 60 und 132 = m_mat -> die Anschlussbindung von 6 Jahren endet genau bei Fälligkeit
+  sched <- list(schedule = list("2027-01-01" = 0.5, "2027-07-01" = 0.5), unit = "share")
+  expect_false("followup_truncated" %in% v(term_years = 10, draw_schedule = sched,
+                                           fixed_years = 5, followup_fixed_years = 6))
+  expect_true("followup_truncated" %in% v(term_years = 10, draw_schedule = sched,
+                                          fixed_years = 5, followup_fixed_years = 5))
+  rr <- loan_run("bullet_loan", amount_eur = 1e5, rate_pa = 0.03, term_years = 10,
+                 draw_schedule = sched, fixed_years = 5, followup_fixed_years = 6,
+                 payments_per_year = 1L, grid = make_grid("annual", T = 12L))
+  expect_identical(rr$state$m_A, 12L)
+  expect_identical(rr$state$reset_months, 60L)
+  # Bauphase im Raster: start = completion
+  gm <- vofi_time_grid(as.Date("2027-01-01"), 10L, construction_months = 12L,
+                       construction_step_months = 12L)
+  expect_true("fixed_after_horizon" %in%
+                loan_val_codes("bullet_loan", amount_eur = 1e5, rate_pa = 0.03, term_years = 10,
+                               start = "completion", fixed_years = 9.5, grid = gm))
+  # Bestandsdarlehen und auto: m_start = 0 (Stichtag), auto: m_A = Ende der Bauphase (hier t0)
+  expect_true("fixed_after_horizon" %in% v(term_years = 20, fixed_years = 10.5,
+                                           existing = TRUE))
+  expect_true("fixed_after_horizon" %in% v(amount_eur = "auto", term_years = 20,
+                                           fixed_years = 10.5))
+  expect_false("fixed_after_horizon" %in% v(amount_eur = "auto", term_years = 20,
+                                            fixed_years = 10))
+  # Start vor dem Stichtag (meldet WS-B): keine Terminregel
+  expect_identical(v(term_years = 20, fixed_years = 15, start = "2026-01-01"), character(0))
+  # ohne konstruierbares Raster entfallen die Terminregeln (die Strukturprüfung meldet es)
+  no_horizon <- function(s) {
+    s$project$horizon_years <- NULL
+    s
+  }
+  expect_identical(v(term_years = 20, fixed_years = 15, spec_fun = no_horizon), character(0))
+  expect_identical(v(term_years = 20, fixed_years = 15, spec_fun = no_horizon,
+                     planned_prepayments = list(schedule = list("2028-01-01" = 2e5))),
+                   c("prepay_exceeds", "prepay_capped"))
+  expect_identical(loan_val_codes("annuity_loan", amount_eur = 1e5, rate_pa = 0.03,
+                                  term_years = 10, measure_id = "m1", spec_fun = no_horizon,
+                                  repayment_grant = list(share = 0.1, date = "2028-01-01",
+                                                         year = 2045L)),
+                   "repayment_grant_date_year")
+  # letzte Auszahlung nach dem Horizont: m_A = Monatsindex des Termins (wie init(), F6):
+  # m_A = 156, m_mat = 276, Anpassungen nach 72 und alle 102 bzw. 66 Monate
+  late <- list(schedule = list("2027-01-01" = 0.5, "2040-01-01" = 0.5), unit = "share")
+  expect_identical(v(term_years = 10, draw_schedule = late, fixed_years = 6,
+                     followup_fixed_years = 8.5),
+                   "draw_after_horizon")
+  expect_identical(v(term_years = 10, draw_schedule = late, fixed_years = 6,
+                     followup_fixed_years = 5.5),
+                   c("draw_after_horizon", "followup_truncated"))
+  expect_null(inst_loan_val_grid(list(project = list())))
+  pm <- inst_loan_val_grid(list(project = list(valuation_date = as.Date("2027-01-01")),
+                                grid = list(periods_months = c(3, 3, 6))))
+  expect_identical(pm$date_end[pm$T + 1L], as.Date("2028-01-01"))
+  expect_identical(inst_loan_val_date("completion", NULL), NULL)
+})
+
+test_that("Validierung: Tilgungszuschuss (Angabe, Termin)", {
   v <- function(type, ...) loan_val_codes(type, ...)
   base <- list(amount_eur = 1e5, rate_pa = 0.03, term_years = 10)
   vb <- function(...) do.call(v, c(list("annuity_loan"), utils::modifyList(base, list(...))))
-  expect_true("errors.grant_share_xor_amount" %in%
-                vb(measure_id = "m1", repayment_grant = list(share = 0.1, amount_eur = 5000)))
-  expect_true("errors.grant_needs_id" %in% vb(repayment_grant = list(share = 0.1)))
-  expect_true("errors.grant_exceeds" %in%
-                vb(measure_id = "m1", repayment_grant = list(amount_eur = 2e5)))
-  expect_true("errors.grant_date_year" %in%
+  # share und amount_eur zugleich, fehlende Kennung, Betrag über der Zusage und Overlay-Bezüge
+  # prüft WS-B (repayment_grant_both, repayment_grant_tag, repayment_grant_high,
+  # amount_overlay, delay_fixed_dates)
+  expect_identical(vb(measure_id = "m1", repayment_grant = list(share = 0.1, amount_eur = 5000)),
+                   character(0))
+  expect_identical(vb(repayment_grant = list(share = 0.1)), character(0))
+  expect_identical(vb(measure_id = "m1", repayment_grant = list(amount_eur = 2e5)),
+                   character(0))
+  expect_identical(vb(measure_id = "m1", repayment_grant = list(effect = "reduce_installment")),
+                   "repayment_grant_empty")
+  expect_true("repayment_grant_date_year" %in%
                 vb(measure_id = "m1", repayment_grant = list(share = 0.1, date = "2028-01-01",
                                                              year = 2028L)))
-  expect_true("errors.grant_before_start" %in%
-                vb(measure_id = "m1", start = "2029-01-01",
-                   repayment_grant = list(share = 0.1, date = "2028-01-01")))
-  expect_true("msg.grant_after_horizon" %in%
-                vb(measure_id = "m1", repayment_grant = list(share = 0.1, year = 2045L)))
+  expect_identical(vb(measure_id = "m1", start = "2029-01-01",
+                      repayment_grant = list(share = 0.1, date = "2028-01-01")),
+                   "repayment_grant_before_start")
+  expect_identical(vb(measure_id = "m1", repayment_grant = list(share = 0.1, year = 2045L)),
+                   "repayment_grant_after_horizon")
   ovl <- function(s) {
     pars <- list(
       a = list(target = "funding.f.amount_eur", dist = "uniform", min = 1, max = 2),
@@ -850,12 +957,20 @@ test_that("Validierung: Tilgungszuschuss, Overlay-Bez\u00fcge, Verzug der Ma\u00
     s$stochastic <- list(parameters = pars)
     s
   }
-  w <- v("annuity_loan", amount_eur = list(ref = "funding.f.amount_eur"), rate_pa = 0.03,
-         term_years = 10, measure_id = "m1", spec_fun = ovl)
-  expect_true(all(c("msg.amount_fixed", "msg.measure_delay") %in% w))
+  expect_identical(v("annuity_loan", amount_eur = list(ref = "funding.f.amount_eur"),
+                     rate_pa = 0.03, term_years = 10, measure_id = "m1", spec_fun = ovl),
+                   character(0))
+  # Termin completion: Gutschrift vor start = Fertigstellung
+  gm <- vofi_time_grid(as.Date("2027-01-01"), 10L, construction_months = 12L,
+                       construction_step_months = 12L)
+  expect_identical(loan_val_codes("annuity_loan", amount_eur = 1e5, rate_pa = 0.03,
+                                  term_years = 10, start = "completion", measure_id = "m1",
+                                  repayment_grant = list(share = 0.1, date = "2027-07-01"),
+                                  grid = gm),
+                   "repayment_grant_before_start")
 })
 
-test_that("Validierung \u00fcber vofi_validate(): Pfade und Meldungstexte", {
+test_that("Validierung \u00fcber vofi_validate(): Pfade, Schl\u00fcssel validation.financing.*", {
   sc <- vofi_read_scenario(vofi_example("skeleton"))
   expect_identical(nrow(vofi_validate(sc)), 0L)
   bad <- sc
@@ -868,20 +983,78 @@ test_that("Validierung \u00fcber vofi_validate(): Pfade und Meldungstexte", {
   b2$financing$bank$term_years <- 0
   b2$financing$bank$payments_per_year <- 2L
   v2 <- vofi_validate(b2)
-  expect_true(all(c("types.instrument.bullet_loan.errors.term_nonpositive",
-                    "types.instrument.bullet_loan.errors.ppy") %in% v2$code))
-  expect_identical(v2$path[v2$code == "types.instrument.bullet_loan.errors.ppy"],
+  expect_true(all(c("validation.financing.term_nonpositive",
+                    "validation.financing.payments_per_year") %in% v2$code))
+  expect_false(any(startsWith(v2$code, "types.instrument.")))
+  expect_identical(v2$path[v2$code == "validation.financing.payments_per_year"],
                    "financing.bank.payments_per_year")
-  expect_match(v2$message[v2$code == "types.instrument.bullet_loan.errors.ppy"], "'bank'")
-  b5 <- sc
-  b5$financing$bank <- list(type = "annuity_loan", amount_eur = 60000, rate_pa = 0.05,
-                            initial_repayment_pa = 0.02, installment_eur = 500,
-                            payments_per_year = 12L)
-  expect_true("types.instrument.annuity_loan.errors.tau_with_installment" %in%
-                vofi_validate(b5)$code)
+  expect_identical(v2$severity[v2$code == "validation.financing.payments_per_year"], "error")
+  expect_match(v2$message[v2$code == "validation.financing.payments_per_year"],
+               "financing.bank.payments_per_year", fixed = TRUE)
+  expect_error(vofi_build(b2), class = "vofi_error_validation")
 })
 
-test_that("Labels: alle Meldungscodes in allen drei Kredittypen, gleiche Schl\u00fcsselmengen", {
+#' Bausteine `bank` des Skeleton-Szenarios, die zusammen jeden Befundcode auslösen
+loan_val_cases <- function() {
+  b <- list(type = "bullet_loan", amount_eur = 60000, rate_pa = 0.05, term_years = 3,
+            payments_per_year = 1L)
+  a <- list(type = "annuity_loan", amount_eur = 60000, rate_pa = 0.05, term_years = 10,
+            payments_per_year = 12L)
+  i <- list(type = "installment_loan", amount_eur = 60000, rate_pa = 0.05, term_years = 10,
+            payments_per_year = 4L)
+  m <- function(x, ...) utils::modifyList(x, list(...))
+  list(
+    m(b, payments_per_year = 2L, amount_eur = 0, term_years = 0, rate_pa = 0.13,
+      payout_rate = 0.85, auto_buffer_share = 0.1),
+    m(b, term_years = 3.3, grace_years = 4, fixed_years = 0,
+      fees = list(commitment_date = "2028-01-01")),
+    m(i, term_years = NULL, installment_eur = 0, refi_rule = "keep_tilg_rate"),
+    m(a, fixed_years = 5, refi_rule = "keep_tilg_rate", followup_repayment_pa = NULL),
+    m(a, term_years = NULL, existing = TRUE, installment_eur = 800, fixed_years = 2),
+    m(a, existing = TRUE, refi_rule = "keep_payment", followup_repayment_pa = 0.02),
+    m(b, rate_pa = c(0.05, 0.05, 0.06, 0.06)),
+    m(a, measure_id = "m1", repayment_grant = list(effect = "reduce_installment")),
+    m(a, measure_id = "m1", start = "2029-01-01",
+      repayment_grant = list(share = 0.1, date = "2028-01-01", year = 2028L)),
+    m(a, measure_id = "m1", repayment_grant = list(share = 0.1, year = 2045L)),
+    m(b, draw_schedule = list(schedule = list("2027-01-01" = 0.5, "2035-01-01" = 0.5),
+                              unit = "share")),
+    m(b, start = "2028-01-01",
+      fees = list(commitment_fee_rate_month = 0.001, commitment_date = "2027-01-01")),
+    m(a, fixed_years = 5),
+    m(a, fixed_years = 1, followup_fixed_years = 4),
+    m(b, prepay_cap_share_pa = 0.05,
+      planned_prepayments = list(schedule = list("2028-01-01" = 40000, "2029-01-01" = 30000)))
+  )
+}
+
+test_that("Jeder Befundcode wird \u00fcber vofi_validate() unter strikten Labels gerendert (F3)", {
+  local_vofi_options(vofi.strict_labels = TRUE)
+  loan_ensure_validation_labels()
+  sc <- vofi_read_scenario(vofi_example("skeleton"))
+  seen <- character(0)
+  for (k in seq_along(loan_val_cases())) {
+    b <- sc
+    b$financing$bank <- loan_val_cases()[[k]]
+    vv <- vofi_validate(b)
+    own <- vv[startsWith(vv$code, "validation.financing."), , drop = FALSE]
+    expect_false(any(grepl("{", own$message, fixed = TRUE)), info = paste("Fall", k))
+    expect_true(all(startsWith(own$path, "financing.bank")), info = paste("Fall", k))
+    seen <- c(seen, own$code)
+  }
+  codes <- inst_loan_val_codes()
+  expect_setequal(unique(seen), inst_loan_val_key(names(codes)))
+  b <- sc
+  b$financing$bank <- loan_val_cases()[[1L]]
+  rows <- vofi_validate(b)
+  expect_match(rows$message[rows$code == "validation.financing.payments_per_year"],
+               "'financing.bank.payments_per_year': payments_per_year muss 1, 4 oder 12 sein",
+               fixed = TRUE)
+  expect_match(rows$message[rows$code == "validation.financing.rate_high"], "13,00 %",
+               fixed = TRUE)
+})
+
+test_that("Labels: Laufzeitmeldungen in allen drei Kredittypen, Befundtexte validation.financing", {
   codes <- inst_loan_codes()
   for (type in c("annuity_loan", "installment_loan", "bullet_loan")) {
     for (sec in names(codes)) {
@@ -896,6 +1069,143 @@ test_that("Labels: alle Meldungscodes in allen drei Kredittypen, gleiche Schl\u0
     expect_true(all(vapply(paste0("types.instrument.", type, ".params.", names(def$params),
                                   ".help"), lbl_has, logical(1))))
   }
+  # Zulieferung an WS-B: genau ein Text je Befundcode
+  expect_setequal(names(loan_validation_labels()), names(inst_loan_val_codes()))
+  expect_true(all(inst_loan_val_codes() %in% c("error", "warning", "info")))
+})
+
+test_that("Befundtexte validation.financing.* im Paketkatalog (validation.yaml, WS-B)", {
+  # Nach der Integration von WS-B stehen die Texte in inst/labels/de/validation.yaml; bis dahin
+  # ergänzt helper-ws-f.R sie für die Tests (Zulieferung, siehe loan_validation_labels())
+  ok <- vapply(inst_loan_val_key(names(inst_loan_val_codes())), function(k) {
+    identical(get0(k, envir = lbl_state$sources, inherits = FALSE), "validation.yaml")
+  }, logical(1))
+  skip_if_not(all(ok), paste("validation.financing.* fehlen noch in validation.yaml (WS-B):",
+                             sum(!ok), "Schl\u00fcssel"))
+  expect_true(all(ok))
+})
+
+test_that("Nach Integration von WS-B: kein Doppelbefund der Kreditregeln (F2)", {
+  skip_if_not(lbl_has("validation.financing.balloon_at_maturity"),
+              "Plausibilit\u00e4tspr\u00fcfung der Kredite (WS-B) noch nicht integriert")
+  sc <- vofi_read_scenario(vofi_example("skeleton"))
+  b <- sc
+  b$financing$bank <- list(type = "annuity_loan", amount_eur = 60000, rate_pa = 0.03,
+                           initial_repayment_pa = 0.02, term_years = 10,
+                           payments_per_year = 12L)
+  vv <- vofi_validate(b)
+  expect_identical(sum(vv$code == "validation.financing.balloon_at_maturity"), 1L)
+  b$financing$bank$installment_eur <- 100
+  vv <- vofi_validate(b)
+  expect_identical(sum(vv$code == "validation.financing.tau_with_installment"), 1L)
+  dup <- duplicated(vv[, c("code", "path")])
+  expect_false(any(dup))
+})
+
+# ---------------------------------------------------------------------------------------------
+# Review-Fälle F1, F4, F5, F6
+# ---------------------------------------------------------------------------------------------
+
+test_that("F1: endf\u00e4llig mit negativem Zins und unterj\u00e4hrigen Raten tilgt nicht", {
+  for (ppy in c(4L, 12L)) {
+    r <- loan_run("bullet_loan", amount_eur = 100000, rate_pa = -0.005, term_years = 5,
+                  payments_per_year = ppy)
+    expect_identical(loan_row(r, "repay"), rep(0, 11), info = ppy)
+    expect_near(loan_row(r, "interest")[2:6], rep(500, 5))
+    expect_near(loan_row(r, "balance")[2:5], rep(100000, 4))
+    expect_near(loan_row(r, "repay_balloon")[6], -100000)
+    expect_identical(loan_row(r, "balance")[6], 0)
+  }
+  # negativer Anschlusszins je Lauf (Pfad aus dem Marktprozess), Monatsraten
+  g <- make_grid("annual", T = 8L)
+  path <- rbind(rep(-0.01, g$T + 1L), rep(0.02, g$T + 1L))
+  dr <- fake_draws(2L, g, paths = list("market.mortgage_rate" = path))
+  r2 <- loan_run("bullet_loan", amount_eur = 50000, rate_pa = 0.01, term_years = 6,
+                 payments_per_year = 12L, fixed_years = 2, grid = g, n = 2L, draws = dr)
+  expect_true(all(r2$m$repay == 0))
+  expect_near(r2$m$balance[, 4], c(50000, 50000))
+  expect_near(-r2$m$interest[, 4], c(-500, 1000))
+  for (i in 1:2) {
+    ref <- loan_ref_clock(g, "bullet_loan",
+                          list(amount_eur = 50000, rate_pa = 0.01, term_years = 6,
+                               payments_per_year = 12L, fixed_years = 2), followup = path[i, ])
+    expect_equal(loan_as_matrix(r2, i), ref, tolerance = 1e-9, info = i)
+  }
+})
+
+test_that("F4: round_payments an einer exakten Halbcent-Grenze = Monatsuhr", {
+  g <- vofi_time_grid(as.Date("2027-01-01"), 16L, construction_months = 9L,
+                      construction_step_months = 3L, operation_alignment = "completion")
+  path <- 0.02 + 0.003 * (seq_len(g$T + 1L) - 1L)
+  dr <- fake_draws(1L, g, paths = list("market.mortgage_rate" = path))
+  a <- list(amount_eur = 100000, rate_pa = 0, payments_per_year = 4L, term_years = 20,
+            grace_years = 2, start = "2027-04-01", fixed_years = 2.5, followup_fixed_years = 1.5,
+            followup_spread_pa = 0.005, round_payments = TRUE, prepay_allowed = TRUE,
+            prepay_cap_share_pa = 0.05,
+            planned_prepayments = list(schedule = list("2028-05-01" = 8000,
+                                                       "2029-05-01" = 4000)))
+  u3 <- list("2" = 20000, "8" = 3000)
+  r <- do.call(loan_run, c(list("installment_loan"), a,
+                           list(grid = g, draws = dr, prepay_at = u3)))
+  ref <- loan_ref_clock(g, "installment_loan", a, followup = path, prepay_at = u3)
+  expect_equal(loan_as_matrix(r), ref, tolerance = 1e-9)
+  # Bestand vor der Anpassung in Monat 88: 59.132,58 / 52 Raten = 1.137,165 -> 1.137,17
+  t88 <- utl_month_period(g, 88L)
+  expect_identical(r$states[[t88 + 1L]]$inst, 1137.17)
+  expect_identical(inst_loan_round(c(1137.165, 1137.16499999999, 0.005, 2.675, 1.004999)),
+                   c(1137.17, 1137.17, 0.01, 2.68, 1))
+})
+
+test_that("F5: ctx$auto() mit einem Plan f\u00fcr alle L\u00e4ufe wird zeilenweise gehoben", {
+  g <- vofi_time_grid(as.Date("2027-01-01"), 2L, construction_months = 12L,
+                      construction_step_months = 6L)
+  plan <- c(0, 40000, 10000, 0)
+  expect_identical(length(plan), g$T + 1L)
+  run <- function(draws, commitment = 50000) {
+    loan_run("annuity_loan", amount_eur = "auto", rate_pa = 0.03, term_years = 10,
+             payments_per_year = 1L, grid = g, n = 2L,
+             auto = function(id) list(commitment = commitment, draws = draws))
+  }
+  for (d in list(plan, matrix(plan, 1L), rbind(plan, plan))) {
+    r <- run(d)
+    expect_identical(r$m$draw, rbind(plan, plan, deparse.level = 0L))
+    expect_identical(r$state$commitment, c(50000, 50000))
+  }
+  expect_error(run(plan[-1L]), class = "vofi_error_contract")
+  expect_error(run(rbind(plan, plan, plan)), class = "vofi_error_contract")
+  expect_error(run(matrix(plan, 4L, 1L)), class = "vofi_error_contract")
+  expect_error(run(plan, commitment = c(1, 2, 3)), class = "vofi_error_contract")
+  expect_error(run(c(0, NA, 0, 0)), class = "vofi_error_contract")
+  expect_error(run(plan, commitment = NULL), class = "vofi_error_contract")
+})
+
+test_that("F6: Auszahlungen nach dem Horizont verschieben den Tilgungsbeginn", {
+  g <- make_grid("annual", T = 3L)
+  a <- list(amount_eur = 100000, rate_pa = 0.03, term_years = 10, payments_per_year = 1L,
+            draw_schedule = list(schedule = list("2027-01-01" = 0.5, "2031-01-01" = 0.5),
+                                 unit = "share"))
+  # der Termin nach dem Horizont entfällt mit Hinweis der Auflösung (R-35)
+  expect_message(r <- do.call(loan_run, c(list("installment_loan"), a, list(grid = g))),
+                 class = "vofi_message")
+  # m_A = Monatsindex des letzten Termins (48 > M_T = 36): keine Tilgung im Horizont
+  expect_identical(r$state$m_A, 48L)
+  expect_identical(loan_row(r, "repay"), rep(0, 4))
+  expect_near(-loan_row(r, "interest")[2:4], rep(1500, 3))
+  expect_near(loan_row(r, "balance"), rep(50000, 4))
+  expect_equal(loan_as_matrix(r), loan_ref_clock(g, "installment_loan", a), tolerance = 1e-9)
+  # Default-Termin des Tilgungszuschusses (spätere von Fertigstellung und letzter Auszahlung)
+  # liegt damit ebenfalls nach dem Horizont
+  tz <- suppressMessages(do.call(loan_run, c(list("installment_loan"), a,
+                                             list(measure_id = "m1",
+                                                  repayment_grant = list(share = 0.1),
+                                                  grid = g))))
+  expect_identical(loan_row(tz, "repayment_grant"), rep(0, 4))
+  expect_true(is.na(tz$state$t_tz))
+  # Annuität: Rate erst nach dem Horizont, Bereitstellungsprovision bis zum Horizontende
+  af <- utils::modifyList(a, list(fees = list(commitment_fee_rate_month = 0.001)))
+  an <- suppressMessages(do.call(loan_run, c(list("annuity_loan"), af, list(grid = g))))
+  expect_false(an$state$inst_set)
+  expect_near(-loan_row(an, "fees")[2:4], rep(600, 3))
 })
 
 test_that("Randf\u00e4lle: Termin completion, auto ohne Bauphase, Plan nach dem Horizont", {
@@ -933,25 +1243,6 @@ test_that("Randf\u00e4lle: Termin completion, auto ohne Bauphase, Plan nach dem 
                                         effect = "reduce_installment"), grid = ga)
   expect_identical(round(rd$states[[3]]$inst, 2), rd$states[[3]]$inst)
   expect_false(identical(rd$states[[2]]$inst, rd$states[[3]]$inst))
-})
-
-test_that("Validierung: Termin completion und Ma\u00dfnahmen eines F\u00f6rderinstruments", {
-  with_overlay <- function(s) {
-    s$funding <- list(f = list(measures = c("m1", "m2")))
-    pars <- list(d = list(target = "measures.m2.delay_months", dist = "uniform", min = 0,
-                          max = 6))
-    s$stochastic <- list(parameters = pars)
-    s
-  }
-  w <- loan_val_codes("annuity_loan", amount_eur = 1e5, rate_pa = 0.03, term_years = 10,
-                      funding_id = "f", start = "completion",
-                      repayment_grant = list(share = 0.1), spec_fun = with_overlay)
-  expect_true("msg.measure_delay" %in% w)
-  expect_false("errors.start_before" %in% w)
-  expect_null(inst_loan_val_dates(list(project = list())))
-  pm <- inst_loan_val_dates(list(project = list(valuation_date = "2027-01-01"),
-                                 grid = list(periods_months = c(3, 3, 6))))
-  expect_identical(pm$end, as.Date("2028-01-01"))
 })
 
 # ---------------------------------------------------------------------------------------------
