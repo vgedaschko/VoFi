@@ -647,7 +647,10 @@ test_that("Orakel (c1): Break-even-NOI_1 9.869,14 (Referenz-Engine, Paket, vofi_
 test_that("grob_lehrbuch_a.yaml entspricht Spec 01 Teil C 5.6 und Orakel (a)", {
   path <- system.file("extdata", "examples", "grob_lehrbuch_a.yaml", package = "vofi")
   expect_true(nzchar(path))
-  raw <- yaml::read_yaml(path)
+  # Rohes YAML locale-unabhaengig lesen wie Spec 00 4.6 (yaml::read_yaml() kodiert ueber die
+  # Verbindung in die Locale um und scheitert unter LANG=C an den Umlauten)
+  raw <- yaml::yaml.load(paste(readLines(path, encoding = "UTF-8", warn = FALSE),
+                               collapse = "\n"), eval.expr = FALSE)
   expect_identical(raw$meta$scenario_id, "grob_lehrbuch_a")
   expect_identical(raw$meta$author, "WS-T (Orakel (a))")
   expect_identical(raw$shared$rw, 40000L)

@@ -316,7 +316,10 @@ test_that("Pfadmerkmale: mean, end, at<jahr> (Zinsanpassung) und scenario", {
 test_that("Methoden print() und as.data.frame() für vofi_draws", {
   dr <- wsc_draw(overlay(), 20L, block_size = 10L, shared = list(cost = 1))
   out <- utils::capture.output(print(dr))
-  expect_match(out[1], "20 L\u00e4ufe in 2 Block")
+  # Umlaute erscheinen in der Ausgabe nur unter einer UTF-8-Locale unveraendert (Spec 00 15.6);
+  # unter LANG=C setzt R sie als <U+00E4> um
+  expect_match(out[1], "^Ziehungen .*: 20 L.+ufe in 2 Block")
+  if (isTRUE(l10n_info()[["UTF-8"]])) expect_match(out[1], "20 L\u00e4ufe in 2 Block")
   expect_true(any(grepl("huelle_kosten", out)))
   expect_true(any(grepl("mortgage_rate", out)))
   utils::capture.output(res <- print(dr))

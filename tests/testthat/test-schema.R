@@ -118,7 +118,9 @@ test_that("vofi_json_schema: Zeichenkette, Datei, Argumentprüfung", {
   expect_false(is.unsorted(types, strictly = TRUE))
   f <- withr::local_tempfile(fileext = ".json")
   expect_identical(vofi_json_schema(f), f)
-  expect_identical(readChar(f, file.size(f), useBytes = TRUE), txt)
+  # Byte-Vergleich: die Datei ist UTF-8 unabhaengig von der Locale (readChar() liefert unter
+  # LANG=C eine unmarkierte Zeichenkette, die sich von der UTF-8-markierten nicht identisch zeigt)
+  expect_identical(readBin(f, "raw", file.size(f)), charToRaw(enc2utf8(txt)))
   expect_error(vofi_json_schema(1), class = "vofi_error_input")
   expect_error(vofi_json_schema(c("a", "b")), class = "vofi_error_input")
 })
