@@ -111,6 +111,120 @@ test_that("Fehler beim Auflösen mit eigenem Schlüssel bzw. als resolve_failed"
   expect_identical(f2$path, "a.from")
 })
 
+test_that("Abbruch eines Expanders verdeckt keine Domänenbefunde (Spec 00 4.1, 9.1)", {
+  expect_null(attr(suppressWarnings(vofi_resolve(wsb_with("domain"))), "expand_failed"))
+  old <- reg_state$types
+  withr::defer(reg_state$types <- old)
+  fail <- new.env()
+  fail$how <- "validation"
+  reg_add(vofi_type(name = "wsb_fail", kind = "expander", block = "measures", order = 95L,
+                    expand = function(block, scenario, bctx) {
+                      if (identical(fail$how, "validation")) {
+                        bctx$abort("expand.measures.id_shared", id = "huelle")
+                      }
+                      stop("kaputt")
+                    }), source = "vofi")
+  reg_add(vofi_type(name = "wsb_ok", kind = "expander", block = "measures", order = 96L,
+                    expand = function(block, scenario, bctx) {
+                      list(components = list(x_ok = list(type = "custom_series",
+                                                         values = rep(0, 21L))))
+                    }), source = "vofi")
+  domain <- function(err = FALSE) {
+    wsb_with("domain", function(x) {
+      x$components$z$after <- "x_ok"                  # Bezug auf eine erzeugte Komponente
+      if (err) x$measures$huelle$useful_life_years <- 0
+      x
+    })
+  }
+  # tolerante Auflösung: nur der abgebrochene Expander fehlt
+  sp <- suppressWarnings(scn_resolve(domain(), expand = "tolerant"))
+  expect_identical(attr(sp, "expand_failed"), "wsb_fail")
+  expect_true(all(c("x_ok", "m_huelle_capex") %in% names(sp$components)))
+  none <- suppressWarnings(scn_resolve(domain(), expand = "none"))
+  expect_false(any(startsWith(names(none$components), "m_")))
+  expect_error(vofi_resolve(domain()), class = "vofi_error_validation")
+  # Domänenfehler: Befund der Domäne statt resolve_failed (Abbruch ist dessen Folge)
+  v <- wsb_validate(domain(TRUE), variant = "base")
+  expect_true("validation.range" %in% v$code)
+  expect_false("validation.resolve_failed" %in% v$code)
+  expect_false("validation.after_unknown" %in% v$code)
+  # ohne Domänenfehler bleibt der Abbruch der einzige Fehler
+  v <- wsb_validate(domain(), variant = "base")
+  e <- v[v$severity == "error", , drop = FALSE]
+  expect_identical(e$code, "validation.resolve_failed")
+  expect_match(e$message, "zugleich Maßnahme und Bestandsbauteil", fixed = TRUE)
+  # Programmfehler eines Expanders wird nie als Folgefehler unterdrückt
+  fail$how <- "bug"
+  v <- wsb_validate(domain(TRUE), variant = "base")
+  expect_true(all(c("validation.range", "validation.resolve_failed") %in% v$code))
+  expect_match(v$message[v$code == "validation.resolve_failed"], "kaputt", fixed = TRUE)
+})
+
+test_that("Abbruch des Expanders residual mit eigenem Schlüssel, auch im Set (6.2 Nr. 5)", {
+  x <- wsb_skeleton_defaults("income_value")
+  x$scenario_sets <- list(sv = list(label = "Sachwert",
+                                    set = list("residual_value.method" = "asset_value")))
+  v <- wsb_validate(vofi_scenario(x))
+  expect_identical(v$code, "validation.residual.method_needs_building")
+  expect_identical(v$variant, "sv")
+  expect_match(v$message, "'asset_value' braucht Gebäudedaten", fixed = TRUE)
+  # Schlüssel der Expander ohne passenden Validierungstext bleiben resolve_failed
+  e <- tryCatch(vofi_abort("expand.funding.degression_target", funding = "f", target = "t",
+                           .class = "vofi_error_validation"), error = identity)
+  expect_identical(val_resolve_finding(e, "base")$code, "validation.resolve_failed")
+})
+
+test_that("Doppel- und Folgebefunde an erzeugten Komponenten entfallen (4.12)", {
+  spec <- list(components = list(m_a_acq = list(origin = "expander"),
+                                 z = list(origin = "scenario")),
+               financing = list(f_k_loan = list(origin = "expander")))
+  f <- function(sev, code, path) val_finding(sev, code, path, variant = "base")
+  codes <- function(out) paste(val_bind(out)$code, val_bind(out)$path)
+  # gleicher Code an der Domäne: Doppelbefund; anderer Code ohne Domänenfehler bleibt
+  out <- list(f("info", "validation.required", "components.m_a_acq.federal_state"),
+              f("info", "validation.required", "project.federal_state"),
+              f("warning", "validation.not_map", "financing.f_k_loan.fees"),
+              f("warning", "validation.not_list", "components.m_a_acq.after"),
+              f("error", "validation.param_required", "components.z.values"))
+  expect_identical(codes(val_drop_generated(out[1:2], spec)),
+                   "validation.required project.federal_state")
+  expect_identical(nrow(val_bind(val_drop_generated(out[3:4], spec))), 2L)
+  # Fehler an einem nicht erzeugten Pfad: alle Befunde an erzeugten Komponenten entfallen
+  expect_identical(codes(val_drop_generated(out[c(3, 5)], spec)),
+                   "validation.param_required components.z.values")
+  # Schwere: ein Fehler an einer erzeugten Komponente bleibt neben einem Hinweis der Domäne
+  e2 <- list(f("error", "validation.not_map", "components.m_a_acq.fees"),
+             f("info", "validation.not_map", "measures.a.fees"))
+  expect_identical(nrow(val_bind(val_drop_generated(e2, spec))), 2L)
+  # Strukturbefunde der erzeugten ids bleiben; all = TRUE (unvollständige Expansion)
+  s1 <- list(val_finding("error", "validation.generated_id_too_long", "components.m_a_acq",
+                         value = "m_a_acq", max_user = "29", variant = "base"),
+             f("error", "validation.required", "measures.a.cost_eur"),
+             f("warning", "validation.not_map", "financing.f_k_loan.fees"))
+  expect_identical(sort(val_bind(val_drop_generated(s1, spec))$code),
+                   c("validation.generated_id_too_long", "validation.required"))
+  expect_identical(val_bind(val_drop_generated(s1[c(1, 3)], spec, all = TRUE))$code,
+                   "validation.generated_id_too_long")
+  expect_identical(val_drop_generated(out[3:4], list()), out[3:4])
+})
+
+test_that("Degressionsziel: Index [i] auf Zahlenreihen und Tabellen (Teil B 4.3.3)", {
+  staffel <- list(thresholds_eur = list(kind = "series_t", values = c(40000, 60000, 90000)),
+                  rates = list(kind = "series_t", values = c(0.4, 0.3, 0.1, 0)))
+  pl <- list(rate_components = list(einkommen = list(schedule_by_taxable_income = staffel)),
+             rate_cap = list(value = list(kind = "const", value = 0.8),
+                             exceptions = list(list(cap = 0.8, condition = "x"))))
+  p <- "rate_components.einkommen.schedule_by_taxable_income.rates"
+  expect_true(val_library_subpath_exists(pl, paste0(p, "[3]")))
+  expect_true(val_library_subpath_exists(pl, paste0(p, "[4]")))
+  expect_false(val_library_subpath_exists(pl, paste0(p, "[5]")))
+  expect_false(val_library_subpath_exists(pl, paste0(p, "[0]")))
+  expect_true(val_library_subpath_exists(pl, "rate_cap.exceptions[1].cap"))
+  expect_false(val_library_subpath_exists(pl, "rate_cap.exceptions[2].cap"))
+  expect_false(val_library_subpath_exists(pl, "rate_cap.value[1]"))   # Konstante: keine Sequenz
+  expect_true(val_library_subpath_exists(list(a = c(1, 2)), "a[2]"))
+})
+
 test_that("vofi_build(): unbekannte Wurzelschlüssel von Szenario und Overrides (4.2)", {
   sc <- example_scenario("skeleton")
   x <- unclass(sc)

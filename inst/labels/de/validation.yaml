@@ -419,6 +419,9 @@ residual:
   existing_excluded: "'{path}' = false bei gesetztem Bestandswert: Sacheinlage ohne Gegenwert am Horizont."
   no_useful_life: "'{path}' fehlt; die Maßnahme trägt keinen Zeitwert bei."
   rnd_target: "'{path}': '{target}' ist bei remaining_life_method ungleich manual kein Overlay- oder Designziel; remaining_life_offset_years verwenden (R-109)."
+  # Abbrüche des Expanders residual ohne building (Teil A 6.2 Nr. 5; val_resolve_finding())
+  method_needs_building: "Restwertmethode '{method}' braucht Gebäudedaten im Block building (ohne Gebäude zulässig: user_value, zero, market_growth mit Ausgangswert, exit_yield)."
+  base_value_missing: "Restwertmethode market_growth ohne Gebäudedaten braucht einen Ausgangswert (residual_value.market_growth.base_value_eur, building.existing_value_eur oder building.market_value_eur)."
   # Prüfungen des Typs residual_value (validate(); WS-E-INV, R-104)
   rnd_manual_missing: "Komponente '{id}': remaining_life_method manual verlangt income_value.remaining_life_years."
   fictitious_and_points: "Komponente '{id}': fiktives Baujahr und Modernisierungspunkte zugleich zählen die Modernisierung doppelt."
