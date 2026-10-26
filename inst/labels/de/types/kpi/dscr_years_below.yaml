@@ -1,0 +1,3 @@
+# Labels der Kennzahl dscr_years_below (WS-D2, Spec 00 Abschnitt 12.3).
+label: "Jahre mit DSCR unter Schwelle"
+description: "Anzahl der Betriebsjahre ab dem Stabilisierungsjahr mit DSCR unter der Covenant-Schwelle."

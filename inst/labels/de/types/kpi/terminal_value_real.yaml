@@ -1,0 +1,3 @@
+# Labels der Kennzahl terminal_value_real (WS-D2, Spec 00 Abschnitt 12.3).
+label: "Realer Endwert"
+description: "Endwert in Preisen des Stichtags (deflationiert mit der Inflationsannahme)."

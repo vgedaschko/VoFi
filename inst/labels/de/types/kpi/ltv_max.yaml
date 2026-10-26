@@ -1,0 +1,3 @@
+# Labels der Kennzahl ltv_max (WS-D2, Spec 00 Abschnitt 12.3).
+label: "LTV (Maximum)"
+description: "Maximales Verhältnis von Schulden (Kredite und Kontokorrent) zum Marktwert V_t."
