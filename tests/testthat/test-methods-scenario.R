@@ -81,14 +81,15 @@ test_that("print.vofi_scenario: Umfang des Stochastik-Overlays (4.3.15)", {
   sc <- wsh_quiet(vofi_read_scenario(vofi_example("grob_lehrbuch_a")))
   expect_identical(names(sc$stochastic$parameters), "rw")
   out <- capture.output(print(sc))
-  expect_true(paste0("  ", lbl("report.scenario.stochastic", n = 1L)) %in% out)
+  st_line <- paste0("  ", lbl("report.scenario.stochastic", n = 1L))
+  expect_true(any(out_has(st_line, out, whole = TRUE)))
   sc$stochastic$processes <- list(infl = list(target = "market.inflation", type = "ar1"))
   out2 <- capture.output(print(sc))
-  expect_true(paste0("  ", lbl("report.scenario.stochastic", n = 2L)) %in% out2)
+  st_line <- paste0("  ", lbl("report.scenario.stochastic", n = 2L))
+  expect_true(any(out_has(st_line, out2, whole = TRUE)))
   sk <- vofi_read_scenario(vofi_example("skeleton"))
   sk$stochastic <- NULL
-  expect_false(any(grepl(lbl("report.scenario.stochastic", n = 0L), capture.output(print(sk)),
-                         fixed = TRUE)))
+  expect_false(any(out_has(lbl("report.scenario.stochastic", n = 0L), capture.output(print(sk)))))
 })
 
 test_that("rep_count: Häufigkeiten in C-Ordnung (2.7 Nr. 8)", {

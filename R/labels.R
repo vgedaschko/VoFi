@@ -112,11 +112,16 @@ utl_lbl_text <- function(key, args = list(), .default = NULL) {
 msg <- function(key, ...) lbl(key, ...)
 
 #' Existiert der Label-Schlüssel?
+#'
+#' Schlüssel sind ASCII (2.10). Eine Zeichenkette mit anderen Zeichen (etwa ein schon
+#' aufgelöster deutscher Text) ist kein Schlüssel; sie geht nicht an `exists()`, das sie unter
+#' einer Nicht-UTF-8-Locale (`LANG=C`) mit der Warnung „unable to translate“ umsetzen würde.
 #' @param key Schlüssel.
 #' @return `TRUE`/`FALSE`.
 #' @noRd
 lbl_has <- function(key) {
-  utl_is_string(key) && exists(key, envir = lbl_state$labels, inherits = FALSE)
+  utl_is_string(key) && !grepl("[^ -~]", key, perl = TRUE, useBytes = TRUE) &&
+    exists(key, envir = lbl_state$labels, inherits = FALSE)
 }
 
 #' Alle geladenen Schlüssel (optional mit Präfix)

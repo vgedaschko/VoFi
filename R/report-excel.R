@@ -584,10 +584,11 @@ rep_xl_sheet_assumptions <- function(wb, x, styles) {
   m <- res$meta
   mm <- if (inherits(x, "vofi_mc_result")) x$meta else m
   defaults <- m$defaults %||% list()
+  # Zeichenketten ohne format(): das setzt Nicht-ASCII unter einer Nicht-UTF-8-Locale als
+  # <U+00E4> um, die Datei waere dann locale-abhaengig
+  txt <- function(e) utl_collapse(if (is.character(e)) e else format(e))
   def_txt <- vapply(defaults, function(d) {
-    if (is.list(d)) utl_collapse(paste0(names(d), "=", vapply(d, function(e) {
-      utl_collapse(format(e))
-    }, "")), "; ") else utl_collapse(format(d))
+    if (is.list(d)) utl_collapse(paste0(names(d), "=", vapply(d, txt, "")), "; ") else txt(d)
   }, "")
   meta <- data.frame(
     item = rep_xl_col_names(c("package_version", "contract_version", "schema_version",

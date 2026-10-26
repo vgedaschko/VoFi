@@ -59,8 +59,7 @@ test_that("vofi_sensitivity: print(), as.data.frame(), plot() f\u00fcr alle Meth
     s <- wsh_sensitivity(m)
     out <- capture.output(res <- print(s))
     expect_identical(res, s)
-    expect_match(out[1L], lbl(paste0("report.sensitivity.method_", m)), fixed = TRUE,
-                 info = m)
+    expect_true(out_has(lbl(paste0("report.sensitivity.method_", m)), out[1L]), info = m)
     expect_true(any(grepl("3.726", out, fixed = TRUE)), info = m)
     expect_identical(as.data.frame(s), switch(m, tornado = s$results, spider = s$spider,
                                               global = s$global))
@@ -70,7 +69,7 @@ test_that("vofi_sensitivity: print(), as.data.frame(), plot() f\u00fcr alle Meth
   expect_true(any(grepl("Zahlungsfolge", out, fixed = TRUE)))
   expect_true(any(grepl("9.000", out, fixed = TRUE)))
   out <- capture.output(print(wsh_sensitivity("global")))
-  expect_true(any(grepl("R\u00b2 = 0,830", out, fixed = TRUE)))
+  expect_true(any(out_has("R\u00b2 = 0,830", out)))
   empty <- wsh_sensitivity("tornado")
   empty$results <- NULL
   out <- capture.output(print(empty))

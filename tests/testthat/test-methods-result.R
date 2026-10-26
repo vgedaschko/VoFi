@@ -6,7 +6,7 @@ test_that("print.vofi_result: Kopf, Kopf-Kennzahlen, Tabelle, Hinweise", {
   out <- capture.output(res <- print(x))
   expect_identical(res, x)
   expect_match(out[1L], "VoFi-Ergebnis: testkit (oracle_a), Variante base", fixed = TRUE)
-  kpi_line <- grep(lbl("report.print.primary"), out, fixed = TRUE)
+  kpi_line <- which(out_has(lbl("report.print.primary"), out))
   expect_length(kpi_line, 1L)
   expect_match(out[kpi_line], "3.726,41", fixed = TRUE)
   expect_true(any(grepl("38.504,63", out, fixed = TRUE)))
@@ -14,9 +14,9 @@ test_that("print.vofi_result: Kopf, Kopf-Kennzahlen, Tabelle, Hinweise", {
   expect_true(any(grepl("5,12 %", out, fixed = TRUE)))
   # Primärkennzahl steht vor allen anderen Kennzahlen
   expect_lt(kpi_line, grep(paste0("^  ", kpi_label("terminal_value"), " "), out)[1L])
-  expect_true(any(grepl(lbl("report.notes.tax_none"), out, fixed = TRUE)))
-  expect_true(any(grepl(lbl("report.tax_warning_wu_kapges"), out, fixed = TRUE)))
-  expect_true(any(grepl(lbl("report.print.checks_ok"), out, fixed = TRUE)))
+  expect_true(any(out_has(lbl("report.notes.tax_none"), out)))
+  expect_true(any(out_has(lbl("report.tax_warning_wu_kapges"), out)))
+  expect_true(any(out_has(lbl("report.print.checks_ok"), out)))
   expect_error(print(x, sim = 2L), class = "vofi_error_input")
 })
 

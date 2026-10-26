@@ -252,3 +252,40 @@ skip_if_stub <- function(...) {
   }
   invisible(TRUE)
 }
+
+#' Enthaelt die aufgezeichnete Ausgabe `out` den Text `text`? Locale-unabhaengig (Spec 00 15.6)
+#'
+#' Unter einer UTF-8-Locale ein exakter Vergleich (Teilstring bzw. mit `whole = TRUE` ganze
+#' Zeile). Unter anderen Locales (z. B. `LANG=C`) gibt R Nicht-ASCII-Zeichen je nach Ausgabeweg
+#' unveraendert als Bytes (`cat()`), als `<U+00E4>` (`format()`, `encodeString()`) oder oktal
+#' (`print()` von Zeichenketten) aus;
+#' dann steht jede Folge von Nicht-ASCII-Zeichen in `text` fuer beide Formen, alle ASCII-Teile
+#' muessen exakt passen. Liefert einen logischen Vektor wie `grepl()`.
+out_has <- function(text, out, whole = FALSE) {
+  if (isTRUE(l10n_info()[["UTF-8"]])) {
+    return(if (whole) out %in% text else grepl(text, out, fixed = TRUE))
+  }
+  any_char <- "(?:<U\\+[0-9A-F]{4,8}>|\\\\[0-7]{3}|[\\x80-\\xff])+"
+  ascii_part <- function(b) {
+    s <- rawToChar(b)
+    # bereits umgesetzte Zeichen im Text selbst (<U+00E4>) zaehlen wie Nicht-ASCII-Zeichen
+    pieces <- strsplit(s, "<U\\+[0-9A-Fa-f]{4,8}>", perl = TRUE)[[1L]]
+    if (grepl("<U\\+[0-9A-Fa-f]{4,8}>$", s, perl = TRUE)) pieces <- c(pieces, "")
+    pieces <- gsub("([][{}()+*^$|\\\\?.])", "\\\\\\1", pieces, perl = TRUE)
+    paste(pieces, collapse = any_char)
+  }
+  text <- as.character(text)
+  # unter LANG=C liegen Labels als UTF-8-Bytes mit Kodierung "unknown" vor; enc2utf8() wuerde sie
+  # als Nicht-ASCII der Locale verwerfen, deshalb nur latin1 umwandeln
+  if (identical(Encoding(text), "latin1")) text <- enc2utf8(text)
+  b <- charToRaw(text)
+  hi <- as.integer(b) > 127L
+  runs <- rle(hi)
+  ends <- cumsum(runs$lengths)
+  starts <- ends - runs$lengths + 1L
+  pattern <- paste(vapply(seq_along(ends), function(i) {
+    if (runs$values[i]) any_char else ascii_part(b[starts[i]:ends[i]])
+  }, character(1)), collapse = "")
+  if (whole) pattern <- paste0("^", pattern, "$")
+  grepl(pattern, out, perl = TRUE, useBytes = TRUE)
+}

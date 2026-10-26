@@ -13,7 +13,7 @@ test_that("print.vofi_mc_result: Statistik mit SE, Quantilen und Basisfall", {
   expect_true(any(grepl("3.726", out, fixed = TRUE)))
   expect_true(any(grepl(fmt_pct(mc$stats$p_neg[mc$stats$kpi == "delta_terminal_value"], 1),
                         out, fixed = TRUE)))
-  expect_true(any(grepl(lbl("report.mc.se_single"), out, fixed = TRUE)))
+  expect_true(any(out_has(lbl("report.mc.se_single"), out)))
 })
 
 test_that("Hinweise zum Standardfehler (12.7): ein Replikat, grob, Konvergenz", {
@@ -40,7 +40,7 @@ test_that("summary.vofi_mc_result: Risiko in Worten (Konzept 4.5) und Entscheidu
   expect_true(any(grepl(rep_fmt_value(st$es05, "EUR", 0), s$risk, fixed = TRUE)))
   out <- capture.output(print(s))
   expect_true(any(grepl(lbl("report.mc.risk_header"), out, fixed = TRUE)))
-  expect_true(any(grepl(lbl("report.mc.checks_ok"), out, fixed = TRUE)))
+  expect_true(any(out_has(lbl("report.mc.checks_ok"), out)))
   # bedingte Statistik bei Entscheidungsknoten (9.11)
   mc$decision <- list(funding_id = "kfw", fallback_variant = "ohne", key = "kfw",
                       p_approval = 0.8, share_approved = 0.8,
@@ -52,7 +52,7 @@ test_that("summary.vofi_mc_result: Risiko in Worten (Konzept 4.5) und Entscheidu
                            notes = character(0))
   out2 <- capture.output(print(summary(mc)))
   expect_true(any(grepl("kfw", out2, fixed = TRUE)))
-  expect_true(any(grepl(lbl("report.traffic.level_green"), out2, fixed = TRUE)))
+  expect_true(any(out_has(lbl("report.traffic.level_green"), out2)))
 })
 
 test_that("Bestandsprojekt (12.3a): Endwertdifferenz mit Vermerk statt Prim\u00e4rkennzahl", {
@@ -77,13 +77,12 @@ test_that("Bestandsprojekt (12.3a): Endwertdifferenz mit Vermerk statt Prim\u00e
   expect_identical(rep_mc_head_kpis(mc)[1:2],
                    c("delta_terminal_value", "delta_terminal_value_ex_rv"))
   out <- capture.output(print(mc))
-  expect_true(paste0("  - ", note) %in% out)
-  expect_false(any(grepl(lbl("report.print.primary"), out, fixed = TRUE)))
+  expect_true(any(out_has(paste0("  - ", note), out, whole = TRUE)))
+  expect_false(any(out_has(lbl("report.print.primary"), out)))
   # ausdrücklich angefragte Kennzahl ohne Vermerk; Neubau ohne Rückfall und Vermerk
   expect_false(note %in% rep_mc_risk_lines(mc, kpi = "delta_terminal_value"))
   expect_false(rep_mc_primary(wsh_mc())$fallback)
-  expect_false(any(grepl(lbl("kpi.notes.contains_existing"), capture.output(print(wsh_mc())),
-                         fixed = TRUE)))
+  expect_false(any(out_has(lbl("kpi.notes.contains_existing"), capture.output(print(wsh_mc())))))
   # Entscheidungsknoten: bedingte Statistik zur angezeigten Kennzahl
   mc$decision <- list(funding_id = "kfw", fallback_variant = "ohne", key = "kfw",
                       p_approval = 0.8, share_approved = 0.8,

@@ -11,7 +11,7 @@ test_that("print.vofi_comparison: Kennzahlen je Variante, Vergleichsregel, Rangf
   expect_true(any(grepl("2.000", out, fixed = TRUE)))
   expect_true(any(grepl("100,0 %", out, fixed = TRUE)))
   expect_true(any(grepl("1. a, 2. base", out, fixed = TRUE)))
-  expect_true(any(grepl(lbl("report.traffic.rv_dependent"), out, fixed = TRUE)))
+  expect_true(any(out_has(lbl("report.traffic.rv_dependent"), out)))
   expect_true(any(grepl(lbl("report.compare.comparable"), out, fixed = TRUE)))
 })
 
@@ -40,7 +40,7 @@ test_that("summary(), format(), as.data.frame() eines Vergleichs", {
   expect_true(nrow(s$kpis) > 10L)
   out <- capture.output(print(s))
   expect_true(any(grepl(lbl("report.compare.restrictions_header"), out, fixed = TRUE)))
-  expect_true(any(grepl(rep_restriction_label("burden"), out, fixed = TRUE)))
+  expect_true(any(out_has(rep_restriction_label("burden"), out)))
   m <- format(cmp)
   expect_identical(colnames(m), c(lbl("report.mc.col_kpi"), "gas", "wp"))
   expect_identical(nrow(format(cmp, kpis = "own_contribution")), 1L)
@@ -56,7 +56,7 @@ test_that("summary(), format(), as.data.frame() eines Vergleichs", {
   cmp$conditional <- data.frame(variant = "wp", branch = 1L, kpi = "delta_vs_reference",
                                 mean = 1, q05 = 0, q50 = 1, q95 = 2, prob_better = 0.6)
   out2 <- capture.output(print(summary(cmp)))
-  expect_true(any(grepl(lbl("report.compare.conditional_header"), out2, fixed = TRUE)))
+  expect_true(any(out_has(lbl("report.compare.conditional_header"), out2)))
 })
 
 test_that("Bestandsprojekt: Endwertdifferenz je Variante mit Vermerk (12.3a)", {
@@ -68,9 +68,9 @@ test_that("Bestandsprojekt: Endwertdifferenz je Variante mit Vermerk (12.3a)", {
   mark <- lbl("report.compare.note_mark", label = kpi_label("delta_terminal_value"))
   out <- capture.output(print(cmp))
   expect_true(any(grepl(mark, out, fixed = TRUE)))
-  expect_true(fn %in% out)
+  expect_true(any(out_has(fn, out, whole = TRUE)))
   out2 <- capture.output(print(summary(cmp)))
-  expect_true(fn %in% out2)
+  expect_true(any(out_has(fn, out2, whole = TRUE)))
   m <- format(cmp)
   i <- match(lbl("report.common.with_note", label = kpi_label("delta_terminal_value"),
                  note = note), m[, 1L])
@@ -80,7 +80,7 @@ test_that("Bestandsprojekt: Endwertdifferenz je Variante mit Vermerk (12.3a)", {
                    c(kpi_label("delta_vs_reference"), kpi_label("terminal_value")))
   # Neubau: kein Vermerk
   nb <- capture.output(print(example_comparison()))
-  expect_false(any(grepl(note, nb, fixed = TRUE)))
+  expect_false(any(out_has(note, nb)))
 })
 
 test_that("plot.vofi_comparison liefert ein ggplot-Objekt", {
