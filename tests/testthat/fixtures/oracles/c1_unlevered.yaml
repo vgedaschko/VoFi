@@ -1,0 +1,26 @@
+# Orakel (c1_unlevered): Zahlungsfolge von (c) eigenfinanziert, EK 300.000, keine Kredite
+# (Memo 01 §4.4, Spec 00 §15.3; WS-T). Kernwerte: EW 477.695,18; R3 4,7618 %.
+schema_version: 1
+meta: {scenario_id: oracle_c1_unlevered, title: "Orakel (c) eigenfinanziert"}
+project: {perspective: wu_privat, project_type: neubau, valuation_date: 2027-01-01, horizon_years: 10}
+components:
+  inv: {type: custom_series, label: "Gesamtinvestition", values: [-300000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
+  noi: {type: recurring, label: "Reinertrag", category: rent, amount_eur: 12000, growth: 0.02, base_date: 2028-01-01, start_event: 2027-01-01}
+  rv:  {type: custom_series, label: "Restwert", category: residual_value, values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 331078.8844705761]}
+financing:
+  ek: {type: equity, amount_eur: 300000}
+accounts:
+  deposit_rate_pa: 0.025
+  overdraft_rate_pa: 0.09
+  overdraft_limit_eur: .inf
+  min_liquidity_eur: 0
+  deposit_withholding_tax_share: 0
+  surplus_order: [od_repay, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+residual_value: {method: zero}
+tax: {module: none}
+analysis:
+  kpis: [terminal_value, terminal_value_opp, delta_terminal_value, roe_classic, roe_mirr, roe_irr,
+         payback_time, payback_year, min_net_liquidity, max_overdraft, max_financing_need,
+         sum_equity_calls, pv_equity_calls, flag_shortfall, flag_limit_breach, flag_reserve_used,
+         withdrawal_equivalent, npv_cf_project, irr_cf_project]

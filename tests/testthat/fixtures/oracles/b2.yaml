@@ -1,0 +1,39 @@
+# Orakel (b2): wie (b1), Tilgungszuschuss mit Wirkung reduce_installment (Memo 01 §10.3,
+# Spec 00 §15.3; WS-T). Kernwerte: EW 71.353,38; ΔEW 10.403,66; R3 3,6202 %; kein KK;
+# Entnahme-Äquivalent 950,13; Tilgung je 15.937,50 ab t = 3; DSCR min 0,79.
+schema_version: 1
+meta: {scenario_id: oracle_b2, title: "Orakel (b2): Förderdarlehen mit Tilgungszuschuss (Ratensenkung)"}
+project: {perspective: wu_privat, project_type: neubau, valuation_date: 2027-01-01, horizon_years: 10}
+components:
+  inv: {type: custom_series, label: "Vollkosten", values: [-200000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
+  noi: {type: recurring, label: "Einzahlungsüberschüsse", category: rent, amount_eur: 14000, growth: 0.02, base_date: 2028-01-01, start_event: 2027-01-01}
+  rv:  {type: custom_series, label: "Restwert", category: residual_value, values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 60000]}
+financing:
+  ek:  {type: equity, amount_eur: 50000}
+  foe:
+    type: installment_loan
+    label: "Förderdarlehen"
+    funding_id: foe
+    amount_eur: 150000
+    rate_pa: 0.02
+    term_years: 10
+    grace_years: 2
+    payments_per_year: 1
+    repayment_grant: {amount_eur: 22500, date: 2028-01-01, effect: reduce_installment}
+accounts:
+  deposit_rate_pa: 0.02
+  overdraft_rate_pa: 0.08
+  overdraft_limit_eur: .inf
+  min_liquidity_eur: 0
+  deposit_withholding_tax_share: 0
+  surplus_order: [od_repay, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+residual_value: {method: zero}
+tax: {module: none}
+analysis:
+  thresholds: {dscr: 1.2}
+  kpis: [terminal_value, terminal_value_opp, delta_terminal_value, roe_classic, roe_mirr, roe_irr,
+         payback_time, payback_year, min_net_liquidity, max_overdraft, max_financing_need,
+         sum_equity_calls, pv_equity_calls, flag_shortfall, flag_limit_breach, flag_reserve_used,
+         withdrawal_equivalent, npv_cf_project, irr_cf_project, dscr_min, dscr_mean,
+         dscr_years_below, dscr_min_new, icr_min]

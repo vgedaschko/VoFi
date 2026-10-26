@@ -1,0 +1,30 @@
+# Orakel (h): Ratendarlehen 120.000 zu 2 %, 10 Jahre, monatliche Tilgungsrate, Zinsbindung
+# 5 Jahre, Anschlusszins 4 %, refi_rule keep_term (Default) (Spec 00 §8.10, Test (h); WS-T),
+# eingebettet in einen vollständigen VoFi (Zahlungsfolge −150.000 und 15.500 je Jahr,
+# EK 30.000, h = 2 %, s = 6 %). Prüfwerte des Instruments: Tilgungsrate 1.000,00 €/Monat in
+# allen 120 Monaten; Zinsen Jahr 1 = 2.290,00; Restschuld Ende Jahr 5 = 60.000,00;
+# Zinsen Jahr 6 = 2.180,00; Tilgung Jahr 6 = 12.000,00; Restschuld Ende Jahr 8 = 24.000,00;
+# Restschuld Ende Jahr 10 = 0.
+schema_version: 1
+meta: {scenario_id: oracle_h, title: "Orakel (h): Ratendarlehen mit Zinsanpassung"}
+project: {perspective: wu_privat, project_type: neubau, valuation_date: 2027-01-01, horizon_years: 10}
+components:
+  z: {type: custom_series, label: "Zahlungsfolge", values: [-150000, 15500, 15500, 15500, 15500, 15500, 15500, 15500, 15500, 15500, 15500]}
+financing:
+  ek:  {type: equity, amount_eur: 30000}
+  rat: {type: installment_loan, label: "Ratendarlehen", amount_eur: 120000, rate_pa: 0.02, term_years: 10, payments_per_year: 12, fixed_years: 5, followup_rate_pa: 0.04}
+accounts:
+  deposit_rate_pa: 0.02
+  overdraft_rate_pa: 0.06
+  overdraft_limit_eur: .inf
+  min_liquidity_eur: 0
+  deposit_withholding_tax_share: 0
+  surplus_order: [od_repay, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+residual_value: {method: zero}
+tax: {module: none}
+analysis:
+  kpis: [terminal_value, terminal_value_opp, delta_terminal_value, roe_classic, roe_mirr, roe_irr,
+         payback_time, payback_year, min_net_liquidity, max_overdraft, max_financing_need,
+         sum_equity_calls, pv_equity_calls, flag_shortfall, flag_limit_breach, flag_reserve_used,
+         withdrawal_equivalent, npv_cf_project, irr_cf_project]

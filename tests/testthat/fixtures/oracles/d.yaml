@@ -1,0 +1,28 @@
+# Orakel (d): (a) mit allen Zinssätzen 5 % (vollkommener Kapitalmarkt, Memo 01 §10.5,
+# Spec 00 §15.3, Invariante I4; WS-T). Kernwerte: EW 41.004,58; EW_U 38.288,45;
+# ΔEW 2.716,13 = KW(5 %) · 1,05^5; R1 6,4492 %.
+schema_version: 1
+meta: {scenario_id: oracle_d, title: "Orakel (d): vollkommener Kapitalmarkt"}
+project: {perspective: wu_privat, project_type: neubau, valuation_date: 2027-01-01, horizon_years: 5}
+components:
+  z:  {type: custom_series, label: "Zahlungsfolge", values: [-100000, 6000, 10000, 30000, 8000, 30000]}
+  rv: {type: custom_series, label: "Restwert", category: residual_value, values: [0, 0, 0, 0, 0, 40000]}
+financing:
+  ek:  {type: equity, amount_eur: 30000}
+  ann: {type: annuity_loan, label: "Annuitätendarlehen", amount_eur: 40000, rate_pa: 0.05, term_years: 5, payments_per_year: 1}
+  bul: {type: bullet_loan, label: "Endfälliges Darlehen", amount_eur: 30000, rate_pa: 0.05, term_years: 5, payments_per_year: 1}
+accounts:
+  deposit_rate_pa: 0.05
+  overdraft_rate_pa: 0.05
+  overdraft_limit_eur: .inf
+  min_liquidity_eur: 0
+  deposit_withholding_tax_share: 0
+  surplus_order: [od_repay, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+residual_value: {method: zero}
+tax: {module: none}
+analysis:
+  kpis: [terminal_value, terminal_value_opp, delta_terminal_value, roe_classic, roe_mirr, roe_irr,
+         payback_time, payback_year, min_net_liquidity, max_overdraft, max_financing_need,
+         sum_equity_calls, pv_equity_calls, flag_shortfall, flag_limit_breach, flag_reserve_used,
+         withdrawal_equivalent, npv_cf_project, irr_cf_project]

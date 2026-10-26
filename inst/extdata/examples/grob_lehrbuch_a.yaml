@@ -1,0 +1,29 @@
+# inst/extdata/examples/grob_lehrbuch_a.yaml
+schema_version: 1
+meta: {scenario_id: grob_lehrbuch_a, title: "Lehrbuch-VoFi (a): Annuitäten- und endfälliges Darlehen, Restwert", author: "WS-T (Orakel (a))"}
+project: {perspective: wu_privat, project_type: neubau, valuation_date: 2027-01-01, horizon_years: 5}
+components:
+  z:  {type: custom_series, label: "Zahlungsfolge", values: [-100000, 6000, 10000, 30000, 8000, 30000]}
+  rw: {type: custom_series, label: "Restwert", category: residual_value, values: [0, 0, 0, 0, 0, {ref: shared.rw}]}
+shared: {rw: 40000}
+financing:
+  ek:  {type: equity, amount_eur: 30000}
+  ann: {type: annuity_loan, label: "Annuitätendarlehen", amount_eur: 40000, rate_pa: 0.06, term_years: 5, payments_per_year: 1}
+  bul: {type: bullet_loan, label: "Endfälliges Darlehen", amount_eur: 30000, rate_pa: 0.05, term_years: 5, payments_per_year: 1}
+accounts:
+  deposit_rate_pa: 0.03
+  overdraft_rate_pa: 0.10
+  overdraft_limit_eur: .inf
+  min_liquidity_eur: 0
+  surplus_order: [od_repay, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+  deposit_withholding_tax_share: 0
+residual_value: {method: zero}            # Restwert über Komponente rw (Spec 00 §15.3)
+tax: {module: none}
+analysis:
+  kpis: [terminal_value, terminal_value_opp, delta_terminal_value, roe_classic, roe_mirr, roe_irr, payback_time,
+         min_net_liquidity, max_overdraft, withdrawal_equivalent, npv_cf_project, irr_cf_project]
+stochastic:
+  settings: {n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200}
+  parameters:
+    rw: {target: shared.rw, label: "Restwert", dist: triangular, min: 30000, mode: 40000, max: 50000}
