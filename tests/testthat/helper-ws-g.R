@@ -1,16 +1,8 @@
 # Testhelfer von WS-G (Analyse: Monte Carlo, Vergleich, Sensitivität, Zielwertsuche; Spec 00
 # Abschnitte 9.6, 9.9, 9.11, 11.11, 12.7-12.9, 13.2-13.4).
 #
-# vofi_mc(), vofi_compare(), vofi_sensitivity() und vofi_solve() sind geliefert (WS-G) und keine
-# Stubs mehr. Bis der Integrator sie beim Wellen-Merge aus vofi_stubs() (helper-contracts.R)
-# streicht, nimmt diese Hülle sie aus der Liste; sie ist idempotent und verkettbar (setdiff auf
-# die vorige Fassung).
-vofi_stubs <- local({
-  previous <- vofi_stubs
-  function() {
-    setdiff(previous(), c("vofi_mc", "vofi_compare", "vofi_sensitivity", "vofi_solve"))
-  }
-})
+# vofi_mc(), vofi_compare(), vofi_sensitivity() und vofi_solve() sind geliefert (WS-G) und stehen
+# nicht mehr in vofi_stubs() (helper-contracts.R); die frühere Hülle um vofi_stubs() ist entfallen.
 
 #' Meldungen und Plausibilitätswarnungen eines Ausdrucks unterdrücken
 wsg_quiet <- function(expr) {

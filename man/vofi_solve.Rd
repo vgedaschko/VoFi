@@ -50,10 +50,36 @@ Monotonieprüfung), Entnahme-Äquivalent und Rendite der Mehrinvestition (Spec 0
 12.8).
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+\code{what = "breakeven"} bzw. \code{"critical_value"}: gesucht ist der Wert x am Pfad \code{param} mit
+KPI(x) = \code{target} (Default 0; \code{kpi = NULL} ist die Primärkennzahl). Ausgewertet wird über
+Design-Läufe (ein Lauf je Auswertung, Basisfallgrößen wie \code{auto}-Kreditbeträge fest) bzw.
+über ein neu gebautes Modell (Schicht 8), wenn der Pfad kein numerisches Blatt ist oder
+\code{rebuild = TRUE} gilt. Zuerst werden 11 äquidistante Stützstellen des Intervalls gerechnet
+(Default: Minimum und Maximum der Overlay-Verteilung, sonst 0,5- bis 1,5-faches des
+Basiswerts); ohne Vorzeichenwechsel ist das Ergebnis \code{NA} mit Hinweis, bei mehreren
+Wechseln oder nicht monotonen Werten wird im ersten Wechselintervall gesucht (Warnung,
+\code{monotone = FALSE}). Weicht die Kennzahl am Ergebnis um mehr als 1 EUR (bzw. 1e-4 bei
+Raten, Anteilen und Verhältnissen) vom Ziel ab, ist es eine Sprungstelle (\code{jump = TRUE}).
+Mit Overlay-Verteilung des Ziels steht P(X > x*) in \code{prob_exceed}. Vergleichskennzahlen
+werden gegen \code{reference} (Default \code{project.reference_variant}) mit derselben Designmatrix
+gerechnet. Ist bei der Zielrenditemiete \code{roe_mirr} mangels Bestandswert nicht definiert
+(\code{no_existing_value}), wird gleichwertig \code{delta_vs_reference} = 0 bei Habenzins =
+Zielrendite gesucht (Hinweis).
+
+\code{what = "withdrawal_equivalent"}: Entnahme-Äquivalent des deterministischen Laufs mit der
+Toleranz \code{tol} (EUR/Jahr; Wert ohne Restwert im Attribut \code{"value_ex_rv"}).
+\code{what = "incremental_return"}: Habenzins h*, bei dem \code{delta_vs_reference} null wird (41
+Stützstellen auf \code{interval}, Default \verb{[-0,02; 0,15]}, genau ein Vorzeichenwechsel mit
+fallendem Verlauf, sonst \code{NA}).
+}
+\examples{
+sc <- vofi_read_scenario(vofi_example("grob_lehrbuch_a"))
+sol <- vofi_solve(sc, param = "shared.rw", kpi = "delta_terminal_value")
+sol$value
 }
 \seealso{
 Other Analysieren: 
+\code{\link{print.vofi_solution}()},
 \code{\link{vofi_compare}()},
 \code{\link{vofi_kpis}()},
 \code{\link{vofi_mc}()},

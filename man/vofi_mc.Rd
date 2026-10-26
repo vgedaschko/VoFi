@@ -45,16 +45,40 @@ vofi_mc(
 Objekt der Klasse \code{vofi_mc_result}.
 }
 \description{
-Führt die Monte-Carlo-Simulation in Chunks aus ganzen Blöcken aus. Nicht gesetzte (\code{NULL})
-Argumente kommen aus \code{stochastic$settings} (dort alternativ \code{replicates}); \code{preview = TRUE}
-rechnet 1.000 Läufe (= die ersten 1.000 Läufe des Standardlaufs); Entscheidungsknoten werden
-als Kompositum gerechnet (Spec 00, Abschnitte 9.2, 9.9, 9.11, 11.4).
+Führt die Monte-Carlo-Simulation in Chunks aus ganzen Blöcken aus (Spec 00, Abschnitte 9.2,
+9.9, 11.4). Nicht gesetzte (\code{NULL}) Argumente kommen aus \code{stochastic$settings} (dort
+alternativ \code{replicates}, Abschnitt 11.4); Vorrang nach R-97: Argumente vor ausdrücklich
+gesetzten Feldern des Szenarios vor dem Preset vor den Defaults. \code{preview = TRUE} entspricht
+dem Preset \code{preview} und rechnet 1.000 Läufe (= die ersten 1.000 Läufe des Standardlaufs)
+mit \code{store = "kpi"} und ohne \code{keep_runs}, soweit die Argumente nichts anderes angeben.
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Lauf i hängt nur von Seed, Schlüssel, Blockgröße und Block ab, nicht von \code{n_sim}, der
+Chunk-Größe oder der Zahl der Worker. Kennzahlen: ausdrücklich angeforderte Kennzahlen
+(\code{analysis.kpis} im Szenario bzw. als Override) werden alle gerechnet, sonst die Kennzahlen
+mit MC-Default (Spec 00, Abschnitt 12.3; das Entnahme-Äquivalent nur auf Anforderung, R-51).
+Hat die Variante einen Entscheidungsknoten der Förderzusage (Abschnitt 9.11), laufen
+Variante und Ausweichvariante mit denselben Rohziehungen; das Ergebnis ist das Kompositum
+(Spalte \code{branch} in \code{kpis}) mit bedingter Statistik in \code{decision}.
+
+Das Ergebnis enthält Kennzahlen, NA-Gründe, statische Ziehungen und Pfadmerkmale aller Läufe,
+die Statistik je Kennzahl (Mittelwert, Standardabweichung, Replikat-Standardfehler aus den
+Blockmitteln mit \code{se_df}, Quantile, Verlustwahrscheinlichkeit, Mittel der schlechtesten 5 \%,
+erwarteter Nachteil, NA-Anteil, deterministischer Wert, Konvergenzausweis; Abschnitt 12.7),
+bei \code{store = "bands"} bzw. \code{"full"} die Fächerbänder und die nachgerechneten Läufe
+\code{keep_runs}, bei \code{"full"} zusätzlich den Ledger aller Läufe, die Unterlassungsalternative und
+die Ziehungen (Abschnitt 13.2).
+}
+\examples{
+sc <- vofi_read_scenario(vofi_example("grob_lehrbuch_a"))
+model <- vofi_build(sc, overrides = list(analysis = list(
+  kpis = c("terminal_value", "terminal_value_opp", "delta_terminal_value"))))
+mc <- vofi_mc(model, n_sim = 200, seed = 1, store = "kpi")
+mc$stats[, c("kpi", "mean", "se", "q05", "q95", "p_neg")]
 }
 \seealso{
 Other Analysieren: 
+\code{\link{print.vofi_solution}()},
 \code{\link{vofi_compare}()},
 \code{\link{vofi_kpis}()},
 \code{\link{vofi_sensitivity}()},

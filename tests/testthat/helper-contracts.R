@@ -240,9 +240,9 @@ vofi_stubs <- function() {
   # (WS-D2), vofi_library, vofi_write_scenario (WS-A), vofi_opportunity,
   # vofi_register_tax_module, vofi_sim, vofi_tax_module_simple (WS-D)
   # Stufe II geliefert und gestrichen: vofi_table, vofi_ledger, vofi_plot, vofi_export_excel,
-  # vofi_tenant_view, vofi_household_view (WS-H)
-  c("vofi_compare", "vofi_excel_template", "vofi_mc", "vofi_report", "vofi_sensitivity",
-    "vofi_solve")
+  # vofi_tenant_view, vofi_household_view (WS-H); vofi_mc, vofi_compare, vofi_sensitivity,
+  # vofi_solve (WS-G); vofi_excel_template (WS-A2)
+  c("vofi_report")
 }
 
 #' Test überspringen, solange eine der Funktionen ein Stub ist

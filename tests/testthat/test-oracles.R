@@ -525,7 +525,10 @@ test_that("Paket reproduziert die Kennzahlen aller Orakel (registrierte Kennzahl
     unchecked <- expect_oracle(oracle_result("g", variant = v), "g", variant = v)
     regd <- vapply(unchecked, oracle_kpi_registered, logical(1))
     expect_false(any(regd & !grepl("vs_reference|better_than_ref", unchecked)))
-    missing <- union(missing, unchecked[!regd])
+    # Vergleichskennzahlen (12.6) sind keine Registry-Kennzahlen (01a: nicht in analysis.kpis);
+    # sie prüft der folgende Test (g) über vofi_compare()
+    is_cmp <- kpi_base_name(unchecked) %in% names(kpi_compare_specs())
+    missing <- union(missing, unchecked[!regd & !is_cmp])
   }
   # Kennzahlen, deren Typ noch nicht registriert ist (Lieferung WS-D2), sind nicht geprüft
   if (length(missing) > 0L) {
@@ -549,6 +552,11 @@ test_that("Orakel (g): Vergleichsregel über vofi_compare() (Spec 00 9.6 Nr. 4, 
     expect_abs(as.numeric(cmp$differences$delta_vs_reference_ex_rv[1L, "a"]),
                oracle_kpi_value(ex, "delta_vs_reference_ex_rv", "a"), 1e-6)
   }
+  # prob_better_than_ref: deterministisch 0/1 (12.6), Spalte prob_better der Differenzstatistik
+  ds <- cmp$diff_stats[cmp$diff_stats$variant == "a" &
+                         cmp$diff_stats$kpi == "delta_vs_reference", , drop = FALSE]
+  expect_identical(nrow(ds), 1L)
+  expect_equal(ds$prob_better, oracle_kpi_value(ex, "prob_better_than_ref", "a"))
   # Vergleichbarkeitsbericht ohne Fehler trotz ungleicher Nachschüsse (9.6 Nr. 2)
   comp <- cmp$comparability
   expect_false(any(comp$severity == "error"))

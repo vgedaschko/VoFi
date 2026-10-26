@@ -52,9 +52,10 @@ test_that("vofi_read_scenario: Quelle, Herkunft mit Zeilennummern (Schicht 5)", 
   expect_error(vofi_read_scenario(tempfile()), class = "vofi_error_input")
   expect_error(vofi_read_scenario(vofi_example("skeleton"), library_paths = 1),
                class = "vofi_error_input")
+  # Excel-Eingabe ist geliefert (WS-A2): eine Textdatei mit Endung .xlsx ist keine Arbeitsmappe
   ex <- expect_error(vofi_read_scenario(write_lines("a: 1", ".xlsx")),
-                     class = "vofi_error_not_implemented")
-  expect_match(conditionMessage(ex), "excel", fixed = TRUE)
+                     class = "vofi_error_input")
+  expect_identical(ex$key, "excel_input.read_failed")
 })
 
 test_that("Stochastik-Datei: gemischt, Herkunft Schicht 6, nur Wurzelschlüssel stochastic", {
@@ -169,8 +170,8 @@ test_that("vofi_write_scenario: Round-Trip der Eingabeform und der aufgelösten 
   r1 <- suppressMessages(vofi_run(vofi_build(sc)))$kpis$terminal_value
   r2 <- suppressMessages(vofi_run(vofi_build(rs)))$kpis$terminal_value
   expect_identical(r2, r1)
-  expect_error(vofi_write_scenario(sc, tempfile(fileext = ".xlsx")),
-               class = "vofi_error_not_implemented")
+  fx <- tempfile(fileext = ".xlsx")                     # Excel-Schreiber (WS-A2)
+  expect_identical(vofi_write_scenario(sc, fx), fx)
   expect_error(vofi_write_scenario(list(), f), class = "vofi_error_input")
   expect_error(vofi_write_scenario(sc, 1), class = "vofi_error_input")
   expect_error(vofi_write_scenario(sc, f, resolved = NA), class = "vofi_error_input")

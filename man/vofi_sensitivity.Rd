@@ -31,7 +31,8 @@ vofi_sensitivity(
 
 \item{kpi}{Kennzahl (\code{NULL} = Primärkennzahl).}
 
-\item{variant}{Variante (Default \code{"base"}).}
+\item{variant}{Variante (Default \code{"base"}; nur bei einem Szenario, bei einem Modell bzw. einer
+Simulation gilt deren Variante).}
 
 \item{reference}{Referenzvariante für Vergleichskennzahlen.}
 }
@@ -39,14 +40,36 @@ vofi_sensitivity(
 Objekt der Klasse \code{vofi_sensitivity}.
 }
 \description{
-Tornado und Spider (ein Design-Lauf) bzw. globale Sensitivität aus einer Simulation; \code{kpi = NULL} ist die Primärkennzahl, Vergleichskennzahlen werden gegen \code{reference} gerechnet (Spec 00,
-Abschnitte 11.11, 13.4).
+Tornado und Spider (ein Design-Lauf) bzw. globale Sensitivität aus einer Simulation (Spec 00,
+Abschnitte 11.11, 13.4; Spec 01 Teil C 6.4). \code{kpi = NULL} ist die Primärkennzahl;
+Vergleichskennzahlen (z. B. \code{delta_vs_reference}) werden gegen \code{reference} (Default
+\code{project.reference_variant}) mit derselben Designmatrix für Variante und Referenz gerechnet.
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Kandidaten mit \code{params = NULL}: alle statischen Overlay-Schlüssel, alle unsicheren
+Prozessparameter (\verb{<prozess>.<parameter>}), alle Prozesse mit Quantilpfad (Designwert ist das
+Quantilniveau) und die Entscheidungsschlüssel der Förderzusage. Ausdrücklich genannte
+Parameter dürfen außerdem Zielpfade mit numerischem Basiswert sein; ohne Overlay-Verteilung
+gelten die Grenzen Basis × (1 ∓ \code{delta}) (Default 0,2). Basisfallgrößen wie
+\code{auto}-Kreditbeträge bleiben in allen Designzeilen fest (R-69).
+
+\code{method = "global"} wertet eine Simulation aus (\code{x} als \code{vofi_mc_result}; sonst wird eine
+Simulation mit \code{store = "kpi"} gerechnet): Rangkorrelation nach Spearman, standardisierte
+Regressionskoeffizienten auf Werten (SRC) und Rängen (SRRC), partielle
+Rangkorrelationskoeffizienten (PRCC) und der Haupteffektindex \code{s1_binned} =
+\code{Var(E(y | Klasse(x))) / Var(y)} mit 20 gleich besetzten Klassen. Die Treiber sind nach |SRRC|
+geordnet, wenn das Bestimmtheitsmaß der Rangregression mindestens 0,7 beträgt, sonst nach
+\code{s1_binned}.
+}
+\examples{
+sc <- vofi_read_scenario(vofi_example("grob_lehrbuch_a"))
+tor <- vofi_sensitivity(sc, params = c("shared.rw", "financing.ann.rate_pa"),
+                        kpi = "delta_terminal_value")
+tor$results
 }
 \seealso{
 Other Analysieren: 
+\code{\link{print.vofi_solution}()},
 \code{\link{vofi_compare}()},
 \code{\link{vofi_kpis}()},
 \code{\link{vofi_mc}()},

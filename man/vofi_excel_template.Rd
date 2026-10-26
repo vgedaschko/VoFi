@@ -9,7 +9,8 @@ vofi_excel_template(path, example = NULL, overwrite = FALSE)
 \arguments{
 \item{path}{Zieldatei (\code{.xlsx}).}
 
-\item{example}{optional: Name eines Beispielszenarios, das in die Vorlage eingetragen wird.}
+\item{example}{optional: Name eines Beispielszenarios (\code{vofi_example()}) oder ein Objekt der
+Klasse \code{vofi_scenario}, das in die Vorlage eingetragen wird.}
 
 \item{overwrite}{vorhandene Datei überschreiben.}
 }
@@ -17,11 +18,31 @@ vofi_excel_template(path, example = NULL, overwrite = FALSE)
 \code{invisible(path)}.
 }
 \description{
-Erzeugt die Excel-Eingabevorlage aus Registry, Vokabularen und Label-Katalog (Spec 00,
-Abschnitt 4.14).
+Erzeugt die Excel-Eingabevorlage aus Registry, Vokabularen, Feldkatalog und Label-Katalog
+(Spec 00, Abschnitt 4.14; Memo 05 Abschnitt 4.10). Die Vorlage enthält je Domänenblock ein
+Blatt mit deutschen Bezeichnungen, Einheiten, Vorgaben (mit ihrer Herkunft: Typ-Default,
+\code{global.yaml}, Profil, Ableitungsregel), Spalten für die Quelle und Kommentare, Auswahllisten
+für Codes (deutsche Bezeichnungen, der Leser übersetzt sie in Codes), die Blätter
+„Zeitreihen“, „Varianten“, „Szenario-Sets“ und die Blätter des Stochastik-Overlays
+(„Stochastik-Einstellungen“, „Unsicherheiten“, „Prozesse“, „Korrelationen“) sowie eine
+Anleitung. Zeile 1 jedes Datenblatts enthält die Maschinenschlüssel (Pfade, ausgeblendet),
+Zeile 2 die deutschen Überschriften, ab Zeile 3 folgen die Daten; gelbe Zellen sind Eingaben,
+graue Zellen Angaben der Vorlage. Die Blätter sind ohne Kennwort geschützt: Maschinenschlüssel,
+Pfade, Überschriften und Vorgaben sind gesperrt, Eingabezellen, freie Zeilen am Blattende und
+freie Spalten im Blatt „Zeitreihen“ bleiben bearbeitbar.
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Mit \code{example} wird ein Szenario in die Vorlage eingetragen; die Datei entspricht dann
+\code{vofi_write_scenario(szenario, path)} und lässt sich mit \code{vofi_read_scenario()} verlustfrei
+wieder einlesen. Die mitgelieferte Vorlage \code{inst/templates/vofi_eingabe.xlsx} erzeugt
+\code{data-raw/build_template.R}.
+}
+\examples{
+f <- tempfile(fileext = ".xlsx")
+vofi_excel_template(f, example = "skeleton")
+openxlsx::getSheetNames(f)
+sc <- vofi_read_scenario(f)
+sc$meta$scenario_id
 }
 \seealso{
 Other Einlesen: 

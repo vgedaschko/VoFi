@@ -20,7 +20,7 @@ vofi_compare(
 
 \item{variants}{\code{NULL} (alle) oder Namen der Varianten.}
 
-\item{baseline}{Referenzvariante (Default \code{project.reference_variant}).}
+\item{baseline}{Referenzvariante (Default \code{project.reference_variant}, sonst \code{"base"}).}
 
 \item{scenario_sets}{optional: Szenario-Sets, die mit den Varianten gekreuzt werden.}
 
@@ -36,15 +36,40 @@ vofi_compare(
 Objekt der Klasse \code{vofi_comparison}.
 }
 \description{
-Vergleicht Varianten als vollständige VoFis mit gemeinsamen Zufallszahlen (Vergleichsregel
-ΔEW_A − ΔEW_ref, Ausweichvarianten, Set „vorsichtig“, Ampel; Spec 00, Abschnitte 9.6, 9.11,
-12.9).
+Vergleicht Varianten als vollständige VoFis mit gemeinsamen Zufallszahlen (Spec 00,
+Abschnitte 9.6, 9.11, 11.10, 12.6, 12.9). Je Lauf gilt die Vergleichsregel
+\code{delta_vs_reference} = ΔEW der Variante − ΔEW der Referenz, jede gegen ihre eigene
+Unterlassungsalternative mit ihren eigenen Nachschüssen (R-27, R-66); Wahrscheinlichkeiten
+und Quantile werden je Lauf auf den Differenzen gebildet. Ungleiche Nachschüsse sind kein
+Vergleichbarkeitsfehler; Stichtag, Horizontende, Konten, geplante Einlagen und Entnahmen,
+Sacheinlage, Bestandsdarlehen, Restwertmethode und Steuermodul müssen übereinstimmen (sonst
+Fehler \code{vofi_error_validation}, mit \code{allow_unequal = TRUE} Warnung und Befund).
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Statische Szenario-Sets werden mit jeder Variante gekreuzt (Fall \verb{<variante>@<set>}, Referenz
+\verb{<baseline>@<set>}); das generierte Set „vorsichtig“ wird je Variante aus einem Tornado der
+Vergleichskennzahl als Designzeile auf Variante und Referenz gerechnet (Fall
+\verb{<variante>@vorsichtig}) und geht in die Ampel ein. Varianten mit Entscheidungsknoten der
+Förderzusage gehen als Kompositum ein, bedingte Ergebnisse stehen in \code{conditional}.
+
+Im Modus \code{differential} (\code{project.comparison_mode}, Spec 00 Abschnitt 9.6 Nr. 6) erhält die
+Variante in jedem Lauf die negierten Zahlungen der Abschnitte \code{project} und \code{grants} der
+Referenz desselben Laufs; das gilt auch für die Design-Läufe des Sets „vorsichtig“, der
+Rendite der Mehrinvestition, der Pflichtsensitivitäten sowie für \code{vofi_sensitivity()} und
+\code{vofi_solve()} mit Vergleichskennzahlen. \code{delta_vs_reference} ist dann das ΔEW der Variante
+selbst (Vermerk „Vereinfachungsmodus Differenzzahlungen“).
+}
+\examples{
+sc <- vofi_read_scenario(vofi_example("skeleton"))
+sc$variants <- list(mehr = list(label = "Mehr Miete",
+                                set = list("components.z.values" = c(-100000, 31000,
+                                                                    41000, 51000))))
+cmp <- vofi_compare(sc, variants = "mehr")
+cmp$differences$delta_vs_reference
 }
 \seealso{
 Other Analysieren: 
+\code{\link{print.vofi_solution}()},
 \code{\link{vofi_kpis}()},
 \code{\link{vofi_mc}()},
 \code{\link{vofi_sensitivity}()},

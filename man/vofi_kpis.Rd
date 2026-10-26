@@ -55,6 +55,7 @@ vofi_kpis(res, which = "terminal_value", rv = "without")
 }
 \seealso{
 Other Analysieren: 
+\code{\link{print.vofi_solution}()},
 \code{\link{vofi_compare}()},
 \code{\link{vofi_mc}()},
 \code{\link{vofi_sensitivity}()},

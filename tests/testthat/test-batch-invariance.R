@@ -323,7 +323,37 @@ test_that("10. Feste Kreditbetr\u00e4ge bei amount_eur: auto, topup = Mehrbedarf
 })
 
 test_that("11. Entscheidungsknoten: Kompositum = getrennte Rechnung (R-71)", {
-  skip_if_stub("vofi_scenario", "vofi_build", "vofi_mc", "vofi_compare")
-  skip(paste("ben\u00f6tigt F\u00f6rder-Expander mit fallback_variant (WS-E2);",
-             "Integrator erg\u00e4nzt den Test nach Welle 3"))
+  skip_if_stub("vofi_scenario", "vofi_build", "vofi_mc", "vofi_sim")
+  # Szenario mit Förder-Expander (WS-E2), Knoten f (before_start, Ausweichvariante "ohne");
+  # Variante "sicher": Zusagewahrscheinlichkeit 1, also kein Zusageschlüssel und Zweig 1
+  sc <- wsg_decision_scenario(n_sim = 400L, p = 0.6)
+  sc$variants$sicher <- list(label = "Zusage sicher",
+                             set = list(funding.f.approval_probability = 1))
+  mc <- wsg_quiet(vofi_mc(wsg_quiet(vofi_build(sc)), n_sim = 400L, seed = 7L))
+  mv <- wsg_quiet(vofi_mc(wsg_quiet(vofi_build(sc, variant = "sicher")), n_sim = 400L,
+                          seed = 7L))
+  mf <- wsg_quiet(vofi_mc(wsg_quiet(vofi_build(sc, variant = "ohne")), n_sim = 400L,
+                          seed = 7L))
+  b <- mc$kpis$branch
+  expect_true(all(b %in% c(0L, 1L)))
+  expect_true(any(b == 1L) && any(b == 0L))
+  expect_true(all(mv$kpis$branch == 1L))
+  expect_null(mf$decision)
+  # getrennte Läufe mit denselben Ziehungen (Ströme je Schlüssel, 11.3): x_i = b_i x^V_i +
+  # (1 - b_i) x^F_i (9.11 Nr. 4)
+  expect_identical(mv$inputs$rent, mc$inputs$rent)
+  expect_identical(mf$inputs$rent, mc$inputs$rent)
+  for (k in c("terminal_value", "terminal_value_opp", "delta_terminal_value")) {
+    expect_equal(mc$kpis[[k]], ifelse(b == 1L, mv$kpis[[k]], mf$kpis[[k]]), tolerance = 1e-9,
+                 info = k)
+  }
+  expect_equal(mc$decision$share_approved, mean(b == 1L))
+  expect_lt(abs(mean(b == 1L) - 0.6), 0.05)
+  # Einzellauf = Lauf im Batch, auch für den Zweig
+  for (i in unique(c(1L, which(b == 0L)[1L], which(b == 1L)[1L]))) {
+    r <- wsg_quiet(vofi_sim(mc, i))
+    expect_equal(r$kpis$delta_terminal_value, mc$kpis$delta_terminal_value[i],
+                 tolerance = 1e-9, info = i)
+    expect_identical(r$decision$branch, b[i])
+  }
 })
