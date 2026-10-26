@@ -77,3 +77,18 @@ test_that("Nicht-numerische Arten (5.4)", {
   expect_identical(m$processing_fee_share, node_const(0.01))
   expect_identical(m$extra, 1)
 })
+
+test_that("Wachstumsraten > 1 sind ein Eingabefehler (4.6): Wachstumsform und recurring.growth", {
+  expect_error(node_normalize(list(start = 100, growth = 2), NULL, "market.x"),
+               class = "vofi_error_input")
+  ok <- node_normalize(list(start = 100, growth = 0.02, index = "period_end"), NULL, "market.x")
+  expect_identical(ok$index, "period_end")
+  expect_error(node_normalize(list(start = 1, growth = 0.02, index = "ende"), NULL, "m.x"),
+               class = "vofi_error_input")
+  def <- reg_get("flow", "recurring")
+  expect_error(node_normalize(2, def$params$growth, "components.r.growth"),
+               class = "vofi_error_input")
+  expect_identical(node_normalize(list(ref = "market.rent_growth"), def$params$growth,
+                                  "components.r.growth")$kind, "ref")
+  expect_true("path" %in% def$params$growth$shapes)
+})
