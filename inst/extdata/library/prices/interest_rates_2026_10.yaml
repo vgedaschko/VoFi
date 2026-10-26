@@ -1,0 +1,54 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag prices/interest_rates_2026_10: Werte nach Spec 01 Teil C §3.6
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: prices/interest_rates_2026_10
+block: market
+schema_version: 1
+label: "Zinsniveaus Oktober 2026 (MFI-Zinsstatistik, Zinsstruktur, EZB, KfW)"
+source: {document: "Deutsche Bundesbank BBIM1 (SUD101-SUD189), BBSIS, BBIN1; KfW-Konditionenanzeiger 22.10.2026", url: "https://api.statistiken.bundesbank.de/rest/data/", publisher: "Deutsche Bundesbank; KfW"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-08-01
+valid_to: null
+quality: A
+quality_detail: {market.mortgage_rate: A, rates.top_mortgage_10y_broker: C, rates.company_loan_long: D}
+legal_state: {as_of: 2026-10-25, status: market, reference: "Marktdaten"}
+values:
+  market:
+    mortgage_rate: 0.041                  # Default-Bauzins 10 J. (SUD119 08/2026: 4,04 %; Dr. Klein ab 4,16 %)
+    bund_yield_10y: 0.034                 # Svensson 23.10.2026: 3,39 %
+    mortgage_spread: 0.007
+  rates:
+    mortgage_10y_plus_effective: 0.0404   # SUD119 08/2026
+    mortgage_5_10y: 0.0381
+    mortgage_1_5y: 0.0403
+    mortgage_variable: 0.0440
+    mortgage_all_incl_costs: 0.0405       # SUD131
+    top_mortgage_10y_broker: 0.0416       # C (13.10.2026)
+    company_loan_long: 0.039              # D; SUD148 3,86 % (besichert 3,24 %)
+    company_loan_5_10y: 0.0424
+    overdraft_company: 0.0508
+    overdraft_household: 0.0946
+    deposit_overnight_household: 0.0051
+    deposit_1y_household: 0.0228
+    deposit_1_2y_household: 0.0264
+    deposit_gt2y_household: 0.0272
+    bund_10y_sep_avg: 0.0364
+    bund_5y: 0.0336
+    bund_1y: 0.0304
+    ecb_deposit_facility: 0.0250          # seit 10.09.2026
+  kfw_snapshot_2026_10_22:                # Sollzinsen (Effektivzins in den Fördereinträgen)
+    kfw_261: {v10_2_10: 0.0301, v20_3_10: 0.0353, v30_5_10: 0.0365, b10_10_10: 0.0371}
+    kfw_297_298_standard: {v10_2_10: 0.0194, v25_3_10: 0.0281, v35_5_10: 0.0294}
+    kfw_297_298_eh55: {v10_2_10: 0.0100, v25_3_10: 0.0203, v35_5_10: 0.0219}
+    kfw_300_308: {v10_2_10: 0.0001, v25_3_10: 0.0072, v35_5_10: 0.0100, b10_10_10: 0.0115}
+    kfw_358: {v10_2_10: 0.0148, v25_3_10: 0.0253, v35_5_10: 0.0268}
+    kfw_359: {v10_2_10: 0.0453, v25_3_10: 0.0462, v35_5_10: 0.0463}
+    kfw_124: {v25_3_10: 0.0454, v35_5_10: 0.0456}
+    kfw_159: {v20_3_10: 0.0388, v30_5_10: 0.0396}
+  account_defaults_konzept_a2:            # Vorbelegung der Profile (# 01a), Konzept A2/F18
+    wu: {deposit_rate_pa: 0.035, overdraft_rate_pa: 0.055, penalty_spread_pa: 0.02}
+    genossenschaft: {deposit_rate_pa: 0.020, overdraft_rate_pa: 0.055, penalty_spread_pa: 0.02}
+    privat: {deposit_rate_pa: 0.025, overdraft_rate_pa: 0.060, overdraft_limit_eur: 0}
+notes: "KfW-Zinsen werden bei Zusage fixiert und ändern sich teils wöchentlich (Momentaufnahme)."

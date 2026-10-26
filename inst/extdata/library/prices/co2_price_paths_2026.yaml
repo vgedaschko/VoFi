@@ -1,0 +1,24 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag prices/co2_price_paths_2026: Werte nach Spec 01 Teil C §3.6
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: prices/co2_price_paths_2026
+block: market
+schema_version: 1
+label: "CO2-Preispfade Gebäude, nominal (niedrig / mittel / hoch)"
+source: {document: "Memo 03 §3.4: hoch = UBA/Prognos Rahmendaten THG-Projektionen 2026; mittel = Analystenerwartung nach MSR-Reform plus Extrapolation; niedrig = Preisdämpfung PSM", url: "https://www.umweltbundesamt.de/system/files/medien/11850/publikationen/2026-04/2026_Rahmendatenpapier.pdf", publisher: "UBA/Prognos; eigene Ableitung"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+quality_detail: {scenarios.hoch: A}
+legal_state: {as_of: 2026-10-25, status: market, reference: "Preisannahmen; Status BEHG 2027 in legal/behg_ets2_2026"}
+values:
+  scenarios:                               # EUR/t netto; nach 2050 +2 %/a (Abl.)
+    niedrig: {years: [2026, 2027, 2028, 2030, 2032, 2035, 2040, 2045, 2050, 2060, 2070], values: [65, 55, 45, 55, 60, 75, 100, 120, 140, 170.66, 208.03], interpolate: linear}
+    mittel:  {years: [2026, 2027, 2028, 2030, 2032, 2035, 2040, 2045, 2050, 2060, 2070], values: [65, 65, 60, 75, 90, 130, 170, 210, 250, 304.75, 371.49], interpolate: linear}
+    hoch:    {years: [2026, 2027, 2028, 2030, 2032, 2035, 2040, 2045, 2050, 2060, 2070], values: [65, 80, 95, 125, 155, 200, 275, 350, 425, 518.07, 631.53], interpolate: linear}
+  market:
+    co2_price: {years: [2026, 2027, 2028, 2030, 2032, 2035, 2040, 2045, 2050, 2060, 2070], values: [65, 65, 60, 75, 90, 130, 170, 210, 250, 304.75, 371.49], interpolate: linear}
+notes: "Verwendung: market.co2_price: {from: prices/co2_price_paths_2026, use: scenarios.mittel}. Kosten je kWh bei 65 EUR/t: Gas 1,18 ct netto / 1,40 ct brutto (Hs), Heizöl 1,73 / 2,06 ct (Hi); je +10 EUR/t Gas +0,22 ct brutto."

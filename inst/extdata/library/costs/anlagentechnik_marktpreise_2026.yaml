@@ -1,0 +1,33 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag costs/anlagentechnik_marktpreise_2026: Werte nach Spec 01 Teil C §3.7
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: costs/anlagentechnik_marktpreise_2026
+block: costs
+schema_version: 1
+label: "Marktpreise Anlagentechnik 2026: Wärmepumpen, PV, Speicher (brutto)"
+source: {document: "VZ RLP Angebotsauswertung 10/2024-05/2025, Aroundhome 04/2026, 42watt 03/2026, Fraunhofer ISE (über 42watt) (Memo 03 §6.3)", url: "https://www.aroundhome.de/heizung/waermepumpe/preise-kosten", publisher: "div. (Sek.)"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: C
+quality_detail: {cost_hp_mfh_per_kw_eur: D, cost_borehole_per_m_eur: D, cost_pv_mfh_per_kwp_net_eur: D, cost_battery_per_kwh_eur: D, cost_inverter_replacement_per_kwp_eur: D, pv_specific_yield_kwh_kwp: D}
+legal_state: {as_of: 2026-10-25, status: market, reference: "Marktdaten (Sek.)"}
+values:
+  cost_hp_air_water_efh_eur: 32000           # inkl. Installation
+  cost_hp_brine_water_efh_eur: 45000         # inkl. Erdsonden
+  cost_borehole_per_m_eur: 110
+  cost_hp_mfh_per_kw_eur: 1800               # Kaskade inkl. Hydraulik je kW_th
+  cost_pv_small_per_kwp_eur: 1350            # <= 30 kWp, USt 0 %
+  cost_pv_mfh_per_kwp_net_eur: 1100          # 30-100 kWp, netto
+  cost_battery_per_kwh_eur: 550
+  cost_inverter_replacement_per_kwp_eur: 150
+  pv_specific_yield_kwh_kwp: 950
+uncertainty:
+  cost_hp_air_water_efh_eur: {dist: triangular, min: 22000, mode: 32000, max: 50000}
+  cost_hp_brine_water_efh_eur: {dist: triangular, min: 35000, mode: 45000, max: 60000}
+  cost_hp_mfh_per_kw_eur: {dist: triangular, min: 1200, mode: 1800, max: 2800}
+  cost_pv_small_per_kwp_eur: {dist: triangular, min: 1000, mode: 1350, max: 1800}
+  cost_battery_per_kwh_eur: {dist: triangular, min: 300, mode: 550, max: 800}
+  pv_specific_yield_kwh_kwp: {dist: triangular, min: 800, mode: 950, max: 1100}

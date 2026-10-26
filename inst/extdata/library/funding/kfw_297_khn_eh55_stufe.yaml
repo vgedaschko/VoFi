@@ -1,0 +1,24 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag funding/kfw_297_khn_eh55_stufe: Werte nach Spec 01 Teil C §3.4
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+# Hinweis: eigenes Listing nach N-30 (Kette auf KfW 298, EH-55-Stufe)
+id: funding/kfw_297_khn_eh55_stufe
+block: funding
+schema_version: 1
+label: "Klimafreundlicher Neubau – EH-55-Stufe (KfW 297, Selbstnutzung), befristet bis 31.12.2026"
+from: funding/kfw_298_khn_eh55_stufe
+source: {document: "KfW-Merkblatt 297/298, Variante EH 55 (ab 10.04.2026); Budget 800 Mio. EUR 2025/2026", url: "https://www.kfw.de/297-298", publisher: KfW}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-04-10
+valid_to: 2027-01-01
+quality: B
+quality_detail: {budget_risk: D}
+legal_state: {as_of: 2026-04-10, status: administrative, reference: "KFN EH 55 (seit 16.12.2025), Haushaltsvorbehalt"}
+values:
+  program_code: "297"
+  eligibility:
+    applicants: [privatperson]
+    conditions: {owner_occupied: required}
+notes: "Prüffall S5 V1: 100.000 EUR, 35/5/10, 2,19 %, monatlich -> Zins 182,50 EUR/Monat, Annuität 379,19 EUR/Monat."

@@ -1,0 +1,124 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag processes/energy_prices_mr_2026: Werte nach Spec 01 Teil C §2.4
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: processes/energy_prices_mr_2026
+block: processes
+schema_version: 1
+label: "Energiepreise 2026 (netto): Mean-Reversion um Trend (ohne CO2-Komponente), Startjahr 2027"
+source:
+  document: "BDEW Gas-/Strompreisanalyse 08/2026, BNetzA Monitoringbericht 2025, waermepreise.info 04/2026, DEPI 10/2026; HVPI-Teilindizes DE 1996-2025, eigene AR(1)-Schätzung realer Log-Preise (Memo 03 §2.1-2.4, Memo 04 §2.3)"
+  url: "https://www.bdew.de/media/documents/BDEW_Gaspreisanalyse_082026.pdf"
+  publisher: "BDEW; BNetzA; Eurostat; DEPI"
+as_of: 2026-10-26
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D                                  # Normalpreise und Trends: Expertenschätzung
+quality_detail: {lpg: D, power_mfh: D}
+fallback:                                   # nur Dokumentation (R-88): EUR/kWh netto, p0 = det(2027) aus prices/energy_prices_2026
+  gas: {p0: 0.06329700}
+  gas_mfh: {p0: 0.06042243}
+  oil: {p0: 0.09076136}
+  lpg: {p0: 0.07061172}
+  power: {p0: 0.31816764}
+  power_mfh: {p0: 0.27260262}
+  heatpump_power: {p0: 0.22068358}
+  heatpump_power_mfh: {p0: 0.21210671}
+  district_heating: {p0: 0.13331778}
+  pellets: {p0: 0.06774348}
+values:                                     # p_norm = Normalpreis 2027 = p̄(2026) x (1 + ḡ) (2.4, F-08)
+  gas:                                      # Erdgas EFH, Hs, ohne CO2 und Netzentgelt
+    type: mr_trend
+    label: "Erdgaspreis EFH (ohne CO2, ohne Netzentgelt)"
+    p0: base
+    p_norm: 0.05949660                      # 0,05833 x 1,02
+    growth: {dist: normal, mean: 0.020, sd: 0.010}
+    phi: 0.75                               # Memo 03: 0,79 (real 1996-2025); Memo 04: 0,75-0,8
+    sigma: 0.08                             # Memo 04/Konzept F20: 8 %; historisch 10,2 % nominal (inkl. 2022)
+  gas_mfh:
+    type: mr_trend
+    label: "Erdgaspreis MFH (ohne CO2, ohne Netzentgelt)"
+    p0: base
+    p_norm: 0.05691600                      # 0,05580 x 1,02 (D)
+    growth: {dist: normal, mean: 0.020, sd: 0.010}
+    phi: 0.75
+    sigma: 0.08
+  oil:
+    type: mr_trend
+    label: "Heizölpreis (Hi, ohne CO2)"
+    p0: base
+    p_norm: 0.06857460                      # 0,06723 x 1,02
+    growth: {dist: normal, mean: 0.020, sd: 0.012}
+    phi: 0.70
+    sigma: 0.18
+  lpg:                                      # D (Prüfpunkt): Dynamik wie Heizöl, Volatilität geringer
+    type: mr_trend
+    label: "Flüssiggaspreis (Hi, ohne CO2)"
+    p0: base
+    p_norm: 0.06257143                      # 0,06134454 x 1,02
+    growth: {dist: normal, mean: 0.020, sd: 0.012}
+    phi: 0.70
+    sigma: 0.15
+  power:
+    type: mr_trend
+    label: "Haushaltsstrompreis"
+    p0: base
+    p_norm: 0.30857040                      # 0,30252 x 1,02
+    growth: {dist: normal, mean: 0.020, sd: 0.007}
+    phi: 0.75
+    sigma: 0.04                             # Konzept §4.2/F20: 4 %; Memo 03: 4,5 %
+  power_mfh:                                # D: Allgemeinstrom Wohnungsunternehmen, Dynamik wie Haushaltsstrom
+    type: mr_trend
+    label: "Allgemeinstrom MFH"
+    p0: base
+    p_norm: 0.26437981                      # 0,25919589 x 1,02
+    growth: {dist: normal, mean: 0.020, sd: 0.007}
+    phi: 0.75
+    sigma: 0.04
+  heatpump_power:
+    type: mr_trend
+    label: "Wärmepumpenstrom EFH (separater Zähler)"
+    p0: base
+    p_norm: 0.21428160                      # 0,21008 x 1,02
+    growth: {dist: normal, mean: 0.020, sd: 0.007}
+    phi: 0.75
+    sigma: 0.05                             # Memo 03 §17
+  heatpump_power_mfh:
+    type: mr_trend
+    label: "Wärmepumpenstrom Zentral-WP MFH"
+    p0: base
+    p_norm: 0.20571360                      # 0,20168 x 1,02 (D)
+    growth: {dist: normal, mean: 0.020, sd: 0.007}
+    phi: 0.75
+    sigma: 0.05
+  district_heating:
+    type: mr_trend
+    label: "Fernwärmepreis (Mischpreis)"
+    p0: base
+    p_norm: 0.12920125                      # 0,12605 x 1,025
+    growth: {dist: normal, mean: 0.025, sd: 0.008}
+    phi: 0.80
+    sigma: 0.07
+  pellets:
+    type: mr_trend
+    label: "Holzpelletpreis (Hi)"
+    p0: base
+    p_norm: 0.06029412                      # 0,05882353 x 1,025 (7,0 ct brutto / 1,19)
+    growth: {dist: normal, mean: 0.025, sd: 0.008}
+    phi: 0.60
+    sigma: 0.09
+  bio_premium_factor:                       # statisch, Ziel market.bio_fuel_premium (apply: multiply) bzw. shared.bio_premium_factor (Referenzszenarien, apply: replace)
+    dist: triangular
+    label: "Faktor Biomethan-Mehrkosten"
+    min: 0.5                                # 3 ct/kWh netto bei Basis 6 ct
+    mode: 1.0
+    max: 1.6667                             # 10 ct/kWh netto
+    apply: multiply
+  network_fee_growth:                       # statisch, Ziel shared.network_fee_growth_gas bzw. _gas_mfh (Basis 0,03 in global.yaml, N-15)
+    dist: triangular
+    label: "Wachstum Gasnetzentgelte p. a."
+    min: 0.0
+    mode: 0.03
+    max: 0.08
+notes: "Schockkorrelationen in processes/shock_correlations_2026. Die p_norm-Werte gelten für start_year 2027; für ein anderes Startjahr s: p̄(2026) x (1 + ḡ)^(s - 2026) (I p_norm_start_year). Mit p_norm: base (keine Krisenabweichung) kehrt der Prozess zum Trend vom Startwert zurück (Referenzszenarien S1-S5, 5.0 Nr. 6). Spotalternative Heizöl 17,2 ct brutto (prices/energy_prices_2026)."

@@ -1,0 +1,37 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag legal/emission_factors_geg_anlage9: Werte nach Spec 01 Teil C §3.5
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: legal/emission_factors_geg_anlage9
+block: legal
+topic: emission_factors_geg
+schema_version: 1
+label: "Emissionsfaktoren GEG/GModG Anlage 9 (Energieausweis), Fassung 2023 (Fortgeltung bis zur geprüften Neufassung)"
+source: {document: "GModG Anlage 9 (Fassung m. W. v. 01.01.2023)", url: "https://www.buzer.de/Anlage_9_GModG.htm", publisher: "BMJ/buzer.de"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2023-01-01
+valid_to: null                             # Fortgeltung (R-88, N-28, X-29): sonst wäre das Thema ab legal_state 2027 inaktiv
+quality: A
+legal_state: {as_of: 2023-01-01, status: in_force, reference: "GModG Anlage 9; Neufassung durch G. v. 23.07.2026 ab 01.01.2027 angekündigt (neue Werte ungeprüft)"}
+values:                                   # g CO2-Äq./kWh Endenergie (Hi-Basis nach DIN V 18599)
+  heating_oil: 310
+  natural_gas: 240
+  lpg: 270
+  hard_coal: 400
+  lignite: 430
+  biogas: 140
+  biogas_on_site: 75
+  bio_lpg: 180
+  bio_oil: 210
+  bio_oil_on_site: 105
+  wood: 20
+  electricity_grid: 560
+  electricity_on_site_pv_wind: 0
+  electricity_displacement_mix: 860
+  ambient_geothermal_solar: 0
+  process_waste_heat: 40
+  municipal_waste_incineration: 20
+  district_heating_chp: {coal: 300, gas_oil: 180, renewable: 40}
+  district_heating_boiler: {coal: 400, gas_oil: 300, renewable: 60}
+notes: "Prüfpunkte: Neuwerte ab 2027 (Neufassung Anlage 9; Hinweis Strom 100 g/kWh ungeprüft, C, nicht übernommen); bis zur Prüfung gilt diese Fassung fort, die Veraltung meldet as_of (Spec 00 §4.9). Nur Treibhausgasbilanz (co2_emissions, R-101) und Energieausweis; CO2-Kosten mit legal/emission_factors_co2cost_2026."

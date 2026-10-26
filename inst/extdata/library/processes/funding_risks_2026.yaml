@@ -1,0 +1,22 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag processes/funding_risks_2026: Werte nach Spec 01 Teil C §2.7
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: processes/funding_risks_2026
+block: processes
+schema_version: 1
+label: "Förder- und Vergütungsrisiken"
+source:
+  document: "Memo 07 §4.0 (Förderverfügbarkeit nach 2030 p = 0,7; EEG-Reform p = 0,5), Konzept B12 (Kürzung TZ, Voreinstellung 0)"
+  url: "docs/recherche/07_use_cases_referenzszenarien.md"
+  publisher: "eigene Ableitung"
+as_of: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+values:
+  availability_after_2030: {dist: bernoulli, label: "Förderprogramm nach 2030 verfügbar", p: 0.7}   # ausdrücklicher Zusageschlüssel (Rolle value, on_reject); Default-Weg: Feld funding.<id>.availability_after_2030 (N-09)
+  feed_in_continuation:  {dist: bernoulli, label: "feste Einspeisevergütung für Neuanlagen fortgeführt", p: 0.5, apply: multiply}
+  payout_delay:          {dist: pert, label: "Auszahlungsverzug Zuschuss nach Zusage (Monate)", min: 0, mode: 0, max: 6}   # Voreinstellung im Basisfall 0 (Spec 00 §9.11 Nr. 7)
+  repayment_grant_cut:   {dist: discrete, label: "Kürzung bzw. Rückforderung Tilgungszuschuss (Anteil)", values: [0.0, 0.5, 1.0], probs: [0.95, 0.04, 0.01]}   # D; Basiswert 0 (Konzept B12)
+notes: "Ziele: availability_after_2030 -> funding.<id>.approved eines Instruments ohne Entscheidungsknoten (sonst übernimmt der automatische Schlüssel mit Rolle decision). Ohne diese Vorlage entsteht dasselbe Risiko automatisch: rule:approval_probability setzt bei Antrag ab 2031-01-01 approval_probability = budget_risk.approval_probability x funding.<id>.availability_after_2030 (0,7, R-86); mit der Vorlage entfällt der automatische Schlüssel und p = 0,7 gilt allein (I approval_key_and_availability); payout_delay -> funding.<id>.payout_delay_months; repayment_grant_cut -> funding.<id>.repayment_grant.cut_share (01b 4.2; über den Expander auf financing.f_<id>_loan). Prüfwerte: PERT(0; 0; 6) (α = 1, β = 5) Mittel 1,0, q90 2,214256; discrete(0; 0,5; 1) Mittel 0,03, q95 = 0 (Q(0,95) = 0), q96 = 0,5."

@@ -1,0 +1,24 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag funding/bafa_beg_em_fachplanung: Werte nach Spec 01 Teil C §3.4
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: funding/bafa_beg_em_fachplanung
+block: funding
+schema_version: 1
+label: "BEG EM Fachplanung und Baubegleitung (BAFA)"
+source: {document: "BAFA BEG EM (Sek.)", url: "https://www.bafa.de/beg-em", publisher: BAFA}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-07-21
+valid_to: null
+quality: C
+legal_state: {as_of: 2026-07-21, status: administrative, reference: "Richtlinie BEG EM"}
+values:
+  instrument_type: grant
+  provider: BAFA
+  program_code: "beg_em_fachplanung"
+  application_before_start: true
+  budget_risk: {approval_probability: 0.90}  # D
+  rate_components: {grund: {rate: 0.50}}
+  basis: {cap_efh_eur: 5000, cap_mfh_per_unit_eur: 2000, cap_mfh_total_eur: 20000}
+  payout: {event: completion_proof, lag_months: 6}

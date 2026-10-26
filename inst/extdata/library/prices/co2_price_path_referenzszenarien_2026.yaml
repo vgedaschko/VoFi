@@ -1,0 +1,64 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag prices/co2_price_path_referenzszenarien_2026: Werte nach Spec 01 Teil C §3.6
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: prices/co2_price_path_referenzszenarien_2026
+block: market
+schema_version: 1
+label: "CO2-Preispfad der Referenzszenarien S1-S5 (Memo 07 §4.0) mit unsicheren Stützstellen 2030/2040"
+source: {document: "Memo 07 §4.0: 60 EUR/t 2026/2027, 70 EUR/t 2028, +5 EUR/t p. a. bis 2035 (105), danach +3 % p. a.", url: "docs/recherche/07_use_cases_referenzszenarien.md", publisher: "eigene Festlegung (Referenzszenarien)"}
+as_of: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+legal_state: {as_of: 2026-10-25, status: derived, reference: "Szenarioannahme"}
+values:                                   # setzt shared.co2_2030 (Basis 80) und shared.co2_2040 (Basis 105 x 1,03^5) im Szenario voraus
+  series:
+    2026: 60
+    2027: 60
+    2028: 70
+    2029: {expr: "(70 + shared.co2_2030) / 2"}
+    2030: {ref: shared.co2_2030}
+    2031: {expr: "shared.co2_2030 + 1 * (105 - shared.co2_2030) / 5"}
+    2032: {expr: "shared.co2_2030 + 2 * (105 - shared.co2_2030) / 5"}
+    2033: {expr: "shared.co2_2030 + 3 * (105 - shared.co2_2030) / 5"}
+    2034: {expr: "shared.co2_2030 + 4 * (105 - shared.co2_2030) / 5"}
+    2035: 105
+    2036: {expr: "105 * (shared.co2_2040 / 105)^(1/5)"}
+    2037: {expr: "105 * (shared.co2_2040 / 105)^(2/5)"}
+    2038: {expr: "105 * (shared.co2_2040 / 105)^(3/5)"}
+    2039: {expr: "105 * (shared.co2_2040 / 105)^(4/5)"}
+    2040: {ref: shared.co2_2040}
+    2041: {expr: "shared.co2_2040 * 1.03^1"}
+    2042: {expr: "shared.co2_2040 * 1.03^2"}
+    2043: {expr: "shared.co2_2040 * 1.03^3"}
+    2044: {expr: "shared.co2_2040 * 1.03^4"}
+    2045: {expr: "shared.co2_2040 * 1.03^5"}
+    2046: {expr: "shared.co2_2040 * 1.03^6"}
+    2047: {expr: "shared.co2_2040 * 1.03^7"}
+    2048: {expr: "shared.co2_2040 * 1.03^8"}
+    2049: {expr: "shared.co2_2040 * 1.03^9"}
+    2050: {expr: "shared.co2_2040 * 1.03^10"}
+    2051: {expr: "shared.co2_2040 * 1.03^11"}
+    2052: {expr: "shared.co2_2040 * 1.03^12"}
+    2053: {expr: "shared.co2_2040 * 1.03^13"}
+    2054: {expr: "shared.co2_2040 * 1.03^14"}
+    2055: {expr: "shared.co2_2040 * 1.03^15"}
+    2056: {expr: "shared.co2_2040 * 1.03^16"}
+    2057: {expr: "shared.co2_2040 * 1.03^17"}
+    2058: {expr: "shared.co2_2040 * 1.03^18"}
+    2059: {expr: "shared.co2_2040 * 1.03^19"}
+    2060: {expr: "shared.co2_2040 * 1.03^20"}
+    2061: {expr: "shared.co2_2040 * 1.03^21"}
+    2062: {expr: "shared.co2_2040 * 1.03^22"}
+    2063: {expr: "shared.co2_2040 * 1.03^23"}
+    2064: {expr: "shared.co2_2040 * 1.03^24"}
+    2065: {expr: "shared.co2_2040 * 1.03^25"}
+    2066: {expr: "shared.co2_2040 * 1.03^26"}
+    2067: {expr: "shared.co2_2040 * 1.03^27"}
+    2068: {expr: "shared.co2_2040 * 1.03^28"}
+    2069: {expr: "shared.co2_2040 * 1.03^29"}
+    2070: {expr: "shared.co2_2040 * 1.03^30"}
+  fill: locf                               # nach 2070 konstant
+  before: first
+notes: "Deterministisch (shared.co2_2030 = 80, shared.co2_2040 = 105 x 1,03^5 = 121,72377780): exakt Memo 07 (2026-2035 linear, danach +3 % p. a.; z. B. 2040: 121,72; 2050: 163,59; 2056: 195,33; 2066: 262,51). Overlay der Referenzszenarien: shared.co2_2030 ~ triangular(60; 90; 200), shared.co2_2040 ~ triangular(80; 150; 300), Rangkorrelation 0,8 (D). Zwischen 2030 und 2035 linear, zwischen 2035 und 2040 geometrisch interpoliert, ab 2040 +3 % p. a. vom gezogenen Wert."

@@ -1,0 +1,86 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag processes/shock_correlations_2026: Werte nach Spec 01 Teil C §2.6
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: processes/shock_correlations_2026
+block: processes
+schema_version: 1
+label: "Korrelation der Jahresschocks (geschrumpft)"
+source:
+  document: "Korrelation jährlicher Änderungen HVPI-Teilindizes, Baupreise, Bund 10 J. 2001-2025, um 30-40 % geschrumpft (Memo 03 §2.3, §17 correlation_innovations); VPI-Gas 0,6, Gas-Strom 0,5, VPI-Bauzins 0,4 (Memo 04 §2.3, Konzept §4.2)"
+  url: "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_aind"
+  publisher: "Eurostat; Deutsche Bundesbank; eigene Ableitung"
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+values:                                    # [Prozess a, Prozess b, rho]; Schlüssel nach 1.10.2
+  - [inflation, mortgage_rate, 0.40]
+  - [inflation, energy_price_gas, 0.60]
+  - [inflation, energy_price_gas_mfh, 0.60]
+  - [inflation, energy_price_power, 0.40]
+  - [inflation, energy_price_heatpump_power, 0.40]
+  - [inflation, energy_price_heatpump_power_mfh, 0.40]
+  - [inflation, energy_price_oil, 0.40]
+  - [inflation, energy_price_district_heating, 0.40]
+  - [inflation, energy_price_pellets, 0.45]
+  - [mortgage_rate, energy_price_gas, 0.35]
+  - [mortgage_rate, energy_price_gas_mfh, 0.35]
+  - [mortgage_rate, energy_price_power, 0.30]
+  - [mortgage_rate, energy_price_heatpump_power, 0.30]
+  - [mortgage_rate, energy_price_heatpump_power_mfh, 0.30]
+  - [mortgage_rate, energy_price_oil, 0.20]
+  - [mortgage_rate, energy_price_district_heating, 0.20]
+  - [mortgage_rate, energy_price_pellets, 0.35]
+  - [energy_price_gas, energy_price_gas_mfh, 0.95]
+  - [energy_price_gas, energy_price_power, 0.50]
+  - [energy_price_gas, energy_price_heatpump_power, 0.50]
+  - [energy_price_gas, energy_price_heatpump_power_mfh, 0.50]
+  - [energy_price_gas, energy_price_oil, 0.35]
+  - [energy_price_gas, energy_price_district_heating, 0.50]
+  - [energy_price_gas, energy_price_pellets, 0.45]
+  - [energy_price_gas_mfh, energy_price_power, 0.50]
+  - [energy_price_gas_mfh, energy_price_heatpump_power, 0.50]
+  - [energy_price_gas_mfh, energy_price_heatpump_power_mfh, 0.50]
+  - [energy_price_gas_mfh, energy_price_oil, 0.35]
+  - [energy_price_gas_mfh, energy_price_district_heating, 0.50]
+  - [energy_price_gas_mfh, energy_price_pellets, 0.45]
+  - [energy_price_power, energy_price_heatpump_power, 0.90]
+  - [energy_price_power, energy_price_heatpump_power_mfh, 0.90]
+  - [energy_price_heatpump_power, energy_price_heatpump_power_mfh, 0.95]
+  - [energy_price_power, energy_price_oil, 0.30]
+  - [energy_price_heatpump_power, energy_price_oil, 0.30]
+  - [energy_price_heatpump_power_mfh, energy_price_oil, 0.30]
+  - [energy_price_power, energy_price_district_heating, 0.20]
+  - [energy_price_heatpump_power, energy_price_district_heating, 0.20]
+  - [energy_price_heatpump_power_mfh, energy_price_district_heating, 0.20]
+  - [energy_price_power, energy_price_pellets, 0.50]
+  - [energy_price_heatpump_power, energy_price_pellets, 0.50]
+  - [energy_price_heatpump_power_mfh, energy_price_pellets, 0.50]
+  - [energy_price_oil, energy_price_district_heating, 0.25]
+  - [energy_price_oil, energy_price_pellets, 0.35]
+  - [energy_price_district_heating, energy_price_pellets, 0.20]
+  # Ergänzung Runde 3 (N-15): Allgemeinstrom wie Haushaltsstrom, Flüssiggas wie Heizöl
+  - [inflation, energy_price_power_mfh, 0.40]
+  - [inflation, energy_price_lpg, 0.40]
+  - [mortgage_rate, energy_price_power_mfh, 0.30]
+  - [mortgage_rate, energy_price_lpg, 0.20]
+  - [energy_price_gas, energy_price_power_mfh, 0.50]
+  - [energy_price_gas, energy_price_lpg, 0.35]
+  - [energy_price_gas_mfh, energy_price_power_mfh, 0.50]
+  - [energy_price_gas_mfh, energy_price_lpg, 0.35]
+  - [energy_price_power, energy_price_power_mfh, 0.95]
+  - [energy_price_power_mfh, energy_price_heatpump_power, 0.90]
+  - [energy_price_power_mfh, energy_price_heatpump_power_mfh, 0.90]
+  - [energy_price_power_mfh, energy_price_oil, 0.30]
+  - [energy_price_power_mfh, energy_price_lpg, 0.30]
+  - [energy_price_power_mfh, energy_price_district_heating, 0.20]
+  - [energy_price_power_mfh, energy_price_pellets, 0.50]
+  - [energy_price_power, energy_price_lpg, 0.30]
+  - [energy_price_heatpump_power, energy_price_lpg, 0.30]
+  - [energy_price_heatpump_power_mfh, energy_price_lpg, 0.30]
+  - [energy_price_oil, energy_price_lpg, 0.80]
+  - [energy_price_lpg, energy_price_district_heating, 0.25]
+  - [energy_price_lpg, energy_price_pellets, 0.35]
+notes: "Keine Paare mit rent_growth, construction_price_index, maintenance_index (strukturell gekoppelt). Fehlende Schlüssel werden verworfen (1.7.1, R-96). MFH-Varianten tragen dieselben Korrelationen wie die EFH-Prozesse (sonst nicht positiv definit: ohne Spiegelung kleinster Eigenwert −0,389); power_mfh spiegelt power (ρ 0,95), lpg spiegelt oil (ρ 0,80). Prüfwerte: volle 12 × 12-Matrix (66 Paare) Eigenwerte 6,02276; 1,77122; 1,24778; 0,86560; 0,60781; 0,53472; 0,45012; 0,20000; 0,15000; 0,05; 0,05; 0,05 (positiv definit, keine Reparatur); Teilmatrix der zehn Prozesse ohne lpg und power_mfh: 5,06475; 1,47189; 0,87818; 0,80099; 0,59464; 0,52757; 0,44568; 0,11631; 0,05; 0,05; Teilmatrix der acht Kernprozesse inflation, mortgage_rate, energy_price_{gas, power, heatpump_power, oil, district_heating, pellets}: 3,77181; 1,13739; 0,81782; 0,78155; 0,55072; 0,48524; 0,35546; 0,10000 (positiv definit, keine Reparatur)."

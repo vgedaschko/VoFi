@@ -1,0 +1,73 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag costs/kostenfunktionen_sanierung_iwu_2026: Werte nach Spec 01 Teil C §3.7
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: costs/kostenfunktionen_sanierung_iwu_2026
+block: costs
+schema_version: 1
+label: "IWU-Kostenfunktionen Sanierung, Preisstand 2023 x 1,12 = 2026 (brutto)"
+source: {document: "IWU (Müller, Fiedler, Koch), Working Paper Anpassung der Kostenfunktionen 2022/2023 (08.08.2024); Fortschreibung 2023->2026 Faktor 1,12 (Memo 03 §6.2-6.5)", url: "https://iwu.de/fileadmin/publikationen/energie/2024_IWU_MuellerEtAl_WorkingPaper-Anpassung-Kostenfunktionen-2022-2023.pdf", publisher: IWU}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: B
+quality_detail: {index_factor_2023_to_2026: D, windows.full_cost_triple_glazing_eur_m2: D, ohnehin_share: D}
+legal_state: {as_of: 2024-08-08, status: market, reference: "Kostenfunktionen nach Hinz 2015, fortgeschrieben"}
+values:
+  index_factor_2023_to_2026: 1.12                 # bereits in den Koeffizienten unten enthalten
+  envelope_eur_m2_component: {formula: "a + b * x_cm"}   # x = Dämmstoffdicke in cm
+  envelope:
+    etics_full:                     {a: 169.6, b: 4.92}   # x = 16: 248,3
+    etics_energy_related:           {a: 36.2,  b: 5.15}   # x = 16: 118,6
+    cavity_insulation:              {a: 18.7,  b: 2.98}
+    basement_ceiling_no_cladding:   {a: 55.1,  b: 2.24}   # x = 10: 77,5
+    basement_ceiling_with_cladding: {a: 97.3,  b: 2.78}
+    basement_ceiling_top_side:      {a: 16.2,  b: 2.93}
+    pitched_roof_full:              {a: 291.8, b: 5.35}   # x = 20: 398,8
+    pitched_roof_energy_related:    {a: 21.9,  b: 4.59}
+    pitched_roof_retrofit_only:     {a: 63.3,  b: 4.49}
+    flat_roof_full:                 {a: 199.9, b: 7.88}   # x = 20: 357,5
+    flat_roof_energy_related:       {a: 41.6,  b: 5.58}
+    top_ceiling_walkable:           {a: 52.3,  b: 3.33}   # x = 20: 118,9
+    top_ceiling_not_walkable:       {a: 6.9,   b: 1.98}
+  windows:
+    full_cost_triple_glazing_eur_m2: 850          # D (Marktpreis 2026, nicht in IWU)
+    extra_cost_2wsv_to_3wsv_mfh: {a: 112.9, exponent: -0.255}   # EUR/m2 Fensterfläche, x = m2/Stück; F = 1,5 -> 102
+    extra_cost_2wsv_to_3wsv_efh: {a: 103.2, exponent: -0.191}
+    extra_cost_2wsv_to_passive_mfh: {a: 402.2, exponent: -0.136}
+  doors_eur_m2: {mfh: 2237, efh: 2623}
+  systems_eur_m2_an: {formula: "a * A_N^exponent"}   # A_N Gebäudenutzfläche (ca. 1,2-1,35 x Wfl.); Gesamtkosten = spez. Kosten x A_N
+  systems:
+    gas_condensing_boiler:           {a: 1734.7, exponent: -0.518}   # EFH A_N 180: ca. 21.200; MFH 1.300: ca. 55.000
+    district_heating_substation:     {a: 1270.3, exponent: -0.487}
+    district_heating_connection:     {a: 1024.7, exponent: -0.614}
+    gas_connection:                  {a: 299.1,  exponent: -0.49}
+    pellet_boiler:                   {a: 4850.9, exponent: -0.587}
+    oil_boiler:                      {a: 2304.5, exponent: -0.536}
+    heating_distribution:            {a: 1277.6, exponent: -0.533}
+    ventilation_central_hr:          {a: 693.9,  exponent: -0.364}
+    ventilation_decentral_hr:        {a: 1510.8, exponent: -0.652}
+    exhaust_ventilation:             {a: 1936.3, exponent: -0.78}
+    solar_thermal_dhw_with_new_boiler: {a: 2095.9, exponent: -0.489}
+    architect_fees:                  {a: 1337.8, exponent: -0.599}
+    energy_advice:                   {a: 26.7,   exponent: -0.339}
+  ohnehin_share:                                   # Instandsetzungsanteil an Vollkosten bei fälliger Erneuerung
+    etics: 0.50
+    pitched_roof: 0.70
+    flat_roof: 0.57
+    windows: 0.85
+    basement_ceiling: 0.0
+    top_ceiling: 0.0
+    cavity_insulation: 0.0
+    ventilation: 0.0
+    heating_replacement: reference_system_cost     # Ohnehin = Kosten der Referenzanlage (Gas-Brennwert)
+    rule: "nur bei Restnutzungsdauer <= 5 Jahre voll, sonst anteilig nach Restwert (linear)"
+uncertainty:
+  index_factor_2023_to_2026: {dist: triangular, min: 1.09, mode: 1.12, max: 1.16}
+  windows.full_cost_triple_glazing_eur_m2: {dist: triangular, min: 600, mode: 850, max: 1300}
+  ohnehin_share.etics: {dist: triangular, min: 0.40, mode: 0.50, max: 0.65}
+  ohnehin_share.pitched_roof: {dist: triangular, min: 0.60, mode: 0.70, max: 0.80}
+  ohnehin_share.flat_roof: {dist: triangular, min: 0.45, mode: 0.57, max: 0.65}
+  ohnehin_share.windows: {dist: triangular, min: 0.75, mode: 0.85, max: 0.90}
+notes: "Prüfwerte: WDVS 16 cm 169,6 + 4,92 x 16 = 248,32 EUR/m2 (energiebedingt 118,60; Ohnehin-Anteil 0,52); Steildach 20 cm 398,80 / 113,70; Kellerdecke 10 cm 77,50; Gas-BW MFH A_N 1.300: 1.734,7 x 1300^-0,518 x 1300 = 55.0 TEUR (gerundet). Basis: Abrechnungen bis 2015, nur indexiert (Memo 03 §15)."

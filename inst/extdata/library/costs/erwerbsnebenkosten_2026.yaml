@@ -1,0 +1,27 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag costs/erwerbsnebenkosten_2026: Werte nach Spec 01 Teil C §3.7
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: costs/erwerbsnebenkosten_2026
+block: costs
+schema_version: 1
+label: "Erwerbsnebenkosten (ohne Grunderwerbsteuer)"
+source: {document: "Kaufnebenkostenrechner 2026 (GNotKG-basiert, Sek.) (Memo 03 §10.4)", url: "https://baufivergleich.de/kaufnebenkosten-rechner/", publisher: "baufivergleich.de"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: C
+quality_detail: {other_share: D, notary_share: D, land_registry_share: D}   # Aufteilung der Summe 1,5 % (C) auf Notar/Grundbuch: D
+legal_state: {as_of: 2026-10-25, status: market, reference: "Marktdaten; Maklerhalbteilung § 656c BGB nur EFH/ETW an Verbraucher"}
+values:                                    # Schlüssel = Felder measures.<m>.* von Teil A §4.1 (X-19)
+  notary_share: 0.010                      # Notar (GNotKG), zusammen mit Grundbuch 1,5 % (Memo 03 §10.4)
+  land_registry_share: 0.005               # Grundbuchamt
+  broker_share: 0.0357                     # Vergleichswert Makler Käufer (EFH/ETW an Verbraucher); Teil A setzt 0 als Default
+  other_share: 0.005                       # D: Gutachten, Due Diligence; Teil A setzt 0 als Default
+uncertainty:
+  notary_share: {dist: triangular, min: 0.007, mode: 0.010, max: 0.013}
+  land_registry_share: {dist: triangular, min: 0.004, mode: 0.005, max: 0.007}
+  broker_share: {dist: triangular, min: 0.0, mode: 0.0357, max: 0.0714}
+  other_share: {dist: triangular, min: 0.002, mode: 0.005, max: 0.010}
+notes: "Summe Notar + Grundbuch 0,015 (Spanne 0,011-0,020, Memo 03 §10.4); Teil A liest use: notary_share bzw. land_registry_share (rule:measure_catalog, OP-20 Teil A)."

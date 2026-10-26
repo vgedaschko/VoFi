@@ -1,0 +1,25 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag prices/eeg_feed_in_2026: Werte nach Spec 01 Teil C §3.6
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: prices/eeg_feed_in_2026
+block: market
+schema_version: 1
+label: "EEG-Einspeisevergütung (Inbetriebnahme 01.08.2026 bis 31.01.2027)"
+source: {document: "DGS-Arbeitshilfe EEG-Vergütungssätze 01.08.2026; EEG-Novelle (Kabinett 29.07.2026, Sek.)", url: "https://www.dgs.de/wp-content/uploads/2026/08/260801_dgs_arbeitshilfe_eeg_verguetungssaetze.pdf", publisher: "DGS"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-08-01
+valid_to: 2027-02-01
+quality: C
+legal_state: {as_of: 2026-08-01, status: in_force, reference: "EEG 2023 §§ 48, 49; Reform 2027 anhängig (Wegfall fester Vergütung < 25 kWp)"}
+values:
+  market:
+    feed_in_tariff:                        # EUR/kWh, fest 20 Jahre ab Inbetriebnahme
+      partial_le10kwp: 0.0770
+      partial_10_40kwp: 0.0666
+      partial_40_100kwp: 0.0545             # D: 5,74 ct (02/2024) x 0,99^5 (Degression, ± 0,01 ct je nach Rundung), Prüfpunkt
+      full_le10kwp: 0.1222
+  degression_per_half_year: 0.01           # Memo 07 §4.0 (C)
+  fixed_years: 20
+notes: "Mischsatz S3 (30 kWp): (10 x 7,70 + 20 x 6,66)/30 = 7,0067 ct/kWh; Einspeisung 18.900 kWh -> 1.324,26 EUR/a (S3-T6). Der PV-Default-Ausdruck von Teil B (3.9.1) nutzt alle drei Teileinspeisungsklassen einschließlich partial_40_100kwp (N-16, X-24 d). Fortschreibung für spätere Inbetriebnahmen (z. B. S2 01/2029: 6,66 x 0,99^4 = 6,40 ct; S5 12/2027: 7,70 x 0,99^2 = 7,55 ct) ist eine Näherung (D, ± 0,01 ct): Prüfpunkt Rundungsregel des EEG (Rundung je Stufe auf zwei Nachkommastellen; Folgeanpassung auf Basis der ungerundeten Werte) und die amtlichen BNetzA-Werte (F-25). Unsicherheit Neuanlagen ab 2027: processes/funding_risks_2026 (use: feed_in_continuation)."

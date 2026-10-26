@@ -1,0 +1,26 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag costs/bewirtschaftung_ii_bv_2026: Werte nach Spec 01 Teil C §3.7
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: costs/bewirtschaftung_ii_bv_2026
+block: costs
+schema_version: 1
+label: "II. Berechnungsverordnung: Pauschalen ab 01.01.2026 (Kostenmiete)"
+source: {document: "VdW Bayern, II. BV Anpassung der Pauschalen zum 01.01.2026 (VPI Okt. 2025 123,0 / Okt. 2022 113,5 = +8,37 %)", url: "https://www.vdwbayern.de/wp-content/uploads/2025/11/VdW_Zweite-Berechnungsverordnung_Pauschalen_2026_fin.pdf", publisher: "VdW Bayern"}
+references:
+  - {document: "Haus & Grund Düsseldorf / Haufe (Bestätigung, Sek.)", url: "https://www.haufe.de/immobilien/", publisher: Haufe}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: 2029-01-01                       # nächste Anpassung 01.01.2029
+quality: B                                 # Förderbank-Merkblatt; amtliche Bekanntmachung nicht eingesehen (Konzept §3.6)
+legal_state: {as_of: 2026-01-01, status: in_force, reference: "II. BV §§ 26, 28, 29"}
+values:
+  admin_per_unit_eur_pa: 372.46
+  admin_per_garage_eur_pa: 48.58
+  maintenance_eur_m2_pa: {lt22y: 11.50, ge22y: 14.58, ge32y: 18.62}   # nach Bezugsfertigkeit
+  maintenance_adjustments_eur_m2_pa: {commercial_heat_supply: -0.31, elevator: 1.63, small_repairs_by_tenant: -1.70}
+  cosmetic_repairs_by_landlord_eur_m2_pa: 13.75   # Haufe: 13,76
+  maintenance_per_garage_eur_pa: 110.13           # Haufe: 110,11
+  rent_loss_risk_share: 0.02
+  indexation: {index: vpi, every_years: 3, next: 2029-01-01}

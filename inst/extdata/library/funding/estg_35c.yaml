@@ -1,0 +1,31 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag funding/estg_35c: Werte nach Spec 01 Teil C §3.4
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: funding/estg_35c
+block: funding
+schema_version: 1
+label: "Steuerermäßigung für energetische Maßnahmen an selbstgenutztem Wohneigentum (§ 35c EStG)"
+source: {document: "§ 35c EStG; zuletzt geändert durch Art. 7 G. v. 29.06.2026 (BGBl. 2026 I Nr. 197)", url: "https://www.gesetze-im-internet.de/estg/__35c.html", publisher: BMJ}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2020-01-01
+valid_to: 2030-01-01                         # Abschluss der Maßnahme vor dem 01.01.2030
+quality: B
+legal_state: {as_of: 2026-06-29, status: in_force, reference: "§ 35c EStG"}
+values:
+  instrument_type: tax_credit
+  program_code: "estg_35c"
+  application_before_start: false
+  budget_risk: {approval_probability: 1.0}   # Rechtsanspruch, keine Haushaltsbindung
+  eligibility:
+    applicants: [privatperson]
+    conditions: {owner_occupied: required, building_age_min_years: 10, contractor_certified: required, completion_before: 2030-01-01}
+  credit:
+    total_share: 0.20
+    schedule_shares: [0.07, 0.07, 0.06]      # Jahr der Fertigstellung, Folgejahr, übernächstes Jahr
+    cap_per_object_eur: 40000                # = 200.000 EUR Aufwendungen
+    energy_advice_share: 0.50
+    capped_by_expected_income_tax: true      # household.expected_income_tax_eur_pa (# 01b); nicht nutzbare Beträge verfallen
+  cumulation: {exclusive_with: [funding/kfw_458_heizung_privat, funding/bafa_beg_em_huelle, funding/kfw_261_wg_kredit_2026, funding/kfw_358_ergaenzungskredit_plus, funding/kfw_359_ergaenzungskredit]}   # gegen die ganze from:-Kette und program_code (N-12): trifft auch kfw_459, kfw_261_eh*
+notes: "Prüfpunkt: Inhalt der Änderung vom 29.06.2026 nicht geprüft (Memo 02 §5.7). Ausweis im Abschnitt grants, Kategorie tax_credit (R-11). Zahlung der Tranche des Veranlagungsjahres Y zum Termin add_months((Y+1)-01-01, payout_delay_months), Default 12 über rule:tax_credit_defaults (R-98, R-86). Prüffall (01b): § 35c zusammen mit funding/kfw_261_eh70 oder kfw_358 für dieselbe Maßnahme -> E."

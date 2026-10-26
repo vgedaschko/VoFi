@@ -1,0 +1,23 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag costs/sanierung_eh_pakete_2026: Werte nach Spec 01 Teil C §3.7
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: costs/sanierung_eh_pakete_2026
+block: costs
+schema_version: 1
+label: "Komplettsanierung auf Effizienzhaus-Niveau (top-down, nur Plausibilisierung)"
+source: {document: "Ariadne (Sek.), Ratgeber 2026, GdW (Memo 03 §6.4)", url: "docs/recherche/03_parameter_defaults.md", publisher: "div. (Sek.)"}
+as_of: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+legal_state: {as_of: 2026-10-25, status: market, reference: "Plausibilitätswerte"}
+values:                                       # EUR/m2 Wohnfläche brutto inkl. KG 700, ohne Förderung
+  eh85: {cost_eur_m2: 750,  ohnehin_share: 0.40}
+  eh70: {cost_eur_m2: 1050, ohnehin_share: 0.40}
+  eh55: {cost_eur_m2: 1350, ohnehin_share: 0.35}
+uncertainty:
+  eh85.cost_eur_m2: {dist: triangular, min: 500, mode: 750, max: 1100}
+  eh70.cost_eur_m2: {dist: triangular, min: 750, mode: 1050, max: 1500}
+  eh55.cost_eur_m2: {dist: triangular, min: 950, mode: 1350, max: 1900}
+notes: "Plausibilitätsprüfung (W): Bottom-up-Kosten einer EH-Sanierung außerhalb [min, max]. Prüfwert S1 V2: 907 EUR/m2 in [750; 1.500] für EH 70."

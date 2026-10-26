@@ -1,0 +1,22 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag legal/umsatzsteuer_2026: Werte nach Spec 01 Teil C §3.5
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: legal/umsatzsteuer_2026
+block: legal
+topic: umsatzsteuer
+schema_version: 1
+label: "Umsatzsteuersätze für Bau-, Energie- und PV-Leistungen"
+source: {document: "UStG §§ 4 Nr. 12, 12 Abs. 1, 2, 3 Nr. 1", url: "https://www.gesetze-im-internet.de/ustg_1980/", publisher: BMJ}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2023-01-01
+valid_to: null
+quality: A
+quality_detail: {pv_zero_rate.above_30kwp: C}
+legal_state: {as_of: 2023-01-01, status: in_force, reference: "UStG"}
+values:
+  standard: 0.19
+  reduced: 0.07
+  pv_zero_rate: {max_kwp_without_proof: 30, above_30kwp: attribute_required}   # Reichweite > 30 kWp prüfen (Konzept §10.2)
+  residential_letting_exempt: true        # § 4 Nr. 12: kein Vorsteuerabzug -> Bruttokosten (D6)

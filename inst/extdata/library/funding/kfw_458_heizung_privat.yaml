@@ -1,0 +1,54 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag funding/kfw_458_heizung_privat: Werte nach Spec 01 Teil C §3.4
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: funding/kfw_458_heizung_privat
+block: funding
+schema_version: 1
+label: "BEG EM Heizungsförderung für Privatpersonen (KfW 458)"
+source: {document: "KfW-Merkblatt 458, Richtlinie BEG EM (BAnz 27.08.2026); Konditionen seit 21.07.2026", url: "https://www.kfw.de/458", publisher: KfW}
+references:
+  - {document: "Sekundärquellen zu Bonusbausteinen und Degression (greenox, DUH-Factsheet)", url: "https://greenox-group.de/warmepumpe/", publisher: "div.", date: 2026-07}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-07-21
+valid_to: null
+quality: C                                  # Einzelheiten Sek. (Konzept §10.2)
+quality_detail: {rate_components.grund: B, budget_risk: D}
+legal_state: {as_of: 2026-08-27, status: administrative, reference: "Richtlinie BEG EM, BAnz AT 27.08.2026"}
+values:
+  instrument_type: grant
+  provider: KfW
+  program_code: "458"
+  application_before_start: true
+  budget_risk: {approval_probability: 0.90}
+  eligibility:
+    applicants: [privatperson, weg]          # privatperson umfasst privatperson_vermieter (nur Grundförderung, Boni über unit.owner_occupied; F-02)
+    measure_types: [heizung_waermepumpe_luft, heizung_waermepumpe_sole, heizung_pelletkessel, heizung_fernwaerme, heizungsverteilung]   # N-01 (vererbt an 459)
+    exclusions: ["dezentrale Heizung bei verbindlicher Fernwärme-Anschlusszusage innerhalb von 3 Jahren"]
+  basis:
+    eligible_cost_caps_per_building:        # Staffel nach Zahl der WE, gleichmäßige Verteilung
+      - {units_from: 1, units_to: 1, cap_eur: 28000}
+      - {units_from: 2, units_to: 6, cap_eur: 15000}
+      - {units_from: 7, units_to: .inf, cap_eur: 8000}
+    distribution: equal_per_unit
+  rate_components:
+    grund: {rate: 0.30}
+    klimageschwindigkeit:
+      rate: 0.16
+      condition: "unit.owner_occupied & heating.replaced_fossil_functional"   # Symbol 01b 4.3.2: Öl, Kohle, Strom-Direkt/Nachtspeicher, Gasetagenheizung (heating_existing.type: floor) unabhängig vom Alter; Gas/Biomasse >= 20 Jahre (F-18)
+      min_age_gas_biomass_years: 20
+    einkommen:
+      condition: "unit.owner_occupied"
+      schedule_by_taxable_income: {thresholds_eur: [30000, 40000, 50000], rates: [0.40, 0.30, 0.10, 0.00], child_u18_threshold_shift_eur: 10000, child_u18_threshold_shift_per_child: false}   # Verschiebung einmal bei mind. einem Kind < 18 (Memo 02 §5.2, Memo 07 §1; F-01)
+      income_basis: "Durchschnitt zvE 2. und 3. Kalenderjahr vor Antrag"
+  rate_cap:
+    default: 0.70
+    exceptions: [{condition: "unit.owner_occupied & taxable_income_adj <= 30000", cap: 0.80}]
+  degression:                               # Antragsdatum maßgeblich; Halbjahresschritte
+    - {target: rate_components.klimageschwindigkeit.rate, start: 2027-02-01, step: -0.04, every_months: 6, floor: 0.0}
+    - {target: "basis.eligible_cost_caps_per_building[1].cap_eur", start: 2027-02-01, step: -750, every_months: 6, floor: 22000}
+  payout: {event: completion_proof, lag_months: 3}
+  rent_law: {grant_counts_as: zuschuss_559a_abs1, enables: [bgb_559e]}
+  cumulation: {exclusive_with: [funding/estg_35c], combinable_with: [funding/kfw_358_ergaenzungskredit_plus, funding/kfw_359_ergaenzungskredit]}
+notes: "Angekündigt für Q1/2027 (nicht enthalten): WP-Grundförderung 15 % + 15 % Wertschöpfungsbonus für EU-Geräte (Parameter heat_pump_origin_eu, # 01b). Prüfpunkte: Bonusbedingungen, Deckel 80 %, Degressionsende der 1.-WE-Höchstkosten."

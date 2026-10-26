@@ -1,0 +1,25 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag legal/mietrecht_ii_reform: Werte nach Spec 01 Teil C §3.5
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: legal/mietrecht_ii_reform
+block: legal
+topic: mietrecht
+reform: mietrecht_ii
+schema_version: 1
+label: "Mietrecht II (Regierungsentwurf, anhängig)"
+from: legal/mietrecht_2026
+source: {document: "BT-Drs. 21/6807 vom 01.07.2026 (Kabinett 29.04.2026; Anhörung Rechtsausschuss 14.10.2026)", url: "https://dserver.bundestag.de/btd/21/068/2106807.pdf", publisher: "Deutscher Bundestag"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-07-01
+valid_to: null
+quality: B
+legal_state: {as_of: 2026-07-01, status: pending, reference: "BT-Drs. 21/6807; Inkrafttreten am Tag nach Verkündung, Möblierung/Kurzzeit 1. Tag des 4. Folgemonats"}
+values:
+  s559c: {cost_limit_per_unit_eur: 20000}
+  s557a: {excludes: [bgb_558, bgb_559, bgb_559b, bgb_559e]}
+  s557b:
+    damping: {threshold_pa: 0.03, excess_share_ignored: 0.5, symmetric: true, only_in_ordinance_areas: true}   # project.municipality.index_cap_area
+  s536_1a: {scope: [bgb_555b_1, bgb_555b_1a]}
+notes: "Nur aktiv mit project.pending_reforms: [mietrecht_ii] (D10). Beispiel Begründung: Inflation 5 % -> Indexerhöhung 4 %."

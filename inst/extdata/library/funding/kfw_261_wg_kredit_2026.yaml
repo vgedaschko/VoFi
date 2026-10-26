@@ -1,0 +1,62 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag funding/kfw_261_wg_kredit_2026: Werte nach Spec 01 Teil C §3.4
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: funding/kfw_261_wg_kredit_2026
+block: funding
+schema_version: 1
+label: "BEG WG Kredit 261 – Sanierung zum Effizienzhaus (gemeinsame Konditionen)"
+source: {document: "KfW-Merkblatt 261/262, Richtlinie BEG WG (BAnz 02.09.2026); Konditionenanzeiger 22.10.2026", url: "https://www.kfw.de/inlandsfoerderung/Privatpersonen/Bestehende-Immobilie/F%C3%B6rderprodukte/Bundesf%C3%B6rderung-f%C3%BCr-effiziente-Geb%C3%A4ude-Wohngeb%C3%A4ude-Kredit-(261-262)/", publisher: "KfW"}
+references:
+  - {document: "KfW-Konditionenanzeiger", url: "https://www.kfw-formularsammlung.de/KonditionenanzeigerINet/KonditionenAnzeiger", publisher: KfW, date: 2026-10-22}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-07-21
+valid_to: null
+quality: B
+quality_detail: {repayment_grant.effect: C, loan.payments_per_year: D, eligibility.conditions.wpb_definition: C, budget_risk: D}
+legal_state: {as_of: 2026-09-02, status: administrative, reference: "Richtlinie BEG WG, BAnz AT 02.09.2026; Konditionen seit 21.07.2026, Zinsen gültig ab 29.09.2026"}
+values:
+  instrument_type: loan_with_repayment_grant
+  provider: KfW
+  program_code: "261"
+  application_before_start: true            # Antrag vor Vorhabenbeginn (Entscheidungsknoten, Konzept §3.9)
+  budget_risk: {approval_probability: 0.95}
+  eligibility:
+    applicants: [privatperson, weg, unternehmen, kommunales_unternehmen, genossenschaft, gemeinnuetzig, koerperschaft]   # privatperson umfasst privatperson_vermieter (F-02)
+    project_types: [sanierung_eh, sanierung_stufenweise, erwerb_sanierung]
+    conditions:
+      ee_or_nh_class: required              # EE-Klasse (>= 65 % EE-Wärme) oder NH-Klasse ist seit 21.07.2026 Pflicht
+      wpb_definition: "Energieausweis Klasse H oder Baujahr <= 1957 und >= 75 % Außenwand unsaniert"   # C, Auslegung 17.07.2026 prüfen
+  basis:
+    loan_cap_per_unit_eur: 150000
+    eligible_cost_kg: [300, 400, 700]
+  loan:
+    max_share_of_eligible_costs: 1.0
+    repayment: annuity
+    payments_per_year: 12                   # D: im Merkblatt prüfen (Memo 02 §5.8)
+    variants:
+      v10_2_10: {term_years: 10, grace_years: 2, fixed_years: 10, rate_pa: 0.0301, effective_rate_pa: 0.0305, rate_date: 2026-09-29}
+      v20_3_10: {term_years: 20, grace_years: 3, fixed_years: 10, rate_pa: 0.0353, effective_rate_pa: 0.0359, rate_date: 2026-09-29}
+      v30_5_10: {term_years: 30, grace_years: 5, fixed_years: 10, rate_pa: 0.0365, effective_rate_pa: 0.0371, rate_date: 2026-09-29}
+      b10_10_10: {repayment: bullet, term_years: 10, grace_years: 10, fixed_years: 10, rate_pa: 0.0371, effective_rate_pa: 0.0377, rate_date: 2026-09-29}
+    default_variant: v30_5_10
+    term_ranges: {annuity: [{term: [4, 10], grace: [1, 2]}, {term: [11, 20], grace: [1, 3]}, {term: [21, 30], grace: [1, 5]}], bullet: {term: [4, 10]}}
+    fees: {processing_fee_share: 0.0, commitment_fee_rate_month: 0.0015, commitment_free_months: 12, commitment_extension_max_months: 36}
+    prepay_allowed: false                   # nur Gesamtrückzahlung mit Vorfälligkeitsentschädigung
+    followup: market                        # Anschlusszins aus market.mortgage_rate
+  repayment_grant:
+    cap_per_unit_basis_eur: 150000          # TZ-Bemessung je WE höchstens auf 150.000 EUR
+    max_total_share: 0.40                   # EH 40 NH + WPB + SerSan
+    payout: {event: completion_proof, lag_months: 6}
+    effect: shorten_term                    # Default Laufzeitverkürzung (C, Stand 2024); reduce_installment auf Antrag
+  construction_supervision:                 # Baubegleitung: Zusatzkredit mit 50 % Tilgungszuschuss
+    repayment_grant_share: 0.50
+    cap_efh_eur: 10000
+    cap_mfh_per_unit_eur: 4000
+    cap_mfh_total_eur: 40000
+  rent_law:
+    grant_counts_as: zuschuss_559a_abs1     # Tilgungszuschuss wie Zuschuss
+    loan_counts_as: zinsverbilligung_559a_abs2
+  cumulation: {exclusive_with: [funding/estg_35c]}
+notes: "Prüfpunkte: Wirkung des Tilgungszuschusses (Laufzeitverkürzung) und Zahlungsfrequenz im Merkblatt; WPB-Definition nach Auslegung vom 17.07.2026."

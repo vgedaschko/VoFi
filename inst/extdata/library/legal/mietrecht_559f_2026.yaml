@@ -1,0 +1,23 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag legal/mietrecht_559f_2026: Werte nach Spec 01 Teil C §3.5
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: legal/mietrecht_559f_2026
+block: legal
+topic: mietrecht_559f
+schema_version: 1
+label: "§ 559f BGB: Halbierung der Umlagebasis bei Wärmepumpen mit Plan-JAZ unter 2,5"
+source: {document: "Memo 07 §1.2 (einzige Fundstelle; Gesetzestext am Stichtag nicht geprüft), Konzept §10.2", url: "docs/recherche/07_use_cases_referenzszenarien.md", publisher: "Sekundärquelle"}
+as_of: 2026-10-25
+valid_from: 2026-07-29
+valid_to: null
+quality: C
+release: {status: pending, by: null, date: null}   # Spec 00 §4.10 (R-80): bis zur Fachfreigabe nur mit pending_reforms: [unreleased]
+legal_state: {as_of: 2026-07-29, status: in_force, reference: "§ 559f BGB i. d. F. GModG-Änderungsgesetz (Wortlaut, Grenzfall und Ausnahmen prüfen)"}
+values:
+  jaz_threshold: 2.5
+  comparison: ge                          # ">= 2,5" (Grenzfall prüfen) -> rent_law.hp_threshold_inclusive
+  reduction_factor: 0.5                   # sonst nur 50 % der Kosten ansetzbar
+  jaz_basis: plan                         # Plan-JAZ VDI 4650 Bl. 1, Nachweis vor Inbetriebnahme (R-70)
+  exceptions: {construction_year_after: 1996, flow_temperature_max_c: 55}
+notes: "Ohne Freigabe ist das Thema inaktiv: keine Halbierung (Spec 00 §4.10 Beispiel). Prüfwerte S3-T4 (5.3) mit pending_reforms: [unreleased]."

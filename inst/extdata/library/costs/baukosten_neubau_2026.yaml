@@ -1,0 +1,28 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag costs/baukosten_neubau_2026: Werte nach Spec 01 Teil C §3.7
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: costs/baukosten_neubau_2026
+block: costs
+schema_version: 1
+label: "Kostenkennwerte Neubau 2026 (brutto, je m2 Wohnfläche)"
+source: {document: "ARGE e. V., Wohnungsbau in Deutschland 2026 (März 2026), Median Großstädte Q4/2025; Fortschreibung +4 % (Memo 03 §6.1)", url: "https://mieterbund.de/app/uploads/2026/03/studie_zum_wohnungsbau_2026.pdf", publisher: "ARGE e. V."}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: B
+quality_detail: {cost_newbuild_efh_kg300_400_eur_m2: D, surcharge_eh40_vs_minimum_share: D, share_kg200_500_600_of_kg300_400: D}
+legal_state: {as_of: 2026-03-01, status: market, reference: "Marktdaten"}
+values:
+  cost_newbuild_mfh_kg300_400_eur_m2: 3750         # Median im Intervall 3.500-3.750
+  cost_newbuild_mfh_kg200_700_eur_m2: 4800         # Median 4.631,07 (+3,5 %)
+  cost_newbuild_mfh_full_incl_land_eur_m2: 5400    # informativ
+  cost_newbuild_efh_kg300_400_eur_m2: 3000
+  share_kg200_500_600_of_kg300_400: 0.06
+  surcharge_eh40_vs_minimum_share: 0.05            # EH 40 ggü. GModG-Mindeststandard (≈ EH 55)
+uncertainty:
+  cost_newbuild_mfh_kg300_400_eur_m2: {dist: triangular, min: 3000, mode: 3750, max: 5000}
+  cost_newbuild_mfh_kg200_700_eur_m2: {dist: triangular, min: 3300, mode: 4800, max: 8600}
+  cost_newbuild_efh_kg300_400_eur_m2: {dist: triangular, min: 2300, mode: 3000, max: 4000}
+  surcharge_eh40_vs_minimum_share: {dist: triangular, min: 0.03, mode: 0.05, max: 0.08}

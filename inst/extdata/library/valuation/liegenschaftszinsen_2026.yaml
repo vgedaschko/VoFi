@@ -1,0 +1,29 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag valuation/liegenschaftszinsen_2026: Werte nach Spec 01 Teil C §3.8
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: valuation/liegenschaftszinsen_2026
+block: valuation
+schema_version: 1
+label: "Liegenschaftszinssätze Wohnen (Lage-Presets)"
+source: {document: "OGA Brandenburg Liegenschaftszinssätze 2025 (Kauffälle 2023-2025); BewG §§ 188, 256; vdp Q4/2025 (Memo 03 §10.1)", url: "https://gutachterausschuss.brandenburg.de/sixcms/media.php/9/LIZI_2025_OGA.pdf", publisher: "OGA Brandenburg; BMJ; vdp"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+quality_detail: {references.brandenburg_2023_2025: B, references.bewg_188_rental: C, references.bewg_256: C}
+legal_state: {as_of: 2026-04-01, status: market, reference: "Grundstücksmarktberichte; regionale Werte des Gutachterausschusses vorrangig"}
+values:
+  presets: {a_metropolis: 0.025, large_city: 0.030, mid_city: 0.035, rural_shrinking: 0.045}
+  default_preset: mid_city                    # Konzept B10: generisch Mittelstadt
+  references:
+    brandenburg_2023_2025: {berliner_umland: 0.032, weiterer_metropolenraum: 0.035, kreisfreie_staedte: 0.028}
+    bewg_188_rental: 0.035
+    bewg_256: {efh_zfh: 0.025, condo: 0.030, rental_le6_units: 0.040, rental_gt6_units: 0.045}
+    germany_mfh_2018: 0.0326                  # Memo 02 §7.1 (Sek.)
+uncertainty:
+  presets.a_metropolis: {dist: triangular, min: 0.015, mode: 0.025, max: 0.035}
+  presets.large_city: {dist: triangular, min: 0.022, mode: 0.030, max: 0.040}
+  presets.mid_city: {dist: triangular, min: 0.025, mode: 0.035, max: 0.045}
+  presets.rural_shrinking: {dist: triangular, min: 0.035, mode: 0.045, max: 0.065}

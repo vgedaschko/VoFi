@@ -1,0 +1,23 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag processes/valuation_risks_2026: Werte nach Spec 01 Teil C §2.7
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: processes/valuation_risks_2026
+block: processes
+schema_version: 1
+label: "Restwert- und Leerstandsrisiken"
+source:
+  document: "Memo 04 §1.2 (Exit-Rendite y0 + 0,5 (r_T - r0) + eps, sd 0,4 Pp; Leerstand PERT(0; 2 %; 8 %)); Memo 07 §4.0 (Liegenschaftszins ± 0,5 Pp, RND ± 5 J.); Konzept §4.2"
+  url: "docs/recherche/04_monte_carlo.md"
+  publisher: "eigene Ableitung"
+as_of: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+values:
+  cap_rate_shock:       {dist: truncnorm, label: "Zuschlag Liegenschaftszins (absolut)", mean: 0.0, sd: 0.005, lower: -0.015, upper: 0.015, apply: add}
+  remaining_life_shock: {dist: triangular, label: "Abweichung Restnutzungsdauer (Jahre)", min: -5, mode: 0, max: 5, apply: add}
+  vacancy_level:        {dist: pert, label: "Leerstandsquote (Niveau)", min: 0.0, mode: 0.02, max: 0.08}
+  vacancy_fluctuation:  {type: iid, label: "jährliche Leerstandsschwankung (Faktor)", dist_spec: {dist: pert, min: 0.5, mode: 1.0, max: 2.0}}
+  market_value_uplift_efficiency: {dist: pert, label: "Effizienzaufschlag Marktwert Selbstnutzer", min: 0.0, mode: 0.03, max: 0.08}
+notes: "cap_rate_shock zusätzlich zur strukturellen Kopplung K7 (Ziel shared.cap_rate_shock, Untergrenze 2 % nach dem Zuschlag) oder als apply: add direkt auf cap_rate; remaining_life_shock zielt bei Methoden mit abgeleiteter RND auf residual_value.income_value.remaining_life_offset_years (N-20); vacancy_fluctuation ist ein Prozess (Ziel market.vacancy_fluctuation, Basis 1)."
