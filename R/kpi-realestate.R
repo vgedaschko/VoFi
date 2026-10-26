@@ -105,6 +105,10 @@ typedef_kpi_restriction_dscr <- function() {
 # ---------------------------------------------------------------------------------------------
 
 #' LTV je Periode: (Sum_k B_k,t + KK_t + KKP_t) / V_t
+#'
+#' Bezug ist der Wertpfad V_t, nicht der Restwert (12.5; Vermerk `kpi.notes.value_path`). Der
+#' Kontokorrentstand in T ist der der gewählten Sicht, d. h. in der Sicht mit Restwert nach dessen
+#' Zufluss (wie Memo 01 §10, Orakel (c): LTV_T = 66,98 %).
 #' @noRd
 kpi_ltv_path <- function(core) {
   debt <- kpi_loan_balance(core) + core$stocks$KK + core$stocks$KKP
@@ -116,7 +120,8 @@ typedef_kpi_ltv_max <- function() {
   kpi_typedef("ltv_max", function(core, ctx) {
     r <- kpi_ltv_path(core)
     kpi_value_codes(kpi_row_max(r$ratio, r$mask), list(r$none, "no_market_value"))
-  }, unit = "share", higher_is_better = FALSE, mc_default = TRUE, requires = "market_value")
+  }, unit = "share", higher_is_better = FALSE, mc_default = TRUE, requires = "market_value",
+  rv_ref = "value_path")
 }
 
 #' @noRd
@@ -125,7 +130,8 @@ typedef_kpi_ltv_end <- function() {
     r <- kpi_ltv_path(core)
     nt <- kpi_nt(core)
     kpi_value_codes(r$ratio[, nt], list(!r$mask[, nt], "no_market_value"))
-  }, unit = "share", higher_is_better = FALSE, mc_default = FALSE, requires = "market_value")
+  }, unit = "share", higher_is_better = FALSE, mc_default = FALSE, requires = "market_value",
+  rv_ref = "value_path")
 }
 
 #' Beleihungsauslauf max_t Sum_k B_k,t / (V_t * (1 - Sicherheitsabschlag))
@@ -139,7 +145,8 @@ kpi_calc_lending_ratio_max <- function(core, ctx) {
 #' @noRd
 typedef_kpi_lending_ratio_max <- function() {
   kpi_typedef("lending_ratio_max", kpi_calc_lending_ratio_max, unit = "share",
-              higher_is_better = FALSE, mc_default = FALSE, requires = "market_value")
+              higher_is_better = FALSE, mc_default = FALSE, requires = "market_value",
+              rv_ref = "value_path")
 }
 
 # ---------------------------------------------------------------------------------------------

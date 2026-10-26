@@ -98,8 +98,11 @@ typedef_kpi_monthly_burden_construction <- function() {
 #' Belastungsquote max_y monthly_burden_y / Einkommen_y (12.3)
 #'
 #' Einkommen_y = `household.net_income_month_eur` x Kalenderjahresindex von
-#' `household.income_growth` in der ersten Periode des Betriebsjahres; Preisstand des
-#' Einkommens ist das erste Kalenderjahr (Index 1 im Jahr des Stichtags).
+#' `household.income_growth` in der ersten Periode des Betriebsjahres. Das Einkommen ist wie die
+#' laufenden Kosten der Belastung (z. B. `recurring` mit Default-`base_date`) ein Monatsbetrag in
+#' Preisen von `project.price_base_year` (Preisstand 1. Januar des Folgejahres, R-35;
+#' Kalenderjahresindex `ctx$index_year()`, R-62). Zähler und Nenner der Quote liegen damit auf
+#' demselben Preisstand.
 #' @noRd
 kpi_calc_burden_ratio_max <- function(core, ctx) {
   n <- core$n
@@ -116,12 +119,21 @@ kpi_calc_burden_ratio_max <- function(core, ctx) {
   }
   growth <- ctx$value("household.income_growth", "path")
   if (is.null(growth)) growth <- rep(0, n)
-  base <- as.Date(paste0(utl_year(core$grid$valuation_date) + 1L, "-01-01"))
-  idx <- ctx$index_year(growth, base_date = base)
+  idx <- ctx$index_year(growth, base_date = kpi_price_base_date(ctx, core$grid))
   income <- rep_len(as.double(inc), n) * idx[, oy$first, drop = FALSE]
   burden <- kpi_monthly_by_year(kpi_burden(core), oy)
   r <- kpi_masked_ratio(burden, income)
   kpi_value_codes(kpi_row_max(r$ratio, r$mask), list(r$none, "no_household_income"))
+}
+
+#' Preisstand der Spezifikation: 1. Januar nach `project.price_base_year` (R-35)
+#'
+#' Default von `project.price_base_year` ist Jahr(`valuation_date`) - 1 (`rule:price_base_year`),
+#' d. h. der 1. Januar des Stichtagsjahres.
+#' @noRd
+kpi_price_base_date <- function(ctx, grid) {
+  pby <- ctx$project$price_base_year %||% (utl_year(grid$valuation_date) - 1L)
+  as.Date(sprintf("%04d-01-01", as.integer(pby[1L]) + 1L))
 }
 
 #' @noRd

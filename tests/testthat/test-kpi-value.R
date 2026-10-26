@@ -64,6 +64,48 @@ test_that("Orakel (b1), (c1), (e) und Prüffall Sacheinlage: Endwerte und Amorti
   expect_equal(ik$kpis$delta_terminal_value, 28000, tolerance = 1e-9)
 })
 
+test_that("Orakel (a3): Sondertilgung aus Überschüssen (Ü3), Endwert, Amortisation", {
+  r <- d2_run(d2_oracle_a3())
+  # Sollwerte aus docs/recherche/prototypen/vofi_referenz/vofi_ref.py (Tabellenwerte 15.3)
+  expect_equal(r$kpis$terminal_value, 39139.9686922067, tolerance = 1e-6 / 39139.97)
+  expect_equal(r$kpis$terminal_value, 39139.97, tolerance = 0.005 / 39139.97)
+  expect_equal(r$kpis$terminal_value_opp, 34778.22, tolerance = 0.005 / 34778.22)
+  expect_equal(r$kpis$delta_terminal_value, 4361.7464632067, tolerance = 1e-6 / 4361.75)
+  expect_equal(r$kpis$delta_terminal_value, 4361.75, tolerance = 0.005 / 4361.75)
+  expect_equal(r$kpis$terminal_value_ex_rv, 39139.9686922067 - 40000, tolerance = 1e-9)
+  expect_identical(r$kpis$payback_time, 5)
+  expect_identical(r$kpi_na$payback_time_ex_rv, "no_payback")
+  v <- r$ledger$values
+  expect_equal(-v$loan_ann_prepay[1, 4], 11863.72, tolerance = 0.005 / 11863.72)
+  expect_equal(v$dep_balance[1, 6], 39139.97, tolerance = 0.005 / 39139.97)
+  # Zahlungsfolge unverändert gegenüber (a)
+  expect_equal(r$kpis$npv_cf_project, 10195.96, tolerance = 0.005 / 10195.96)
+})
+
+test_that("Orakel (b2), (c2), (g): Endwerte, Unterlassung und Endwertdifferenz (15.3)", {
+  tol <- 0.005
+  b2 <- d2_run(d2_oracle_b("reduce_installment"))
+  expect_equal(b2$kpis$terminal_value, 71353.38, tolerance = tol / 71353.38)
+  expect_equal(b2$kpis$terminal_value_opp, 60949.72, tolerance = tol / 60949.72)
+  expect_equal(b2$kpis$delta_terminal_value, 10403.66, tolerance = tol / 10403.66)
+  c2 <- d2_run(d2_oracle_c(limit = 0))
+  expect_equal(c2$kpis$terminal_value, 99392.07, tolerance = tol / 99392.07)
+  expect_equal(c2$kpis$terminal_value_opp, 45263.66, tolerance = tol / 45263.66)
+  expect_equal(c2$kpis$delta_terminal_value, 54128.41, tolerance = tol / 54128.41)
+  ga <- d2_run(d2_oracle_g("a"))
+  expect_equal(ga$kpis$terminal_value, 16000, tolerance = tol / 16000)
+  expect_equal(ga$kpis$terminal_value_opp, 13464, tolerance = tol / 13464)
+  expect_equal(ga$kpis$delta_terminal_value, 2536, tolerance = tol / 2536)
+  gb <- d2_run(d2_oracle_g("base"))
+  expect_equal(gb$kpis$terminal_value, 13020, tolerance = tol / 13020)
+  expect_equal(gb$kpis$terminal_value_opp, 10404, tolerance = tol / 10404)
+  expect_equal(gb$kpis$delta_terminal_value, 2616, tolerance = tol / 2616)
+  expect_equal(gb$kpis$sum_equity_calls, 0)
+  # Vergleichsregel: (2.536 - 2.616) = (EW_A - EW_B) - 3.000 * 1,02
+  expect_equal(ga$kpis$delta_terminal_value - gb$kpis$delta_terminal_value,
+               (16000 - 13020) - 3000 * 1.02, tolerance = 1e-9)
+})
+
 d2_payback_core <- function(path = c(90000, 80000, 70000, 60000), rv = 60000) {
   g <- vofi_time_grid(as.Date("2027-01-01"), 3L)
   rows <- list(inv__cost = d2_row("project", "capex", c(-100000, 0, 0, 0), "b1", "m1"),

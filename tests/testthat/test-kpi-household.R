@@ -69,8 +69,14 @@ test_that("Belastungsquote mit Einkommensindex, ohne Einkommen NA, Restriktion",
   grow <- d2_ctx(core, perspective = "selbstnutzer",
                  household = list(net_income_month_eur = 3000, income_growth = 0.05),
                  analysis = list(restrictions = "burden"))
-  inc <- 3000 * 1.05^(0:11)
+  # Preisstand des Einkommens wie bei den Kosten: price_base_year = 2026 -> Index 1,05 in 2027
+  inc <- 3000 * 1.05^(1:12)
   expect_equal(d2_kpi("burden_ratio_max", core, grow)$values, max(yearly / 12 / inc))
+  pb <- reg_test_spec(core$grid, perspective = "selbstnutzer",
+                      household = list(net_income_month_eur = 3000, income_growth = 0.05),
+                      project = list(price_base_year = 2027L))
+  expect_equal(d2_kpi("burden_ratio_max", core, d2_ctx(core, spec = pb))$values,
+               max(yearly / 12 / (3000 * 1.05^(0:11))))
   # Default-Schwelle 0,40 des Prüfkits: Belastungsquote ca. 0,27 bzw. 0,22
   expect_identical(d2_kpi("restriction_burden", core, ctx)$values, 0)
   tight <- d2_ctx(core, perspective = "selbstnutzer",
@@ -106,11 +112,29 @@ test_that("Orakel (e) als Selbstnutzer: Bauphase, Belastung, Quote, Eigenanteil 
   expect_equal(r$kpis$monthly_burden_y1, 22400 / 12, tolerance = 1e-10)
   expect_equal(r$kpis$monthly_burden_avg10, 22400 / 12, tolerance = 1e-10)
   expect_identical(r$kpi_series$monthly_burden$years, 2028:2030)
-  expect_equal(r$kpis$burden_ratio_max, (22400 / 12) / (5000 * 1.02), tolerance = 1e-10)
+  # erstes Betriebsjahr 2028, Einkommen in Preisen von 2026 (Preisstand 2027-01-01)
+  expect_equal(r$kpis$burden_ratio_max, (22400 / 12) / (5000 * 1.02^2), tolerance = 1e-10)
   expect_identical(r$kpis$restriction_burden, 0)
   expect_identical(r$kpis$restriction_savings, 0)
   expect_equal(r$kpis$own_contribution, 500000 - 400000, tolerance = 1e-10)
   expect_false("monthly_net_cashflow_y1" %in% names(r$kpis))
+})
+
+test_that("Belastungsquote: Einkommen und laufende Kosten auf demselben Preisstand (R-35, R-62)", {
+  # Energiekosten 11.880 EUR/a (recurring, Default-base_date) und Einkommen 2.500 EUR/Monat
+  # wachsen beide mit 2 %: die Quote ist in jedem Jahr 990 / 2.500 = 0,396 (< 0,40)
+  sc <- d2_scenario("burden_index", 5L,
+                    list(en = list(type = "recurring", amount_eur = 11880, growth = 0.02,
+                                   category = "energy_cost", start_event = "2027-01-01")),
+                    list(ek = list(type = "equity", amount_eur = 10000)),
+                    d2_accounts(0.02, 0.08), perspective = "selbstnutzer",
+                    household = list(net_income_month_eur = 2500, income_growth = 0.02))
+  sc$analysis$restrictions <- "burden"
+  r <- d2_run(sc)
+  mb <- r$kpi_series$monthly_burden$values[1, ]
+  expect_equal(mb, 990 * 1.02^(1:5), tolerance = 1e-10)
+  expect_equal(r$kpis$burden_ratio_max, 0.396, tolerance = 1e-12)
+  expect_identical(r$kpis$restriction_burden, 0)
 })
 
 test_that("Monatlicher Cashflow (Kleinvermieter, Orakel (c1)): Zuschuss, Minimum, ohne Restwert", {

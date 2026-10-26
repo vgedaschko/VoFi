@@ -10,6 +10,7 @@ notes:
   vs_sale: "gegenüber Verkauf zum Stichtag"
   project_simplified: "finanzierungsneutral, vereinfachte Annahmen"
   censored: "nicht definierte Renditen sind ausgeblendet (keine -100 %)"
+  value_path: "bezogen auf den Marktwertpfad, nicht auf den Restwert"
 errors:
   not_result: "vofi_kpis(): 'x' muss ein Ergebnis sein (vofi_result, vofi_mc_result oder vofi_comparison), nicht '{cls}'."
   which: "vofi_kpis(): 'which' muss NULL oder ein Zeichenvektor ohne NA sein."

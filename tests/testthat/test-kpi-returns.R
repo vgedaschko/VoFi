@@ -34,6 +34,10 @@ test_that("Orakel (b1), (b2), (c1), (c1_unlevered), (c2), (g): Renditen und NA-C
   expect_rate(b1$kpis$irr_cf_project, 0.009458)
   b2 <- d2_run(d2_oracle_b("reduce_installment"))
   expect_rate(b2$kpis$roe_mirr, 0.036202)
+  a3 <- d2_run(d2_oracle_a3())
+  expect_rate(a3$kpis$roe_mirr, 0.0546293267, 1e-9)
+  expect_rate(a3$kpis$roe_mirr, 0.054629)
+  for (k in c("roe_classic", "roe_irr")) expect_rate(a3$kpis[[k]], 0.054629)
   c1 <- d2_run(d2_oracle_c())
   for (k in c("roe_classic", "roe_mirr", "roe_irr")) {
     expect_identical(c1$kpi_na[[k]], "no_equity", info = k)

@@ -171,6 +171,17 @@ d2_oracle_a <- function(rate = NULL) {
               d2_accounts(rate %||% 0.03, rate %||% 0.10))
 }
 
+#' (a3) wie (a) mit Sondertilgung aus Überschüssen (Ü3) für das Annuitätendarlehen
+#' @param withdrawals_pa `NULL` oder zusätzliche Entnahme je Jahr ab t = 1 (Prüfung von f(E*) = 0)
+d2_oracle_a3 <- function(withdrawals_pa = NULL) {
+  sc <- d2_oracle_a()
+  sc$meta$scenario_id <- "oracle_a3"
+  sc$financing$ann$prepay_allowed <- TRUE
+  sc$accounts$surplus_order <- c("od_repay", "loan_prepay", "dep_invest")
+  if (!is.null(withdrawals_pa)) sc$financing$ek$withdrawals_pa <- withdrawals_pa
+  sc
+}
+
 #' (b1)/(b2) Ratentilgung mit Tilgungszuschuss
 d2_oracle_b <- function(effect = "shorten_term") {
   d2_scenario("oracle_b", 10L,

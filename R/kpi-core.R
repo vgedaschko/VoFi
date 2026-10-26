@@ -22,13 +22,20 @@
 #' @param restriction `NULL` oder Restriktionscode (`analysis.restrictions`, Fußnote 5 in 12.3).
 #' @param tenant_view nur bei `analysis.tenant_view = TRUE` (Fußnote 3 in 12.3).
 #' @param stopped Läufe mit Policy `stop` werden `NA` (`run_stopped`).
+#' @param rv_ref Restwertbezug für Ausgaben (12.5, internes Feld `rv_ref` der Definition):
+#'   `"with"` (Wert enthält den Restwert; Default bei `rv_variant = TRUE`), `"independent"`
+#'   (restwertunabhängig, Vermerk „unabhängig vom Restwert“; Default sonst) oder `"value_path"`
+#'   (nutzt den Wertpfad V_t statt des Restwerts, LTV und Beleihungsauslauf). Kennzahlen, deren
+#'   Wert den Restwert enthält, ohne dass 12.3 eine Variante `_ex_rv` vorsieht (z. B.
+#'   `npv_cf_project`), setzen `"with"`.
 #' @return `vofi_typedef`.
 #' @noRd
 kpi_typedef <- function(name, fun, unit = "EUR", shape = "scalar", rv_variant = FALSE,
                         higher_is_better = TRUE, mc_default = FALSE, perspectives = NULL,
                         requires = character(0), restriction = NULL, tenant_view = FALSE,
-                        stopped = FALSE) {
+                        stopped = FALSE, rv_ref = NULL) {
   force(fun)
+  rv_ref <- rv_ref %||% (if (isTRUE(rv_variant)) "with" else "independent")
   compute <- function(core, ctx) {
     code <- kpi_not_applicable(ctx, perspectives, restriction, tenant_view)
     if (!is.null(code)) return(kpi_na_value(core, shape, code))
@@ -38,7 +45,8 @@ kpi_typedef <- function(name, fun, unit = "EUR", shape = "scalar", rv_variant = 
   }
   vofi_type(name = name, kind = "kpi", compute = compute, unit = unit, shape = shape,
             rv_variant = rv_variant, higher_is_better = higher_is_better,
-            mc_default = mc_default, perspectives = perspectives, requires = requires)
+            mc_default = mc_default, perspectives = perspectives, requires = requires,
+            rv_ref = rv_ref)
 }
 
 #' Anwendbarkeit einer Kennzahl (Fußnoten 2 bis 5 in 12.3)
@@ -549,21 +557,29 @@ kpi_primary <- function(spec) {
        note = note)
 }
 
-#' Vergleichskennzahlen (12.6): Einheiten und Richtung
+#' Vergleichskennzahlen (12.6): Einheiten, Variante ohne Restwert, Restwertbezug und Richtung
+#'
+#' `rv`: es gibt eine Variante `_ex_rv` (12.6); `rv_ref`: Restwertbezug des Werts wie bei
+#' `kpi_typedef()`. `prob_better_than_ref` und `co2_abatement_cost` leiten sich aus
+#' `delta_vs_reference` mit Restwert ab und haben keine Variante ohne Restwert (`"with"`).
 #' @noRd
 kpi_compare_specs <- function() {
   list(
-    delta_vs_reference = list(unit = "EUR", rv = TRUE, hib = TRUE),
-    prob_better_than_ref = list(unit = "share", rv = FALSE, hib = TRUE),
-    payback_vs_reference = list(unit = "years", rv = TRUE, hib = FALSE),
-    payback_year_vs_reference = list(unit = "year", rv = TRUE, hib = FALSE),
-    incremental_return = list(unit = "rate_pa", rv = TRUE, hib = TRUE),
-    co2_reduction = list(unit = "t_co2", rv = FALSE, hib = TRUE),
-    co2_abatement_cost = list(unit = "EUR_t", rv = FALSE, hib = FALSE),
-    monthly_saving_y1 = list(unit = "EUR_month", rv = FALSE, hib = TRUE),
-    monthly_saving_avg10 = list(unit = "EUR_month", rv = FALSE, hib = TRUE),
-    monthly_cashflow_change_y1 = list(unit = "EUR_month", rv = FALSE, hib = TRUE),
-    warm_rent_change_y1 = list(unit = "EUR_m2_month", rv = FALSE, hib = FALSE)
+    delta_vs_reference = list(unit = "EUR", rv = TRUE, rv_ref = "with", hib = TRUE),
+    prob_better_than_ref = list(unit = "share", rv = FALSE, rv_ref = "with", hib = TRUE),
+    payback_vs_reference = list(unit = "years", rv = TRUE, rv_ref = "with", hib = FALSE),
+    payback_year_vs_reference = list(unit = "year", rv = TRUE, rv_ref = "with", hib = FALSE),
+    incremental_return = list(unit = "rate_pa", rv = TRUE, rv_ref = "with", hib = TRUE),
+    co2_reduction = list(unit = "t_co2", rv = FALSE, rv_ref = "independent", hib = TRUE),
+    co2_abatement_cost = list(unit = "EUR_t", rv = FALSE, rv_ref = "with", hib = FALSE),
+    monthly_saving_y1 = list(unit = "EUR_month", rv = FALSE, rv_ref = "independent",
+                             hib = TRUE),
+    monthly_saving_avg10 = list(unit = "EUR_month", rv = FALSE, rv_ref = "independent",
+                                hib = TRUE),
+    monthly_cashflow_change_y1 = list(unit = "EUR_month", rv = FALSE, rv_ref = "independent",
+                                      hib = TRUE),
+    warm_rent_change_y1 = list(unit = "EUR_m2_month", rv = FALSE, rv_ref = "independent",
+                               hib = FALSE)
   )
 }
 
@@ -594,20 +610,42 @@ kpi_unit <- function(name) {
   kpi_compare_specs()[[base]]$unit %||% NA_character_
 }
 
-#' Restwertbezug einer Kennzahlspalte: `"with"`, `"without"` oder `"independent"`
+#' Restwertbezug und Vermerk einer Kennzahlspalte (12.5, R-52)
+#'
+#' Klasse `"with"` (Wert mit Restwert, auch ohne Gegenstück `_ex_rv`, z. B. `npv_cf_project`,
+#' `co2_abatement_cost`), `"without"` (Spalte `_ex_rv`), `"independent"` (restwertunabhängig)
+#' oder `"unknown"` (weder registriert noch Vergleichskennzahl, ohne Gegenstück `_ex_rv`; kein
+#' Vermerk). Vermerk `kpi.rv_independent` nur bei echter Restwertunabhängigkeit, bei LTV und
+#' Beleihungsauslauf `kpi.notes.value_path` (Wertpfad V_t statt Restwert). Nutzerkennzahlen
+#' ohne `rv_variant` gelten nach R-52 als restwertunabhängig.
+#' @param name Spaltenname.
+#' @param all_names alle Spaltennamen des Ergebnisses (Paare `<name>`/`<name>_ex_rv`).
+#' @return Liste `class`, `note` (Label-Schlüssel bzw. `NA`).
+#' @noRd
+kpi_rv_info <- function(name, all_names = character(0)) {
+  base <- kpi_base_name(name)
+  if (!identical(base, name)) return(list(class = "without", note = NA_character_))
+  ref <- if (reg_has("kpi", base)) {
+    def <- reg_get("kpi", base)
+    if (isTRUE(def$rv_variant)) "with" else def$rv_ref %||% "independent"
+  } else if (!is.null(kpi_compare_specs()[[base]])) {
+    kpi_compare_specs()[[base]]$rv_ref
+  } else {
+    "unknown"
+  }
+  if (paste0(base, "_ex_rv") %in% all_names) ref <- "with"
+  switch(ref,
+    independent = list(class = "independent", note = "kpi.rv_independent"),
+    value_path = list(class = "independent", note = "kpi.notes.value_path"),
+    list(class = ref, note = NA_character_)
+  )
+}
+
+#' Restwertbezug einer Kennzahlspalte: `"with"`, `"without"`, `"independent"` oder `"unknown"`
 #' @param name Spaltenname.
 #' @param all_names alle Spaltennamen des Ergebnisses (Paare `<name>`/`<name>_ex_rv`).
 #' @noRd
-kpi_rv_class <- function(name, all_names = character(0)) {
-  base <- kpi_base_name(name)
-  if (!identical(base, name)) return("without")
-  rv <- if (reg_has("kpi", base)) {
-    isTRUE(reg_get("kpi", base)$rv_variant)
-  } else {
-    isTRUE(kpi_compare_specs()[[base]]$rv) || paste0(base, "_ex_rv") %in% all_names
-  }
-  if (rv) "with" else "independent"
-}
+kpi_rv_class <- function(name, all_names = character(0)) kpi_rv_info(name, all_names)$class
 
 # ---------------------------------------------------------------------------------------------
 # Vergleichskennzahlen je Lauf (12.6)
@@ -617,44 +655,54 @@ kpi_rv_class <- function(name, all_names = character(0)) {
 #'
 #' Für `vofi_compare()` (WS-G): beide Läufe mit denselben Rohziehungen (CRN). Erwartet je Seite
 #' eine Liste mit `kpis`, `kpi_na` (Data Frames mit n Zeilen, wie `eng_run_chunk()`), optional
-#' `paths` (`wealth`, `opp_net_position`, `net_position`; 9.2) und `grid`. `q_T` ist der
-#' Aufzinsfaktor q_T der Variante (n-Vektor) für `co2_abatement_cost`; fehlt er, ist der Wert
+#' `paths` (`wealth`, `opp_net_position`, `net_position`; 9.2), `grid` und die Perspektive
+#' (`perspective` bzw. `spec$project$perspective`; Default: Argument `perspective`). `q_T` ist
+#' der Aufzinsfaktor q_T der Variante (n-Vektor) für `co2_abatement_cost`; fehlt er, ist der Wert
 #' `NA` (`not_computed`). `incremental_return` braucht Design-Läufe und steht in
-#' `kpi_incremental_return()`.
+#' `kpi_incremental_return()`. Fehlt einer Seite die zugrunde liegende Kennzahl, ist der Code
+#' `not_applicable_perspective`, wenn die Perspektive dieser Seite nicht zu den `perspectives`
+#' der Kennzahl gehört, sonst `not_computed` (nicht angefordert bzw. über `requires` entfallen).
 #' @param var,ref Ergebnisse der Variante bzw. der Referenz.
 #' @param q_T `NULL` oder n-Vektor.
+#' @param perspective `NULL` oder Perspektive beider Seiten, falls sie die Seiten nicht tragen.
 #' @return `list(kpis = data.frame, na = data.frame)` mit n Zeilen.
 #' @noRd
-kpi_compare_values <- function(var, ref, q_T = NULL) { # nolint: object_name_linter.
+kpi_compare_values <- function(var, ref, q_T = NULL, # nolint: object_name_linter.
+                               perspective = NULL) {
   n <- nrow(var$kpis)
   out <- list()
+  side <- function(x) {
+    x$perspective <- x$perspective %||% x$spec$project$perspective %||% perspective
+    x
+  }
+  var <- side(var)
+  ref <- side(ref)
   get_kpi <- function(x, name) {
     if (!(name %in% names(x$kpis))) return(NULL)
     list(values = as.double(x$kpis[[name]]),
          na = as.character(x$kpi_na[[name]] %||% rep(NA_character_, n)))
   }
+  # Differenz x - y der Kennzahl `name` je Lauf
+  cmp <- function(x, y, name) {
+    kpi_cmp_diff(get_kpi(x, name), get_kpi(y, name), n, kpi = name,
+                 perspectives = c(x$perspective %||% NA_character_,
+                                  y$perspective %||% NA_character_))
+  }
   for (sfx in c("", "_ex_rv")) {
-    a <- get_kpi(var, paste0("delta_terminal_value", sfx))
-    b <- get_kpi(ref, paste0("delta_terminal_value", sfx))
-    out[[paste0("delta_vs_reference", sfx)]] <- kpi_cmp_diff(a, b, n)
+    out[[paste0("delta_vs_reference", sfx)]] <- cmp(var, ref, paste0("delta_terminal_value", sfx))
     pb <- kpi_payback_vs_reference_from(var, ref, ex_rv = nzchar(sfx))
     out[[paste0("payback_vs_reference", sfx)]] <- pb$time
     out[[paste0("payback_year_vs_reference", sfx)]] <- pb$year
   }
-  out$co2_reduction <- kpi_cmp_diff(get_kpi(ref, "co2_emissions"),
-                                    get_kpi(var, "co2_emissions"), n)
+  out$co2_reduction <- cmp(ref, var, "co2_emissions")
   out$co2_abatement_cost <- kpi_co2_abatement_cost(out$delta_vs_reference, out$co2_reduction,
                                                    q_T)
   # Selbstnutzer: Ersparnis = Belastung der Referenz - Belastung der Variante (positiv = Ersparnis)
-  out$monthly_saving_y1 <- kpi_cmp_diff(get_kpi(ref, "monthly_burden_y1"),
-                                        get_kpi(var, "monthly_burden_y1"), n)
-  out$monthly_saving_avg10 <- kpi_cmp_diff(get_kpi(ref, "monthly_burden_avg10"),
-                                           get_kpi(var, "monthly_burden_avg10"), n)
+  out$monthly_saving_y1 <- cmp(ref, var, "monthly_burden_y1")
+  out$monthly_saving_avg10 <- cmp(ref, var, "monthly_burden_avg10")
   # Kleinvermieter: Cashflow der Variante - der Referenz; Warmmiete Variante - Referenz
-  out$monthly_cashflow_change_y1 <- kpi_cmp_diff(get_kpi(var, "monthly_net_cashflow_y1"),
-                                                 get_kpi(ref, "monthly_net_cashflow_y1"), n)
-  out$warm_rent_change_y1 <- kpi_cmp_diff(get_kpi(var, "warm_rent_y1"),
-                                          get_kpi(ref, "warm_rent_y1"), n)
+  out$monthly_cashflow_change_y1 <- cmp(var, ref, "monthly_net_cashflow_y1")
+  out$warm_rent_change_y1 <- cmp(var, ref, "warm_rent_y1")
   list(kpis = as.data.frame(lapply(out, function(v) v$values), optional = TRUE),
        na = as.data.frame(lapply(out, function(v) v$na_reason), stringsAsFactors = FALSE,
                           optional = TRUE))
@@ -662,17 +710,37 @@ kpi_compare_values <- function(var, ref, q_T = NULL) { # nolint: object_name_lin
 
 #' Differenz a - b zweier Kennzahlen je Lauf mit NA-Weitergabe
 #'
-#' Fehlt eine Seite (Kennzahl nicht berechnet, z. B. perspektivfremd), ist das Ergebnis `NA`
-#' (`not_applicable_perspective`); sonst trägt `NA` den Code der Variante bzw. der Referenz.
+#' Fehlt eine Seite, ist das Ergebnis `NA` mit dem Code aus `kpi_cmp_missing_code()`; sonst
+#' trägt `NA` den Code der Variante bzw. der Referenz.
+#' @param a,b `NULL` (Kennzahl fehlt) oder Liste `values`, `na`.
+#' @param kpi Name der zugrunde liegenden Kennzahl.
+#' @param perspectives Perspektiven der Seiten a und b (`NA`: unbekannt).
 #' @noRd
-kpi_cmp_diff <- function(a, b, n) {
+kpi_cmp_diff <- function(a, b, n, kpi = NULL, perspectives = c(NA_character_, NA_character_)) {
   if (is.null(a) || is.null(b)) {
-    return(vofi_kpi_value(rep(NA_real_, n), na_reason = "not_applicable_perspective"))
+    miss <- perspectives[c(is.null(a), is.null(b))]
+    return(vofi_kpi_value(rep(NA_real_, n), na_reason = kpi_cmp_missing_code(kpi, miss)))
   }
   v <- a$values - b$values
   na <- ifelse(is.na(a$values), a$na, ifelse(is.na(b$values), b$na, NA_character_))
   na[is.na(v) & is.na(na)] <- "not_computed"
   vofi_kpi_value(v, na_reason = na)
+}
+
+#' Code einer im Ergebnis fehlenden Kennzahl (12.4)
+#'
+#' `not_applicable_perspective`, wenn eine bekannte Perspektive der fehlenden Seite nicht zu den
+#' `perspectives` der registrierten Kennzahl gehört; sonst `not_computed` (Kennzahl nicht
+#' angefordert, über `requires` entfallen oder Perspektive unbekannt).
+#' @param kpi Name der Kennzahl bzw. `NULL`.
+#' @param persp Perspektiven der Seiten, denen die Kennzahl fehlt.
+#' @noRd
+kpi_cmp_missing_code <- function(kpi, persp) {
+  persp <- persp[!is.na(persp)]
+  if (is.null(kpi) || length(persp) == 0L || !reg_has("kpi", kpi)) return("not_computed")
+  allowed <- reg_get("kpi", kpi)$perspectives
+  if (!is.null(allowed) && any(!(persp %in% allowed))) "not_applicable_perspective" else
+    "not_computed"
 }
 
 #' Amortisation gegenüber der Referenz aus den Rückgabepfaden (12.6, 9.6 Nr. 9)
@@ -711,8 +779,15 @@ kpi_payback_vs_reference_from <- function(var, ref, ex_rv = FALSE) {
 #' bleiben unverändert. Reihenkennzahlen (z. B. `monthly_burden`) stehen in `x$kpi_series`.
 #'
 #' Spalten: `kpi` (Spaltenname inkl. `_ex_rv`), `base` (Grundname), `label`, `unit`, `rv`
-#' (`"with"` = mit Restwert, `"without"` = ohne Restwert, `"independent"` = unabhängig vom
-#' Restwert), `per`, `note` (Vermerk), `primary` (Primärkennzahl nach 12.3a), bei
+#' (`"with"` = Wert mit Restwert, auch ohne Gegenstück ohne Restwert wie beim Kapitalwert der
+#' Zahlungsfolge; `"without"` = ohne Restwert; `"independent"` = unabhängig vom Restwert;
+#' `"unknown"` = Restwertbezug unbekannt, z. B. nicht mehr registrierte Nutzerkennzahl), `per`,
+#' `note` (Vermerke, durch „; “ getrennt: „unabhängig vom Restwert“, bei LTV und
+#' Beleihungsauslauf der Hinweis auf den Wertpfad, bei der Endwertdifferenz von
+#' Bestandsprojekten „enthält Bestandszahlungen“ bzw. „gegenüber Verkauf zum Stichtag“, beim
+#' Kapitalwert und internen Zinsfuß der Zahlungsfolge „finanzierungsneutral, vereinfachte
+#' Annahmen“, in Simulationen bei Renditen mit undefinierten Läufen der Zensurvermerk),
+#' `primary` (Primärkennzahl nach 12.3a), bei
 #' deterministischen Ergebnissen `value`, `na_reason`, `na_label` (bei mehreren Läufen zusätzlich
 #' `sim`), bei Simulationen `deterministic`, `mean`, `sd`, `q05`, `q50`, `q95`, `p_neg`,
 #' `na_share`, `n_valid`, `na_reason` und `na_label` des deterministischen Laufs, bei Vergleichen
@@ -757,22 +832,56 @@ kpi_select_columns <- function(cols, which, rv) {
     }
     cols <- cols[cols %in% which | kpi_base_name(cols) %in% which]
   }
-  cls <- vapply(cols, kpi_rv_class, "", all_names = cols, USE.NAMES = FALSE)
+  info <- lapply(cols, kpi_rv_info, all_names = cols)
+  cls <- vapply(info, function(i) i$class, "")
   keep <- switch(rv, both = rep(TRUE, length(cols)), with = cls != "without",
                  without = cls != "with")
-  list(cols = cols[keep], rv = cls[keep])
+  list(cols = cols[keep], rv = cls[keep],
+       note = vapply(info, function(i) i$note, "")[keep])
+}
+
+#' Label-Schlüssel der Vermerke je Kennzahlspalte (12.3, 12.3a, 12.4, 12.5)
+#'
+#' Restwertvermerk aus `kpi_rv_info()`; bei `delta_terminal_value` (beide Sichten) der Vermerk
+#' der Primärkennzahl für Bestandsprojekte (`kpi_primary(spec)$note`, 12.3a); bei
+#' `npv_cf_project` und `irr_cf_project` „finanzierungsneutral, vereinfachte Annahmen“ (12.3);
+#' bei `censored = TRUE` (Rendite mit undefinierten Läufen in der Statistik) der Zensurvermerk
+#' (12.4).
+#' @param cols Spaltennamen; @param rv_note Restwertvermerke (Schlüssel bzw. `NA`).
+#' @param spec Spezifikation des Ergebnisses bzw. `NULL`.
+#' @param censored `NULL` oder logischer Vektor je Spalte.
+#' @return Liste von Zeichenvektoren (Schlüssel je Spalte).
+#' @noRd
+kpi_note_keys <- function(cols, rv_note, spec = NULL, censored = NULL) {
+  base <- kpi_base_name(cols)
+  existing <- if (is.null(spec)) NA_character_ else kpi_primary(spec)$note
+  lapply(seq_along(cols), function(i) {
+    keys <- rv_note[i]
+    if (identical(base[i], "delta_terminal_value")) keys <- c(keys, existing)
+    if (base[i] %in% c("npv_cf_project", "irr_cf_project")) {
+      keys <- c(keys, "kpi.notes.project_simplified")
+    }
+    if (isTRUE(censored[i])) keys <- c(keys, "kpi.notes.censored")
+    keys[!is.na(keys)]
+  })
 }
 
 #' Grundgerüst der Kennzahltabelle
+#' @param sel Auswahl aus `kpi_select_columns()` (`cols`, `rv`, `note`).
 #' @noRd
-kpi_table_frame <- function(cols, rv, per, primary) {
+kpi_table_frame <- function(sel, per, primary, spec = NULL, censored = NULL) {
+  cols <- sel$cols
   base <- kpi_base_name(cols)
+  keys <- kpi_note_keys(cols, sel$note, spec, censored)
+  note <- vapply(keys, function(k) {
+    if (length(k) == 0L) NA_character_ else paste(vapply(k, lbl, ""), collapse = "; ")
+  }, "", USE.NAMES = FALSE)
   data.frame(
     kpi = cols, base = base,
     label = vapply(cols, kpi_label, "", USE.NAMES = FALSE),
     unit = vapply(cols, kpi_unit, "", USE.NAMES = FALSE),
-    rv = rv, per = rep(per, length(cols)),
-    note = ifelse(rv == "independent", lbl("kpi.rv_independent"), NA_character_),
+    rv = sel$rv, per = rep(per, length(cols)),
+    note = note,
     primary = base == (primary %||% ""),
     stringsAsFactors = FALSE
   )
@@ -812,7 +921,7 @@ kpi_na_label <- function(codes) {
 kpi_table_result <- function(x, which, rv, per) {
   sel <- kpi_select_columns(names(x$kpis), which, rv)
   n <- nrow(x$kpis)
-  fr <- kpi_table_frame(sel$cols, sel$rv, per, x$meta$primary_kpi)
+  fr <- kpi_table_frame(sel, per, x$meta$primary_kpi, x$spec)
   div <- kpi_divisor(x$spec, x$grid, per)
   scale <- ifelse(kpi_per_mask(fr$unit), div, 1)
   parts <- lapply(seq_len(n), function(i) {
@@ -839,7 +948,12 @@ kpi_table_result <- function(x, which, rv, per) {
 #' @noRd
 kpi_table_mc <- function(x, which, rv, per) {
   sel <- kpi_select_columns(names(x$kpis), which, rv)
-  fr <- kpi_table_frame(sel$cols, sel$rv, per, x$meta$primary_kpi)
+  # Renditen mit undefinierten Läufen: Statistik über die definierten Läufe (Zensurvermerk, 12.4)
+  units <- vapply(sel$cols, kpi_unit, "", USE.NAMES = FALSE)
+  censored <- vapply(seq_along(sel$cols), function(i) {
+    identical(units[i], "rate_pa") && anyNA(x$kpis[[sel$cols[i]]])
+  }, logical(1))
+  fr <- kpi_table_frame(sel, per, x$meta$primary_kpi, x$spec, censored)
   div <- kpi_divisor(x$spec, x$grid, per)
   scale <- ifelse(kpi_per_mask(fr$unit), div, 1)
   det <- x$deterministic
@@ -908,8 +1022,10 @@ kpi_table_comparison <- function(x, which, rv, per) {
     for (k in sel$cols) {
       m <- diffs[[k]]
       vars <- colnames(m) %||% x$variants
-      fr <- kpi_table_frame(rep(k, length(vars)), rep(sel$rv[sel$cols == k], length(vars)), per,
-                            x$results[[1L]]$meta$primary_kpi)
+      i <- match(k, sel$cols)
+      rep_sel <- list(cols = rep(k, length(vars)), rv = rep(sel$rv[i], length(vars)),
+                      note = rep(sel$note[i], length(vars)))
+      fr <- kpi_table_frame(rep_sel, per, x$results[[1L]]$meta$primary_kpi)
       vals <- vapply(seq_len(ncol(m)), function(j) {
         col <- m[, j]
         if (all(is.na(col))) NA_real_ else mean(col, na.rm = TRUE)
@@ -939,8 +1055,10 @@ kpi_table_comparison <- function(x, which, rv, per) {
 #' Raten, Unterlassungsalternative) und den Laufkontext `ctx` und liefert ein
 #' [vofi_kpi_value()] mit einem Wert je Lauf (bzw. einer Matrix n × P bei Reihen). Mit
 #' `rv_variant = TRUE` wird sie zusätzlich auf der Sicht ohne Restwert als `<name>_ex_rv`
-#' berechnet. Die Kennzahl steht danach in `analysis.kpis` zur Verfügung; Perspektiven
-#' außerhalb von `perspectives` ergeben `NA` mit Code `not_applicable_perspective`.
+#' berechnet; ohne `rv_variant` gilt sie als restwertunabhängig und trägt in `vofi_kpis()` den
+#' Vermerk „unabhängig vom Restwert“ (R-52). Die Kennzahl steht danach in `analysis.kpis` zur
+#' Verfügung; Perspektiven außerhalb von `perspectives` ergeben `NA` mit Code
+#' `not_applicable_perspective`.
 #'
 #' @param name Name der Kennzahl (`^[a-z][a-z0-9_]*$`, ohne Endung `_ex_rv`).
 #' @param compute Funktion `compute(core, ctx)`, die ein [vofi_kpi_value()] liefert.

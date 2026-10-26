@@ -237,7 +237,7 @@ typedef_kpi_roe_irr <- function() {
 #' @noRd
 typedef_kpi_irr_cf_project <- function() {
   kpi_typedef("irr_cf_project", kpi_calc_irr_cf_project, unit = "rate_pa",
-              higher_is_better = TRUE, mc_default = FALSE)
+              higher_is_better = TRUE, mc_default = FALSE, rv_ref = "with")
 }
 
 # ---------------------------------------------------------------------------------------------

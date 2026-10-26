@@ -117,6 +117,9 @@ kpi_payback_vs_reference <- function(w_a, bsu_a, w_r, bsu_r, grid_a, grid_r = gr
 # ---------------------------------------------------------------------------------------------
 
 #' Zahlungsfolge cf_t des Projekts (zahlungswirksame Zeilen der Abschnitte project und grants)
+#'
+#' Enthält den Restwert und die Verkaufskosten in T; `npv_cf_project` und `irr_cf_project` haben
+#' nach 12.3 keine Variante ohne Restwert und tragen in Ausgaben den Restwertbezug `"with"`.
 #' @noRd
 kpi_cf_project <- function(core) kpi_sum(core, section = c("project", "grants"), cash = TRUE)
 
@@ -124,7 +127,7 @@ kpi_cf_project <- function(core) kpi_sum(core, section = c("project", "grants"),
 typedef_kpi_npv_cf_project <- function() {
   kpi_typedef("npv_cf_project", function(core, ctx) {
     vofi_kpi_value(rowSums(kpi_cf_project(core) / kpi_q(core)))
-  }, unit = "EUR", higher_is_better = TRUE, mc_default = FALSE)
+  }, unit = "EUR", higher_is_better = TRUE, mc_default = FALSE, rv_ref = "with")
 }
 
 #' Förderbarwert (Zuschüsse, laufende Zuschüsse, Steuerermäßigung, Tilgungszuschüsse; R-83)

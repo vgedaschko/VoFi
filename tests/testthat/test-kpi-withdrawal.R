@@ -28,6 +28,22 @@ test_that("Orakel (a), (b1), (b2), (c1): Entnahme-Äquivalent (Prüfwerte 12.8)"
   expect_true(is.na(a$kpi_na$withdrawal_equivalent))
 })
 
+test_that("Orakel (a3): Entnahme-Äquivalent mit Sondertilgungsregel (ohne Instrument-Cache)", {
+  r <- d2_run(d2_oracle_a3())
+  # Sollwerte: vofi_ref.py, entnahme_aequivalent() mit sonder = Annuitätendarlehen
+  e <- r$kpis$withdrawal_equivalent
+  expect_true(abs(e - 739.2011157259) < 1e-6)
+  expect_true(abs(r$kpis$withdrawal_equivalent_ex_rv - (-6466.3554200329)) < 1e-6)
+  expect_true(is.na(r$kpi_na$withdrawal_equivalent))
+  # f(E*) = 0 über einen vollständigen Engine-Lauf mit Zusatzentnahme E* je Jahr ab t = 1
+  # (Sondertilgung neu bestimmt; ohne Nachschüsse ist f(E) = EW(E) - EW_U)
+  re <- d2_run(d2_oracle_a3(withdrawals_pa = e))
+  expect_equal(re$kpis$sum_equity_calls, 0)
+  expect_true(abs(re$kpis$terminal_value - r$kpis$terminal_value_opp) < 1e-5)
+  prepay <- function(x) x$ledger$values$loan_ann_prepay
+  expect_false(isTRUE(all.equal(prepay(re), prepay(r))))
+})
+
 test_that("Lösung erfüllt f(E*) = 0 in beiden Sichten; Batch = Einzellauf; Toleranz", {
   core <- example_core(7L)
   ctx <- d2_ctx(core)

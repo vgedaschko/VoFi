@@ -79,6 +79,34 @@ test_that("Labels: Typlabels, Zusatz ohne Restwert, Vergleichskennzahlen", {
   expect_identical(kpi_rv_class("dscr_min"), "independent")
   expect_identical(kpi_rv_class("x", c("x", "x_ex_rv")), "with")
   expect_identical(kpi_rv_class("payback_vs_reference"), "with")
+  # Restwert im Wert ohne Gegenstück _ex_rv (12.3, 12.6): kein Vermerk „unabhängig“
+  for (k in c("npv_cf_project", "irr_cf_project", "co2_abatement_cost",
+              "prob_better_than_ref")) {
+    expect_identical(kpi_rv_info(k), list(class = "with", note = NA_character_), info = k)
+  }
+  for (k in c("dscr_min", "sum_equity_calls", "own_contribution", "restriction_dscr",
+              "terminal_value_opp", "co2_reduction", "monthly_saving_y1")) {
+    expect_identical(kpi_rv_info(k)$note, "kpi.rv_independent", info = k)
+  }
+  for (k in c("ltv_max", "ltv_end", "lending_ratio_max")) {
+    expect_identical(kpi_rv_info(k), list(class = "independent", note = "kpi.notes.value_path"),
+                     info = k)
+  }
+  expect_identical(kpi_rv_info("gibt_es_nicht"), list(class = "unknown", note = NA_character_))
+  expect_identical(kpi_rv_class("gibt_es_nicht", c("gibt_es_nicht", "gibt_es_nicht_ex_rv")),
+                   "with")
+  # alle eingebauten Kennzahlen mit Restwert führen die Klasse "with" (Spec 12.3, R-52)
+  for (nm in kpi_spec_table()$name) {
+    def <- reg_get("kpi", nm)
+    expect_true(def$rv_ref %in% c("with", "independent", "value_path"), info = nm)
+    if (isTRUE(def$rv_variant)) expect_identical(def$rv_ref, "with", info = nm)
+  }
+  with_strict_labels({
+    for (k in c("kpi.rv_independent", "kpi.notes.value_path", "kpi.notes.project_simplified",
+                "kpi.notes.censored")) {
+      expect_true(lbl_has(k), info = k)
+    }
+  })
 })
 
 test_that("kpi_compute: beide Sichten, Reihen, Perspektive, Vertragsfehler", {
@@ -304,6 +332,55 @@ test_that("vofi_kpis: deterministisches Ergebnis, Filter rv/which, je WE und m²
   expect_identical(nrow(vofi_kpis(x, which = character(0))), 0L)
 })
 
+test_that("vofi_kpis: Restwertbezug und Vermerke (12.3, 12.3a, 12.4, 12.5)", {
+  a <- d2_run(d2_oracle_a())
+  tab <- vofi_kpis(a, which = c("npv_cf_project", "irr_cf_project", "dscr_min",
+                                "terminal_value"))
+  np <- tab[tab$kpi == "npv_cf_project", ]
+  expect_identical(np$rv, "with")
+  expect_identical(np$note, lbl("kpi.notes.project_simplified"))
+  # der Kapitalwert enthält den Restwert 40.000 / 1,03^5: ohne ihn wäre er negativ
+  expect_equal(np$value - 40000 / 1.03^5, -24308.39, tolerance = 0.005 / 24308.39)
+  ir <- tab[tab$kpi == "irr_cf_project", ]
+  expect_identical(ir$rv, "with")
+  expect_identical(ir$note, lbl("kpi.notes.project_simplified"))
+  expect_identical(tab$note[tab$kpi == "dscr_min"], lbl("kpi.rv_independent"))
+  expect_true(all(is.na(tab$note[startsWith(tab$kpi, "terminal_value")])))
+  expect_false(any(grepl(lbl("kpi.rv_independent"), tab$note[tab$rv == "with"], fixed = TRUE)))
+  wo <- vofi_kpis(a, rv = "without")
+  expect_false(any(c("npv_cf_project", "irr_cf_project") %in% wo$kpi))
+  expect_true("npv_cf_project" %in% vofi_kpis(a, rv = "with")$kpi)
+  expect_true(all(is.na(vofi_kpis(a, which = "delta_terminal_value")$note)))
+  # LTV und Beleihungsauslauf: Wertpfad V_t statt Restwert
+  c1 <- d2_run(d2_oracle_c())
+  lt <- vofi_kpis(c1, which = c("ltv_max", "ltv_end", "lending_ratio_max"))
+  expect_identical(unique(lt$rv), "independent")
+  expect_identical(unique(lt$note), lbl("kpi.notes.value_path"))
+  # Bestandsprojekt (12.3a): Vermerk der Endwertdifferenz gegenüber der Unterlassung
+  no <- d2_run(d2_oracle_in_kind(existing_value = NULL))
+  d <- vofi_kpis(no, which = "delta_terminal_value")
+  expect_identical(d$kpi, c("delta_terminal_value", "delta_terminal_value_ex_rv"))
+  expect_identical(d$note, rep(lbl("kpi.notes.contains_existing"), 2L))
+  expect_true(all(is.na(vofi_kpis(no, which = "terminal_value")$note)))
+  ik <- d2_run(d2_oracle_in_kind())
+  expect_identical(vofi_kpis(ik, which = "delta_terminal_value")$note,
+                   rep(lbl("kpi.notes.vs_sale"), 2L))
+  # mehrere Vermerke werden mit "; " verbunden
+  keys <- kpi_note_keys("npv_cf_project", "kpi.rv_independent", censored = TRUE)
+  expect_identical(keys[[1L]], c("kpi.rv_independent", "kpi.notes.project_simplified",
+                                 "kpi.notes.censored"))
+  # Simulation: Zensurvermerk nur bei Renditen mit undefinierten Läufen (12.4)
+  mc <- example_mc_result(50L)
+  st <- vofi_kpis(mc, which = "roe_mirr")
+  expect_true(all(is.na(st$note)))
+  mc$kpis$roe_mirr[1:5] <- NA
+  mc$kpi_na$roe_mirr[1:5] <- "equity_lost"
+  st <- vofi_kpis(mc, which = c("roe_mirr", "terminal_value"))
+  expect_identical(st$note[st$kpi == "roe_mirr"], lbl("kpi.notes.censored"))
+  expect_identical(st$n_valid[st$kpi == "roe_mirr"], 45L)
+  expect_true(is.na(st$note[st$kpi == "terminal_value"]))
+})
+
 test_that("vofi_kpis: Ergebnis mit mehreren Läufen, Simulation und Vergleich", {
   x <- example_result()
   two <- x
@@ -388,6 +465,30 @@ test_that("kpi_compare_values: Vergleichsregel (Orakel (g)), CRN, CO2, Haushalt"
   expect_identical(cmp$na$payback_vs_reference, "not_computed")
   expect_identical(cmp$na$monthly_saving_y1, "not_applicable_perspective")
   expect_identical(cmp$na$co2_abatement_cost, "no_co2_reduction")
+  # fehlende Kennzahl (12.4): perspektivfremd vs. nicht angefordert bzw. über requires entfallen
+  expect_false("warm_rent_y1" %in% names(a$kpis))
+  expect_identical(cmp$na$warm_rent_change_y1, "not_computed")
+  expect_identical(cmp$na$monthly_cashflow_change_y1, "not_applicable_perspective")
+  a2 <- a
+  a2$kpis$co2_emissions <- NULL
+  a2$kpi_na$co2_emissions <- NULL
+  out2 <- kpi_compare_values(a2, b, q_T = 1.02^2)
+  expect_identical(out2$na$co2_reduction, "not_computed")
+  expect_identical(out2$na$co2_abatement_cost, "not_computed")
+  bare <- list(kpis = data.frame(delta_terminal_value = 1),
+               kpi_na = data.frame(delta_terminal_value = NA_character_))
+  unk <- kpi_compare_values(bare, bare)
+  expect_identical(unk$na$monthly_saving_y1, "not_computed")
+  su <- kpi_compare_values(bare, bare, perspective = "selbstnutzer")
+  expect_identical(su$na$monthly_saving_y1, "not_computed")
+  expect_identical(su$na$monthly_cashflow_change_y1, "not_applicable_perspective")
+  kv <- bare
+  kv$perspective <- "kleinvermieter"
+  mix <- kpi_compare_values(kv, bare, perspective = "selbstnutzer")
+  expect_identical(mix$na$monthly_saving_y1, "not_applicable_perspective")
+  expect_identical(mix$na$monthly_cashflow_change_y1, "not_applicable_perspective")
+  expect_identical(kpi_cmp_missing_code(NULL, "selbstnutzer"), "not_computed")
+  expect_identical(kpi_cmp_missing_code("gibt_es_nicht", "selbstnutzer"), "not_computed")
   same <- kpi_compare_values(a, a)
   expect_identical(same$kpis$delta_vs_reference, 0)
   expect_identical(same$kpis$delta_vs_reference_ex_rv, 0)
