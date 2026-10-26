@@ -8118,18 +8118,8 @@
                 "anyOf": [
                   {
                     "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "*": {
-                        "anyOf": [
-                          {
-                            "$ref": "#/$defs/value"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      }
+                    "additionalProperties": {
+                      "$ref": "#/$defs/value"
                     }
                   },
                   {
@@ -8692,18 +8682,8 @@
                 "anyOf": [
                   {
                     "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "*": {
-                        "anyOf": [
-                          {
-                            "$ref": "#/$defs/value"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      }
+                    "additionalProperties": {
+                      "$ref": "#/$defs/value"
                     }
                   },
                   {
@@ -8715,18 +8695,8 @@
                 "anyOf": [
                   {
                     "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "*": {
-                        "anyOf": [
-                          {
-                            "$ref": "#/$defs/value"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      }
+                    "additionalProperties": {
+                      "$ref": "#/$defs/value"
                     }
                   },
                   {
@@ -12881,100 +12851,90 @@
                 "anyOf": [
                   {
                     "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "*": {
-                        "anyOf": [
-                          {
-                            "type": "object",
-                            "additionalProperties": false,
-                            "properties": {
-                              "roof_insulation": {
-                                "anyOf": [
-                                  {
-                                    "$ref": "#/$defs/value"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "windows_doors": {
-                                "anyOf": [
-                                  {
-                                    "$ref": "#/$defs/value"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "pipes": {
-                                "anyOf": [
-                                  {
-                                    "$ref": "#/$defs/value"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "heating": {
-                                "anyOf": [
-                                  {
-                                    "$ref": "#/$defs/value"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "facade_insulation": {
-                                "anyOf": [
-                                  {
-                                    "$ref": "#/$defs/value"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "bathrooms": {
-                                "anyOf": [
-                                  {
-                                    "$ref": "#/$defs/value"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "interior": {
-                                "anyOf": [
-                                  {
-                                    "$ref": "#/$defs/value"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              },
-                              "floor_plan": {
-                                "anyOf": [
-                                  {
-                                    "$ref": "#/$defs/value"
-                                  },
-                                  {
-                                    "type": "null"
-                                  }
-                                ]
-                              }
+                    "additionalProperties": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "roof_insulation": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/value"
+                            },
+                            {
+                              "type": "null"
                             }
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
+                          ]
+                        },
+                        "windows_doors": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/value"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "pipes": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/value"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "heating": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/value"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "facade_insulation": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/value"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bathrooms": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/value"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "interior": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/value"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "floor_plan": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/$defs/value"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
                       }
                     }
                   },
@@ -13261,18 +13221,8 @@
                 "anyOf": [
                   {
                     "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "*": {
-                        "anyOf": [
-                          {
-                            "$ref": "#/$defs/value"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      }
+                    "additionalProperties": {
+                      "$ref": "#/$defs/value"
                     }
                   },
                   {

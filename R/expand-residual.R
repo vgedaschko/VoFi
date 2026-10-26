@@ -47,7 +47,7 @@ exp_rv_tree <- function(x, tree, prefix, params = NULL) {
     v <- tree[[nm]]
     if (is.null(v)) next
     p <- paste0(prefix, ".", nm)
-    pp <- params[[nm]] %||% params[["*"]]
+    pp <- params[[nm]] %||% params[[".key"]]
     kind <- if (inherits(pp, "vofi_param")) pp$kind else NA_character_
     det <- inherits(pp, "vofi_param") && isTRUE(pp$deterministic_only)
     if (nm %in% c("rnd_table", "points_max")) {

@@ -138,7 +138,7 @@ rv_params <- function() {
     construction_year = p("integer"),
     fictitious_construction_year = p("integer"),
     points_before = p("map", fields = pts_fields),
-    points_measures = p("map", fields = list("*" = p("map", fields = pts_fields))),
+    points_measures = p("map", fields = list(.key = p("map", fields = pts_fields)), free = TRUE),
     existing_value_eur = p("amount", min = 0, unit = "EUR"),
     completion_event = p("timing", default = "completion")
   )
