@@ -8,6 +8,7 @@ docs/recherche/prototypen/vofi_referenz/vofi_ref.py) auf und schreibt je Orakel 
 
   tests/testthat/fixtures/oracles/<id>_rows.csv   row_key,t,value            (Orakel (g): + variant)
   tests/testthat/fixtures/oracles/<id>_kpis.csv   kpi,value,na_reason        (Orakel (g): + variant)
+  tests/testthat/fixtures/oracles/c1_solve.csv    what,param,kpi,target,value (Zielwertsuche, 12.8)
 
 Werte ungerundet mit "%.15g" (Spec 00 15.3 nennt "%.12g"; bei Betraegen ab 1e5 laege der
 Formatfehler mit 12 Stellen an der Orakeltoleranz 1e-6, daher 15 Stellen); NA-Kennzahlen mit
@@ -23,7 +24,10 @@ Erweiterungen gegenueber vofi_ref.py (nur in dieser Datei, vofi_ref.py bleibt un
   * Kennzahlen nach Spec 00 12.3 (inkl. Sicht ohne Restwert 9.4, Vermoegensamortisation,
     Entnahme-Aequivalent 12.8 mit Nachschusskorrektur, DSCR/ICR/LTV, IZF der Zahlungsfolge);
   * Orakel (g) (Vergleichsregel, Spec 00 9.6 Nr. 4, R-66): zwei Varianten mit ungleichen
-    Nachschuessen, delta_vs_reference = dEW_A - dEW_ref.
+    Nachschuessen, delta_vs_reference = dEW_A - dEW_ref;
+  * Zielwertsuche (Spec 00 12.8, R-75): Break-even-NOI_1 von (c1) (dEW = 0 ueber den
+    Anfangswert der NOI-Reihe, Pfad components.noi.amount_eur) per Bisektion wie im Hauptteil
+    von vofi_ref.py.
 
 Aufruf (aus der Paketwurzel):  python3 data-raw/export_oracles.py
 """
@@ -382,6 +386,29 @@ def make_case(grid, z, mk_loans, einl, h, s, rw, kk_limit=INF, policy="unlimited
     return case
 
 
+def MK_C():
+    """Kredit von (c): Annuitaet 300.000 zu 3,8 % mit anfaenglicher Tilgung 2 %."""
+    return [V.Loan("ann", "annuity", {0: 300000}, 0.038, term=None, init_tilg=0.02)]
+
+
+def c1_delta_ew(n1):
+    """dEW von (c1) bei Anfangs-NOI n1 (NOI_t = n1 * 1,02^(t-1), Restwert V_10 * 0,97)."""
+    T = 10
+    rw = 280000.0 * 1.02 ** T * (1 - 0.03)
+    z = [-300000.0] + [n1 * 1.02 ** (t - 1) for t in range(1, T + 1)]
+    z[T] += rw
+    res = V.vofi(T, z, MK_C(), einlagen=0.0, h=0.025, s=0.09)
+    memo = V.kpis(res, list(range(T + 1)), restwert=rw)
+    return memo["EW"] - memo["EW_U"]
+
+
+def solve_lines():
+    """Zielwertsuche (Spec 00 12.8): Break-even-NOI_1 von (c1), Pruefwert 9.869,14."""
+    be = V.bisect(c1_delta_ew, 0.0, 50000.0)
+    assert abs(c1_delta_ew(be)) < 1e-6, "Break-even (c1) nicht getroffen"
+    return [["breakeven", "components.noi.amount_eur", "delta_terminal_value", "0", fmt(be)]]
+
+
 def cases():
     C = {}
     # ----- (a) Lehrbuch-VoFi -------------------------------------------------------------------
@@ -414,7 +441,7 @@ def cases():
     noi_c = [0.0] + [12000.0 * 1.02 ** (t - 1) for t in range(1, 11)]
     z_c = [-300000.0] + noi_c[1:]
     z_c[10] += rw_c
-    mk_c = lambda: [V.Loan("ann", "annuity", {0: 300000}, 0.038, term=None, init_tilg=0.02)]
+    mk_c = MK_C
     common_c = dict(noi=noi_c, kd_loans=["ann"], dscr_threshold=1.2, value=Vc, haircut=0.2)
     C["c1"] = make_case(g10, z_c, mk_c, 0.0, 0.025, 0.09, rw_c, **common_c)
     C["c2"] = make_case(g10, z_c, mk_c, 0.0, 0.025, 0.09, rw_c, kk_limit=0.0,
@@ -540,6 +567,8 @@ def main():
     write_csv(os.path.join(OUT_DIR, "g_rows.csv"), ["row_key", "t", "value", "variant"], rows)
     write_csv(os.path.join(OUT_DIR, "g_kpis.csv"), ["kpi", "value", "na_reason", "variant"], kls)
     summary.append(("g", kp_g["a"]["terminal_value"][0], kp_g["a"]["delta_vs_reference"][0]))
+    write_csv(os.path.join(OUT_DIR, "c1_solve.csv"), ["what", "param", "kpi", "target", "value"],
+              solve_lines())
     for cid, ew, d in summary:
         print("%-14s EW = %14.2f   dEW (g: delta_vs_reference) = %12.2f" % (cid, ew, d))
 

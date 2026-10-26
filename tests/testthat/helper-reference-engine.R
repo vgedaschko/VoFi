@@ -7,7 +7,10 @@
 # Unterlassungsalternative) und §12 (Kennzahlen). Sie ruft keine Funktion der Engine
 # (R/engine-*.R, R/account-actions.R, R/type-inst-*.R) auf und verwendet nur Basis-R. Nur die
 # Übersetzung spec_simple_from_model() liest Vertragsobjekte des Pakets (vofi_model, vofi_spec,
-# vofi_grid, vofi_flows, vofi_result; Spec 00 §3.2, §4.13, §7, §13).
+# vofi_grid, vofi_flows, vofi_result; Spec 00 §3.2, §4.13, §7, §13); exogene Zeilen
+# (Zahlungskomponenten) übernimmt sie aus dem Basisfall-Vorlauf bzw. dem Ledger des Pakets.
+# Abschnitt 11 rechnet die Paketseite der Differenztests (vofi_build(), vofi_run(),
+# eng_run_draws() mit fake_draws()); die Referenz-Engine selbst nutzt davon nichts.
 #
 # Eingabe der Referenz-Engine (spec_simple), alle Beträge in EUR, Raten p. a.:
 #   n             Anzahl der Läufe
@@ -136,7 +139,9 @@ ref_irr <- function(cf, tau) {
 #' `processing_fee_share` (n), `fee_rate` (Bereitstellungsprovision je Monat, n),
 #' `fee_free_until` (Monat), `tz` (NULL oder list(type = "amount"/"share", value, t, approved,
 #' cut, effect)), `planned` (geplante Sondertilgungen je Periode), `prepay_allowed`,
-#' `cap_share` (n), `round` (lgl).
+#' `cap_share` (n), `round` (lgl), `r100` (lgl, Default TRUE: effektive Restzahl nach R-100;
+#' FALSE nur im Kompatibilitätsmodus für eine Paketfassung ohne R-100, siehe
+#' `ref_spec_without_r100()`).
 ref_loan_init <- function(L, i, M) {
   t1 <- length(M)
   e <- function(x, default) {
@@ -158,7 +163,7 @@ ref_loan_init <- function(L, i, M) {
     fee_free_until = as.double(L$fee_free_until %||% 0),
     planned = if (is.null(L$planned)) rep(0, t1) else ref_path_row(L$planned, i, t1),
     prepay_allowed = isTRUE(L$prepay_allowed), cap_share = e(L$cap_share, 1),
-    round = isTRUE(L$round)
+    round = isTRUE(L$round), r100 = !isFALSE(L$r100)
   )
   p$followup <- if (is.null(L$followup)) rep(0, t1) else ref_path_row(L$followup, i, t1)
   p$pi <- 12L %/% p$ppy
@@ -229,7 +234,7 @@ ref_loan_refi <- function(st, i_old, m, t) {
   i_new <- st$i_pa
   if (p$refi_rule == "keep_term") {
     n <- ref_loan_n_rem(p, m - 1)
-    if (!is.null(p$tz) && identical(p$tz$effect, "shorten_term") && !is.na(p$tz$t) &&
+    if (p$r100 && !is.null(p$tz) && identical(p$tz$effect, "shorten_term") && !is.na(p$tz$t) &&
           p$tz$t < t) {
       # R-100: effektive Restzahl nach Laufzeitverkürzung durch Tilgungszuschuss
       i0 <- i_old / p$ppy
@@ -1524,40 +1529,84 @@ ref_compare_result <- function(ref, res, tol = 1e-8, wd_tol = 2e-6, flags = TRUE
 }
 
 #' Paket-Ergebnis gegen die Referenz-Engine prüfen (testthat-Erwartung)
+#'
+#' Läufe, deren Ergebnis von R-100 abhängt, vergleicht die Funktion mit der Referenz ohne
+#' R-100, solange die Paketfassung R-100 nachweislich nicht umsetzt (`ref_pkg_compat()`); sie
+#' gelten dann als zurückgestellt (`deferred`), alle übrigen Zeilen und Kennzahlen werden
+#' trotzdem geprüft.
+#' @return unsichtbar list(d = Abweichungen, deferred = lgl, features = benannter lgl-Vektor
+#'   über alle Läufe (`ref_features()`), s = spec_simple, ref = Referenzergebnis).
 expect_ref_equal <- function(res, model, tol = 1e-8, wd_tol = 2e-6, info = NULL) {
   mc <- if (identical(res$meta$mode, "deterministic")) NULL else res
-  ref <- ref_engine_run(spec_simple_from_model(model, mc))
-  d <- ref_compare_result(ref, res, tol = tol, wd_tol = wd_tol)
+  s <- spec_simple_from_model(model, mc)
+  ref <- ref_engine_run(s)
+  r1 <- ref_r100_affected(s, ref)
+  deferred <- r1$affected && !isTRUE(ref_pkg_compat()$r100)
+  d <- ref_compare_result(if (deferred) r1$ref0 else ref, res, tol = tol, wd_tol = wd_tol)
   head_line <- paste0("Referenz-Engine weicht ab",
-                      if (!is.null(info)) paste0(" (", info, ")"), ":")
+                      if (!is.null(info)) paste0(" (", info, ")"),
+                      if (deferred) " [Vergleich ohne R-100]", ":")
   msg <- if (nrow(d) == 0L) "" else
     paste(c(head_line, utils::capture.output(print(utils::head(d, 10L)))), collapse = "\n")
   testthat::expect(nrow(d) == 0L, msg)
-  invisible(d)
+  feats <- Reduce(`|`, lapply(seq_len(ref$n), function(i) ref_features(s, ref, r1$affected, i)))
+  invisible(list(d = d, deferred = deferred, features = feats, s = s, ref = ref))
 }
 
 # ---------------------------------------------------------------------------------------------
 # 9. Zufallsszenarien (Spec 00 15.1, 15.4 G, 15.6 "Differenztests")
 # ---------------------------------------------------------------------------------------------
 
+#' Gezielte Merkmale des Modus "full" (jedes dritte Szenario, reihum; Spec 00 8.6 R-45/R-100,
+#' 8.8 sinkendes Limit, 8.9 D3, 9.4, 9.5)
+ref_gen_features <- c("limit_cut", "reserve_used", "ex_rv_gap", "opp_limit_breach", "r100",
+                      "followup_path")
+
 #' Zufallsszenarien in kanonischer YAML-Grammatik (Rohlisten für vofi_scenario())
 #'
 #' @param seed fester Seed (Generator lokal, globaler RNG-Zustand bleibt unverändert).
 #' @param n Anzahl der Szenarien.
-#' @param mode "full" (alle Merkmale der Referenz-Engine), "perfect_market" (I4: Jahresraster,
-#'   payments_per_year = 1, alle Zinsen gleich i, keine Gebühren/Disagio, KK unbegrenzt, keine
-#'   D4-Zuflüsse, 15.4 G), "nonneg" (I5: h_net, s, sp >= 0), "simple" (ohne Kredite mit
-#'   Monatsfrequenz und ohne Ü3; für schnelle Läufe).
+#' @param mode "full" (alle Merkmale der Referenz-Engine, inkl. zeitvariabler Zinspfade für
+#'   Haben-, Soll- und Anschlusszins, fallender Kontokorrentlimits und reihum gezielter Fälle
+#'   `ref_gen_features`), "perfect_market" (I4: Jahresraster, payments_per_year = 1, alle Zinsen
+#'   gleich i, keine Gebühren/Disagio, KK unbegrenzt, keine D4-Zuflüsse, 15.4 G), "nonneg"
+#'   (I5: h_net, s, sp >= 0), "simple" (ohne Kredite mit Monatsfrequenz und ohne Ü3; für
+#'   schnelle Läufe).
 #' @param variants TRUE: zusätzlich Variante `a` mit eigener Zahlungsfolge (V1, 9.6 Nr. 4).
+#' @param stochastic TRUE: zusätzlich Block `stochastic` mit statischen Größen (Zins, Zusage und
+#'   Kürzung des Tilgungszuschusses je Kredit, Habenzins, Kontokorrentlimit, Restwert über
+#'   `shared.rv`); die Ziehungen je Lauf liefert `ref_gen_draws()`. Der Block wird aus einem
+#'   eigenen Zufallsstrom erzeugt; die Szenarien sind sonst identisch zu `stochastic = FALSE`.
 #' @return Liste von n Rohszenarien.
 ref_scenario_generator <- function(seed, n = 200L,
                                    mode = c("full", "perfect_market", "nonneg", "simple"),
-                                   variants = FALSE) {
+                                   variants = FALSE, stochastic = FALSE) {
   mode <- match.arg(mode)
-  withr::with_seed(seed, lapply(seq_len(n), function(k) ref_gen_one(k, mode, variants)))
+  withr::with_seed(seed, lapply(seq_len(n), function(k) {
+    sc <- ref_gen_one(k, mode, variants)
+    if (stochastic) {
+      sc <- withr::with_seed(ref_gen_subseed(seed, k), ref_gen_stochastic(sc, k))
+    }
+    sc
+  }))
+}
+
+#' Eigener Seed je Szenario für Nebenströme (stochastic-Block, Ziehungen)
+ref_gen_subseed <- function(seed, k) {
+  as.integer((as.double(seed) * 31 + 7919 * as.double(k)) %% 2147483646) + 1L
 }
 
 ref_gen_round <- function(x, d = 2) round(x, d)
+
+#' Zufallspfad (Irrfahrt) der Länge t1 um den Startwert x0, begrenzt auf [lo, hi]
+ref_gen_walk <- function(x0, t1, step, lo = -Inf, hi = Inf, d = 4) {
+  round(pmin(pmax(x0 + cumsum(c(0, stats::runif(t1 - 1L, -step, step))), lo), hi), d)
+}
+
+#' Nicht steigender Limitpfad der Länge t1 mit Startwert x0
+ref_gen_falling <- function(x0, t1) {
+  ref_gen_round(x0 * cumprod(c(1, stats::runif(t1 - 1L, 0.3, 1))))
+}
 
 #' Ein Zufallsszenario
 ref_gen_one <- function(k, mode, variants) {
@@ -1565,6 +1614,7 @@ ref_gen_one <- function(k, mode, variants) {
   pick <- function(x) x[sample.int(length(x), 1L)]
   coin <- function(p) stats::runif(1L) < p
   pm <- mode == "perfect_market"
+  full <- mode == "full"
   annual <- pm || coin(0.6)
   grid <- list()
   if (annual) {
@@ -1639,6 +1689,18 @@ ref_gen_one <- function(k, mode, variants) {
               } else {
                 Inf
               })
+  # Nur Modus "full": zeitvariable Konto-Zinssätze (series_t), fallende Limits, Lmin-Pfad
+  # (8.8). Die Bedingung `full && coin()` zieht in den übrigen Modi keine Zufallszahl, deren
+  # Ströme bleiben dadurch unverändert.
+  if (full && coin(0.3)) acc$deposit_rate_pa <- ref_gen_walk(h, t1, 0.004, -0.02, 0.15)
+  if (full && coin(0.3)) acc$overdraft_rate_pa <- ref_gen_walk(s, t1, 0.005, 0, 0.25)
+  if (full && !kl_inf && coin(0.5)) {
+    acc$overdraft_limit_eur <- ref_gen_falling(ru(0.05, 0.5) * inv, t1)
+  }
+  if (full && coin(0.1)) {
+    acc$min_liquidity_eur <- ref_gen_round(ru(0, 0.03) * inv *
+                                             cumprod(c(1, stats::runif(t1 - 1L, 1, 1.1))))
+  }
   sur <- c("od_repay")
   if (!pm && coin(0.3)) sur <- c(sur, "dep_fill_reserve")
   if (!pm && mode != "simple" && (prepay_any || coin(0.1))) {
@@ -1664,9 +1726,20 @@ ref_gen_one <- function(k, mode, variants) {
                     thresholds = list(dscr = 1.2), lending_value_haircut = 0.2)
   )
   if (length(grid) > 0L) sc$grid <- grid
-  if (length(fin) == 0L) sc$financing <- NULL
+  if (full && k %% 3L == 0L) {
+    feat <- ref_gen_features[((k %/% 3L) - 1L) %% length(ref_gen_features) + 1L]
+    sc <- ref_gen_target(sc, feat, g, inv, ru, pick, coin)
+    sc$meta$title <- paste0(sc$meta$title, " (gezielt: ", feat, ")")
+  }
+  uses_mr <- any(vapply(sc$financing, function(b) {
+    is.list(b$followup_rate_pa) && identical(b$followup_rate_pa$ref, "market.mortgage_rate")
+  }, logical(1)))
+  if (uses_mr) {
+    sc$market <- list(mortgage_rate = ref_gen_walk(ru(0.01, 0.05), t1, 0.004, 0.002, 0.12))
+  }
+  if (length(sc$financing) == 0L) sc$financing <- NULL
   if (variants) {
-    za <- z + c(0, ref_gen_round(stats::runif(t1 - 1L, -0.1, 0.1) * inv))
+    za <- sc$components$z$values + c(0, ref_gen_round(stats::runif(t1 - 1L, -0.1, 0.1) * inv))
     sc$project$reference_variant <- "base"
     sc$variants <- list(a = list(label = "Variante a", set = list("components.z.values" = za)))
   }
@@ -1676,6 +1749,8 @@ ref_gen_one <- function(k, mode, variants) {
 #' Ein Zufallskredit (Parameter nach Spec 00 8.2 innerhalb der Validierungsgrenzen)
 ref_gen_loan <- function(g, inv, mode, ru, pick, coin) {
   pm <- mode == "perfect_market"
+  full <- mode == "full"
+  t1 <- g$T + 1L
   type <- pick(c("annuity_loan", "annuity_loan", "installment_loan", "bullet_loan"))
   ppy <- if (pm || mode == "simple") 1L else pick(c(1L, 1L, 4L, 12L))
   amount <- ref_gen_round(ru(0.1, 0.8) * inv)
@@ -1722,9 +1797,20 @@ ref_gen_loan <- function(g, inv, mode, ru, pick, coin) {
       c("keep_term", "keep_payment", if (!is.null(L$initial_repayment_pa)) "keep_tilg_rate")
     if (is.null(L$term_years)) rules <- setdiff(rules, "keep_term")
     L$refi_rule <- pick(rules)
+    # Nur Modus "full": Anschlusszins als Pfad (series_t bzw. Bezug auf market.mortgage_rate,
+    # Spaltenregel j* aus 8.5 (a)) und Zinsbindung mit Bruchteilen eines Jahres
+    if (full && coin(0.5)) {
+      L$followup_rate_pa <- ref_gen_walk(L$followup_rate_pa, t1, 0.006, 0, 0.12)
+    } else if (full && coin(0.3)) {
+      L$followup_rate_pa <- list(ref = "market.mortgage_rate",
+                                 offset = ref_gen_round(ru(-0.002, 0.01), 4))
+    }
+    if (full && coin(0.3)) L$fixed_years <- L$fixed_years - pick(c(0.25, 0.5, 0.75))
   } else if (!pm && coin(0.2) && type == "bullet_loan") {
     L$fixed_years <- as.double(sample.int(max(1L, floor(g$tau[g$T + 1L])), 1L))
     L$followup_rate_pa <- ref_gen_round(ru(0, 0.07), 4)
+    if (full && coin(0.5)) L$followup_rate_pa <- ref_gen_walk(L$followup_rate_pa, t1, 0.006, 0,
+                                                              0.12)
   }
   if (!pm) {
     if (coin(0.2)) L$payout_rate <- ref_gen_round(ru(0.95, 1), 4)
@@ -1755,6 +1841,281 @@ ref_gen_loan <- function(g, inv, mode, ru, pick, coin) {
     L$planned_prepayments <- list(schedule = sched, unit = "eur")
   }
   L
+}
+
+#' Gezielter Fall (Modus "full"): erzwingt die Voraussetzungen eines Merkmals
+#'
+#' - `limit_cut`: Kontokorrent in t = 0 über dem Limit von t = 1 (fallender Limitpfad,
+#'   Zwangsrückführung 9.3 Schritt 6a, 8.8);
+#' - `reserve_used`: Mindestliquidität > 0, KL = 0, D3 `dep_use_reserve`, großes Defizit in
+#'   t = 1 (8.9);
+#' - `ex_rv_gap`: KL = 0, D4 `equity_call`/`stop`, Restwert in T, ohne Restwert Defizit in T bei
+#'   leerer Geldanlage (9.4);
+#' - `opp_limit_breach`: Entnahmen über dem Vermögen der Unterlassungsalternative, KL = 0, D4
+#'   `penalty_rate` (9.5, keine Nachschüsse als Zuflüsse);
+#' - `r100`: zusätzlicher Kredit mit Tilgungszuschuss `shorten_term` vor einer Zinsanpassung mit
+#'   `keep_term` (8.6 R-100);
+#' - `followup_path`: zusätzlicher Kredit mit streng monotonem Anschlusszinspfad und Zinsbindung
+#'   in Vierteljahren (8.5 (a) j*, R-45), gegebenenfalls mit Folgebindungen.
+ref_gen_target <- function(sc, feat, g, inv, ru, pick, coin) {
+  t1 <- g$T + 1L
+  TJ <- g$tau[t1]
+  fin <- sc$financing %||% list()
+  acc <- sc$accounts
+  z <- sc$components$z$values
+  is_loan <- function(b) !identical(b$type, "equity")
+  loans_sum <- function() {
+    sum(vapply(Filter(is_loan, fin), function(b) as.double(b$amount_eur), double(1)))
+  }
+  ek_amt <- fin$ek$amount_eur %||% 0
+  dfo <- acc$deficit_order
+  d4 <- dfo[length(dfo)]
+  if (feat == "limit_cut") {
+    z[1L] <- -ref_gen_round(ek_amt + loans_sum() + ru(0.2, 0.5) * inv)
+    kk0 <- -z[1L] - ek_amt - loans_sum()
+    acc$overdraft_limit_eur <- ref_gen_round(c(2 * (-z[1L]) + inv,
+                                               kk0 * ru(0, 0.8) *
+                                                 cumprod(stats::runif(t1 - 1L, 0.4, 1))))
+    acc$deficit_order <- c("dep_withdraw", "od_draw",
+                           if ("dep_use_reserve" %in% dfo) "dep_use_reserve", d4)
+  } else if (feat == "reserve_used") {
+    lmin <- ref_gen_round(ru(0.02, 0.1) * inv)
+    acc$min_liquidity_eur <- lmin
+    acc$overdraft_limit_eur <- 0
+    acc$deficit_order <- c("dep_withdraw", if (coin(0.5)) "od_draw", "dep_use_reserve", d4)
+    if (coin(0.5)) acc$surplus_order <- union(c("od_repay", "dep_fill_reserve"),
+                                              acc$surplus_order)
+    fin$ek <- list(type = "equity", amount_eur = ref_gen_round(-z[1L] + 2 * lmin +
+                                                                 0.05 * loans_sum()))
+    z[2L] <- -ref_gen_round(2 * lmin + 2 * loans_sum() + inv)
+  } else if (feat == "ex_rv_gap") {
+    acc$overdraft_limit_eur <- 0
+    acc$min_liquidity_eur <- 0
+    acc$deficit_order <- c("dep_withdraw", if (coin(0.5)) "od_draw",
+                           pick(c("equity_call", "equity_call", "stop")))
+    sc$components$rent <- NULL
+    sc$components$sub <- NULL
+    if (!is.null(fin$ek)) {
+      fin$ek$withdrawals_pa <- NULL
+      fin$ek$contributions_pa <- NULL
+    }
+    for (k in names(fin)) {
+      if (!is_loan(fin[[k]])) next
+      fin[[k]]$draw_schedule <- NULL
+      fin[[k]]$start <- NULL
+      fin[[k]]$fees$commitment_fee_rate_month <- NULL
+      fin[[k]]$fees$commitment_free_months <- NULL
+      if (length(fin[[k]]$fees) == 0L) fin[[k]]$fees <- NULL
+    }
+    z[1L] <- -ref_gen_round(ek_amt + loans_sum() + ru(0.05, 0.3) * inv)
+    if (t1 > 2L) z[2:(t1 - 1L)] <- -abs(z[2:(t1 - 1L)])
+    z[t1] <- -ref_gen_round(ru(0.05, 0.2) * inv)
+    sc$components$rv <- list(type = "custom_series", category = "residual_value",
+                             values = c(rep(0, t1 - 1L), ref_gen_round(ru(0.5, 1.5) * inv)))
+  } else if (feat == "opp_limit_breach") {
+    if (is.null(fin$ek) || ek_amt < 0.1 * inv) {
+      fin$ek <- list(type = "equity", amount_eur = ref_gen_round(ru(0.1, 1) * inv))
+    }
+    fin$ek$contributions_pa <- NULL
+    fin$ek$withdrawals_pa <- ref_gen_round(fin$ek$amount_eur * max(0.6, 2.5 / TJ))
+    acc$overdraft_limit_eur <- 0
+    acc$deficit_order <- c(dfo[-length(dfo)], "penalty_rate")
+  } else if (feat == "r100") {
+    fy <- if (TJ >= 2) as.double(sample.int(floor(TJ) - 1L, 1L)) else 0.5
+    cand <- which(g$month_end <= 12 * fy)
+    if (any(cand >= 2L)) cand <- cand[cand >= 2L]
+    j <- cand[sample.int(length(cand), 1L)]
+    type <- pick(c("annuity_loan", "annuity_loan", "installment_loan"))
+    amount <- ref_gen_round(ru(0.2, 0.6) * inv)
+    tz <- if (coin(0.5)) list(amount_eur = ref_gen_round(ru(0.05, 0.3) * amount)) else
+      list(share = ref_gen_round(ru(0.05, 0.3), 4))
+    fin$kr <- list(type = type, label = "Kredit R-100", amount_eur = amount,
+                   rate_pa = ref_gen_round(ru(0.005, 0.05), 4),
+                   payments_per_year = pick(c(1L, 4L, 12L)),
+                   term_years = fy + sample(3:20, 1L), fixed_years = fy,
+                   followup_rate_pa = ref_gen_round(ru(0, 0.07), 4), refi_rule = "keep_term",
+                   funding_id = "foe",
+                   repayment_grant = c(tz, list(date = g$date_end[j], effect = "shorten_term")))
+  } else if (feat == "followup_path") {
+    reset <- seq.int(3L, as.integer(g$month_end[t1]) - 1L, by = 3L)
+    fy <- reset[sample.int(length(reset), 1L)] / 12
+    inc <- pick(c(-1, 1)) * ru(0.0005, 0.002)
+    fu <- ref_gen_round(ru(0.02, 0.05) + inc * (seq_len(t1) - 1L), 6)
+    if (min(fu) < 0.001) fu <- fu - min(fu) + 0.001
+    type <- pick(c("annuity_loan", "annuity_loan", "installment_loan", "bullet_loan"))
+    L <- list(type = type, label = "Kredit Anschlusszinspfad",
+              amount_eur = ref_gen_round(ru(0.1, 0.5) * inv),
+              rate_pa = ref_gen_round(ru(0.005, 0.05), 4), payments_per_year = pick(c(1L, 4L, 12L)),
+              term_years = ceiling(TJ) + sample(2:15, 1L), fixed_years = fy,
+              followup_rate_pa = fu)
+    if (coin(0.4)) L$followup_fixed_years <- pick(c(0.5, 1, 2))
+    if (type == "annuity_loan") {
+      if (coin(0.4)) {
+        L$initial_repayment_pa <- ref_gen_round(ru(0.01, 0.05), 4)
+        L$refi_rule <- pick(c("keep_term", "keep_payment", "keep_tilg_rate"))
+      } else {
+        L$refi_rule <- pick(c("keep_term", "keep_payment"))
+      }
+    } else if (type == "installment_loan") {
+      L$refi_rule <- pick(c("keep_term", "keep_payment"))
+    }
+    fin$kf <- L
+  }
+  sc$components$z$values <- z
+  sc$accounts <- acc
+  sc$financing <- fin
+  sc
+}
+
+#' Block `stochastic` zu einem Zufallsszenario (statische Größen, Spec 01 Teil C 1.3, 1.4)
+#'
+#' Ziele: `financing.<k>.rate_pa` (uniform), `financing.<k>.approved` (bernoulli),
+#' `financing.<k>.repayment_grant.cut_share` (uniform), `accounts.deposit_rate_pa` und
+#' `accounts.overdraft_limit_eur` (uniform; nur als Skalar) und `shared.rv` (triangular; der
+#' Restwert in T verweist dann auf `shared.rv`).
+ref_gen_stochastic <- function(sc, k) {
+  ru <- function(a, b) stats::runif(1L, a, b)
+  coin <- function(p) stats::runif(1L) < p
+  t1 <- length(sc$components$z$values)
+  par <- list()
+  rv <- sc$components$rv
+  if (!is.null(rv) && rv$values[[t1]] > 0) {
+    v <- rv$values[[t1]]
+    sc$shared <- c(sc$shared, list(rv = v))
+    sc$components$rv$values <- c(as.list(rep(0, t1 - 1L)), list(list(ref = "shared.rv")))
+    par$rv <- list(target = "shared.rv", label = "Restwert", dist = "triangular",
+                   min = ref_gen_round(0.5 * v), mode = v, max = ref_gen_round(1.5 * v))
+  }
+  for (id in names(sc$financing)) {
+    L <- sc$financing[[id]]
+    if (identical(L$type, "equity")) next
+    tgt <- function(p) paste("financing", id, p, sep = ".")
+    r <- L$rate_pa
+    par[[paste0("zins_", id)]] <- list(target = tgt("rate_pa"), dist = "uniform",
+                                       min = max(-0.01, round(r - 0.01, 4)),
+                                       max = min(0.25, round(r + 0.02, 4)))
+    if (coin(0.5)) {
+      par[[paste0("zusage_", id)]] <- list(target = tgt("approved"), dist = "bernoulli",
+                                           p = round(ru(0.5, 0.95), 2))
+    }
+    if (!is.null(L$repayment_grant) && coin(0.7)) {
+      par[[paste0("kuerzung_", id)]] <- list(target = tgt("repayment_grant.cut_share"),
+                                             dist = "uniform", min = 0, max = round(ru(0.1, 1), 2))
+    }
+  }
+  acc <- sc$accounts
+  if (length(acc$deposit_rate_pa) == 1L && coin(0.7)) {
+    h <- acc$deposit_rate_pa
+    par$haben <- list(target = "accounts.deposit_rate_pa", dist = "uniform",
+                      min = max(-0.02, round(h - 0.01, 4)), max = round(h + 0.01, 4))
+  }
+  kl <- acc$overdraft_limit_eur
+  if (length(kl) == 1L && is.finite(kl) && coin(0.7)) {
+    par$limit <- list(target = "accounts.overdraft_limit_eur", dist = "uniform", min = 0,
+                      max = ref_gen_round(2 * kl + 1000))
+  }
+  sc$stochastic <- list(settings = list(n_sim = 7L, seed = 1000L + as.integer(k),
+                                        sampling = "lhs", block_size = 7L),
+                        parameters = par)
+  sc
+}
+
+#' Quantilfunktion der Dreiecksverteilung (Spec 01 Teil C 1.4.6)
+ref_q_triangular <- function(u, a, m, b) {
+  fm <- (m - a) / (b - a)
+  ifelse(u <= fm, a + sqrt(u * (b - a) * (m - a)), b - sqrt((1 - u) * (b - a) * (b - m)))
+}
+
+#' Ziehungen je Lauf für ein Szenario mit Block `stochastic` (Eingabe für fake_draws())
+#'
+#' Statische Größen aus `raw$stochastic$parameters` (Quantilfunktion der Verteilung auf
+#' unabhängigen Uniformen) sowie Pfade je Lauf: Zahlungsfolge `components.z.values`
+#' (multiplikative Störung je Lauf und Periode) und, falls vorhanden, `market.mortgage_rate`
+#' (Verschiebung je Lauf). So durchlaufen die Läufe eines Batches unterschiedliche Zweige der
+#' Ketten (Ü3-Rangfolge nach i_pa, D2/D4, Zusage und Kürzung je Lauf).
+#' @return list(static = list(<ziel> = n-Vektor), paths = list(<ziel> = n x (T+1))).
+ref_gen_draws <- function(raw, grid, n, seed) {
+  n <- as.integer(n)
+  t1 <- grid$T + 1L
+  withr::with_seed(seed, {
+    static <- list()
+    for (p in raw$stochastic$parameters) {
+      u <- stats::runif(n)
+      static[[p$target]] <- switch(p$dist,
+        uniform = p$min + (p$max - p$min) * u,
+        triangular = ref_q_triangular(u, p$min, p$mode, p$max),
+        bernoulli = as.double(u > 1 - p$p),
+        stop("ref_gen_draws: Verteilung ", p$dist, call. = FALSE)
+      )
+    }
+    z <- as.double(unlist(raw$components$z$values))
+    paths <- list("components.z.values" = matrix(z, n, t1, byrow = TRUE) *
+                    (1 + matrix(stats::runif(n * t1, -0.15, 0.15), n, t1)))
+    mr <- raw$market$mortgage_rate
+    if (!is.null(mr)) {
+      paths[["market.mortgage_rate"]] <- pmax(matrix(rep_len(as.double(mr), t1), n, t1,
+                                                     byrow = TRUE) +
+                                                stats::runif(n, -0.01, 0.01), 0)
+    }
+    list(static = static, paths = paths)
+  })
+}
+
+#' Merkmale eines Laufs, die ein Differenztest abdecken soll (Abdeckungsmessung, F2)
+#'
+#' @param s spec_simple; `ref` Ergebnis von `ref_engine_run(s)`; `r100` lgl (aus
+#'   `ref_r100_affected()`).
+#' @return benannter logischer Vektor.
+ref_features <- function(s, ref, r100 = FALSE, i = 1L) {
+  t1 <- length(s$months)
+  M <- cumsum(s$months)
+  fl <- ref$flags[i, , drop = FALSE]
+  varies <- function(x) {
+    if (is.null(x)) return(FALSE)
+    v <- ref_path_row(x, i, t1)[-1L]
+    length(v) > 1L && any(is.finite(v)) && !isTRUE(all(v == v[1L]))
+  }
+  fu_path <- any(vapply(s$loans, function(L) {
+    p <- ref_loan_init(L, i, M)$par
+    length(p$reset) > 0L && varies(L$followup)
+  }, logical(1)))
+  prepay <- any(vapply(names(ref$rows)[endsWith(names(ref$rows), "_prepay")], function(k) {
+    any(ref$rows[[k]][i, ] < -ref_zero)
+  }, logical(1)))
+  c(limit_cut = isTRUE(fl$limit_cut), reserve_used = isTRUE(fl$reserve_used),
+    ex_rv_gap = isTRUE(fl$ex_rv_gap > ref_zero), opp_limit_breach = isTRUE(fl$opp_limit_breach),
+    r100 = isTRUE(r100), followup_path = fu_path,
+    rate_path = varies(s$accounts$deposit_rate_pa) || varies(s$accounts$overdraft_rate_pa),
+    kl_path = varies(s$accounts$overdraft_limit_eur), prepay = prepay,
+    shortfall = isTRUE(fl$shortfall), penalty = isTRUE(fl$limit_breach),
+    stopped = isTRUE(fl$stopped))
+}
+
+#' Referenz-Eingabe ohne die effektive Restzahl nach R-100 (Kompatibilitätsmodus)
+#'
+#' Nur für den Vergleich mit einer Paketfassung, die R-100 nachweislich noch nicht umsetzt
+#' (`ref_pkg_compat()`); die Referenzsemantik bleibt `r100 = TRUE`.
+ref_spec_without_r100 <- function(s) {
+  s$loans <- lapply(s$loans, function(L) {
+    L$r100 <- FALSE
+    L
+  })
+  s
+}
+
+#' Ändert R-100 das Ergebnis dieser Eingabe? (Referenz mit und ohne effektive Restzahl)
+ref_r100_affected <- function(s, ref) {
+  cand <- any(vapply(s$loans, function(L) {
+    !is.null(L$tz) && identical(L$tz$effect %||% "shorten_term", "shorten_term") &&
+      identical(L$refi_rule, "keep_term") && !identical(L$repayment, "bullet") &&
+      !is.na(L$fixed_months %||% NA_real_)
+  }, logical(1)))
+  if (!cand) return(list(affected = FALSE, ref0 = ref))
+  ref0 <- ref_engine_run(ref_spec_without_r100(s))
+  diff <- any(vapply(names(ref$rows), function(k) {
+    any(abs(ref$rows[[k]] - ref0$rows[[k]]) > 1e-6)
+  }, logical(1)))
+  list(affected = diff, ref0 = ref0)
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -1825,6 +2186,132 @@ expect_ref_invariants <- function(res, model, info = NULL) {
                 paste0(bad$invariant, " (", format(bad$max_dev), ")", collapse = ", "))
   testthat::expect(nrow(bad) == 0L, msg)
   invisible(inv)
+}
+
+# ---------------------------------------------------------------------------------------------
+# 11. Paketläufe für Differenz- und Invariantentests (exportierte Funktionen; Batches mit
+#     vorgegebenen Ziehungen über eng_run_draws() und fake_draws(), wie test-batch-invariance.R)
+# ---------------------------------------------------------------------------------------------
+
+#' Plausibilitäts- und Engine-Hinweise sowie Meldungen eines Paketlaufs abfangen
+ref_quiet <- function(expr) {
+  withCallingHandlers(expr,
+                      vofi_warning_plausibility = function(w) invokeRestart("muffleWarning"),
+                      vofi_warning_engine = function(w) invokeRestart("muffleWarning"),
+                      vofi_message = function(m) invokeRestart("muffleMessage"))
+}
+
+#' Bau und deterministischer Lauf eines Rohszenarios (nur registrierte Kennzahlen)
+inv_run <- function(raw, kpis = c("terminal_value", "terminal_value_opp",
+                                  "delta_terminal_value"), overrides = NULL, variant = "base") {
+  skip_if_stub("vofi_scenario", "vofi_build", "vofi_run")
+  raw$analysis$kpis <- kpis[vapply(kpis, function(k) reg_has("kpi", k), logical(1))]
+  ref_quiet({
+    model <- vofi_build(vofi_scenario(raw), variant = variant, overrides = overrides)
+    res <- vofi_run(model)
+  })
+  attr(res, "model") <- model
+  res
+}
+
+#' Aufzinsfaktoren q_t = prod(1 + h_net) des Laufs (12.2) aus dem Modell
+inv_q <- function(model, i = 1L) {
+  s <- spec_simple_from_model(model)
+  ac <- ref_accounts(s$accounts, i, s$months)
+  h_net <- ac$h - ac$w * pmax(ac$h, 0)
+  cumprod(c(1, 1 + h_net[-1L]))
+}
+
+#' Zeilensumme eines Ergebnisses nach Abschnitt/Kategorie (Lauf 1)
+inv_sum <- function(res, section = NULL, category = NULL, cash = NULL) {
+  rows <- res$ledger$rows
+  sel <- rep(TRUE, nrow(rows))
+  if (!is.null(section)) sel <- sel & rows$section %in% section
+  if (!is.null(category)) sel <- sel & rows$category %in% category
+  if (!is.null(cash)) sel <- sel & rows$cash == cash
+  t1 <- res$ledger$T + 1L
+  if (!any(sel)) return(rep(0, t1))
+  Reduce(`+`, lapply(rows$key[sel], function(k) res$ledger$values[[k]][1L, ]))
+}
+
+#' Entnahme-Zielfunktion f(E) (12.8) aus Paketläufen mit Zusatzentnahme E je Jahr
+#'
+#' Die Zusatzentnahme ist ein weiterer Baustein `equity` mit `withdrawals_pa = E` (E >= 0) bzw.
+#' `contributions_pa = -E` (E < 0) ab dem Stichtag, gebucht E * delta_t in t >= 1 (7.12); so
+#' prüft der Test das Entnahme-Äquivalent ohne die Kennzahl des Pakets (WS-D2).
+#' BS_T aus der Zeile `net_position` (auch bei gestopptem Lauf, in dem die Kennzahl NA
+#' `run_stopped` ist), EW_U aus der Unterlassungsalternative des Basislaufs.
+#' @param base Paketlauf ohne Zusatzentnahme (mit Attribut `model`).
+#' @param ex_rv TRUE: Sicht ohne Restwert (BS_T ohne RW_T, 9.4; Kennzahl
+#'   `terminal_value_ex_rv`).
+inv_f_pkg <- function(raw, e_amt, base, ex_rv = FALSE) {
+  extra <- if (e_amt >= 0) list(type = "equity", withdrawals_pa = e_amt) else
+    list(type = "equity", contributions_pa = -e_amt)
+  res <- inv_run(raw, overrides = list(financing = list(wd_extra = extra)))
+  t1 <- res$ledger$T + 1L
+  q <- inv_q(attr(base, "model"))
+  ns <- inv_sum(res, category = c("equity_call", "shortfall"))
+  ns0 <- inv_sum(base, category = c("equity_call", "shortfall"))
+  bs <- if (ex_rv) res$kpis$terminal_value_ex_rv else res$ledger$values$net_position[1L, t1]
+  bs - sum((ns - ns0) * q[t1] / q) - base$opportunity$EW[1L]
+}
+
+#' Batch des Pakets mit vorgegebenen Ziehungen (Stufen 2-9, derselbe Codepfad für n = 1 und
+#' n > 1) als Ergebnis für `ref_compare_result()` bzw. `expect_ref_equal()`
+#'
+#' Nutzt `eng_run_draws()` (Phase-0-Hilfe von WS-D, ebenso in test-batch-invariance.R); fehlt
+#' sie oder meldet ein Teil `vofi_error_not_implemented`, wird der Test übersprungen.
+ref_pkg_run_draws <- function(model, draws) {
+  if (!exists("eng_run_draws", mode = "function")) {
+    testthat::skip("eng_run_draws() (WS-D) ist nicht vorhanden")
+  }
+  r <- tryCatch(ref_quiet(eng_run_draws(model, draws = draws, store = "full")),
+                vofi_error_not_implemented = function(e) testthat::skip(conditionMessage(e)))
+  list(ledger = r$ledger,
+       opportunity = list(BS = r$opp$BS, EW = r$opp$EW, ledger = r$opp$ledger),
+       kpis = r$kpis, kpi_na = r$kpi_na, flags = r$flags, draws = r$draws,
+       meta = list(mode = draws$mode %||% "mc"))
+}
+
+ref_cache <- new.env(parent = emptyenv())
+
+#' Fähigkeiten der vorliegenden Paketfassung, die die Differenztests berücksichtigen
+#'
+#' `r100`: Der Kreditkern setzt die effektive Restzahl nach einem Tilgungszuschuss mit
+#' `shorten_term` vor einer Anpassung mit `keep_term` um (Spec 00 8.6, R-100). Erkannt am
+#' Prüfwert L1 aus Spec 01 Teil A 5.6 (Rate nach der Anpassung 81.639,56; ohne R-100
+#' 69.997,46). Fehlt R-100 (Phase-0-Minimalfassung von WS-F), vergleichen die Differenztests
+#' betroffene Läufe mit `ref_spec_without_r100()` und melden sie am Ende als zurückgestellt.
+ref_pkg_compat <- function() {
+  if (is.null(ref_cache$compat)) ref_cache$compat <- list(r100 = ref_pkg_probe_r100())
+  ref_cache$compat
+}
+
+#' Prüfwert L1 (Spec 01 Teil A 5.6) im Paket: Annuität in t = 11 nach der Zinsanpassung
+ref_pkg_probe_r100 <- function() {
+  kfw <- list(type = "annuity_loan", amount_eur = 1300000, rate_pa = 0.0365, term_years = 30,
+              grace_years = 5, payments_per_year = 1L, fixed_years = 10, followup_rate_pa = 0.04,
+              refi_rule = "keep_term", funding_id = "foe",
+              repayment_grant = list(amount_eur = 144400, date = as.Date("2027-12-31"),
+                                     effect = "shorten_term"))
+  raw <- list(
+    schema_version = 1L, meta = list(scenario_id = "probe_l1", title = "Pruefwert L1"),
+    project = list(perspective = "wu_privat", project_type = "neubau",
+                   valuation_date = as.Date("2027-01-01"), horizon_years = 12L),
+    components = list(z = list(type = "custom_series", values = c(-1300000, rep(90000, 12)))),
+    financing = list(kfw = kfw),
+    accounts = list(deposit_rate_pa = 0.01, overdraft_rate_pa = 0.08, overdraft_limit_eur = Inf,
+                    penalty_spread_pa = 0, min_liquidity_eur = 0,
+                    surplus_order = c("od_repay", "dep_invest"),
+                    deficit_order = c("dep_withdraw", "od_draw", "equity_call")),
+    tax = list(module = "none"), residual_value = list(method = "zero"),
+    analysis = list(kpis = "terminal_value")
+  )
+  v <- tryCatch(inv_run(raw, kpis = "terminal_value")$ledger$values,
+                error = function(e) NULL)
+  if (is.null(v)) return(FALSE)
+  ann <- -(v$loan_kfw_interest[1L, 12L] + v$loan_kfw_repay[1L, 12L])
+  isTRUE(abs(ann - 81639.56) <= 0.005)
 }
 
 # nolint end

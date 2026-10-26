@@ -3,10 +3,14 @@
 #
 # 1. Fixtures: vollständig und konsistent mit den Kernwerten von Spec 00 15.3.
 # 2. Referenz-Engine: reproduziert alle Orakel (1e-6 EUR, 1e-9 Raten) und die Prüfwerte der
-#    Kredittypen (Spec 01 Teil A 5.6, Toleranz 0,005 gegen gerundete Tabellenwerte).
+#    Kredittypen (Spec 01 Teil A 5.6, Toleranz 0,005 gegen gerundete Tabellenwerte); Spalte j*
+#    des Anschlusszinses (8.5 (a), R-45).
 # 3. Paket gegen Orakel: Zeilen und registrierte Kennzahlen je Orakel; (g) über
-#    vofi_compare(); grob_lehrbuch_a.yaml (Spec 01 Teil C 5.6).
-# 4. Differenztests: Referenz-Engine gegen Paket auf Zufallsszenarien (1e-8 relativ), MC-Batch.
+#    vofi_compare(); Break-even-NOI_1 von (c1); grob_lehrbuch_a.yaml (Spec 01 Teil C 5.6) mit
+#    Zielwertsuche und geschlossenen MC-Erwartungen; Spalte j* im Paket.
+# 4. Differenztests: Referenz-Engine gegen Paket auf Zufallsszenarien (1e-8 relativ) mit
+#    Mindestabdeckung der Merkmale; Batches mit Ziehungen je Lauf (n = 1, 2, T+1) gegen
+#    Referenz und Einzelläufe; MC über vofi_run(n_sim > 1); Entnahme-Äquivalent.
 
 tab_tol <- vofi_tol$oracle_tab
 
@@ -78,6 +82,12 @@ test_that("Orakel-Fixtures sind vollständig (Szenario, Zeilen, Kennzahlen je Or
   }
   expect_identical(oracle_variant_ids(), "g")
   expect_setequal(unique(oracle_expected("g")$kpis$variant), c("base", "a"))
+  # Zielwertsuche (12.8): Break-even-NOI_1 von (c1)
+  expect_true("c1_solve.csv" %in% files)
+  sv <- oracle_solve("c1")
+  expect_identical(names(sv), c("what", "param", "kpi", "target", "value"))
+  expect_identical(nrow(sv), 1L)
+  expect_identical(nrow(oracle_solve("a")), 0L)
 })
 
 test_that("Fixtures stimmen mit den Kernwerten von Spec 00 15.3 überein (Tabellentoleranz)", {
@@ -108,6 +118,7 @@ test_that("Fixtures stimmen mit den Kernwerten von Spec 00 15.3 überein (Tabell
   expect_abs(b2$rows$value[b2$rows$row_key == "loan_foe_repay_total"][4:11], rep(-15937.50, 8),
              tab_tol)
   c1 <- oracle_expected("c1")
+  expect_abs(oracle_solve("c1")$value, 9869.14, tab_tol)
   for (k in c("roe_classic", "roe_mirr", "roe_irr")) {
     expect_identical(c1$kpis$na_reason[c1$kpis$kpi == k], "no_equity")
   }
@@ -432,6 +443,57 @@ test_that("Referenz-Engine: Rundung, Restzahlen, Zinsanpassung ohne Rate", {
                "refi_rule")
 })
 
+#' Darlehen für die Prüfung der Spalte j* (streng monotoner Anschlusszinspfad `fu`)
+jstar_loan <- function(fixed_m, fu, repayment = "annuity", ppy = 1L) {
+  list(id = "j", repayment = repayment, commitment = 100000, rate_pa = 0.03, ppy = ppy,
+       term_months = 240, fixed_months = fixed_m, followup = fu)
+}
+
+#' Erwartete Zinsen der Perioden t = 0..T für einen Kredit ohne Tilgung bis zum Horizont
+#' (endfällig): Bestand 100.000, Zins vor der Anpassung 3 %, danach fu[j]
+jstar_bullet_interest <- function(months, reset_m, j) {
+  m_end <- cumsum(months)
+  vapply(seq_along(months), function(k) {
+    if (k == 1L) return(0)
+    m <- seq.int(m_end[k - 1L] + 1, m_end[k])
+    sum(ifelse(m <= reset_m, 0.03, j)) * 100000 / 12
+  }, double(1))
+}
+
+test_that("Referenz-Engine: Spalte j* des Anschlusszinses (8.5 (a), R-45), Verschiebung +-1", {
+  fu <- 0.01 + 0.002 * (0:8)
+  months <- c(0, rep(12, 8))
+  # Anpassung zum Jahreswechsel (Monat 60 endet in t = 5): Zins ab t = 6 ist fu[6], der Wert
+  # des Jahres vor dem Termin; fu[5] bzw. fu[7] (Verschiebung -1/+1) liegen 0,002 daneben
+  p <- ref_loan_plan(jstar_loan(60, fu), months)$rows
+  i6 <- -p[7L, "interest"] / p[6L, "balance"]
+  expect_abs(i6, fu[6L], 1e-12)
+  expect_gt(min(abs(i6 - fu[c(5L, 7L)])), 1e-3)
+  # Anpassung im Jahr (Monat 18 endet in t = 2): sechs Monate alter Zins, sechs Monate fu[3]
+  p <- ref_loan_plan(jstar_loan(18, fu), months)$rows
+  want <- p[2L, "balance"] * (6 * 0.03 + 6 * fu[3L]) / 12
+  expect_abs(-p[3L, "interest"], want, 1e-9)
+  expect_gt(abs(want - p[2L, "balance"] * (6 * 0.03 + 6 * fu[4L]) / 12), 50)
+  expect_gt(abs(want - p[2L, "balance"] * (6 * 0.03 + 6 * fu[2L]) / 12), 50)
+  # Quartalsraster der Bauphase (C = 12, Schritt 3): Anpassung nach 9 Monaten (Ende t = 3),
+  # danach nach 7 Monaten (Monat 7 endet in t = 3, Spalte 4); endfällig, Zinsen geschlossen
+  g3 <- vofi_time_grid(as.Date("2027-01-01"), 4L, construction_months = 12L,
+                       construction_step_months = 3L)
+  fu3 <- 0.01 + 0.002 * (seq_len(g3$T + 1L) - 1L)
+  for (fm in c(9, 7)) {
+    p <- ref_loan_plan(jstar_loan(fm, fu3, "bullet", 4L), g3$months)$rows
+    want <- jstar_bullet_interest(g3$months, fm, fu3[4L])
+    expect_abs(-p[, "interest"], want, 1e-9)
+    expect_gt(max(abs(-p[, "interest"] - jstar_bullet_interest(g3$months, fm, fu3[3L]))), 10)
+    expect_gt(max(abs(-p[, "interest"] - jstar_bullet_interest(g3$months, fm, fu3[5L]))), 10)
+  }
+  # Folgebindungen (followup_fixed_years = 1): jede Anpassung liest ihre eigene Spalte
+  ln <- jstar_loan(24, fu, "bullet")
+  ln$followup_fixed_months <- 12
+  p <- ref_loan_plan(ln, months)$rows
+  expect_abs(-p[4:9, "interest"], 100000 * fu[3:8], 1e-9)
+})
+
 # ---------------------------------------------------------------------------------------------
 # 3. Paket gegen die Orakel
 # ---------------------------------------------------------------------------------------------
@@ -493,6 +555,95 @@ test_that("Orakel (g): Vergleichsregel über vofi_compare() (Spec 00 9.6 Nr. 4, 
   for (v in c("base", "a")) expect_oracle(cmp$results[[v]], "g", variant = v)
 })
 
+#' Rohszenario mit einem Kredit `j` und Anschlusszinspfad `fu` (series_t) für die Spalte j*
+jstar_scenario <- function(fixed_years, fu, type = "annuity_loan", ppy = 1L, horizon = 8L,
+                           grid = NULL, followup_fixed_years = NULL) {
+  t1 <- length(fu)
+  raw <- list(
+    schema_version = 1L, meta = list(scenario_id = "jstar", title = "Spalte j*"),
+    project = list(perspective = "wu_privat", project_type = "neubau",
+                   valuation_date = as.Date("2027-01-01"), horizon_years = horizon),
+    components = list(z = list(type = "custom_series", values = c(-150000, rep(9000, t1 - 1L)))),
+    financing = list(ek = list(type = "equity", amount_eur = 50000),
+                     j = list(type = type, amount_eur = 100000, rate_pa = 0.03, term_years = 20,
+                              payments_per_year = ppy, fixed_years = fixed_years,
+                              followup_rate_pa = fu)),
+    accounts = list(deposit_rate_pa = 0.01, overdraft_rate_pa = 0.08, overdraft_limit_eur = Inf,
+                    penalty_spread_pa = 0, min_liquidity_eur = 0,
+                    surplus_order = c("od_repay", "dep_invest"),
+                    deficit_order = c("dep_withdraw", "od_draw", "equity_call")),
+    tax = list(module = "none"), residual_value = list(method = "zero"),
+    analysis = list(kpis = "terminal_value")
+  )
+  if (!is.null(grid)) raw$grid <- grid
+  if (!is.null(followup_fixed_years)) {
+    raw$financing$j$followup_fixed_years <- followup_fixed_years
+  }
+  raw
+}
+
+test_that("Paket: Spalte j* des Anschlusszinses (8.5 (a), R-45) gegen Handwerte und Referenz", {
+  fu <- 0.01 + 0.002 * (0:8)
+  # Jahresraster, Anpassung nach 5 Jahren: Zins in t = 6 = fu[6] (nicht fu[5] bzw. fu[7])
+  res <- inv_run(jstar_scenario(5, fu))
+  v <- res$ledger$values
+  expect_abs(-v$loan_j_interest[1L, 7L] / v$loan_j_balance[1L, 6L], fu[6L], 1e-12)
+  expect_ref_equal(res, attr(res, "model"), info = "j* Jahreswechsel")
+  # Anpassung im Jahr (1,5 Jahre): t = 2 je zur Hälfte alter Zins und fu[3]
+  res <- inv_run(jstar_scenario(1.5, fu))
+  v <- res$ledger$values
+  expect_abs(-v$loan_j_interest[1L, 3L], v$loan_j_balance[1L, 2L] * (0.03 + fu[3L]) / 2, 1e-9)
+  expect_ref_equal(res, attr(res, "model"), info = "j* im Jahr")
+  # Quartalsraster der Bauphase, endfällig, Anpassung nach 9 Monaten -> Spalte 4
+  grid <- list(construction_months = 12L, construction_step_months = 3L,
+               operation_alignment = "calendar")
+  g3 <- vofi_time_grid(as.Date("2027-01-01"), 4L, construction_months = 12L,
+                       construction_step_months = 3L)
+  fu3 <- 0.01 + 0.002 * (seq_len(g3$T + 1L) - 1L)
+  res <- inv_run(jstar_scenario(0.75, fu3, "bullet_loan", 4L, 4L, grid))
+  expect_abs(-res$ledger$values$loan_j_interest[1L, ],
+             jstar_bullet_interest(g3$months, 9, fu3[4L]), 1e-9)
+  expect_ref_equal(res, attr(res, "model"), info = "j* Quartalsraster")
+  # Folgebindungen: jede Anpassung liest ihre eigene Spalte
+  res <- inv_run(jstar_scenario(2, fu, "bullet_loan", followup_fixed_years = 1))
+  expect_abs(-res$ledger$values$loan_j_interest[1L, 4:9], 100000 * fu[3:8], 1e-9)
+  expect_ref_equal(res, attr(res, "model"), info = "j* Folgebindungen")
+})
+
+test_that("Orakel (c1): Break-even-NOI_1 9.869,14 (Referenz-Engine, Paket, vofi_solve)", {
+  sv <- oracle_solve("c1")
+  be_py <- sv$value[sv$what == "breakeven" & sv$param == "components.noi.amount_eur"]
+  expect_length(be_py, 1L)
+  expect_abs(be_py, 9869.14, tab_tol)
+  # Referenz-Engine: dEW(NOI_1) mit skalierter NOI-Zeile (recurring ist linear im Betrag;
+  # EW_U = 0 ohne Eigenkapital), Nullstelle per uniroot
+  res <- oracle_result("c1")
+  s <- spec_simple_from_model(attr(res, "model"))
+  s$kpis <- c("terminal_value", "delta_terminal_value")
+  expect_true("noi__value" %in% names(s$rows))
+  noi <- s$rows$noi__value$values
+  expect_abs(noi[1L, 2L], 12000, 1e-9)
+  d_ew <- function(x) {
+    s1 <- s
+    s1$rows$noi__value$values <- noi * (x / 12000)
+    ref_engine_run(s1)$kpis$delta_terminal_value
+  }
+  be <- stats::uniroot(d_ew, c(5000, 15000), tol = 1e-10)$root
+  expect_abs(be, be_py, 1e-6)
+  expect_lt(abs(d_ew(be)), 1e-6)
+  # Paket am Break-even: dEW = 0
+  sc <- oracle_scenario("c1")
+  ks <- c("terminal_value", "terminal_value_opp", "delta_terminal_value")
+  model <- ref_quiet(vofi_build(sc, overrides = list(components = list(noi = list(amount_eur = be)),
+                                                     analysis = list(kpis = ks))))
+  expect_lt(abs(ref_quiet(vofi_run(model))$kpis$delta_terminal_value), 1e-5)
+  skip_if_stub("vofi_solve")
+  sol <- ref_quiet(vofi_solve(sc, what = "breakeven", param = "components.noi.amount_eur",
+                              target = 0))
+  expect_s3_class(sol, "vofi_solution")
+  expect_abs(sol$value, be_py, 1e-4)
+})
+
 test_that("grob_lehrbuch_a.yaml entspricht Spec 01 Teil C 5.6 und Orakel (a)", {
   path <- system.file("extdata", "examples", "grob_lehrbuch_a.yaml", package = "vofi")
   expect_true(nzchar(path))
@@ -544,26 +695,92 @@ test_that("grob_lehrbuch_a: Zielwertsuche (Spec 01 Teil C 5.6)", {
   expect_abs(sol2$value, 40000 + (30000 * 1.06^5 - 38504.629207797145), 1e-4)
 })
 
+#' Geschlossene MC-Sollwerte von grob_lehrbuch_a (Spec 01 Teil C 5.6): dEW = RW - 40.000 +
+#' 3.726,41 mit RW ~ Dreieck(30.000; 40.000; 50.000)
+grob_mc_expected <- function() {
+  c0 <- 3726.406978797153                                     # dEW bei RW = 40.000
+  q_tri <- function(p) ref_q_triangular(p, 30000, 40000, 50000)
+  x_star <- 40000 - c0                                        # kritischer Restwert
+  p0 <- (x_star - 30000)^2 / (20000 * 10000)
+  list(c0 = c0, p0 = p0,
+       q = c(q05 = q_tri(0.05), q50 = q_tri(0.5), q95 = q_tri(0.95)) - 40000 + c0,
+       es05 = 30000 + 2 / 3 * (q_tri(0.05) - 30000) - 40000 + c0,
+       expected_loss = (x_star - 30000)^3 / (3 * 20000 * 10000))
+}
+
 test_that("grob_lehrbuch_a: MC-Erwartungen geschlossen (Spec 01 Teil C 5.6)", {
+  ex <- grob_mc_expected()
+  # Die Tabelle leitet Quantile und es05 mit dem gerundeten dEW 3.726,41 her (Abweichung bis
+  # 0,0054 EUR), daher Toleranz 0,01 EUR
+  expect_abs(ex$q, c(-3111.31, 3726.41, 10564.13), 0.01)
+  expect_abs(ex$es05, -4165.40, 0.01)
+  expect_abs(ex$expected_loss, 411.53, tab_tol)
+  expect_abs(ex$p0, 0.196790, 5e-7)
   sc <- vofi_read_scenario(system.file("extdata", "examples", "grob_lehrbuch_a.yaml",
                                        package = "vofi"))
   ks <- sc$analysis$kpis[vapply(sc$analysis$kpis, oracle_kpi_registered, logical(1))]
   ks <- setdiff(ks, "withdrawal_equivalent")
-  model <- withCallingHandlers(vofi_build(sc, overrides = list(analysis = list(kpis = ks))),
-                               vofi_message = function(m) invokeRestart("muffleMessage"))
+  model <- ref_quiet(vofi_build(sc, overrides = list(analysis = list(kpis = ks))))
   mc <- tryCatch(vofi_run(model, n_sim = 10000L, seed = 20261025L, store = "kpi"),
                  vofi_error_not_implemented = function(e) {
                    skip(paste("Monte-Carlo noch nicht implementiert:", conditionMessage(e)))
                  })
   x <- mc$kpis$terminal_value
-  se <- stats::sd(x) / sqrt(length(x))
+  n <- length(x)
+  expect_identical(n, 10000L)
+  se <- stats::sd(x) / sqrt(n)
   expect_lt(abs(mean(x) - 38504.629207797145), 4 * se)
   expect_lt(abs(stats::sd(x) - 10000 / sqrt(6)), 0.05 * 10000 / sqrt(6))
   d <- mc$kpis$delta_terminal_value
-  p0 <- 6273.593021202847^2 / (20000 * 10000)
-  expect_lt(abs(mean(d < 0) - p0), 4 * sqrt(p0 * (1 - p0) / length(d)))
+  # Mittel innerhalb 4 SE (konservativ: LHS-Varianz ist kleiner als sd/sqrt(n))
+  expect_lt(abs(mean(d) - ex$c0), 4 * stats::sd(d) / sqrt(n))
+  expect_lt(abs(mean(d < 0) - ex$p0), 4 * sqrt(ex$p0 * (1 - ex$p0) / n))
+  # Quantile innerhalb ihrer verteilungsfreien 99,9-%-Konfidenzintervalle (Ordnungsstatistiken)
+  ds <- sort(d)
+  for (k in names(ex$q)) {
+    p <- c(q05 = 0.05, q50 = 0.5, q95 = 0.95)[[k]]
+    lo <- max(1L, stats::qbinom(0.0005, n, p))
+    hi <- min(n, stats::qbinom(0.9995, n, p) + 1L)
+    expect_true(ds[lo] <= ex$q[[k]] && ex$q[[k]] <= ds[hi], info = k)
+  }
+  # es05 (Mittel der Werte <= q05) und expected_loss (Mittel von max(-dEW, 0)) innerhalb 4 SE
+  q05 <- stats::quantile(d, 0.05, type = 7, names = FALSE)
+  tail5 <- d[d <= q05]
+  expect_lt(abs(mean(tail5) - ex$es05),
+            4 * stats::sd(tail5) / sqrt(length(tail5)) + abs(q05 - ex$q[["q05"]]))
+  el <- pmax(-d, 0)
+  expect_lt(abs(mean(el) - ex$expected_loss), 4 * stats::sd(el) / sqrt(n))
+  # na_share von payback_time: Amortisation in t = 5 genau bei dEW >= 0, sonst no_payback
+  if ("payback_time" %in% names(mc$kpis)) {
+    na <- is.na(mc$kpis$payback_time)
+    expect_lt(abs(mean(na) - ex$p0), 4 * sqrt(ex$p0 * (1 - ex$p0) / n))
+    expect_identical(na, d < 0)
+    expect_true(all(mc$kpi_na$payback_time[na] == "no_payback"))
+    expect_true(all(mc$kpis$payback_time[!na] == 5))
+  }
   if (!is.null(mc$kpis$terminal_value_ex_rv)) {
     expect_abs(mc$kpis$terminal_value_ex_rv, rep(38504.629207797145 - 40000, length(x)), 1e-6)
+  }
+  # Statistik mc$stats (12.7): Definitionen aus den Läufen und geschlossene Sollwerte
+  st <- mc$stats
+  expect_false(is.null(st))
+  sd_row <- st[st$kpi == "delta_terminal_value", , drop = FALSE]
+  expect_identical(nrow(sd_row), 1L)
+  expect_abs(sd_row$mean, mean(d), 1e-9 * max(1, abs(mean(d))))
+  expect_abs(c(sd_row$q05, sd_row$q50, sd_row$q95),
+             stats::quantile(d, c(0.05, 0.5, 0.95), type = 7, names = FALSE), 1e-6)
+  expect_abs(sd_row$p_neg, mean(d < 0), 1e-12)
+  expect_abs(sd_row$es05, mean(tail5), 1e-6)
+  expect_abs(sd_row$expected_loss, mean(el), 1e-6)
+  expect_abs(sd_row$na_share, 0, 0)
+  expect_identical(as.integer(sd_row$n_valid), n)
+  expect_lt(abs(sd_row$mean - ex$c0), 4 * stats::sd(d) / sqrt(n))
+  expect_lt(abs(sd_row$es05 - ex$es05),
+            4 * stats::sd(tail5) / sqrt(length(tail5)) + abs(q05 - ex$q[["q05"]]))
+  expect_lt(abs(sd_row$expected_loss - ex$expected_loss), 4 * stats::sd(el) / sqrt(n))
+  if ("payback_time" %in% st$kpi) {
+    expect_lt(abs(st$na_share[st$kpi == "payback_time"] - ex$p0),
+              4 * sqrt(ex$p0 * (1 - ex$p0) / n))
   }
 })
 
@@ -573,57 +790,209 @@ test_that("grob_lehrbuch_a: MC-Erwartungen geschlossen (Spec 01 Teil C 5.6)", {
 
 #' Szenario bauen und deterministisch rechnen; registrierte Kennzahlen; Hinweise abgefangen
 diff_run <- function(raw, kpis = NULL) {
-  ks <- kpis %||% c(ref_kpi_rv, ref_kpi_plain)
-  ks <- ks[vapply(ks, function(k) reg_has("kpi", k), logical(1))]
-  raw$analysis$kpis <- ks
-  withCallingHandlers({
-    model <- vofi_build(vofi_scenario(raw))
-    res <- vofi_run(model)
-  }, vofi_warning_plausibility = function(w) invokeRestart("muffleWarning"),
-  vofi_warning_engine = function(w) invokeRestart("muffleWarning"),
-  vofi_message = function(m) invokeRestart("muffleMessage"))
-  list(model = model, res = res)
+  res <- inv_run(raw, kpis = kpis %||% c(ref_kpi_rv, ref_kpi_plain))
+  list(model = attr(res, "model"), res = res)
 }
 
+#' Kennzahlen der Differenztests (ohne das teure Entnahme-Äquivalent, eigener Test)
+diff_kpis <- setdiff(c(ref_kpi_rv, ref_kpi_plain), "withdrawal_equivalent")
+
 #' Differenztest über eine Liste von Zufallsszenarien (Spec 00 15.6: 1e-8 relativ)
+#'
+#' @return list(not_impl = Anzahl, deferred = Szenario-ids mit Vergleich ohne R-100,
+#'   counts = Anzahl der Szenarien je Merkmal (`ref_features()`, aus der Referenz-Engine)).
 run_diff_tests <- function(scs, kpis = NULL) {
   not_impl <- 0L
-  for (k in seq_along(scs)) {
-    r <- tryCatch(diff_run(scs[[k]], kpis), vofi_error_not_implemented = function(e) NULL)
+  deferred <- character(0)
+  feats <- NULL
+  for (raw in scs) {
+    id <- raw$meta$scenario_id
+    r <- tryCatch(diff_run(raw, kpis), vofi_error_not_implemented = function(e) NULL)
     if (is.null(r)) {
       not_impl <- not_impl + 1L
       next
     }
-    expect_ref_equal(r$res, r$model, info = scs[[k]]$meta$scenario_id)
-    expect_ref_invariants(r$res, r$model)
+    chk <- expect_ref_equal(r$res, r$model, info = id)
+    expect_ref_invariants(r$res, r$model, info = id)
+    if (chk$deferred) deferred <- c(deferred, id)
+    feats <- rbind(feats, chk$features)
   }
-  not_impl
+  list(not_impl = not_impl, deferred = deferred,
+       counts = if (is.null(feats)) integer(0) else colSums(feats))
+}
+
+#' Mindestabdeckung je Merkmal (F2): gezielte Merkmale jedes dritten Szenarios und zufällige
+#' Merkmale des Modus "full"
+expect_feature_counts <- function(counts, min_targeted, min_random) {
+  for (f in ref_gen_features) {
+    expect_gte(counts[[f]], min_targeted, label = paste("Szenarien mit", f))
+  }
+  for (f in c("rate_path", "kl_path", "prepay", "shortfall", "penalty")) {
+    expect_gte(counts[[f]], min_random, label = paste("Szenarien mit", f))
+  }
+}
+
+#' Abschluss eines Differenztests: Skip mit Begründung für nicht implementierte Funktionen
+#' bzw. Läufe, die nur ohne R-100 verglichen werden konnten (Paketfassung ohne R-100, WS-F)
+diff_finish <- function(out) {
+  if (out$not_impl > 0L) {
+    skip(paste(out$not_impl, "Szenarien nutzen noch nicht implementierte Funktionen"))
+  }
+  if (length(out$deferred) > 0L) {
+    skip(paste0(length(out$deferred), " Szenarien hängen von R-100 ab (Spec 00 8.6) und sind ",
+                "nur ohne effektive Restzahl verglichen: die Paketfassung verfehlt den Prüfwert ",
+                "L1 (Spec 01 Teil A 5.6; Kreditkern WS-F): ", utl_collapse(out$deferred)))
+  }
 }
 
 test_that("Differenztest: Referenz-Engine = Paket auf 40 Zufallsszenarien (alle Merkmale)", {
   skip_if_stub("vofi_scenario", "vofi_build", "vofi_run")
   scs <- ref_scenario_generator(20261026L, 40L, "full")
-  ni <- run_diff_tests(scs, kpis = setdiff(c(ref_kpi_rv, ref_kpi_plain), "withdrawal_equivalent"))
-  if (ni > 0L) skip(paste(ni, "Szenarien nutzen noch nicht implementierte Funktionen"))
+  out <- run_diff_tests(scs, kpis = diff_kpis)
+  expect_feature_counts(out$counts, 2L, 1L)
+  diff_finish(out)
 })
 
 test_that("Differenztest: 200 Zufallsszenarien (Spec 00 15.6)", {
   skip_on_cran()
   skip_if_stub("vofi_scenario", "vofi_build", "vofi_run")
   scs <- ref_scenario_generator(20261027L, 200L, "full")
-  ni <- run_diff_tests(scs, kpis = setdiff(c(ref_kpi_rv, ref_kpi_plain), "withdrawal_equivalent"))
-  if (ni > 0L) skip(paste(ni, "Szenarien nutzen noch nicht implementierte Funktionen"))
+  out <- run_diff_tests(scs, kpis = diff_kpis)
+  expect_feature_counts(out$counts, 10L, 5L)
+  diff_finish(out)
 })
 
 test_that("Differenztest: Entnahme-Äquivalent auf Zufallsszenarien (12.8)", {
   skip_if_stub("vofi_scenario", "vofi_build", "vofi_run")
-  if (!reg_has("kpi", "withdrawal_equivalent")) {
-    skip("Kennzahl withdrawal_equivalent noch nicht registriert (WS-D2)")
-  }
   scs <- ref_scenario_generator(20261028L, 15L, "simple")
-  ni <- run_diff_tests(scs, kpis = c("terminal_value", "terminal_value_opp",
-                                     "delta_terminal_value", "withdrawal_equivalent"))
-  if (ni > 0L) skip(paste(ni, "Szenarien nutzen noch nicht implementierte Funktionen"))
+  # Referenz-Engine gegen die Paket-Engine ohne die Kennzahl des Pakets: Zusatzentnahme E* als
+  # Baustein equity (inv_f_pkg()) ergibt f(E*) = 0 (12.8, mit und ohne Restwert)
+  n_ok <- 0L
+  for (raw in scs) {
+    id <- raw$meta$scenario_id
+    base <- inv_run(raw)
+    s <- spec_simple_from_model(attr(base, "model"))
+    s$kpis <- c("terminal_value", "delta_terminal_value", "withdrawal_equivalent")
+    ref <- ref_engine_run(s)
+    vol <- max(1, unlist(lapply(base$ledger$values, abs)))
+    for (ex in c(FALSE, TRUE)) {
+      k <- if (ex) "withdrawal_equivalent_ex_rv" else "withdrawal_equivalent"
+      we <- ref$kpis[[k]]
+      if (is.na(we)) {
+        expect_true(ref$kpi_na[[k]] %in% c("no_solution", "run_stopped"), info = paste(id, k))
+        next
+      }
+      n_ok <- n_ok + 1L
+      expect_lt(abs(inv_f_pkg(raw, we, base, ex_rv = ex)), 1e-8 * vol, label = paste(id, k))
+    }
+  }
+  expect_gt(n_ok, 20L)
+  # Paketkennzahl (WS-D2): Der Kennzahltyp ist kein exportierter Stub und meldet nicht
+  # vofi_error_not_implemented; geprüft wird, sobald er registriert ist (Abstimmungspunkt)
+  if (!reg_has("kpi", "withdrawal_equivalent")) {
+    skip("Kennzahl withdrawal_equivalent noch nicht registriert (WS-D2); Referenzteil geprüft")
+  }
+  out <- run_diff_tests(scs, kpis = c("terminal_value", "terminal_value_opp",
+                                      "delta_terminal_value", "withdrawal_equivalent"))
+  diff_finish(out)
+})
+
+#' Lauf i eines Paket-Batches = Paket-Einzellauf mit den Ziehungen von Lauf i (2.8 Nr. 8)
+expect_batch_row <- function(batch, single, i, info) {
+  keys <- union(names(batch$ledger$values), names(single$ledger$values))
+  bad <- character(0)
+  same <- function(a, b) length(a) == length(b) && all(abs(a - b) <= 1e-12 * pmax(1, abs(a)))
+  for (k in keys) {
+    a <- batch$ledger$values[[k]]
+    b <- single$ledger$values[[k]]
+    if (is.null(a) || is.null(b) || !same(a[i, ], b[1L, ])) bad <- c(bad, k)
+  }
+  if (!same(batch$opportunity$BS[i, ], single$opportunity$BS[1L, ])) bad <- c(bad, "opp_BS")
+  for (k in intersect(names(batch$kpis), names(single$kpis))) {
+    a <- batch$kpis[[k]][i]
+    b <- single$kpis[[k]][1L]
+    if (!identical(is.na(a), is.na(b)) || (!is.na(a) && !same(a, b))) bad <- c(bad, k)
+  }
+  testthat::expect(length(bad) == 0L,
+                   paste0("Batch-Lauf ", i, " != Einzellauf (", info, "): ", utl_collapse(bad)))
+}
+
+#' Batches mit Ziehungen je Lauf (n = 1, 2, T+1) gegen Referenz-Engine und Einzelläufe
+run_batch_tests <- function(scs, seed) {
+  deferred <- character(0)
+  feats <- NULL
+  n_batch <- 0L
+  for (k in seq_along(scs)) {
+    raw <- scs[[k]]
+    id <- raw$meta$scenario_id
+    raw$analysis$kpis <- diff_kpis[vapply(diff_kpis, function(x) reg_has("kpi", x), logical(1))]
+    model <- ref_quiet(vofi_build(vofi_scenario(raw)))
+    g <- model$grid
+    for (n in unique(c(1L, 2L, g$T + 1L))) {
+      dr <- ref_gen_draws(raw, g, n, ref_gen_subseed(seed, 100L * k + n))
+      draws <- fake_draws(n, g, static = dr$static, paths = dr$paths)
+      batch <- ref_pkg_run_draws(model, draws)
+      info <- sprintf("%s, n = %d", id, n)
+      expect_identical(as.integer(batch$ledger$n), n)
+      chk <- expect_ref_equal(batch, model, info = info)
+      expect_ref_invariants(batch, model, info = info)
+      if (chk$deferred) deferred <- union(deferred, id)
+      feats <- rbind(feats, chk$features)
+      n_batch <- n_batch + 1L
+      if (n == 1L) next
+      for (i in unique(c(1L, 2L, n))) {
+        single <- ref_pkg_run_draws(model, reg_draws_subset(draws, i))
+        expect_batch_row(batch, single, i, info)
+        ref_i <- ref_engine_run(ref_spec_subset(chk$s, i))
+        for (key in names(ref_i$rows)) {
+          expect_identical(chk$ref$rows[[key]][i, , drop = FALSE], ref_i$rows[[key]],
+                           info = paste(info, key))
+        }
+      }
+    }
+  }
+  list(deferred = deferred, n_batch = n_batch,
+       counts = if (is.null(feats)) integer(0) else colSums(feats))
+}
+
+test_that("Differenztest Batch: n = 1, 2, T+1 mit Ziehungen je Lauf (2.8 Nr. 8, 15.6)", {
+  skip_if_stub("vofi_scenario", "vofi_build")
+  scs <- ref_scenario_generator(20261029L, 18L, "full", stochastic = TRUE)
+  expect_true(all(vapply(scs, function(x) length(x$stochastic$parameters) > 0L, logical(1))))
+  out <- run_batch_tests(scs, 20261029L)
+  expect_gte(out$n_batch, 2L * length(scs))
+  for (f in ref_gen_features) expect_gte(out$counts[[f]], 1L, label = f)
+  if (length(out$deferred) > 0L) diff_finish(list(not_impl = 0L, deferred = out$deferred))
+})
+
+test_that("Differenztest Batch: 36 weitere Zufallsszenarien mit Ziehungen je Lauf", {
+  skip_on_cran()
+  skip_if_stub("vofi_scenario", "vofi_build")
+  scs <- ref_scenario_generator(20261030L, 36L, "full", stochastic = TRUE)
+  out <- run_batch_tests(scs, 20261030L)
+  for (f in ref_gen_features) expect_gte(out$counts[[f]], 2L, label = f)
+  if (length(out$deferred) > 0L) diff_finish(list(not_impl = 0L, deferred = out$deferred))
+})
+
+test_that("Differenztest MC über vofi_run(n_sim > 1): Zufallsszenarien mit stochastic-Block", {
+  skip_if_stub("vofi_scenario", "vofi_build", "vofi_run")
+  scs <- ref_scenario_generator(20261031L, 6L, "full", stochastic = TRUE)
+  deferred <- character(0)
+  for (raw in scs) {
+    id <- raw$meta$scenario_id
+    raw$analysis$kpis <- c("terminal_value", "terminal_value_opp", "delta_terminal_value")
+    model <- ref_quiet(vofi_build(vofi_scenario(raw)))
+    mc <- tryCatch(ref_quiet(vofi_run(model, n_sim = 7L, seed = 11L, store = "full")),
+                   vofi_error_not_implemented = function(e) {
+                     skip(paste("Monte-Carlo noch nicht implementiert:", conditionMessage(e)))
+                   })
+    expect_s3_class(mc, "vofi_mc_result")
+    expect_identical(as.integer(mc$ledger$n), 7L)
+    chk <- expect_ref_equal(mc, model, info = id)
+    expect_ref_invariants(mc, model, info = id)
+    if (chk$deferred) deferred <- c(deferred, id)
+  }
+  if (length(deferred) > 0L) diff_finish(list(not_impl = 0L, deferred = deferred))
 })
 
 test_that("Differenztest MC: jeder Lauf eines Batches = Referenz-Engine (statische Ziehungen)", {

@@ -1,6 +1,7 @@
 # Testorakel (WS-T; Spec 00 Abschnitt 15.1, 15.3; Memo 01 §10): Szenarien und Sollwerte aus
 # tests/testthat/fixtures/oracles/ (Sollwerte erzeugt mit data-raw/export_oracles.py aus der
-# unveränderten Python-Referenz data-raw/vofi_ref.py).
+# unveränderten Python-Referenz data-raw/vofi_ref.py): <id>.yaml, <id>_rows.csv, <id>_kpis.csv
+# und für (c1) zusätzlich c1_solve.csv (Zielwertsuche, Spec 00 12.8).
 
 #' Verzeichnis der Orakel-Fixtures
 oracle_dir <- function() testthat::test_path("fixtures", "oracles")
@@ -37,6 +38,21 @@ oracle_expected <- function(id) {
   kpis$na_reason[!is.na(kpis$na_reason) & kpis$na_reason == ""] <- NA_character_
   list(rows = rows[, c("row_key", "t", "value", "variant")],
        kpis = kpis[, c("kpi", "value", "na_reason", "variant")])
+}
+
+#' Sollwerte der Zielwertsuche eines Orakels (fixtures/oracles/<id>_solve.csv, Spec 00 12.8)
+#'
+#' @return data.frame(what, param, kpi, target, value); leer, wenn es keine Datei gibt.
+oracle_solve <- function(id) {
+  id <- match.arg(id, oracle_ids())
+  f <- file.path(oracle_dir(), paste0(id, "_solve.csv"))
+  cc <- c(what = "character", param = "character", kpi = "character", target = "numeric",
+          value = "numeric")
+  if (!file.exists(f)) {
+    return(data.frame(what = character(0), param = character(0), kpi = character(0),
+                      target = numeric(0), value = numeric(0)))
+  }
+  utils::read.csv(f, colClasses = cc, stringsAsFactors = FALSE)
 }
 
 #' Ledger eines Ergebnisses auf die Orakelzeilen abbilden (Spec 00 15.3)

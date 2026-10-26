@@ -6,40 +6,7 @@
 # Prüffälle 9.4 (Terminalzustand ohne Restwert), 9.5 (Unterlassung ohne eigene Nachschüsse,
 # Sacheinlage); G Eigenschaften des Zufallsszenario-Generators.
 
-#' Bau und deterministischer Lauf eines Rohszenarios (Hinweise und Meldungen abgefangen)
-inv_run <- function(raw, kpis = c("terminal_value", "terminal_value_opp",
-                                  "delta_terminal_value"), overrides = NULL, variant = "base") {
-  skip_if_stub("vofi_scenario", "vofi_build", "vofi_run")
-  raw$analysis$kpis <- kpis[vapply(kpis, function(k) reg_has("kpi", k), logical(1))]
-  withCallingHandlers({
-    model <- vofi_build(vofi_scenario(raw), variant = variant, overrides = overrides)
-    res <- vofi_run(model)
-  }, vofi_warning_plausibility = function(w) invokeRestart("muffleWarning"),
-  vofi_warning_engine = function(w) invokeRestart("muffleWarning"),
-  vofi_message = function(m) invokeRestart("muffleMessage"))
-  attr(res, "model") <- model
-  res
-}
-
-#' Aufzinsfaktoren q_t = prod(1 + h_net) des Laufs (12.2) aus dem Modell
-inv_q <- function(model, i = 1L) {
-  s <- spec_simple_from_model(model)
-  ac <- ref_accounts(s$accounts, i, s$months)
-  h_net <- ac$h - ac$w * pmax(ac$h, 0)
-  cumprod(c(1, 1 + h_net[-1L]))
-}
-
-#' Zeilensumme eines Ergebnisses nach Abschnitt/Kategorie (Lauf 1)
-inv_sum <- function(res, section = NULL, category = NULL, cash = NULL) {
-  rows <- res$ledger$rows
-  sel <- rep(TRUE, nrow(rows))
-  if (!is.null(section)) sel <- sel & rows$section %in% section
-  if (!is.null(category)) sel <- sel & rows$category %in% category
-  if (!is.null(cash)) sel <- sel & rows$cash == cash
-  t1 <- res$ledger$T + 1L
-  if (!any(sel)) return(rep(0, t1))
-  Reduce(`+`, lapply(rows$key[sel], function(k) res$ledger$values[[k]][1L, ]))
-}
+# inv_run(), inv_q(), inv_sum(), inv_f_pkg(): helper-reference-engine.R (Abschnitt 11).
 
 #' Prüfszenario in Rohform (Jahresraster ab 2027-01-01)
 inv_scenario <- function(horizon, components, financing = list(), accounts = list(), ...) {
@@ -141,14 +108,19 @@ test_that("I1-I3, N1, N2 für alle Orakel und Beispielszenarien (deterministisch
     expect_ref_invariants(res, attr(res, "model"), info = paste("g", v))
   }
   skip_if_stub("vofi_example", "vofi_read_scenario")
+  n_i3b <- 0L
   for (ex in vofi_example()) {
     sc <- vofi_read_scenario(vofi_example(ex))
     res <- oracle_result(ex, scenario = sc)
-    lm <- sc$accounts$min_liquidity_eur
-    lmin <- if (is.list(lm) && identical(lm$kind, "const")) lm$value else 1
-    inv <- ref_invariants(res, lmin = lmin, kl = helper_limit(res))
-    expect_true(all(inv$ok), info = paste(ex, utl_collapse(inv$invariant[!inv$ok])))
+    # Mindestliquidität und Limit aus dem Modell (mit Defaults, Spec 01 Teil A 5.7): I3b gilt
+    # auch ohne ausdrückliches accounts.min_liquidity_eur (Default 0)
+    inv <- expect_ref_invariants(res, attr(res, "model"), info = ex)
+    lmin <- spec_simple_from_model(attr(res, "model"))$accounts$min_liquidity_eur
+    n_i3b <- n_i3b + all(lmin == 0)
+    expect_identical(inv$invariant, c("I1", "I2", "I3a", "I3b", "I3c", "N1", "N2"))
   }
+  # Beispiele ohne ausdrückliche Mindestliquidität (z. B. das Skelett) prüfen I3b
+  expect_gt(n_i3b, 0L)
 })
 
 test_that("I1-I3, N1, N2 für 50 Zufallsszenarien (unabhängig der Engine-Prüfung)", {
@@ -222,18 +194,6 @@ test_that("I4: 50 Zufallsszenarien im vollkommenen Kapitalmarkt (Generatorregel 
 # I5 Monotonie der Entnahme-Zielfunktion (12.8)
 # ---------------------------------------------------------------------------------------------
 
-#' f(E) aus Paketläufen mit Zusatzentnahme E je Jahr (Baustein withdrawals_pa, 7.12)
-inv_f_pkg <- function(raw, e_amt, base) {
-  extra <- if (e_amt >= 0) list(type = "equity", withdrawals_pa = e_amt) else
-    list(type = "equity", contributions_pa = -e_amt)
-  res <- inv_run(raw, overrides = list(financing = list(wd_extra = extra)))
-  t1 <- res$ledger$T + 1L
-  q <- inv_q(attr(base, "model"))
-  ns <- inv_sum(res, category = c("equity_call", "shortfall"))
-  ns0 <- inv_sum(base, category = c("equity_call", "shortfall"))
-  res$kpis$terminal_value - sum((ns - ns0) * q[t1] / q) - base$kpis$terminal_value_opp
-}
-
 #' f(E) der Referenz-Engine (Zusatzentnahme E * delta in t >= 1)
 inv_f_ref <- function(s, e_amt) {
   res <- ref_run_one(s, 1L)
@@ -260,16 +220,26 @@ test_that("I5: f(E) streng fallend, Steigung <= -T_J bei nichtnegativen Zinsen (
   expect_lt(abs(inv_f_pkg(raw, we, base)), 1e-6)
 })
 
-test_that("I5: Referenz-Engine auf 20 Zufallsszenarien mit h_net, s, sp >= 0", {
+test_that("I5: Paket und Referenz-Engine auf 20 Zufallsszenarien mit h_net, s, sp >= 0", {
   scs <- ref_scenario_generator(20261103L, 20L, "nonneg")
   for (raw in scs) {
-    res <- inv_run(raw)
-    s <- spec_simple_from_model(attr(res, "model"))
+    id <- raw$meta$scenario_id
+    base <- inv_run(raw)
+    s <- spec_simple_from_model(attr(base, "model"))
     t_j <- sum(s$months) / 12
+    vol <- max(1, unlist(lapply(base$ledger$values, abs)))
     for (e_amt in c(-2000, 0, 3000)) {
-      d <- inv_f_ref(s, e_amt + 1) - inv_f_ref(s, e_amt)
+      f_ref <- c(inv_f_ref(s, e_amt), inv_f_ref(s, e_amt + 1))
+      d <- f_ref[2L] - f_ref[1L]
       expect_lt(d, 0)
       expect_lte(d, -t_j + 1e-9)
+      if (e_amt == -2000) next
+      # Paket (Zusatzentnahme als Baustein equity, 7.12): gleiche Werte und gleiche Schranke
+      f_pkg <- c(inv_f_pkg(raw, e_amt, base), inv_f_pkg(raw, e_amt + 1, base))
+      d_pkg <- f_pkg[2L] - f_pkg[1L]
+      expect_lt(d_pkg, 0, label = id)
+      expect_lte(d_pkg, -t_j + 1e-9, label = id)
+      expect_lt(max(abs(f_pkg - f_ref)), 1e-8 * vol, label = id)
     }
   }
 })
@@ -532,6 +502,68 @@ test_that("G: Generator ist reproduzierbar und lässt den globalen RNG-Zustand u
   ids <- vapply(a, function(x) x$meta$scenario_id, character(1))
   expect_false(anyDuplicated(ids) > 0L)
   expect_length(ref_scenario_generator(42L, 200L, "full"), 200L)
+})
+
+test_that("G: Modus full mit Zinspfaden, fallenden Limits und gezielten Fällen; stochastic", {
+  scs <- ref_scenario_generator(42L, 36L, "full")
+  titles <- vapply(scs, function(x) x$meta$title, character(1))
+  k <- seq_along(scs)
+  expect_identical(grepl("(gezielt: ", titles, fixed = TRUE), k %% 3L == 0L)
+  for (f in ref_gen_features) {
+    expect_identical(sum(grepl(paste0("(gezielt: ", f, ")"), titles, fixed = TRUE)), 2L)
+  }
+  len <- function(p) vapply(scs, function(x) length(x$accounts[[p]]), integer(1))
+  expect_gt(sum(len("deposit_rate_pa") > 1L), 0L)
+  expect_gt(sum(len("overdraft_rate_pa") > 1L), 0L)
+  kl <- Filter(function(x) length(x) > 1L, lapply(scs, function(x) x$accounts$overdraft_limit_eur))
+  expect_gt(length(kl), 0L)
+  expect_true(all(vapply(kl, function(x) all(diff(x) <= 0), logical(1))))
+  fu <- unlist(lapply(scs, function(x) {
+    lapply(x$financing, function(b) if (is.numeric(b$followup_rate_pa)) b$followup_rate_pa)
+  }), recursive = FALSE)
+  expect_true(any(lengths(fu) > 1L))
+  # Die übrigen Modi bleiben von den Erweiterungen unberührt (keine Pfade, keine gezielten Fälle)
+  for (mode in c("perfect_market", "nonneg", "simple")) {
+    for (x in ref_scenario_generator(42L, 12L, mode)) {
+      expect_length(x$accounts$deposit_rate_pa, 1L)
+      expect_length(x$accounts$overdraft_limit_eur, 1L)
+      expect_false(grepl("gezielt", x$meta$title))
+    }
+  }
+  # stochastic = TRUE: gleiche Szenarien, zusätzlich Block stochastic und shared.rv
+  b <- ref_scenario_generator(42L, 36L, "full", stochastic = TRUE)
+  for (q in seq_along(scs)) {
+    expect_identical(b[[q]]$financing, scs[[q]]$financing)
+    expect_identical(b[[q]]$accounts, scs[[q]]$accounts)
+    expect_identical(b[[q]]$components$z, scs[[q]]$components$z)
+    st <- b[[q]]$stochastic
+    expect_identical(st$settings$n_sim, 7L)
+    tg <- vapply(st$parameters, function(p) p$target, character(1))
+    expect_false(anyDuplicated(tg) > 0L)
+    expect_true(all(grepl("^[a-z][a-z0-9_]*$", names(st$parameters))))
+    if (!is.null(b[[q]]$shared$rv)) {
+      expect_true("shared.rv" %in% tg)
+      expect_identical(b[[q]]$components$rv$values[[length(scs[[q]]$components$z$values)]],
+                       list(ref = "shared.rv"))
+    }
+  }
+  # Ziehungen je Lauf: reproduzierbar, innerhalb der Träger, Pfade n x (T+1)
+  raw <- b[[3L]]
+  g <- vofi_time_grid(as.Date("2027-01-01"), raw$project$horizon_years,
+                      construction_months = raw$grid$construction_months %||% 0L,
+                      construction_step_months = raw$grid$construction_step_months %||% 12L)
+  d1 <- ref_gen_draws(raw, g, 7L, 5L)
+  expect_identical(d1, ref_gen_draws(raw, g, 7L, 5L))
+  for (p in raw$stochastic$parameters) {
+    x <- d1$static[[p$target]]
+    expect_length(x, 7L)
+    if (p$dist == "bernoulli") expect_true(all(x %in% c(0, 1)))
+    if (p$dist %in% c("uniform", "triangular")) expect_true(all(x >= p$min & x <= p$max))
+  }
+  expect_identical(dim(d1$paths[["components.z.values"]]), c(7L, g$T + 1L))
+  u <- c(0, 0.25, 0.5, 1)
+  expect_equal(ref_q_triangular(u, 30000, 40000, 50000),
+               c(30000, 30000 + sqrt(0.25 * 2e8), 40000, 50000))
 })
 
 test_that("G: Szenarien sind gültig und erfüllen die Moduseinschränkungen", {
