@@ -1,0 +1,6 @@
+# Labels der Rechtsregel mr_levy_cap_total (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Kappung der Umlage"
+description: "Restraum der Kappung nach § 559 Abs. 3a BGB (2 bzw. 3 EUR/m² in sechs Jahren) nach Abzug früherer Umlagen."
+versions:
+  "20260729":
+    note: "§ 559 Abs. 3a BGB."

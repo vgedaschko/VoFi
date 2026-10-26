@@ -1,0 +1,6 @@
+# Labels der Rechtsregel co2_params (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Rechtsparameter CO2KostAufG"
+description: "Bildet die Nutzlasten der Themen co2kostaufg und bio_treppe auf die Parameter der CO2-Regeln ab (Stufenmodell, § 5a, Übergang, Bio-Treppe); ein inaktives Thema ergibt leere Parameter."
+versions:
+  "20230101":
+    note: "Stufenmodell seit 2023, § 5a i. d. F. des GModG."

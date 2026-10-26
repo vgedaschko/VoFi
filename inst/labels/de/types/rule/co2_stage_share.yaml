@@ -1,0 +1,6 @@
+# Labels der Rechtsregel co2_stage_share (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Vermieteranteil nach Stufenmodell"
+description: "Vermieteranteil an den CO2-Kosten nach der spezifischen Emission in kg CO2 je m² Wohnfläche und Jahr (Anlage CO2KostAufG)."
+versions:
+  "20230101":
+    note: "Anlage zu §§ 5 bis 7 CO2KostAufG."

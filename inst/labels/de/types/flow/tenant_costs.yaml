@@ -1,0 +1,25 @@
+# Labels des Zahlungstyps tenant_costs (WS-E, Spec 01 Teil B Abschnitt 3.8).
+label: "Heizkosten der Mieter"
+description: "Heiz- und Warmwasserkosten der Mieter auf Vollvermietungsbasis (ohne Vermieteranteile nach CO2KostAufG, abzüglich PV-Eigenverbrauch) und der kontrafaktische Vorzustand als Merkzeilen; Grundlage der Warmmiete."
+params:
+  energy_components:
+    label: "Energiesegmente"
+    help: "ids aller Komponenten energy_cost."
+  co2_components:
+    label: "CO2-Segmente"
+    help: "ids aller Komponenten co2_cost."
+  pv_component:
+    label: "PV-Anlage"
+    help: "id der Komponente pv (Vorteil der Mieter aus Eigenverbrauch)."
+  pre_energy_components:
+    label: "Energiesegmente vorher"
+    help: "ids der Segmente des Zustands before."
+  pre_co2_components:
+    label: "CO2-Segmente vorher"
+    help: "ids der CO2-Komponenten des Zustands before."
+  rented_area_m2:
+    label: "Vermietete Fläche"
+    help: "Summe der vermieteten Gruppenflächen in m²."
+rows:
+  energy: "Heizkosten der Mieter"
+  energy_pre: "Heizkosten der Mieter (vorher)"

@@ -1,0 +1,6 @@
+# Labels der Rechtsregel co2_section43 (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Heizung nach § 43 GModG"
+description: "Prüft, ob eine neue Gas-, Öl- oder Flüssiggasheizung im Bestand der Bio-Treppe nach § 43 GModG unterliegt."
+versions:
+  "20260729":
+    note: "GModG § 43 Abs. 1."

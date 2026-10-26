@@ -1,0 +1,97 @@
+# Labels des Zahlungstyps energy_cost (WS-E, Spec 01 Teil B Abschnitt 3.6).
+label: "Energiekosten eines Segments"
+description: "Energiekosten eines Zustands und Energieträgers: Arbeitspreis netto mit Netzentgelt und Bio-Mehrkosten, Grundpreis und Wartung jeweils mit Umsatzsteuer; Kostenträger Eigentümer und Vermieter im Leerstand; Merkzeilen Endenergie und Treibhausgasbilanz."
+params:
+  state:
+    label: "Zustand"
+    help: "id des Zustands im Block energy (before, after oder id aus stages)."
+  carrier:
+    label: "Energieträger"
+    help: "id des Trägers in energy.carriers."
+  carrier_class:
+    label: "Trägerklasse"
+    help: "Klasse des Trägers (gas, oil, power, district_heating, biomass, ...)."
+  quantity_kwh_pa:
+    label: "Menge p. a."
+    help: "Endenergie in kWh je Jahr ohne Alterung (Ausdruck des Expanders energy)."
+  extra_kwh_pa:
+    label: "Zusatzverbrauch p. a."
+    help: "Zusätzlicher Verbrauch des Trägers in kWh je Jahr."
+  efficiency_degradation_pa:
+    label: "Effizienzverlust p. a."
+    help: "Mehrverbrauch je Jahr seit Einbau (Rate)."
+  installation_date:
+    label: "Einbau"
+    help: "Einbaudatum der Anlage (Alterung, § 5a CO2KostAufG)."
+  price_eur_kwh:
+    label: "Arbeitspreis"
+    help: "Preis je kWh (netto bzw. brutto nach price_basis)."
+  price_includes:
+    label: "Preis enthält"
+    help: "commodity (nur Energie) oder all (einschließlich Netzentgelt und CO2-Kosten)."
+  price_basis:
+    label: "Preisbasis"
+    help: "net oder gross (einschließlich Umsatzsteuer)."
+  price_growth:
+    label: "Preissteigerung p. a."
+    help: "Fortschreibung des Arbeitspreises (Konstante oder Pfad)."
+  network_fee_growth:
+    label: "Wachstum Netzentgelt p. a."
+    help: "Fortschreibung des Netzentgelts."
+  fee_growth:
+    label: "Wachstum Grundpreis p. a."
+    help: "Fortschreibung von Grundpreis und Wartung."
+  price_base_date:
+    label: "Preisstand"
+    help: "Default 1. Januar nach project.price_base_year."
+  network_fee_eur_kwh:
+    label: "Netzentgelt"
+    help: "Netzentgelt netto je kWh."
+  bio_premium_eur_kwh:
+    label: "Bio-Mehrkosten"
+    help: "Mehrkosten des biogenen Anteils netto je kWh."
+  base_fee_eur_pa:
+    label: "Grundpreis p. a."
+    help: "Grundpreis je Jahr in EUR (netto bzw. brutto nach price_basis)."
+  service_eur_pa:
+    label: "Wartung p. a."
+    help: "Wartung und Messdienst je Jahr in EUR."
+  vat_rate:
+    label: "Umsatzsteuersatz"
+    help: "Satz der Umsatzsteuer (Default 0,19)."
+  emission_factor_kg_kwh:
+    label: "Emissionsfaktor (BEHG)"
+    help: "kg CO2 je kWh für die CO2-Bepreisung."
+  ghg_factor_kg_kwh:
+    label: "Treibhausgasfaktor (GEG)"
+    help: "kg CO2-Äquivalent je kWh für die Treibhausgasbilanz."
+  co2_price_eur_t:
+    label: "CO2-Preis"
+    help: "EUR je Tonne CO2 (Pfad)."
+  section43:
+    label: "Heizung nach § 43 GModG"
+    help: "Bio-Treppe und § 5a CO2KostAufG anwenden."
+  owner_share:
+    label: "Eigentümeranteil"
+    help: "Anteil der selbstgenutzten Fläche (Kostenträger Eigentümer)."
+  unit_groups:
+    label: "Vermietete Gruppen"
+    help: "ids der vermieteten Gruppen (Leerstandsquote)."
+  vacancy_landlord:
+    label: "Leerstand trägt Vermieter"
+    help: "false bei vacancy_opex_scope = warm (Energie im Leerstand über operating_cost)."
+  counterfactual_pre:
+    label: "Kontrafaktischer Vorzustand"
+    help: "Hilfsgrößen für den Vorzustand über den ganzen Horizont (Mieterkosten vorher)."
+  construction_delay_months:
+    label: "Bauzeitverzug"
+    help: "Monate (Verschiebung beim Token completion)."
+rows:
+  work: "Energie (Arbeitspreis, Netzentgelt, Bio)"
+  base_fee: "Grundpreis"
+  service: "Wartung und Messdienst"
+  quantity: "Endenergie"
+  emission: "Treibhausgasemissionen"
+msg:
+  negative_rest_price: "Gesamtpreis des Trägers {carrier} kleiner als Netzentgelt und CO2-Kosten des ersten Rasterjahres in {share:pct} der Läufe: Restpreis auf 0 gesetzt."
+  negative_rest_price_error: "Gesamtpreis des Trägers {carrier} (price_includes = all) kleiner als Netzentgelt und CO2-Kosten des ersten Rasterjahres: Preisangabe prüfen."

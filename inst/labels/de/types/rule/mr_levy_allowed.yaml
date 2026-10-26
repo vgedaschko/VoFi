@@ -1,0 +1,6 @@
+# Labels der Rechtsregel mr_levy_allowed (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Zulässigkeit der Modernisierungsumlage"
+description: "Prüft je Phase des Mietverhältnisses (Vergleichsmiete, Staffel, Index, Bindung) und Verfahren, ob eine Umlage nach §§ 559, 559c oder 559e BGB zulässig ist; § 559c zählt als Berechnungsverfahren des § 559."
+versions:
+  "20260729":
+    note: "§§ 557a Abs. 2, 557b Abs. 2 BGB i. d. F. des GModG."

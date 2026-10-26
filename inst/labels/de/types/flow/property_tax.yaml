@@ -1,0 +1,34 @@
+# Labels des Zahlungstyps property_tax (WS-E, Spec 00 Abschnitt 7.11; Spec 01 Teil B Abschnitt 2.3).
+label: "Grundsteuer"
+description: "Grundsteuer einer Wohnungsgruppe: kostenwirksam vor dem Bezug, bei Selbstnutzung und im Leerstandsanteil; der auf die Mieter umgelegte Teil steht als Merkzeile."
+params:
+  amount_eur_pa:
+    label: "Grundsteuer p. a."
+    help: "Jahresbetrag in EUR nach Bezug (Preisstand base_date)."
+  land_amount_eur_pa:
+    label: "Grundsteuer vor Bezug"
+    help: "Jahresbetrag in EUR vor dem Bezug (unbebautes Grundstück bzw. Bauphase); Default amount_eur_pa."
+  amount_after_completion_eur_pa:
+    label: "Grundsteuer nach Nachfeststellung"
+    help: "Jahresbetrag in EUR nach der Nachfeststellung infolge der Fertigstellung."
+  after_completion_from:
+    label: "Nachfeststellung ab"
+    help: "Beginn des Betrags nach Nachfeststellung; Default 1. Januar nach dem Bezug."
+  growth:
+    label: "Wachstum p. a."
+    help: "Fortschreibung (Konstante oder Pfad)."
+  base_date:
+    label: "Preisstand"
+    help: "Default 1. Januar nach project.price_base_year."
+  occupancy_from:
+    label: "Bezug ab"
+    help: "Beginn des Betriebs (Default Stichtag; Token completion mit Bauzeitverzug)."
+  owner_occupied:
+    label: "Selbstnutzung"
+    help: "true: die Grundsteuer trägt vollständig der Eigentümer."
+  rent_component:
+    label: "Mietkomponente"
+    help: "id der Komponente rent_path der Gruppe (Leerstandsquote)."
+rows:
+  cost: "Grundsteuer"
+  tenant_share: "Grundsteuer (umgelegt auf Mieter)"

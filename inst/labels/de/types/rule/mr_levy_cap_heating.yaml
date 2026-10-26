@@ -1,0 +1,6 @@
+# Labels der Rechtsregel mr_levy_cap_heating (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Heizungskappe der Umlage"
+description: "Restraum der Kappung des Heizungsanteils (0,50 EUR/m² in sechs Jahren) nach § 559 Abs. 3a S. 3 und § 559e BGB."
+versions:
+  "20260729":
+    note: "§ 559 Abs. 3a S. 3, § 559e BGB."

@@ -1,0 +1,6 @@
+# Labels der Rechtsregel mr_levy_annual (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Jahresbetrag der Modernisierungsumlage"
+description: "Jahresbetrag der Umlage vor Kappungen nach §§ 559, 559a, 559c, 559e und 559f BGB mit Erhaltungsanteil, Drittmitteln, Zinsermäßigung und Halbierung bei Wärmepumpen."
+versions:
+  "20260729":
+    note: "Auslegungen nach Konzept F13, F14 und B1 als Voreinstellung."

@@ -1,0 +1,6 @@
+# Labels der Rechtsregel mr_index_adjustment (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Anpassung der Indexmiete"
+description: "Anpassungssatz der Indexmiete nach § 557b BGB; mit Reform Mietrecht II gedämpft in Gebieten mit Indexmietendämpfung."
+versions:
+  "20260729":
+    note: "§ 557b BGB."

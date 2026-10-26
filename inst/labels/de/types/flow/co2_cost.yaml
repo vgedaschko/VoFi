@@ -1,0 +1,48 @@
+# Labels des Zahlungstyps co2_cost (WS-E, Spec 01 Teil B Abschnitt 3.7).
+label: "CO2-Kosten nach CO2KostAufG"
+description: "Aufteilung der CO2-Kosten eines Energiesegments zwischen Vermieter und Mietern nach dem Stufenmodell (spezifische Emission je Abrechnungsjahr, Teiljahre hochgerechnet), ab 2028 nach § 5a CO2KostAufG für Heizungen nach § 43 GModG einschließlich Gasnetzentgelt und Bio-Mehrkosten."
+params:
+  energy_component:
+    label: "Energiesegment"
+    help: "id der Komponente energy_cost des Segments."
+  all_energy_components:
+    label: "Alle Segmente"
+    help: "ids aller Segmente mit Emissionsfaktor (spezifische Emission je m²)."
+  pre_energy_components:
+    label: "Segmente vorher"
+    help: "ids der Segmente des Zustands before (kontrafaktischer Vorzustand)."
+  living_area_m2:
+    label: "Wohnfläche"
+    help: "Wohnfläche des Gebäudes in m² (spezifische Emission)."
+  carrier_class:
+    label: "Trägerklasse"
+    help: "Klasse des Energieträgers (Netzentgelt nur bei gas)."
+  section43:
+    label: "Heizung nach § 43 GModG"
+    help: "§ 5a CO2KostAufG anwenden."
+  emergency_replacement:
+    label: "Havarie"
+    help: "Einbau nach Ausfall der alten Heizung (Übergangsfrist § 5a)."
+  newbuild_5b:
+    label: "Neubau § 5b"
+    help: "Aufteilung im Neubau nach § 5b."
+  hardship_5d:
+    label: "Härtefall § 5d"
+    help: "Aussetzung nach § 5d."
+  installation_date:
+    label: "Einbau"
+    help: "Einbaudatum der Heizung."
+  landlord_share_reduction:
+    label: "Kürzung § 9"
+    help: "Kürzung des Vermieteranteils (z. B. Denkmalschutz, Milieuschutz)."
+  vacancy_landlord:
+    label: "Leerstand trägt Vermieter"
+    help: "CO2-Kosten im Leerstand dem Vermieter zurechnen."
+rows:
+  co2_owner: "CO2-Kosten (Eigentümer)"
+  co2_vacancy: "CO2-Kosten (Leerstand)"
+  co2_landlord: "CO2-Kosten (Vermieteranteil)"
+  network_fee_landlord: "Gasnetzentgelt (Vermieteranteil § 5a)"
+  bio_landlord: "Bio-Mehrkosten (Vermieteranteil § 5a)"
+msg:
+  topic_inactive: "CO2KostAufG nicht angewendet (Thema co2kostaufg ohne wählbaren Eintrag): kein Vermieteranteil."
