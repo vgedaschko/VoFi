@@ -23,5 +23,5 @@
       Über 8 Jahre zahlen Sie insgesamt rund 60.500 € (Eigenanteil und laufende Belastung, nominal).
       Ihr Eigenanteil nach Förderung (Einmalbetrag) beträgt rund 10.000 €.
       Nachschüsse sind nicht nötig.
-      Bis zum Horizontende am 01.01.2035 hat sich die Investition nicht bezahlt gemacht (Vermögensvergleich mit dem Zeitwert der Maßnahmen).
+      Ob sich die Investition bezahlt macht, lässt sich bei einem Bestandsgebäude nur im Vergleich mit einer Referenzvariante bestimmen (der Vermögensvergleich mit der Unterlassung enthält die ohnehin anfallenden Kosten des Bestands).
 

@@ -17,6 +17,17 @@ rep_mc_header <- function(x) {
         block = as.integer(m$block_size %||% NA_integer_)))
 }
 
+#' Primärkennzahl einer Simulation mit Rückfall (12.3a)
+#'
+#' Bei Bestandsprojekten ist die Primärkennzahl `delta_vs_reference`, die es nur im Vergleich
+#' gibt; dann gilt `delta_terminal_value` mit Vermerk (`rep_primary_kpi()` über die Kennzahlen
+#' der Statistik bzw. der Läufe).
+#' @noRd
+rep_mc_primary <- function(x) {
+  st <- if (is.data.frame(x$stats)) x$stats$kpi else NULL
+  rep_primary_kpi(x, st %||% setdiff(names(x$kpis), c("sim", "block", "branch")))
+}
+
 #' Hinweise zum Standardfehler (12.7: R < 10 „grob“, R = 1 „überschätzt bei LHS“)
 #' @noRd
 rep_mc_se_notes <- function(x) {
@@ -39,7 +50,7 @@ rep_mc_se_notes <- function(x) {
 #' @noRd
 rep_mc_head_kpis <- function(x) {
   st <- x$stats$kpi
-  primary <- x$meta$primary_kpi %||% "delta_terminal_value"
+  primary <- rep_mc_primary(x)$kpi
   sel <- c(primary, paste0(primary, "_ex_rv"), "terminal_value", "terminal_value_ex_rv",
            "terminal_value_opp", "roe_mirr", "roe_mirr_ex_rv", "payback_time",
            "monthly_burden_y1", "monthly_net_cashflow_y1", "warm_rent_change_prepost_y1",
@@ -58,7 +69,8 @@ rep_mc_stats_matrix <- function(x, kpis = NULL) {
   if (!is.data.frame(st) || nrow(st) == 0L) return(NULL)
   if (!is.null(kpis)) st <- st[match(kpis, st$kpi), , drop = FALSE]
   st <- st[!is.na(st$kpi), , drop = FALSE]
-  primary <- x$meta$primary_kpi %||% "delta_terminal_value"
+  pk <- rep_mc_primary(x)
+  primary <- if (pk$fallback) NA_character_ else pk$kpi
   units <- vapply(st$kpi, function(k) {
     u <- kpi_unit(k)
     if (is.na(u)) "EUR" else u
@@ -80,8 +92,9 @@ rep_mc_stats_matrix <- function(x, kpis = NULL) {
              fmt_pct(st$na_share, 1))
   if (nrow(st) == 1L) m <- matrix(m, nrow = 1L)
   colnames(m) <- c(lbl("report.mc.col_kpi"), lbl("report.mc.col_det"), lbl("report.mc.col_mean"),
-                   lbl("report.mc.col_se"), "P5", "P25", lbl("report.mc.col_median"), "P75",
-                   "P95", lbl("report.mc.col_p_neg"), lbl("report.mc.col_na"))
+                   lbl("report.mc.col_se"), lbl("report.mc.col_q05"), lbl("report.mc.col_q25"),
+                   lbl("report.mc.col_median"), lbl("report.mc.col_q75"),
+                   lbl("report.mc.col_q95"), lbl("report.mc.col_p_neg"), lbl("report.mc.col_na"))
   m
 }
 
@@ -90,7 +103,11 @@ rep_mc_stats_matrix <- function(x, kpis = NULL) {
 #' Gibt Kopfdaten (Szenario, Läufe, Seed, Verfahren, Replikate) und die Statistik der
 #' wichtigsten Kennzahlen aus: deterministischer Wert (Basisfall), Mittelwert,
 #' Replikat-Standardfehler, Quantile P5 bis P95, Anteil negativer Werte und NA-Anteil (Spec 00,
-#' Abschnitte 12.7, 13.6), dazu Hinweise zum Standardfehler und zur Konvergenz.
+#' Abschnitte 12.7, 13.6), dazu Hinweise zum Standardfehler und zur Konvergenz. Bei
+#' Bestandsprojekten ist die Primärkennzahl die Endwertdifferenz gegenüber der Referenz, die nur
+#' ein Variantenvergleich liefert; gezeigt wird dann die Endwertdifferenz gegenüber der
+#' Unterlassungsalternative mit dem Vermerk „enthält Bestandszahlungen“ (Spec 00, Abschnitt
+#' 12.3a).
 #'
 #' @param x Objekt der Klasse `vofi_mc_result`.
 #' @param ... nicht verwendet.
@@ -106,18 +123,28 @@ print.vofi_mc_result <- function(x, ...) {
   } else {
     rep_cat_matrix(m, left = 1L)
   }
-  notes <- rep_mc_se_notes(x)
+  notes <- c(rep_existing_note(rep_mc_primary(x)$note), rep_mc_se_notes(x))
   if (length(notes) > 0L) cat("\n", paste0("  - ", notes, "\n"), sep = "")
   invisible(x)
 }
 
 #' Risikoaussagen in Worten zur Primärkennzahl (Konzept 4.5)
+#'
+#' Ohne `kpi` zur Primärkennzahl mit Rückfall nach `rep_mc_primary()`; beim Rückfall auf die
+#' Endwertdifferenz eines Bestandsprojekts steht der Vermerk (12.3a) voran.
 #' @noRd
 rep_mc_risk_lines <- function(x, kpi = NULL) {
   st <- x$stats
-  kpi <- kpi %||% x$meta$primary_kpi %||% "delta_terminal_value"
-  s <- st[st$kpi == kpi, , drop = FALSE]
+  if (!is.data.frame(st) || nrow(st) == 0L) return(character(0))
+  note <- character(0)
+  if (is.null(kpi)) {
+    pk <- rep_mc_primary(x)
+    kpi <- pk$kpi
+    note <- rep_existing_note(pk$note)
+  }
+  s <- st[st$kpi %in% kpi, , drop = FALSE]
   if (nrow(s) == 0L) return(character(0))
+  s <- s[1L, , drop = FALSE]
   unit <- kpi_unit(kpi)
   if (is.na(unit)) unit <- "EUR"
   label <- kpi_label(kpi)
@@ -132,7 +159,7 @@ rep_mc_risk_lines <- function(x, kpi = NULL) {
            lbl("report.mc.risk_q05", value = rep_fmt_value(s$q05, unit, 0)),
            lbl("report.mc.risk_es05", value = rep_fmt_value(s$es05, unit, 0)),
            lbl("report.mc.risk_expected_loss", value = rep_fmt_value(s$expected_loss, unit, 0)))
-  out
+  c(note, out)
 }
 
 #' Bedingte Statistik des Entscheidungsknotens für die Zusammenfassung (9.11)
@@ -160,8 +187,8 @@ rep_mc_decision <- function(dec, pick) {
 summary.vofi_mc_result <- function(object, ...) {
   x <- object
   dec <- x$decision
-  primary <- x$meta$primary_kpi %||% "delta_terminal_value"
-  pick <- function(s) if (is.data.frame(s)) s[s$kpi == primary, , drop = FALSE] else NULL
+  primary <- rep_mc_primary(x)$kpi
+  pick <- function(s) if (is.data.frame(s)) s[s$kpi %in% primary, , drop = FALSE] else NULL
   structure(list(
     header = rep_mc_header(x), stats = rep_mc_stats_matrix(x), risk = rep_mc_risk_lines(x),
     se_notes = rep_mc_se_notes(x), traffic_light = x$traffic_light,

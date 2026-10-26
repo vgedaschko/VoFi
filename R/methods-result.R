@@ -41,6 +41,41 @@ rep_result_header <- function(x) {
                regime = rep_enum_label("tax_regime", m$tax_regime), report = report))
 }
 
+#' Angezeigte Primärkennzahl mit Rückfall (12.3a)
+#'
+#' Eingestellte Primärkennzahl aus `meta$primary_kpi` (sonst `kpi_primary()`). Ist sie unter
+#' `available` nicht vorhanden – bei Bestandsprojekten `delta_vs_reference`, die nur ein
+#' Vergleich liefert –, wird `delta_terminal_value` gezeigt, mit dem Vermerk aus
+#' `kpi_primary()` („enthält Bestandszahlungen“ bzw. „gegenüber Verkauf zum Stichtag“), sonst
+#' die erste verfügbare Kennzahl.
+#' @param x `vofi_result` bzw. `vofi_mc_result`.
+#' @param available verfügbare Kennzahlen (Default: Spalten von `x$kpis`).
+#' @return Liste `kpi` (angezeigte Kennzahl bzw. `NA`), `primary` (eingestellte
+#'   Primärkennzahl), `fallback` (Rückfall verwendet), `note` (Label-Schlüssel des Vermerks bzw.
+#'   `NA`).
+#' @noRd
+rep_primary_kpi <- function(x, available = NULL) {
+  available <- available %||% setdiff(names(x$kpis), c("sim", "block", "branch"))
+  prim <- kpi_primary(x$spec)
+  primary <- x$meta$primary_kpi %||% prim$kpi
+  if (primary %in% available) {
+    return(list(kpi = primary, primary = primary, fallback = FALSE, note = NA_character_))
+  }
+  kpi <- if ("delta_terminal_value" %in% available) "delta_terminal_value" else
+    if (length(available) > 0L) available[1L] else NA_character_
+  note <- if (identical(kpi, "delta_terminal_value")) prim$note else NA_character_
+  list(kpi = kpi, primary = primary, fallback = TRUE, note = note)
+}
+
+#' Vermerk zur Endwertdifferenz bei Bestandsprojekten als Satz (12.3a)
+#' @param note Label-Schlüssel (`kpi_primary()$note`) bzw. `NA`.
+#' @return Zeichenkette bzw. `character(0)`.
+#' @noRd
+rep_existing_note <- function(note) {
+  if (is.null(note) || is.na(note)) return(character(0))
+  lbl("report.notes.primary_existing", kpi = kpi_label("delta_terminal_value"), note = lbl(note))
+}
+
 #' Kopf-Kennzahlen eines Ergebnisses (Primärkennzahl zuerst, 12.3a)
 #'
 #' Auswahl nach Perspektive und Berichtsmodus; nur vorhandene Kennzahlen, ohne solche, die für
@@ -49,7 +84,7 @@ rep_result_header <- function(x) {
 rep_head_kpis <- function(x, sim = 1L) {
   nm <- names(x$kpis)
   prim <- kpi_primary(x$spec)
-  primary <- x$meta$primary_kpi %||% prim$kpi
+  primary <- rep_primary_kpi(x)$kpi
   sel <- c(primary, paste0(primary, "_ex_rv"), "terminal_value", "terminal_value_ex_rv",
            "terminal_value_opp", prim$return_kpi, paste0(prim$return_kpi, "_ex_rv"),
            prim$payback, paste0(prim$payback, "_ex_rv"), "payback_year",
@@ -116,11 +151,7 @@ rep_result_notes <- function(x, sim = 1L) {
                             share = q$share[i], threshold = q$threshold[i]))
     }
   }
-  prim <- kpi_primary(x$spec)
-  if (!is.na(prim$note)) {
-    notes <- c(notes, lbl("report.notes.primary_existing",
-                          kpi = kpi_label("delta_terminal_value"), note = lbl(prim$note)))
-  }
+  notes <- c(notes, rep_existing_note(kpi_primary(x$spec)$note))
   fl <- x$flags
   if (is.data.frame(fl) && nrow(fl) >= sim) {
     for (f in c("shortfall", "stopped", "limit_breach", "limit_cut", "reserve_used",
@@ -267,8 +298,8 @@ print.vofi_result <- function(x, sim = 1L, max_periods = 8L, ...) {
   sim <- utl_check_whole(sim, "sim", min = 1, max = x$ledger$n)
   cat(paste0(rep_result_header(x), "\n"), sep = "")
   cat("\n", lbl("report.print.kpi_header"), "\n", sep = "")
-  primary <- x$meta$primary_kpi %||% kpi_primary(x$spec)$kpi
-  lines <- rep_kpi_lines(x, rep_head_kpis(x, sim), sim, primary)
+  pk <- rep_primary_kpi(x)
+  lines <- rep_kpi_lines(x, rep_head_kpis(x, sim), sim, if (pk$fallback) NULL else pk$kpi)
   if (length(lines) > 0L) cat(paste0(lines, "\n"), sep = "")
   cat("\n", lbl("report.print.table_header"), "\n", sep = "")
   rep_cat_matrix(rep_short_table(x, sim, max_periods), left = 1L)

@@ -50,11 +50,56 @@ test_that("print.vofi_spec und as.data.frame.vofi_spec (Parameterliste mit Herku
   fin <- as.data.frame(sp, blocks = "financing")
   expect_true(all(fin$block == "financing"))
   # Knoten als Text
-  expect_identical(rep_value_text(node_ref("market.mortgage_rate")), "ref: market.mortgage_rate")
+  expect_identical(rep_value_text(node_ref("market.mortgage_rate")),
+                   lbl("report.scenario.kind_ref", path = "market.mortgage_rate"))
+  expect_identical(rep_value_text(list(kind = "expr", text = "a + b")),
+                   lbl("report.scenario.kind_expr", text = "a + b"))
   expect_match(rep_value_text(list(kind = "growth", start = node_const(100),
                                    growth = node_const(0.02))), "0,02", fixed = TRUE)
   expect_identical(rep_value_text(TRUE), lbl("report.common.yes"))
   expect_identical(rep_num_text(c(0.03, 1234.5, 0, NA)), c("0,03", "1.234,5", "0", "n. d."))
+})
+
+test_that("as.data.frame.vofi_spec: Hilfswerte unter shared und Schemaversion (4.5, 4.8)", {
+  sc <- wsh_quiet(vofi_read_scenario(vofi_example("grob_lehrbuch_a")))
+  sp <- wsh_quiet(vofi_resolve(sc))
+  df <- as.data.frame(sp)
+  rw <- df[df$path == "shared.rw", ]
+  expect_identical(nrow(rw), 1L)
+  expect_identical(rw$block, "shared")
+  expect_identical(rw$value_num, 40000)
+  expect_identical(rw$source_type, "scenario")
+  # jede Herkunftszeile erscheint in der Parameterliste
+  pv <- attr(sp, "provenance")
+  expect_true(all(pv$path %in% df$path))
+  expect_true("schema_version" %in% df$path)
+  expect_identical(as.data.frame(sp, blocks = "shared")$path,
+                   sort(df$path[df$block == "shared"], method = "radix"))
+})
+
+test_that("print.vofi_scenario: Umfang des Stochastik-Overlays (4.3.15)", {
+  sc <- wsh_quiet(vofi_read_scenario(vofi_example("grob_lehrbuch_a")))
+  expect_identical(names(sc$stochastic$parameters), "rw")
+  out <- capture.output(print(sc))
+  expect_true(paste0("  ", lbl("report.scenario.stochastic", n = 1L)) %in% out)
+  sc$stochastic$processes <- list(infl = list(target = "market.inflation", type = "ar1"))
+  out2 <- capture.output(print(sc))
+  expect_true(paste0("  ", lbl("report.scenario.stochastic", n = 2L)) %in% out2)
+  sk <- vofi_read_scenario(vofi_example("skeleton"))
+  sk$stochastic <- NULL
+  expect_false(any(grepl(lbl("report.scenario.stochastic", n = 0L), capture.output(print(sk)),
+                         fixed = TRUE)))
+})
+
+test_that("rep_count: Häufigkeiten in C-Ordnung (2.7 Nr. 8)", {
+  x <- c("scenario", "Zeile", "global", "scenario", "library", NA, "_x")
+  cnt <- rep_count(x)
+  expect_identical(names(cnt), c("Zeile", "_x", "global", "library", "scenario"))
+  expect_identical(unname(cnt), c(1L, 1L, 1L, 1L, 2L))
+  expect_identical(length(rep_count(character(0))), 0L)
+  # Herkunft je Quelle in summary() eines Szenarios
+  s <- summary(vofi_read_scenario(vofi_example("skeleton")))
+  expect_identical(s$provenance, c(scenario = 26L))
 })
 
 test_that("print.vofi_model", {
@@ -65,6 +110,18 @@ test_that("print.vofi_model", {
   expect_true(any(grepl("bank (bullet_loan)", out, fixed = TRUE)))
   expect_true(any(grepl("od_repay > dep_invest", out, fixed = TRUE)))
   expect_true(any(grepl(m$hash, out, fixed = TRUE)))
+  expect_true(paste0("  ", lbl("report.model.no_sampler")) %in% out)
+  # Plan nach 11.2: statische Ziehungen (static) und Prozesse (processes)
+  m$sampler <- list(settings = list(n_sim = 100L),
+                    static = data.frame(key = c("a", "b"), target = c("x.a", "x.b"),
+                                        stringsAsFactors = FALSE),
+                    processes = list(infl = list(target = "market.inflation", type = "ar1")))
+  out2 <- capture.output(print(m))
+  expect_true(paste0("  ", lbl("report.model.sampler", n = 3L)) %in% out2)
+  m$sampler$static <- data.frame(key = character(0), target = character(0))
+  m$sampler$processes <- list()
+  out3 <- capture.output(print(m))
+  expect_true(paste0("  ", lbl("report.model.sampler", n = 0L)) %in% out3)
 })
 
 test_that("Snapshots von print() und summary() eines Szenarios (15.6)", {

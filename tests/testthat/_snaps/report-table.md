@@ -16,12 +16,18 @@
         ann: Sondertilgung                                                   –           –           –
         ann: Sollzinsen                                                      –   -2.400,00   -1.974,25
         ann: Gebühren und Provisionen                                        –           –           –
+        ann: Tilgungszuschuss (zahlungsunwirksam)                            –           –           –
+        ann: Disagio (zahlungsunwirksam)                                     –           –           –
+        ann: Übernommene Restschuld (zahlungsunwirksam)                      –           –           –
         bul: Aufnahme                                                30.000,00           –           –
         bul: Tilgung                                                         –           –           –
         bul: Schlusstilgung                                                  –           –           –
         bul: Sondertilgung                                                   –           –           –
         bul: Sollzinsen                                                      –   -1.500,00   -1.500,00
         bul: Gebühren und Provisionen                                        –           –           –
+        bul: Tilgungszuschuss (zahlungsunwirksam)                            –           –           –
+        bul: Disagio (zahlungsunwirksam)                                     –           –           –
+        bul: Übernommene Restschuld (zahlungsunwirksam)                      –           –           –
         Kontokorrent: Aufnahme                                               –    4.995,86    1.495,44
         Kontokorrent: Tilgung                                                –           –           –
         Kontokorrent: Sollzinsen                                             –           –     -499,59
@@ -50,12 +56,18 @@
         ann: Sondertilgung                                                  –           –           –
         ann: Sollzinsen                                             -1.522,95   -1.044,58     -537,50
         ann: Gebühren und Provisionen                                       –           –           –
+        ann: Tilgungszuschuss (zahlungsunwirksam)                           –           –           –
+        ann: Disagio (zahlungsunwirksam)                                    –           –           –
+        ann: Übernommene Restschuld (zahlungsunwirksam)                     –           –           –
         bul: Aufnahme                                                       –           –           –
         bul: Tilgung                                                        –           –           –
         bul: Schlusstilgung                                                 –           –  -30.000,00
         bul: Sondertilgung                                                  –           –           –
         bul: Sollzinsen                                             -1.500,00   -1.500,00   -1.500,00
         bul: Gebühren und Provisionen                                       –           –           –
+        bul: Tilgungszuschuss (zahlungsunwirksam)                           –           –           –
+        bul: Disagio (zahlungsunwirksam)                                    –           –           –
+        bul: Übernommene Restschuld (zahlungsunwirksam)                     –           –           –
         Kontokorrent: Aufnahme                                              –           –           –
         Kontokorrent: Tilgung                                       -6.491,30           –           –
         Kontokorrent: Sollzinsen                                      -649,13           –           –
@@ -139,13 +151,25 @@
         t0           40.000,00             –                    –                   –                –
         2031                 –     -8.958,35                    –                   –          -537,50
       
-        Periode  ann: Gebühren und Provisionen  bul: Aufnahme  bul: Tilgung  bul: Schlusstilgung
-        t0                                   –      30.000,00             –                    –
-        2031                                 –              –             –           -30.000,00
+        Periode  ann: Gebühren und Provisionen  ann: Tilgungszuschuss (zahlungsunwirksam)
+        t0                                   –                                          –
+        2031                                 –                                          –
       
-        Periode  bul: Sondertilgung  bul: Sollzinsen  bul: Gebühren und Provisionen
-        t0                        –                –                              –
-        2031                      –        -1.500,00                              –
+        Periode  ann: Disagio (zahlungsunwirksam)  ann: Übernommene Restschuld (zahlungsunwirksam)
+        t0                                      –                                                –
+        2031                                    –                                                –
+      
+        Periode  bul: Aufnahme  bul: Tilgung  bul: Schlusstilgung  bul: Sondertilgung  bul: Sollzinsen
+        t0           30.000,00             –                    –                   –                –
+        2031                 –             –           -30.000,00                   –        -1.500,00
+      
+        Periode  bul: Gebühren und Provisionen  bul: Tilgungszuschuss (zahlungsunwirksam)
+        t0                                   –                                          –
+        2031                                 –                                          –
+      
+        Periode  bul: Disagio (zahlungsunwirksam)  bul: Übernommene Restschuld (zahlungsunwirksam)
+        t0                                      –                                                –
+        2031                                    –                                                –
       
         Periode  Kontokorrent: Aufnahme  Kontokorrent: Tilgung  Kontokorrent: Sollzinsen
         t0                            –                      –                         –

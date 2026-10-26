@@ -55,6 +55,42 @@ test_that("summary.vofi_mc_result: Risiko in Worten (Konzept 4.5) und Entscheidu
   expect_true(any(grepl(lbl("report.traffic.level_green"), out2, fixed = TRUE)))
 })
 
+test_that("Bestandsprojekt (12.3a): Endwertdifferenz mit Vermerk statt Prim\u00e4rkennzahl", {
+  mc <- wsh_mc_existing()
+  pk <- rep_mc_primary(mc)
+  expect_identical(pk$kpi, "delta_terminal_value")
+  expect_identical(pk$primary, "delta_vs_reference")
+  expect_true(pk$fallback)
+  expect_identical(pk$note, "kpi.notes.contains_existing")
+  note <- rep_existing_note("kpi.notes.contains_existing")
+  expect_identical(note, lbl("report.notes.primary_existing",
+                             kpi = kpi_label("delta_terminal_value"),
+                             note = lbl("kpi.notes.contains_existing")))
+  # Risiko in Worten: Vermerk voran, dann die Aussagen zur Endwertdifferenz
+  s <- summary(mc)
+  st <- mc$stats[mc$stats$kpi == "delta_terminal_value", ]
+  k <- as.integer(round(10 * (1 - st$p_neg)))
+  expect_identical(s$risk[1:2], c(note, lbl("report.mc.risk_positive", count = k,
+                                            label = kpi_label("delta_terminal_value"))))
+  expect_identical(s$primary, "delta_terminal_value")
+  # Kurzausgabe: Endwertdifferenz vorn, nicht als Primärkennzahl markiert, Vermerk als Hinweis
+  expect_identical(rep_mc_head_kpis(mc)[1:2],
+                   c("delta_terminal_value", "delta_terminal_value_ex_rv"))
+  out <- capture.output(print(mc))
+  expect_true(paste0("  - ", note) %in% out)
+  expect_false(any(grepl(lbl("report.print.primary"), out, fixed = TRUE)))
+  # ausdrücklich angefragte Kennzahl ohne Vermerk; Neubau ohne Rückfall und Vermerk
+  expect_false(note %in% rep_mc_risk_lines(mc, kpi = "delta_terminal_value"))
+  expect_false(rep_mc_primary(wsh_mc())$fallback)
+  expect_false(any(grepl(lbl("kpi.notes.contains_existing"), capture.output(print(wsh_mc())),
+                         fixed = TRUE)))
+  # Entscheidungsknoten: bedingte Statistik zur angezeigten Kennzahl
+  mc$decision <- list(funding_id = "kfw", fallback_variant = "ohne", key = "kfw",
+                      p_approval = 0.8, share_approved = 0.8,
+                      stats_approved = mc$stats, stats_fallback = mc$stats)
+  expect_identical(summary(mc)$decision$approved$kpi, "delta_terminal_value")
+})
+
 test_that("format(), as.data.frame() und quantile() einer Simulation", {
   mc <- wsh_mc()
   m <- format(mc)

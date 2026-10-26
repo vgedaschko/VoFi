@@ -61,10 +61,13 @@ test_that("vofi_table: Reihenfolge nach Grob (7.8), Anzeige-Summen und Unterzeil
   # cf_project = Summe der Unterzeilen
   sub <- colSums(as.matrix(d[d$section == "project" & d$level == 1L, tab$columns$label]))
   expect_equal(tab_row(tab, "cf_project"), unname(sub))
-  # Kredite je Baustein in Vertragsreihenfolge, Bestände in der Reihenfolge 7.8
+  # Kredite je Baustein in Vertragsreihenfolge mit den Merkzeilen (7.8), Bestände in der
+  # Reihenfolge 7.8
   expect_identical(d$row_key[d$section == "loans"],
-                   paste0("loan_", rep(c("ann", "bul"), each = 6L), "_",
-                          c("draw", "repay", "repay_balloon", "prepay", "interest", "fees")))
+                   paste0("loan_", rep(c("ann", "bul"), each = 9L), "_",
+                          c("draw", "repay", "repay_balloon", "prepay", "interest", "fees",
+                            "repayment_grant", "disagio", "assumed")))
+  expect_identical(tab$rows$kind[tab$rows$row_key == "loan_ann_disagio"], "memo")
   expect_identical(d$row_key[d$section == "stocks"],
                    c("loan_ann_balance", "loan_bul_balance", "od_balance", "dep_balance",
                      "tax_liability", "net_position", "net_position_ex_rv"))
@@ -84,9 +87,17 @@ test_that("vofi_table: standard blendet Nullzeilen nach 7.7 aus, full zeigt jede
   expect_false(any(hide %in% std$data$row_key))
   expect_true(all(c(x$ledger$rows$key, "cf_project") %in% full$data$row_key))
   expect_identical(nrow(full$data), nrow(x$ledger$rows) + 2L)
-  # Merkzeilen der Kredite ohne Betrag nur in full
-  expect_false("loan_ann_disagio" %in% std$data$row_key)
-  expect_true("loan_ann_disagio" %in% full$data$row_key)
+  # Merkzeilen der Kredite bleiben auch ohne Betrag stehen (7.7: Tabelle stabil); ausgeblendet
+  # werden nur odp_*, dep_wht, shortfall, equity_call
+  memo <- paste0("loan_", rep(c("ann", "bul"), each = 3L), "_",
+                 c("repayment_grant", "disagio", "assumed"))
+  expect_true(all(memo %in% std$data$row_key))
+  expect_true(all(memo %in% full$data$row_key))
+  expect_true(rep_all_zero(x$ledger, memo))
+  shown <- unlist(std$rows$members, use.names = FALSE)
+  not_shown <- setdiff(x$ledger$rows$key, shown)
+  expect_true(length(not_shown) > 0L)
+  expect_true(all(not_shown %in% rep_hideable_keys()))
   # Komponentenlabel nur in full
   expect_identical(full$data$label[full$data$row_key == "z__value"], "Zahlungsfolge: Zahlung")
   # nicht ausgeblendet, sobald ein Lauf einen Wert hat
@@ -206,6 +217,54 @@ test_that("vofi_table: Simulation (L\u00e4ufe, gespeicherte L\u00e4ufe) und Verg
   expect_error(vofi_table(list()), class = "vofi_error_input")
   expect_error(vofi_table(example_result(), sim = 2L), class = "vofi_error_input")
   expect_error(vofi_table(example_result(), layout = "quer"), class = "vofi_error_input")
+})
+
+test_that("vofi_table: Variante bei Simulation mit gespeichertem Zahlungsbuch geprüft", {
+  mc <- wsh_mc_full()
+  expect_identical(vofi_table(mc, sim = 2L, variant = "base")$variant, "base")
+  expect_error(vofi_table(mc, sim = 2L, variant = "b"), class = "vofi_error_input")
+  expect_error(vofi_table(wsh_mc(), sim = "p50", variant = "b"), class = "vofi_error_input")
+})
+
+test_that("vofi_ledger: Simulation mit gespeicherten Läufen und nachgerechneten Läufen", {
+  mc <- wsh_mc()
+  det <- mc$deterministic
+  # Basisfall und gespeicherte Läufe (13.2): Werte des jeweiligen Ergebnisses, Laufnummer
+  d <- vofi_ledger(mc, sim = "deterministic")
+  ref <- vofi_ledger(det)
+  expect_identical(d[, setdiff(names(d), "sim")], ref[, setdiff(names(ref), "sim")])
+  expect_true(all(is.na(d$sim)))
+  p50 <- vofi_ledger(mc, sim = "p50", format = "wide", vat = TRUE)
+  expect_identical(unique(p50$sim), unname(mc$run_index[["p50"]]))
+  expect_identical(nrow(p50), 3L * nrow(det$ledger$rows))
+  expect_error(vofi_ledger(mc, sim = "p99"), class = "vofi_error_input")
+  mc2 <- mc
+  mc2$runs$p95 <- NULL
+  expect_error(vofi_ledger(mc2, sim = "p95"), class = "vofi_error_input")
+  # ohne gespeichertes Zahlungsbuch: alle Läufe nicht verfügbar, gewählte Läufe nachgerechnet
+  expect_error(vofi_ledger(mc), class = "vofi_error_input")
+  local_mocked_bindings(vofi_sim = function(x, i) {
+    r <- x$deterministic
+    r$ledger$values <- lapply(r$ledger$values, function(m) i * m)
+    r$meta$sim_index <- i
+    r
+  })
+  l23 <- vofi_ledger(mc, sim = c(2L, 3L))
+  expect_identical(sort(unique(l23$sim)), 2:3)
+  z <- l23[l23$key == "z__value", ]
+  expect_equal(z$value[z$sim == 3L], 3 * as.double(det$ledger$values$z__value))
+  w23 <- vofi_ledger(mc, sim = 3L, format = "wide")
+  expect_identical(nrow(w23), nrow(det$ledger$rows))
+  expect_error(vofi_ledger(mc, sim = 201L), class = "vofi_error_input")
+  # Simulation mit gespeichertem Zahlungsbuch: gespeicherte Läufe wie bisher, Basisfall wählbar
+  full <- wsh_mc_full()
+  expect_identical(sort(unique(vofi_ledger(full, sim = "p05")$sim)),
+                   unname(full$run_index[["p05"]]))
+  # Vergleich aus Simulationen: sim gilt je Variante
+  cmp <- wsh_mc_comparison()
+  cl <- vofi_ledger(cmp, sim = "deterministic")
+  expect_identical(unique(cl$variant), c("base", "a"))
+  expect_error(vofi_ledger(cmp), class = "vofi_error_input")
 })
 
 test_that("rep_table_diff: Differenz-VoFi Variante minus Referenz", {

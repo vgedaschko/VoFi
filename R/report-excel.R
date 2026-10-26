@@ -360,10 +360,14 @@ rep_xl_overview_rows <- function(x) {
   res <- rep_det_result(x)
   m <- res$meta
   g <- res$grid
-  primary <- m$primary_kpi %||% "delta_terminal_value"
+  # Primärkennzahl mit Rückfall (Bestandsprojekte: Endwertdifferenz mit Vermerk, 12.3a)
+  pk <- rep_primary_kpi(res)
+  primary <- if (is.na(pk$kpi)) pk$primary else pk$kpi
   pv <- function(k) {
     if (!(k %in% names(res$kpis))) return(fmt_num(NA))
-    rep_fmt_kpi(res$kpis[[k]][1L], kpi_unit(k), res$kpi_na[[k]][1L])
+    out <- rep_fmt_kpi(res$kpis[[k]][1L], kpi_unit(k), res$kpi_na[[k]][1L])
+    if (!is.na(pk$note)) out <- lbl("report.common.with_note", label = out, note = lbl(pk$note))
+    out
   }
   rows <- list(
     it("kind", lbl(paste0("excel_export.overview.kind_",
@@ -387,7 +391,8 @@ rep_xl_overview_rows <- function(x) {
     rows[[length(rows) + 1L]] <- it("sampling", paste0(mm$sampling %||% "", ", ",
                                                        mm$replicates %||% 1L, " x ",
                                                        mm$block_size %||% NA))
-    risk <- rep_mc_risk_lines(x)
+    # Vermerk zur Endwertdifferenz steht bereits unter den Hinweisen
+    risk <- rep_mc_risk_lines(x, kpi = rep_mc_primary(x)$kpi)
     if (length(risk) > 0L) rows[[length(rows) + 1L]] <- it("risk", risk)
     tl <- rep_traffic_lines(x$traffic_light)
   } else {
@@ -536,10 +541,12 @@ rep_xl_sheet_kpis <- function(wb, x, styles) {
 #' Blatt Zahlungsbuch (brutto, netto, USt; 7.10)
 #' @noRd
 rep_xl_sheet_ledger <- function(wb, x, styles) {
-  # Simulation: Zahlungsbuch des Basisfalls (alle Läufe sprengen die Zeilenzahl von Excel)
-  src <- if (inherits(x, "vofi_mc_result")) x$deterministic else x
+  # Simulation: Zahlungsbuch des Basisfalls (alle Läufe sprengen die Zeilenzahl von Excel),
+  # bei Vergleichen je Variante (Varianten aus Simulationen: ihr Basisfall)
+  src <- rep_det_result(x)
+  if (inherits(src, "vofi_comparison")) src$results <- lapply(src$results, rep_det_result)
   grid <- if (inherits(src, "vofi_comparison")) {
-    rep_det_result(rep_comparison_result(src))$grid
+    rep_comparison_result(src)$grid
   } else {
     src$grid
   }
@@ -744,8 +751,7 @@ rep_xl_sheet_variants <- function(wb, x, styles) {
                styles)
   kpis <- rep_cmp_kpis(x, head = FALSE)
   vars <- rep_comparison_variants(x)
-  df <- data.frame(label = vapply(kpis, kpi_label, "", USE.NAMES = FALSE), kpi = kpis,
-                   stringsAsFactors = FALSE)
+  df <- data.frame(label = rep_cmp_kpi_labels(x, kpis), kpi = kpis, stringsAsFactors = FALSE)
   for (v in vars) df[[v]] <- vapply(kpis, function(k) rep_cmp_value(x, v, k), double(1))
   start <- 4L
   rep_xl_write_df(wb, sheet, df, styles, start_row = start,

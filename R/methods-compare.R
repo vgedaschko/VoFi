@@ -32,9 +32,53 @@ rep_cmp_kpis <- function(x, head = TRUE) {
   sel
 }
 
-#' Kennzahlen je Variante als Zeichenmatrix (Zeilen = Kennzahlen, Spalten = Varianten)
+#' Vermerk zur Endwertdifferenz eines Vergleichs (Bestandsprojekte, 12.3a)
+#'
+#' Bei Bestandsprojekten trägt die Endwertdifferenz gegenüber der eigenen
+#' Unterlassungsalternative den Vermerk aus `kpi_primary()` („enthält Bestandszahlungen“ bzw.
+#' „gegenüber Verkauf zum Stichtag“).
+#' @param x `vofi_comparison`.
+#' @param kpis Kennzahlen.
+#' @return Liste `marked` (logisch je Kennzahl) und `note` (Label-Schlüssel bzw. `NA`).
 #' @noRd
-rep_cmp_kpi_matrix <- function(x, kpis) {
+rep_cmp_kpi_note <- function(x, kpis) {
+  base_res <- rep_det_result(x$results[[x$baseline]] %||% x$results[[1L]])
+  note <- kpi_primary(base_res$spec)$note
+  marked <- !is.na(note) & kpis %in% c("delta_terminal_value", "delta_terminal_value_ex_rv")
+  list(marked = marked, note = note)
+}
+
+#' Bezeichnungen der Kennzahlen eines Vergleichs mit Vermerk
+#'
+#' `short = TRUE` (Ausgabe in der Konsole): Kennzeichen „*“ an der Bezeichnung, der Vermerk
+#' steht als Fußnote unter der Tabelle (`rep_cmp_kpi_footnote()`); sonst der Vermerk in
+#' Klammern.
+#' @noRd
+rep_cmp_kpi_labels <- function(x, kpis, short = FALSE) {
+  nt <- rep_cmp_kpi_note(x, kpis)
+  labels <- vapply(kpis, kpi_label, "", USE.NAMES = FALSE)
+  if (!any(nt$marked)) return(labels)
+  note <- lbl(nt$note)
+  labels[nt$marked] <- vapply(labels[nt$marked], function(l) {
+    if (short) lbl("report.compare.note_mark", label = l) else
+      lbl("report.common.with_note", label = l, note = note)
+  }, "", USE.NAMES = FALSE)
+  labels
+}
+
+#' Fußnote zu den gekennzeichneten Kennzahlen eines Vergleichs
+#' @return Zeichenkette bzw. `character(0)`.
+#' @noRd
+rep_cmp_kpi_footnote <- function(x, kpis) {
+  nt <- rep_cmp_kpi_note(x, kpis)
+  if (!any(nt$marked)) return(character(0))
+  lbl("report.compare.note_footnote", note = lbl(nt$note))
+}
+
+#' Kennzahlen je Variante als Zeichenmatrix (Zeilen = Kennzahlen, Spalten = Varianten)
+#' @param short Vermerk als Kennzeichen „*“ (mit Fußnote) statt in Klammern.
+#' @noRd
+rep_cmp_kpi_matrix <- function(x, kpis, short = TRUE) {
   vars <- rep_comparison_variants(x)
   if (length(kpis) == 0L) return(NULL)
   cells <- vapply(vars, function(v) {
@@ -44,7 +88,7 @@ rep_cmp_kpi_matrix <- function(x, kpis) {
     }, "")
   }, character(length(kpis)))
   if (length(kpis) == 1L) cells <- matrix(cells, nrow = 1L)
-  m <- cbind(vapply(kpis, kpi_label, ""), cells)
+  m <- cbind(rep_cmp_kpi_labels(x, kpis, short = short), cells)
   colnames(m) <- c(lbl("report.mc.col_kpi"), vars)
   rownames(m) <- NULL
   m
@@ -67,7 +111,8 @@ rep_cmp_diff_matrix <- function(x) {
              fv("q05"), fv("q50"), fv("q95"), fmt_pct(ds$prob_better, 1))
   if (nrow(ds) == 1L) m <- matrix(m, nrow = 1L)
   colnames(m) <- c(lbl("report.compare.col_variant"), lbl("report.mc.col_kpi"),
-                   lbl("report.mc.col_mean"), "P5", lbl("report.mc.col_median"), "P95",
+                   lbl("report.mc.col_mean"), lbl("report.mc.col_q05"),
+                   lbl("report.mc.col_median"), lbl("report.mc.col_q95"),
                    lbl("report.compare.col_prob_better"))
   m
 }
@@ -142,7 +187,9 @@ rep_cmp_comparability <- function(x) {
 #' Gibt Kopfdaten (Referenz, Varianten, Modus), die wichtigsten Kennzahlen je Variante
 #' (Mittelwert bei Simulationen), den Vergleich gegen die Referenz nach der Vergleichsregel mit
 #' der Wahrscheinlichkeit „besser als Referenz“, die Rangfolge, die Ampel je Variante und den
-#' Stand der Vergleichbarkeit aus (Spec 00, Abschnitte 9.6, 12.6, 12.9, 13.3).
+#' Stand der Vergleichbarkeit aus (Spec 00, Abschnitte 9.6, 12.6, 12.9, 13.3). Bei
+#' Bestandsprojekten ist die Endwertdifferenz je Variante mit „*“ gekennzeichnet und trägt als
+#' Fußnote den Vermerk „enthält Bestandszahlungen“ (Spec 00, Abschnitt 12.3a).
 #'
 #' @param x Objekt der Klasse `vofi_comparison`.
 #' @param ... nicht verwendet.
@@ -151,10 +198,13 @@ rep_cmp_comparability <- function(x) {
 #' @export
 print.vofi_comparison <- function(x, ...) {
   cat(paste0(rep_cmp_header(x), "\n"), sep = "")
-  m <- rep_cmp_kpi_matrix(x, rep_cmp_kpis(x, head = TRUE))
+  kpis <- rep_cmp_kpis(x, head = TRUE)
+  m <- rep_cmp_kpi_matrix(x, kpis)
   if (!is.null(m)) {
     cat("\n", lbl("report.compare.kpi_header"), "\n", sep = "")
     rep_cat_matrix(m, left = 1L)
+    fn <- rep_cmp_kpi_footnote(x, kpis)
+    if (length(fn) > 0L) cat(fn, "\n", sep = "")
   }
   d <- rep_cmp_diff_matrix(x)
   if (!is.null(d)) {
@@ -191,8 +241,10 @@ print.vofi_comparison <- function(x, ...) {
 #' @export
 summary.vofi_comparison <- function(object, ...) {
   x <- object
+  kpis <- rep_cmp_kpis(x, head = FALSE)
   structure(list(
-    header = rep_cmp_header(x), kpis = rep_cmp_kpi_matrix(x, rep_cmp_kpis(x, head = FALSE)),
+    header = rep_cmp_header(x), kpis = rep_cmp_kpi_matrix(x, kpis),
+    kpi_footnote = rep_cmp_kpi_footnote(x, kpis),
     differences = rep_cmp_diff_matrix(x), ranking = x$ranking,
     traffic = rep_cmp_status_lines(x), restrictions = x$restrictions,
     conditional = x$conditional, comparability = rep_cmp_comparability(x)
@@ -211,6 +263,7 @@ print.summary_vofi_comparison <- function(x, ...) {
   if (!is.null(x$kpis)) {
     cat("\n", lbl("report.compare.kpi_header_all"), "\n", sep = "")
     rep_cat_matrix(x$kpis, left = 1L)
+    if (length(x$kpi_footnote) > 0L) cat(x$kpi_footnote, "\n", sep = "")
   }
   if (!is.null(x$differences)) {
     cat("\n", lbl("report.compare.diff_header"), "\n", sep = "")
@@ -244,8 +297,9 @@ print.summary_vofi_comparison <- function(x, ...) {
                fmt_pct(cd$prob_better, 1))
     if (nrow(cd) == 1L) m <- matrix(m, nrow = 1L)
     colnames(m) <- c(lbl("report.compare.col_variant"), lbl("report.compare.col_branch"),
-                     lbl("report.mc.col_kpi"), lbl("report.mc.col_mean"), "P5",
-                     lbl("report.mc.col_median"), "P95", lbl("report.compare.col_prob_better"))
+                     lbl("report.mc.col_kpi"), lbl("report.mc.col_mean"),
+                     lbl("report.mc.col_q05"), lbl("report.mc.col_median"),
+                     lbl("report.mc.col_q95"), lbl("report.compare.col_prob_better"))
     rep_cat_matrix(m, left = 3L)
   }
   cat("\n", paste0(x$comparability, "\n"), sep = "")
@@ -254,7 +308,9 @@ print.summary_vofi_comparison <- function(x, ...) {
 
 #' Variantenvergleich formatieren
 #'
-#' Liefert die Kennzahlen je Variante als Zeichenmatrix im deutschen Zahlenformat.
+#' Liefert die Kennzahlen je Variante als Zeichenmatrix im deutschen Zahlenformat; bei
+#' Bestandsprojekten trägt die Endwertdifferenz den Vermerk „enthält Bestandszahlungen“ (Spec 00,
+#' Abschnitt 12.3a).
 #'
 #' @param x Objekt der Klasse `vofi_comparison`.
 #' @param kpis `NULL` (alle Kennzahlen der Vergleichstabelle) oder Auswahl.
@@ -263,7 +319,7 @@ print.summary_vofi_comparison <- function(x, ...) {
 #' @family Berichten
 #' @export
 format.vofi_comparison <- function(x, kpis = NULL, ...) {
-  m <- rep_cmp_kpi_matrix(x, kpis %||% rep_cmp_kpis(x, head = FALSE))
+  m <- rep_cmp_kpi_matrix(x, kpis %||% rep_cmp_kpis(x, head = FALSE), short = FALSE)
   if (is.null(m)) m <- matrix(character(0), 0L, 0L)
   m
 }

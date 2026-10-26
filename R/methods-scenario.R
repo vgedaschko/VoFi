@@ -37,7 +37,7 @@ rep_value_text <- function(v, max_items = 6L) {
       ref = rep_ref_text(v),
       growth = lbl("report.scenario.kind_growth", start = rep_value_text(v$start),
                    growth = rep_value_text(v$growth)),
-      expr = paste0("expr: ", v$text %||% ""),
+      expr = lbl("report.scenario.kind_expr", text = v$text %||% ""),
       quantity = lbl("report.scenario.kind_quantity", value = rep_value_text(v$value),
                      per = v$per %||% ""),
       auto = v$mode %||% v$value %||% "auto",
@@ -75,7 +75,7 @@ rep_seq_text <- function(values, max_items = 6L, names = NULL) {
 #' Bezugsknoten als Text
 #' @noRd
 rep_ref_text <- function(v) {
-  out <- paste0("ref: ", v$path %||% "")
+  out <- lbl("report.scenario.kind_ref", path = v$path %||% "")
   sc <- as.double(v$scale %||% 1)
   off <- as.double(v$offset %||% 0)
   if (!identical(sc, 1)) out <- paste0(out, " x ", rep_num_text(sc))
@@ -99,6 +99,19 @@ rep_spec_leaves <- function(x, path = "") {
 #' Anzahl der Elemente einer Sammlung
 #' @noRd
 rep_n <- function(x) if (is.list(x)) length(x) else 0L
+
+#' Häufigkeiten eines Zeichenvektors, gebietsschemaunabhängig sortiert (2.7 Nr. 8)
+#'
+#' Ersatz für `table()`, das über `factor()` nach dem Gebietsschema sortiert.
+#' @param x Zeichenvektor (`NA` wird nicht gezählt).
+#' @return benannter ganzzahliger Vektor (Namen in C-Ordnung).
+#' @noRd
+rep_count <- function(x) {
+  x <- as.character(x)
+  x <- x[!is.na(x)]
+  u <- sort(unique(x), method = "radix")
+  stats::setNames(tabulate(match(x, u), nbins = length(u)), u)
+}
 
 #' Komponenten bzw. Bausteine einer Sammlung als Zeichenmatrix (id, Typ, Bezeichnung, Herkunft)
 #' @noRd
@@ -185,7 +198,7 @@ print.vofi_scenario <- function(x, ...) {
     cat("  ", lbl("report.scenario.sets", sets = utl_collapse(sets)), "\n", sep = "")
   }
   st <- x$stochastic %||% list()
-  n_st <- rep_n(st$overlay %||% st$distributions %||% list()) + rep_n(st$processes)
+  n_st <- rep_n(st$parameters) + rep_n(st$processes)
   if (n_st > 0L) cat("  ", lbl("report.scenario.stochastic", n = n_st), "\n", sep = "")
   invisible(x)
 }
@@ -216,7 +229,7 @@ summary.vofi_scenario <- function(object, ...) {
     lines = rep_scenario_lines(x), counts = counts, block_counts = rep_block_counts(x),
     components = rep_collection_matrix(x$components),
     financing = rep_collection_matrix(x$financing), variants = vars,
-    provenance = if (is.data.frame(pv)) table(pv$source_type) else NULL,
+    provenance = if (is.data.frame(pv)) rep_count(pv$source_type) else NULL,
     source = attr(x, "source")
   ), class = "summary_vofi_scenario")
 }
@@ -298,7 +311,7 @@ print.vofi_spec <- function(x, ...) {
   }
   pv <- attr(x, "provenance")
   if (is.data.frame(pv) && nrow(pv) > 0L) {
-    tb <- table(pv$source_type)
+    tb <- rep_count(pv$source_type)
     counts <- paste0(names(tb), ": ", as.integer(tb))
     cat("\n", lbl("report.scenario.provenance", counts = utl_collapse(counts)), "\n", sep = "")
   }
@@ -311,7 +324,10 @@ print.vofi_spec <- function(x, ...) {
 #' Block, Knotenart (`kind`: Knotenart nach 4.5 bzw. `value` für normalisierte Werte), Wert als
 #' Text (`value`), Zahlenwert bei Konstanten (`value_num`) und den Spalten der Herkunft nach
 #' Spec 00, Abschnitt 4.8 (`layer`, `source_type`, `file`, `entry`, `location`, `variant`,
-#' `valid_from`, `valid_to`, `as_of`, `accessed`, `quality`).
+#' `valid_from`, `valid_to`, `as_of`, `accessed`, `quality`). Enthalten sind alle Blöcke mit
+#' Eingabewerten einschließlich der Hilfswerte unter `shared` (4.5 Regel 4, z. B. Restwert oder
+#' Ziele des Stochastik-Overlays) und der Schemaversion; nicht enthalten sind die abgeleiteten
+#' Teile `registers`, `legal`, `library`, `variant` und `scenario_set`.
 #'
 #' @param x Objekt der Klasse `vofi_spec`.
 #' @param row.names,optional nicht verwendet (Kompatibilität mit [as.data.frame()]).
@@ -325,8 +341,7 @@ print.vofi_spec <- function(x, ...) {
 #' @export
 as.data.frame.vofi_spec <- function(x, row.names = NULL, optional = FALSE, # nolint
                                     blocks = NULL, ...) {
-  skip <- c("registers", "legal", "library", "variant", "scenario_set", "schema_version",
-            "shared")
+  skip <- c("registers", "legal", "library", "variant", "scenario_set")
   all_blocks <- setdiff(names(unclass(x)), skip)
   if (!is.null(blocks)) all_blocks <- intersect(all_blocks, blocks)
   leaves <- list()
@@ -388,7 +403,7 @@ print.vofi_model <- function(x, ...) {
     as.character(nd$spec$type %||% nd$def$name %||% "")
   }, "")
   if (length(types) > 0L) {
-    tb <- table(types)
+    tb <- rep_count(types)
     cat("  ", lbl("report.model.nodes", n = length(types),
                   types = utl_collapse(paste0(names(tb), " (", as.integer(tb), ")"))), "\n",
         sep = "")
@@ -412,7 +427,8 @@ print.vofi_model <- function(x, ...) {
       sep = "")
   smp <- x$sampler
   if (is.list(smp)) {
-    n_t <- if (is.data.frame(smp$targets)) nrow(smp$targets) else rep_n(smp$targets)
+    # Plan nach 11.2: statische Ziehungen (Data Frame static) und Prozesse (Liste processes)
+    n_t <- (if (is.data.frame(smp$static)) nrow(smp$static) else 0L) + rep_n(smp$processes)
     cat("  ", lbl("report.model.sampler", n = as.integer(n_t)), "\n", sep = "")
   } else {
     cat("  ", lbl("report.model.no_sampler"), "\n", sep = "")

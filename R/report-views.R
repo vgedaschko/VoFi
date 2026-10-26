@@ -430,8 +430,11 @@ rep_household_frame <- function(res, variant, owner) {
 #' Das Attribut `summary` enthält die Kopfwerte je Variante (`item`, `label`, `value`, `unit`)
 #' mit einem Klartext (`text`) nach den Regeln für Nicht-Finanzleute: gerundete Monatswerte
 #' (5 bzw. 10 EUR), Summen auf 100 EUR, Prozent ganzzahlig, Wörter statt Vorzeichen („Sie
-#' sparen …“, „Sie zahlen … mehr“) und bei Simulationen die Bandbreite in Worten. Bei
-#' Simulationen gilt für die Tabelle der Basisfall.
+#' sparen …“, „Sie zahlen … mehr“) und bei Simulationen die Bandbreite in Worten. Die
+#' Vermögensamortisation steht bei Vergleichen gegenüber der Referenzvariante; bei
+#' Bestandsprojekten ohne Referenzvariante wird sie nicht ausgewiesen, weil der
+#' Vermögensvergleich mit der Unterlassung die ohnehin anfallenden Bestandszahlungen enthält
+#' (Spec 00, Abschnitt 12.3a). Bei Simulationen gilt für die Tabelle der Basisfall.
 #'
 #' @param x Objekt der Klasse `vofi_result` oder `vofi_comparison` (auch `vofi_mc_result`).
 #' @param variant `NULL` (alle) oder Variante.
@@ -593,7 +596,15 @@ rep_household_summary <- function(x, res, d, variant, owner, ref_name) {
   pb_year <- if (any(pb)) d$year[which(pb)[1L]] else NA_integer_
   basis <- kpi_rv_basis(rep_ctx_of(res))
   btxt <- lbl(paste0("report.household.text.basis_", basis))
-  if (is.na(pb_year)) {
+  if (!has_ref && isTRUE(kpi_primary(res$spec)$existing)) {
+    # Bestandsprojekt ohne Referenzvariante: Der Vermögensvergleich mit der Unterlassung
+    # enthält die ohnehin anfallenden Bestandszahlungen und ist keine Amortisation (12.3a);
+    # die Referenzvariante eines Vergleichs selbst bekommt keine Aussage
+    if (is.null(ref_name)) {
+      add("payback_year", NA_real_, "year",
+          lbl("report.household.text.payback_needs_reference"))
+    }
+  } else if (is.na(pb_year)) {
     add("payback_year", NA_real_, "year",
         lbl("report.household.text.no_payback", end = res$grid$end_date, basis = btxt))
   } else {
@@ -616,19 +627,38 @@ rep_saving_text <- function(v, ref, when_key, n = NULL) {
 }
 
 #' Bandbreite in Worten aus der Simulation (q10 bis q90: „in 8 von 10 Zukünften“)
+#'
+#' Wörter statt Vorzeichen (Memo 07 Paragraf 5.4 Nr. 5): Beim Cashflow des Kleinvermieters
+#' richtet sich der Text nach den gerundeten Werten – Überschuss, Zuschuss oder eine Spanne von
+#' Zuschuss bis Überschuss; alle Beträge ohne Vorzeichen.
 #' @noRd
 rep_household_range <- function(x, variant, owner) {
   mc <- if (inherits(x, "vofi_comparison")) x$results[[variant]] else x
   if (!inherits(mc, "vofi_mc_result") || !is.data.frame(mc$stats)) return(NULL)
   kpi <- if (owner) "monthly_burden_y1" else "monthly_net_cashflow_y1"
   s <- mc$stats[mc$stats$kpi == kpi, , drop = FALSE]
-  if (nrow(s) == 0L || is.na(s$q10) || is.na(s$q90)) return(NULL)
-  key <- if (owner) "report.household.text.range_burden" else
-    "report.household.text.range_cashflow"
-  lo <- fmt_int(rep_round_household(s$q10))
-  hi <- fmt_int(rep_round_household(s$q90))
-  list(item = "range_y1", value = s$q50, unit = "EUR_month",
-       text = lbl(key, median = rep_amount_text(s$q50), lo = lo, hi = hi))
+  if (nrow(s) == 0L || is.na(s$q10) || is.na(s$q50) || is.na(s$q90)) return(NULL)
+  s <- s[1L, , drop = FALSE]
+  q10 <- rep_round_household(s$q10)
+  q50 <- rep_round_household(s$q50)
+  q90 <- rep_round_household(s$q90)
+  med <- rep_amount_text(s$q50)
+  if (owner) {
+    text <- lbl("report.household.text.range_burden", median = med,
+                lo = rep_amount_text(s$q10), hi = rep_amount_text(s$q90))
+  } else if (q10 >= 0) {
+    text <- lbl("report.household.text.range_surplus", median = med,
+                lo = rep_amount_text(s$q10), hi = rep_amount_text(s$q90))
+  } else if (q90 <= 0) {
+    # Zuschuss: kleinster Zuschuss (q90) bis größter Zuschuss (q10)
+    text <- lbl("report.household.text.range_subsidy", median = med,
+                lo = rep_amount_text(s$q90), hi = rep_amount_text(s$q10))
+  } else {
+    key <- if (q50 >= 0) "report.household.text.range_mixed_surplus" else
+      "report.household.text.range_mixed_subsidy"
+    text <- lbl(key, median = med, lo = rep_amount_text(s$q10), hi = rep_amount_text(s$q90))
+  }
+  list(item = "range_y1", value = s$q50, unit = "EUR_month", text = text)
 }
 
 #' Wert eines Spezifikationspfads (Knoten: Basisfallwert der Konstanten)

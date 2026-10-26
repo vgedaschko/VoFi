@@ -212,6 +212,62 @@ test_that("Verm\u00f6gensamortisation (R-72) und Bandbreite in Worten aus der Si
                        hi = "170"))
 })
 
+test_that("Bestandsprojekt: Amortisation nur gegen\u00fcber einer Referenzvariante (12.3a)", {
+  wp <- wsh_run(wsh_self_scenario())
+  expect_true(kpi_primary(wp$spec)$existing)
+  s <- attr(vofi_household_view(wp), "summary")
+  expect_identical(s$text[s$item == "payback_year"],
+                   lbl("report.household.text.payback_needs_reference"))
+  expect_true(is.na(s$value[s$item == "payback_year"]))
+  expect_false(any(grepl(lbl("report.household.text.basis_measures"), s$text, fixed = TRUE)))
+  # Vergleich: Variante gegenüber der Referenz, die Referenz selbst ohne Aussage
+  gas <- wsh_run(wsh_self_scenario(energy = 4500, capex = -12000, loan = 0, id = "gas"))
+  hv <- vofi_household_view(wsh_comparison(list(gas = gas, wp = wp)))
+  sc <- attr(hv, "summary")
+  w <- hv[hv$variant == "wp", ]
+  pb <- sc[sc$variant == "wp" & sc$item == "payback_year", ]
+  expect_identical(nrow(pb), 1L)
+  if (any(w$paid_back)) {
+    expect_identical(pb$value, as.double(w$year[which(w$paid_back)[1L]]))
+  } else {
+    expect_identical(pb$text, lbl("report.household.text.no_payback", end = wp$grid$end_date,
+                                  basis = lbl("report.household.text.basis_measures")))
+  }
+  expect_false("payback_year" %in% sc$item[sc$variant == "gas"])
+  # summary() im Haushaltsmodus übernimmt den Klartext
+  expect_true(lbl("report.household.text.payback_needs_reference") %in% summary(wp)$plain)
+})
+
+test_that("Bandbreite des Cashflows in Worten ohne Vorzeichen (Memo 07 Paragraf 5.4 Nr. 5)", {
+  mc <- wsh_mc()
+  mc$deterministic <- wsh_run(wsh_landlord_scenario())
+  range_text <- function(q10, q50, q90) {
+    m <- mc
+    row <- m$stats[1L, ]
+    row$kpi <- "monthly_net_cashflow_y1"
+    row$q10 <- q10
+    row$q50 <- q50
+    row$q90 <- q90
+    m$stats <- rbind(m$stats, row)
+    s <- attr(vofi_household_view(m), "summary")
+    s$text[s$item == "range_y1"]
+  }
+  expect_identical(range_text(-300, -150, 20),
+                   lbl("report.household.text.range_mixed_subsidy", median = "150",
+                       lo = "300", hi = "20"))
+  expect_identical(range_text(-40, 60, 210),
+                   lbl("report.household.text.range_mixed_surplus", median = "60",
+                       lo = "40", hi = "210"))
+  expect_identical(range_text(-320, -180, -42),
+                   lbl("report.household.text.range_subsidy", median = "180", lo = "40",
+                       hi = "320"))
+  expect_identical(range_text(12, 150, 330),
+                   lbl("report.household.text.range_surplus", median = "150", lo = "10",
+                       hi = "330"))
+  expect_false(any(grepl("-", c(range_text(-300, -150, 20), range_text(-320, -180, -42)),
+                         fixed = TRUE)))
+})
+
 test_that("Snapshots der Sichten (15.6)", {
   skip_if_not(l10n_info()[["UTF-8"]])
   local_reproducible_output(width = 100)

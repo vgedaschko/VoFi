@@ -59,6 +59,30 @@ test_that("summary(), format(), as.data.frame() eines Vergleichs", {
   expect_true(any(grepl(lbl("report.compare.conditional_header"), out2, fixed = TRUE)))
 })
 
+test_that("Bestandsprojekt: Endwertdifferenz je Variante mit Vermerk (12.3a)", {
+  self <- wsh_run(wsh_self_scenario())
+  gas <- wsh_run(wsh_self_scenario(energy = 4500, capex = -12000, loan = 0, id = "gas"))
+  cmp <- wsh_comparison(list(gas = gas, wp = self))
+  note <- lbl("kpi.notes.contains_existing")
+  fn <- lbl("report.compare.note_footnote", note = note)
+  mark <- lbl("report.compare.note_mark", label = kpi_label("delta_terminal_value"))
+  out <- capture.output(print(cmp))
+  expect_true(any(grepl(mark, out, fixed = TRUE)))
+  expect_true(fn %in% out)
+  out2 <- capture.output(print(summary(cmp)))
+  expect_true(fn %in% out2)
+  m <- format(cmp)
+  i <- match(lbl("report.common.with_note", label = kpi_label("delta_terminal_value"),
+                 note = note), m[, 1L])
+  expect_false(is.na(i))
+  # Vergleichskennzahlen und übrige Kennzahlen ohne Vermerk
+  expect_identical(rep_cmp_kpi_labels(cmp, c("delta_vs_reference", "terminal_value")),
+                   c(kpi_label("delta_vs_reference"), kpi_label("terminal_value")))
+  # Neubau: kein Vermerk
+  nb <- capture.output(print(example_comparison()))
+  expect_false(any(grepl(note, nb, fixed = TRUE)))
+})
+
 test_that("plot.vofi_comparison liefert ein ggplot-Objekt", {
   skip_if_not_installed("ggplot2")
   p <- plot(example_comparison())

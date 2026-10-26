@@ -43,7 +43,7 @@ notes:
   created: "Erstellt mit vofi {version} (Vertragsversion {contract}); Beträge in EUR, nominal, brutto."
   saldo_formula: "Der Finanzierungssaldo und die Summenzeilen stehen als Excel-Formel in der Tabelle: Summe aller zahlungswirksamen Zeilen je Periode; der Finanzierungssaldo muss in jeder Periode 0 sein."
   kpis: "Restwertbezug: mit Restwert, ohne Restwert oder unabhängig vom Restwert; NA mit Begründung; je WE und je m² nur für EUR-Kennzahlen."
-  ledger: "Netto = Brutto / (1 + USt-Satz), USt = Brutto - Netto (verlustfrei abgeleitet)."
+  ledger: "Netto = Brutto / (1 + USt-Satz), USt = Brutto - Netto (verlustfrei abgeleitet). Bei Simulationen steht das Zahlungsbuch des Basisfalls."
   assumptions: "Herkunft je Parameter: Schicht, Quelle, Datei, Eintrag, Fundstelle, Gültigkeit und Qualitätsstufe."
   checks: "Laufzeitprüfungen der Engine (Finanzierungssaldo, Vermögensfortschreibung, Bestände) und Markierungen (Anteil der Läufe)."
   variants: "Deterministischer Wert bzw. Mittelwert über die Läufe."

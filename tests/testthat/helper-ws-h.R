@@ -236,6 +236,38 @@ wsh_mc_full <- function() {
   mc
 }
 
+#' Vergleich aus zwei Simulationsergebnissen (Attrappe für vofi_compare(..., n_sim > 1)):
+#' Referenz "base" = wsh_mc(), Variante "a" mit Endwert und Endwertdifferenz + 2.000 je Lauf
+wsh_mc_comparison <- function(n_sim = 200L) {
+  cmp <- example_comparison()
+  base <- wsh_mc(n_sim)
+  a <- base
+  a$meta$variant <- "a"
+  a$deterministic$meta$variant <- "a"
+  for (k in c("terminal_value", "delta_terminal_value")) {
+    a$kpis[[k]] <- a$kpis[[k]] + 2000
+    a$deterministic$kpis[[k]] <- a$deterministic$kpis[[k]] + 2000
+  }
+  cmp$results <- list(base = base, a = a)
+  d <- a$kpis$delta_terminal_value - base$kpis$delta_terminal_value
+  cmp$differences <- list(delta_vs_reference = matrix(d, ncol = 1L,
+                                                      dimnames = list(NULL, "a")))
+  cmp$meta$mode <- "mc"
+  cmp$meta$n_sim <- as.integer(n_sim)
+  cmp
+}
+
+#' Simulation eines Bestandsprojekts: Primärkennzahl delta_vs_reference (12.3a), die eine
+#' Einzelsimulation nicht enthält
+wsh_mc_existing <- function() {
+  mc <- wsh_mc()
+  mc$spec$project$project_type <- "sanierung_einzelmassnahmen"
+  mc$deterministic$spec$project$project_type <- "sanierung_einzelmassnahmen"
+  mc$meta$primary_kpi <- "delta_vs_reference"
+  mc$deterministic$meta$primary_kpi <- "delta_vs_reference"
+  mc
+}
+
 #' Datei eines Excel-Exports in ein temporäres Verzeichnis (bis zum Testende)
 wsh_xlsx <- function(env = parent.frame()) {
   withr::local_tempfile(fileext = ".xlsx", .local_envir = env)

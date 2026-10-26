@@ -165,6 +165,45 @@ test_that("Simulation, Vergleich und Sensitivit\u00e4t", {
   expect_equal(s[[lbl("excel_export.columns.swing")]], c(9000, 1500))
 })
 
+test_that("Vergleich aus Simulationen: alle Standardbl\u00e4tter, Zahlungsbuch je Basisfall", {
+  cmp <- wsh_mc_comparison()
+  f <- wsh_xlsx()
+  expect_identical(vofi_export_excel(cmp, f), f)
+  sh <- openxlsx::getSheetNames(f)
+  expect_true(all(c(lbl("excel_export.sheets.ledger"), "VoFi base", "VoFi a",
+                    lbl("excel_export.sheets.diff_vofi")) %in% sh))
+  l <- wsh_read_xlsx(f, sheet = lbl("excel_export.sheets.ledger"), startRow = 4L,
+                     check.names = FALSE)
+  v <- l[[lbl("excel_export.columns.variant")]]
+  expect_identical(unique(v), c("base", "a"))
+  det <- cmp$results$a$deterministic
+  z <- l[v == "a" & l[[lbl("excel_export.columns.key")]] == "z__value" &
+           l[[lbl("excel_export.columns.amount")]] == lbl("excel_export.amount.gross"), ]
+  expect_equal(unlist(z[, det$grid$label]), det$ledger$values$z__value[1L, ],
+               ignore_attr = TRUE)
+  check_vofi_formulas(f, "VoFi a", vofi_table(cmp, sim = "deterministic", variant = "a"))
+  # nur das Blatt Zahlungsbuch
+  f2 <- wsh_xlsx()
+  vofi_export_excel(cmp, f2, sheets = "ledger")
+  expect_identical(openxlsx::getSheetNames(f2), lbl("excel_export.sheets.ledger"))
+})
+
+test_that("\u00dcbersicht einer Bestandsprojekt-Simulation: Endwertdifferenz mit Vermerk (12.3a)", {
+  mc <- wsh_mc_existing()
+  f <- wsh_xlsx()
+  vofi_export_excel(mc, f, sheets = "overview")
+  o <- wsh_read_xlsx(f, sheet = lbl("excel_export.sheets.overview"), startRow = 4L,
+                     colNames = FALSE)
+  note <- lbl("kpi.notes.contains_existing")
+  i <- match(lbl("excel_export.overview.primary"), o[[1L]])
+  expect_match(o[[2L]][i], kpi_label("delta_terminal_value"), fixed = TRUE)
+  expect_match(o[[2L]][i], note, fixed = TRUE)
+  st <- mc$stats[mc$stats$kpi == "delta_terminal_value", ]
+  k <- as.integer(round(10 * (1 - st$p_neg)))
+  expect_true(lbl("report.mc.risk_positive", count = k,
+                  label = kpi_label("delta_terminal_value")) %in% o[[2L]])
+})
+
 test_that("vofi_export_excel: Auswahl der Bl\u00e4tter, \u00dcberschreiben und Fehler", {
   x <- example_result()
   f <- wsh_xlsx()

@@ -6,6 +6,7 @@ common:
   yes: "ja"
   no: "nein"
   na_reason: "{value} ({reason})"
+  with_note: "{label} ({note})"
 
 print:
   header: "VoFi-Ergebnis: {title} ({id}), Variante {variant}"
@@ -100,7 +101,7 @@ errors:
   run_missing: "Der Lauf '{run}' ist im Simulationsergebnis nicht gespeichert (keep_runs)."
   sim_range: "Laufnummern müssen ganze Zahlen zwischen 1 und {n} sein (erhalten: {value})."
   periods: "Unbekannte Perioden: {value} (erlaubt sind Zeitpunkte t von 0 bis T oder Periodenbezeichnungen).{suggestion}"
-  no_ledger: "Das Simulationsergebnis enthält kein Zahlungsbuch (store = '{store}'); vofi_sim(x, i) rechnet Lauf i vollständig nach."
+  no_ledger: "Das Simulationsergebnis enthält kein Zahlungsbuch (store = '{store}'); 'sim' muss die Läufe angeben: Laufnummern (mit vofi_sim() nachgerechnet) oder einer der Werte deterministic, p05, p50, p95."
   probs: "quantile(): 'probs' muss aus Wahrscheinlichkeiten zwischen 0 und 1 bestehen."
   plot_type: "vofi_plot(): Grafiktyp '{type}' ist für {cls} nicht vorgesehen (zulässig: {choices}).{suggestion}"
   plot_data: "vofi_plot(): Für die Grafik '{type}' fehlen die Daten ({what})."
@@ -119,6 +120,10 @@ mc:
   col_mean: "Mittel"
   col_se: "SE"
   col_median: "Median"
+  col_q05: "P5"
+  col_q25: "P25"
+  col_q75: "P75"
+  col_q95: "P95"
   col_p_neg: "P(< 0)"
   col_na: "NA-Anteil"
   se_single: "Standardfehler aus sd/√n bei nur einem Replikat (überschätzt bei LHS)."
@@ -153,6 +158,8 @@ compare:
   unequal_calls: "Die Nachschüsse unterscheiden sich zwischen den Varianten ({values}); das ist kein Vergleichbarkeitsfehler, die Vergleichsregel neutralisiert sie."
   restrictions_header: "Restriktionen je Variante"
   conditional_header: "Bedingte Ergebnisse (Entscheidungsknoten der Förderzusage)"
+  note_mark: "{label} *"
+  note_footnote: "  * {note}"
   col_variant: "Variante"
   col_prob_better: "P(besser)"
   col_restriction: "Restriktion"
@@ -217,6 +224,8 @@ scenario:
   kind_growth: "Start {start}, Wachstum {growth}"
   kind_quantity: "{value} je {per}"
   kind_dist: "Verteilung {type}"
+  kind_expr: "expr: {text}"   # Schreibweise der Wertgrammatik (4.5)
+  kind_ref: "ref: {path}"   # Schreibweise der Wertgrammatik (4.5)
 
 spec:
   header: "Aufgelöste Variante {variant} (Szenario-Set {set})"
@@ -276,8 +285,12 @@ household:
     basis_measures: "Vermögensvergleich mit dem Zeitwert der Maßnahmen"
     payback: "Die Investition hat sich voraussichtlich {year:raw} bezahlt gemacht ({basis})."
     no_payback: "Bis zum Horizontende am {end} hat sich die Investition nicht bezahlt gemacht ({basis})."
+    payback_needs_reference: "Ob sich die Investition bezahlt macht, lässt sich bei einem Bestandsgebäude nur im Vergleich mit einer Referenzvariante bestimmen (der Vermögensvergleich mit der Unterlassung enthält die ohnehin anfallenden Kosten des Bestands)."
     range_burden: "Voraussichtlich rund {median} € pro Monat; in 8 von 10 simulierten Zukünften zwischen {lo} € und {hi} €."
-    range_cashflow: "Voraussichtlich rund {median} € pro Monat; in 8 von 10 simulierten Zukünften zwischen {lo} € und {hi} €."
+    range_surplus: "Voraussichtlich bleibt ein Überschuss von rund {median} € pro Monat; in 8 von 10 simulierten Zukünften liegt der Überschuss zwischen {lo} € und {hi} €."
+    range_subsidy: "Voraussichtlich müssen Sie rund {median} € pro Monat zuschießen; in 8 von 10 simulierten Zukünften liegt der Zuschuss zwischen {lo} € und {hi} €."
+    range_mixed_surplus: "Voraussichtlich bleibt ein Überschuss von rund {median} € pro Monat; in 8 von 10 simulierten Zukünften liegt das Ergebnis zwischen {lo} € Zuschuss und {hi} € Überschuss."
+    range_mixed_subsidy: "Voraussichtlich müssen Sie rund {median} € pro Monat zuschießen; in 8 von 10 simulierten Zukünften liegt das Ergebnis zwischen {lo} € Zuschuss und {hi} € Überschuss."
 
 plot:
   title_vermoegen: "Vermögensverlauf (Bestandssaldo je Periodenende)"

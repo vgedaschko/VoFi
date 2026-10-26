@@ -121,10 +121,14 @@ rep_kpi_text <- function(kpi, v) {
 #'   `"cdf"` (empirische Verteilungsfunktion), `"konvergenz"` (laufender Mittelwert mit
 #'   95-%-Band), `"streu"` (Kennzahl gegen eine Eingangsgröße, Argument `input`),
 #'   `"tornado"` (Rangkorrelationen der Eingangsgrößen mit der Kennzahl). Zusatzargument `kpi`
-#'   (Default: Primärkennzahl).
+#'   (Default: Primärkennzahl; bei Bestandsprojekten, deren Primärkennzahl nur ein Vergleich
+#'   liefert, die Endwertdifferenz mit dem Vermerk „enthält Bestandszahlungen“, Spec 00,
+#'   Abschnitt 12.3a).
 #' * `vofi_comparison`: `"endwert"` (Endwertdifferenz je Variante mit und ohne Restwert),
 #'   `"differenz"` (Vergleichskennzahl gegen die Referenz mit Wahrscheinlichkeit „besser als
-#'   Referenz“), `"cdf"` (Verteilungsfunktionen der Kennzahl je Variante), `"bestand"`
+#'   Referenz“), `"cdf"` (Verteilungsfunktionen je Variante: Vergleichskennzahlen wie
+#'   `"delta_vs_reference"` aus den Werten je Lauf für jede Variante außer der Referenz, übrige
+#'   Kennzahlen aus den Ergebnissen aller Varianten; Default: Primärkennzahl), `"bestand"`
 #'   (Bestandssaldo je Variante), `"belastung"` (monatliche Belastung bzw. Cashflow je Variante
 #'   und Jahr). Zusatzargument `kpi`.
 #' * `vofi_sensitivity`: `"tornado"`, `"spider"`, `"balken"` (globale Maße, Argument
@@ -238,10 +242,11 @@ rep_plot_wealth_diff <- function(x, sim) {
   } else {
     sub <- lbl("report.plot.no_payback")
   }
-  g + ggplot2::scale_y_continuous(labels = rep_axis_num(0)) + rep_scale_colour(2L) +
+  g <- g + ggplot2::scale_y_continuous(labels = rep_axis_num(0)) + rep_scale_colour(2L) +
     ggplot2::labs(title = lbl("report.plot.title_differenz"), subtitle = sub,
                   x = lbl("report.plot.x_date"), y = lbl("report.plot.y_eur"), colour = NULL) +
     rep_theme()
+  rep_plot_note(g, kpi_primary(x$spec)$note)
 }
 
 #' @noRd
@@ -438,15 +443,34 @@ rep_plot_mc <- function(x, type = NULL, kpi = NULL, row_key = "net_position", in
                         "vofi_mc_result")
   if (identical(type, "fan")) return(rep_plot_fan(x, row_key))
   cols <- setdiff(names(x$kpis), c("sim", "block", "branch"))
-  kpi <- rep_check_kpi(kpi %||% x$meta$primary_kpi %||% "delta_terminal_value", cols)
+  note <- NA_character_
+  if (is.null(kpi)) {
+    # Primärkennzahl; bei Bestandsprojekten (delta_vs_reference nur im Vergleich) die
+    # Endwertdifferenz mit Vermerk (12.3a)
+    pk <- rep_primary_kpi(x, cols)
+    kpi <- pk$kpi
+    note <- pk$note
+  }
+  kpi <- rep_check_kpi(kpi, cols)
   v <- as.double(x$kpis[[kpi]])
-  switch(type,
+  g <- switch(type,
     verteilung = rep_plot_hist(x, kpi, v, bins),
     cdf = rep_plot_cdf_mc(x, kpi, v),
     konvergenz = rep_plot_convergence(kpi, v),
     streu = rep_plot_scatter(x, kpi, v, input),
     tornado = rep_plot_rank_tornado(x, kpi, v)
   )
+  rep_plot_note(g, note)
+}
+
+#' Vermerk als Bildunterschrift (12.3a: Endwertdifferenz bei Bestandsprojekten)
+#' @param g ggplot-Objekt.
+#' @param note Label-Schlüssel des Vermerks bzw. `NA`.
+#' @noRd
+rep_plot_note <- function(g, note) {
+  txt <- rep_existing_note(note)
+  if (length(txt) == 0L) return(g)
+  g + ggplot2::labs(caption = txt)
 }
 
 #' Untertitel mit Anteil > 0, Basisfall und NA-Anteil
@@ -687,6 +711,8 @@ rep_plot_cmp_terminal <- function(x) {
   base_res <- rep_det_result(x$results[[x$baseline]] %||% x$results[[1L]])
   primary <- base_res$meta$primary_kpi %||% "delta_terminal_value"
   kpi <- if (primary %in% x$kpi_table$kpi) primary else "delta_terminal_value"
+  note <- if (identical(kpi, "delta_terminal_value")) kpi_primary(base_res$spec)$note else
+    NA_character_
   rows <- list()
   for (v in vars) {
     for (sfx in c("", "_ex_rv")) {
@@ -716,12 +742,13 @@ rep_plot_cmp_terminal <- function(x) {
                                     position = ggplot2::position_dodge(width = 0.8),
                                     width = 0.25, na.rm = TRUE)
   }
-  g + ggplot2::scale_y_continuous(labels = rep_axis_num(0)) +
+  g <- g + ggplot2::scale_y_continuous(labels = rep_axis_num(0)) +
     rep_scale_colour(nlevels(df$view), aesthetics = "fill") +
     ggplot2::labs(title = lbl("report.plot.title_endwert", kpi = kpi_label(kpi)),
                   subtitle = rep_prob_better_text(x), x = lbl("report.compare.col_variant"),
                   y = lbl("report.plot.y_eur"), fill = NULL) +
     rep_theme()
+  rep_plot_note(g, note)
 }
 
 #' @noRd
@@ -762,22 +789,50 @@ rep_plot_cmp_diff <- function(x, kpi, bins) {
     rep_theme()
 }
 
+#' Verteilungsfunktionen je Variante
+#'
+#' Vergleichskennzahlen (`x$differences`, z. B. `delta_vs_reference`): je Variante außer der
+#' Referenz aus den Werten je Lauf. Kennzahlen der Ergebnisse: je Variante einschließlich der
+#' Referenz aus `kpis`. Ohne `kpi` gilt die Primärkennzahl der Referenz; fehlt sie in beiden
+#' Quellen, die Endwertdifferenz je Variante (bei Bestandsprojekten mit Vermerk, 12.3a).
 #' @noRd
 rep_plot_cmp_cdf <- function(x, kpi) {
   vars <- rep_comparison_variants(x)
   base_res <- rep_det_result(x$results[[x$baseline]] %||% x$results[[1L]])
-  kpi <- kpi %||% base_res$meta$primary_kpi %||% "delta_terminal_value"
-  if (identical(kpi, "delta_vs_reference")) kpi <- "delta_terminal_value"
-  parts <- lapply(vars, function(v) {
-    r <- x$results[[v]]
-    if (!(kpi %in% names(r$kpis))) return(NULL)
-    vals <- as.double(r$kpis[[kpi]])
-    data.frame(variant = v, value = vals[!is.na(vals)], stringsAsFactors = FALSE)
-  })
+  cmp_kpis <- names(Filter(is.matrix, x$differences %||% list()))
+  res_kpis <- unique(unlist(lapply(x$results, function(r) {
+    setdiff(names(r$kpis), c("sim", "block", "branch"))
+  }), use.names = FALSE))
+  note <- NA_character_
+  if (is.null(kpi)) {
+    kpi <- base_res$meta$primary_kpi %||% kpi_primary(base_res$spec)$kpi
+    if (!(kpi %in% c(cmp_kpis, res_kpis))) kpi <- "delta_terminal_value"
+  }
+  kpi <- rep_check_kpi(kpi, unique(c(cmp_kpis, res_kpis)))
+  if (kpi %in% cmp_kpis) {
+    m <- x$differences[[kpi]]
+    dvars <- colnames(m) %||% setdiff(vars, x$baseline)
+    parts <- lapply(seq_along(dvars), function(j) {
+      vals <- as.double(m[, j])
+      data.frame(variant = dvars[j], value = vals[!is.na(vals)], stringsAsFactors = FALSE)
+    })
+    vars <- c(intersect(vars, dvars), setdiff(dvars, vars))
+  } else {
+    if (identical(kpi, "delta_terminal_value") ||
+          identical(kpi, "delta_terminal_value_ex_rv")) {
+      note <- kpi_primary(base_res$spec)$note
+    }
+    parts <- lapply(vars, function(v) {
+      r <- x$results[[v]]
+      if (!(kpi %in% names(r$kpis))) return(NULL)
+      vals <- as.double(r$kpis[[kpi]])
+      data.frame(variant = v, value = vals[!is.na(vals)], stringsAsFactors = FALSE)
+    })
+  }
   df <- do.call(rbind, parts)
   if (is.null(df) || nrow(df) == 0L) rep_plot_no_data("cdf", kpi_label(kpi))
   df$variant <- factor(df$variant, levels = vars)
-  ggplot2::ggplot(df, rep_aes(x = "value", colour = "variant")) +
+  g <- ggplot2::ggplot(df, rep_aes(x = "value", colour = "variant")) +
     ggplot2::stat_ecdf(geom = "step", linewidth = 0.9, pad = TRUE) +
     ggplot2::geom_vline(xintercept = 0, linetype = "dashed", colour = "grey40") +
     rep_kpi_scale(kpi, "x") +
@@ -787,6 +842,7 @@ rep_plot_cmp_cdf <- function(x, kpi) {
                   subtitle = rep_prob_better_text(x), x = kpi_label(kpi),
                   y = lbl("report.plot.y_prob"), colour = NULL) +
     rep_theme()
+  rep_plot_note(g, note)
 }
 
 #' Bestandssaldo je Variante (Simulation: Median der Bänder, sonst Basisfall)

@@ -78,6 +78,47 @@ rep_det_result <- function(x) {
   x
 }
 
+#' Gespeicherter Lauf einer Simulation: Basisfall bzw. P5-, P50-, P95-Lauf (13.2)
+#' @param x `vofi_mc_result`.
+#' @param sim `"deterministic"`, `"p05"`, `"p50"` oder `"p95"`.
+#' @param fun Name der aufrufenden Funktion.
+#' @return `vofi_result`.
+#' @noRd
+rep_mc_run <- function(x, sim, fun) {
+  choices <- c("deterministic", "p05", "p50", "p95")
+  if (!utl_is_string(sim) || !(sim %in% choices)) {
+    vofi_abort("report.errors.sim_mc", fun = fun, value = utl_collapse(format(sim)),
+               choices = utl_collapse(choices), .class = "vofi_error_input")
+  }
+  res <- if (identical(sim, "deterministic")) x$deterministic else x$runs[[sim]]
+  if (!inherits(res, "vofi_result")) {
+    vofi_abort("report.errors.run_missing", run = sim, .class = "vofi_error_input")
+  }
+  res
+}
+
+#' Laufnummer eines gespeicherten Laufs in der Simulation (Basisfall: `NA`)
+#' @noRd
+rep_mc_run_index <- function(x, sim) {
+  if (identical(sim, "deterministic")) return(NA_integer_)
+  i <- (x$run_index %||% integer(0))[sim]
+  if (length(i) == 1L && !is.na(i)) return(as.integer(i))
+  as.integer(x$runs[[sim]]$meta$sim_index %||% NA_integer_)
+}
+
+#' Variante eines Einzelergebnisses prüfen (`NULL` oder die Variante des Ergebnisses)
+#' @param variant angefragte Variante bzw. `NULL`.
+#' @param v Variante des Ergebnisses.
+#' @noRd
+rep_check_variant <- function(variant, v) {
+  if (!is.null(variant) && !identical(variant, v)) {
+    vofi_abort("report.errors.variant_unknown", variant = utl_collapse(format(variant)),
+               suggestion = utl_suggest_text(as.character(variant)[1L], v),
+               .class = "vofi_error_input")
+  }
+  invisible(TRUE)
+}
+
 #' Lauf eines Ergebnisses für die Tabelle bestimmen
 #'
 #' `vofi_result`: Zeile `sim` des Ledgers. `vofi_mc_result`: `sim` als Laufnummer (aus dem
@@ -96,15 +137,7 @@ rep_table_source <- function(x, sim = 1L, variant = NULL, fun = "vofi_table") {
   }
   if (inherits(x, "vofi_mc_result")) {
     if (is.character(sim)) {
-      choices <- c("deterministic", "p05", "p50", "p95")
-      if (!utl_is_string(sim) || !(sim %in% choices)) {
-        vofi_abort("report.errors.sim_mc", fun = fun, value = utl_collapse(format(sim)),
-                   choices = utl_collapse(choices), .class = "vofi_error_input")
-      }
-      res <- if (identical(sim, "deterministic")) x$deterministic else x$runs[[sim]]
-      if (!inherits(res, "vofi_result")) {
-        vofi_abort("report.errors.run_missing", run = sim, .class = "vofi_error_input")
-      }
+      res <- rep_mc_run(x, sim, fun)
       out <- rep_table_source(res, 1L, variant, fun)
       out$sim_label <- sim
       return(out)
@@ -112,8 +145,10 @@ rep_table_source <- function(x, sim = 1L, variant = NULL, fun = "vofi_table") {
     n_sim <- as.integer(x$meta$n_sim %||% nrow(x$kpis))
     i <- utl_check_whole(sim, "sim", min = 1, max = n_sim)
     if (inherits(x$ledger, "vofi_ledger") && x$ledger$n >= i) {
+      v <- x$meta$variant %||% "base"
+      rep_check_variant(variant, v)
       return(list(ledger = x$ledger, grid = x$grid, meta = x$meta, spec = x$spec, sim = i,
-                  variant = x$meta$variant %||% "base", result = x, sim_label = i))
+                  variant = v, result = x, sim_label = i))
     }
     res <- vofi_sim(x, i)
     out <- rep_table_source(res, 1L, variant, fun)
@@ -123,11 +158,7 @@ rep_table_source <- function(x, sim = 1L, variant = NULL, fun = "vofi_table") {
   n <- x$ledger$n
   i <- utl_check_whole(sim, "sim", min = 1, max = n)
   v <- x$meta$variant %||% "base"
-  if (!is.null(variant) && !identical(variant, v)) {
-    vofi_abort("report.errors.variant_unknown", variant = utl_collapse(format(variant)),
-               suggestion = utl_suggest_text(as.character(variant)[1L], v),
-               .class = "vofi_error_input")
-  }
+  rep_check_variant(variant, v)
   list(ledger = x$ledger, grid = x$grid, meta = x$meta, spec = x$spec, sim = i, variant = v,
        result = x, sim_label = x$meta$sim_index %||% i)
 }
@@ -173,10 +204,11 @@ rep_row_def <- function(key, label, section, level, kind, members, category = NA
 #' Bestände einzeln, Merkzeilen je Kategorie und Einheit (Restwertpfad zusätzlich je Basis,
 #' steuerliche Nebenrechnung und Merkposten einzeln); Anzeige-Summen `cf_project` (immer) und
 #' `grant_cash` (bei vorhandenen Zuschusszeilen) mit Unterzeilen der Ebene 1 (7.8, 7.9 Nr. 2,
-#' Nr. 4). Ausgeblendet werden in allen Läufen null gebliebene Zeilen aus `odp_*`, `dep_wht`,
-#' `shortfall`, `equity_call` (7.7) sowie zahlungsunwirksame Merkzeilen der Abschnitte 100 bis
-#' 700 (Tilgungszuschuss, Disagio, übernommene Restschuld, Sacheinlage). `detail = "full"`:
-#' jede Ledger-Zeile mit ihrer Bezeichnung.
+#' Nr. 4). Ausgeblendet werden nur die in allen Läufen null gebliebenen Zeilen aus `odp_*`,
+#' `dep_wht`, `shortfall`, `equity_call` (7.7); alle übrigen Zeilen, auch die
+#' zahlungsunwirksamen Merkzeilen der Kredite (Tilgungszuschuss, Disagio, übernommene
+#' Restschuld), bleiben stehen, damit die Tabelle stabil ist. `detail = "full"`: jede
+#' Ledger-Zeile mit ihrer Bezeichnung.
 #' @param led `vofi_ledger`.
 #' @param detail `"standard"` oder `"full"`.
 #' @param tax_module Name des Steuermoduls (Vermerk „nicht berücksichtigt“ bei `none`).
@@ -204,7 +236,6 @@ rep_table_rows <- function(led, detail = "standard", tax_module = "none") {
     std && length(members) > 0L && all(members %in% rep_hideable_keys()) &&
       rep_all_zero(led, members)
   }
-  memo_hidden <- function(members) std && rep_all_zero(led, members)
   # Abschnitte project und grants mit Anzeige-Summe und Unterzeilen (R-19)
   for (sec in c("project", "grants")) {
     sel <- r$section == sec
@@ -220,9 +251,7 @@ rep_table_rows <- function(led, detail = "standard", tax_module = "none") {
         push(rep_row_def(paste0(sec, ".", cat), sum_label(sec, cat), sec, 1L, "flow", m, cat,
                          TRUE, "EUR", min(r$order[cash_sel & r$category == cat])))
       }
-      for (i in which(sel & !r$cash)) {
-        if (!memo_hidden(r$key[i])) push(single(i, 1L, "memo"))
-      }
+      for (i in which(sel & !r$cash)) push(single(i, 1L, "memo"))
     } else {
       for (i in which(sel)) push(single(i, 1L))
     }
@@ -243,11 +272,7 @@ rep_table_rows <- function(led, detail = "standard", tax_module = "none") {
     }
     if (identical(sec, "loans")) {
       for (i in which(sel)) {
-        if (isTRUE(r$cash[i])) {
-          push(single(i, 0L))
-        } else if (!memo_hidden(r$key[i])) {
-          push(single(i, 0L, "memo"))
-        }
+        push(single(i, 0L, if (isTRUE(r$cash[i])) NULL else "memo"))
       }
       next
     }
@@ -264,9 +289,7 @@ rep_table_rows <- function(led, detail = "standard", tax_module = "none") {
       }
       push(rep_row_def(key, label, sec, 0L, "flow", m, cat, TRUE, "EUR", r$order[first]))
     }
-    for (i in which(sel & !r$cash)) {
-      if (!memo_hidden(r$key[i])) push(single(i, 0L, "memo"))
-    }
+    for (i in which(sel & !r$cash)) push(single(i, 0L, "memo"))
   }
   # Finanzierungssaldo und Bestände
   for (i in which(r$section == "check")) {
@@ -376,9 +399,9 @@ rep_row_values <- function(led, defs, sim, cols) {
 #'
 #' Mit `detail = "standard"` stehen Summen je Abschnitt und Kategorie (Kredite je Baustein);
 #' Strafzins-Tranche, Abgeltungsteuer, Fehlbetrag und Nachschuss werden ausgeblendet, wenn sie
-#' in allen Läufen null sind, ebenso zahlungsunwirksame Merkzeilen ohne Betrag. Mit
-#' `detail = "full"` erscheint jede Zeile des Zahlungsbuchs mit der Bezeichnung ihrer
-#' Komponente.
+#' in allen Läufen null sind (Spec 00, Abschnitt 7.7); alle übrigen Zeilen, auch die Merkzeilen
+#' der Kredite, bleiben stehen, damit die Tabelle stabil ist. Mit `detail = "full"` erscheint
+#' jede Zeile des Zahlungsbuchs mit der Bezeichnung ihrer Komponente.
 #'
 #' Bei einer Simulation ist `sim` die Laufnummer (Werte aus dem gespeicherten Zahlungsbuch bei
 #' `store = "full"`, sonst mit `vofi_sim()` nachgerechnet) oder einer der Werte
@@ -548,12 +571,20 @@ rep_table_diff <- function(a, b, variant = a$variant, baseline = b$variant) {
 #' Bruttobetrag und dem Umsatzsteuersatz der Zeile abgeleitet (`net = value / (1 + vat_rate)`,
 #' `vat = value - net`): im Long-Format als Spalten `net` und `vat`, im Wide-Format als je
 #' drei Zeilen mit `amount` = `"gross"`, `"net"`, `"vat"`. Bei Vergleichen werden die
-#' Zahlungsbücher aller Varianten mit der Spalte `variant` untereinander gestellt.
+#' Zahlungsbücher aller Varianten mit der Spalte `variant` untereinander gestellt (`sim` gilt für
+#' jede Variante).
 #'
-#' @param x Objekt der Klasse `vofi_result`, `vofi_mc_result` (nur mit gespeichertem
-#'   Zahlungsbuch, `store = "full"`) oder `vofi_comparison`.
+#' Bei einer Simulation ist `sim` wie bei [vofi_table()] eine Auswahl von Laufnummern oder
+#' einer der Werte `"deterministic"` (Basisfall), `"p05"`, `"p50"`, `"p95"` (gespeicherte
+#' Läufe); die Spalte `sim` enthält die Laufnummer in der Simulation (beim Basisfall `NA`). Mit
+#' gespeichertem Zahlungsbuch (`store = "full"`) stammen die Werte daraus, sonst werden die
+#' gewählten Läufe mit `vofi_sim()` nachgerechnet; `sim = NULL` (alle Läufe) setzt das
+#' gespeicherte Zahlungsbuch voraus.
+#'
+#' @param x Objekt der Klasse `vofi_result`, `vofi_mc_result` oder `vofi_comparison`.
 #' @param format `"long"` oder `"wide"`.
-#' @param sim `NULL` (alle Läufe) oder Laufnummern.
+#' @param sim `NULL` (alle Läufe), Laufnummern oder bei Simulationen `"deterministic"`,
+#'   `"p05"`, `"p50"`, `"p95"`.
 #' @param vat Netto und Umsatzsteuer getrennt ausgeben.
 #' @return Data Frame.
 #' @family Berichten
@@ -577,13 +608,41 @@ vofi_ledger <- function(x, format = c("long", "wide"), sim = NULL, vat = FALSE) 
     rownames(out) <- NULL
     return(out)
   }
+  if (inherits(x, "vofi_mc_result")) return(rep_ledger_mc(x, format, sim, vat))
+  sims <- rep_check_sims(sim, x$ledger$n)
+  rep_ledger_frame(x$ledger, x$grid, sims, format, vat)
+}
+
+#' Zahlungsbuch einer Simulation (gespeichert, gespeicherter Lauf oder nachgerechnet)
+#' @noRd
+rep_ledger_mc <- function(x, format, sim, vat) {
+  if (is.character(sim)) {
+    res <- rep_mc_run(x, sim, "vofi_ledger")
+    out <- rep_ledger_frame(res$ledger, res$grid, 1L, format, vat)
+    out$sim <- rep(rep_mc_run_index(x, sim), nrow(out))
+    return(out)
+  }
   led <- x$ledger
-  if (!inherits(led, "vofi_ledger")) {
+  if (inherits(led, "vofi_ledger")) {
+    return(rep_ledger_frame(led, x$grid, rep_check_sims(sim, led$n), format, vat))
+  }
+  if (is.null(sim)) {
     vofi_abort("report.errors.no_ledger", store = x$meta$store %||% "bands",
                .class = "vofi_error_input")
   }
-  sims <- rep_check_sims(sim, led$n)
-  rep_ledger_frame(led, x$grid, sims, format, vat)
+  sims <- rep_check_sims(sim, as.integer(x$meta$n_sim %||% nrow(x$kpis)))
+  # Läufe nachrechnen (identisch zum Batch, 14 Nr. 16) und ihre Zahlungsbücher (gleiche Zeilen
+  # je Modell) zu einem Zahlungsbuch mit length(sims) Läufen zusammenführen
+  runs <- lapply(sims, function(i) vofi_sim(x, i))
+  first <- runs[[1L]]$ledger
+  keys <- first$rows$key
+  vals <- lapply(stats::setNames(keys, keys), function(k) {
+    do.call(rbind, lapply(runs, function(r) r$ledger$values[[k]][1L, , drop = FALSE]))
+  })
+  led <- new_vofi_ledger(first$rows, vals, n = length(sims), T = first$T)
+  out <- rep_ledger_frame(led, runs[[1L]]$grid, seq_along(sims), format, vat)
+  out$sim <- sims[out$sim]
+  out
 }
 
 #' Anzeige eines Laufs: Laufnummer bzw. Basisfall und gespeicherte Läufe der Simulation

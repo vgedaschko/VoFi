@@ -83,6 +83,63 @@ test_that("vofi_plot: Vergleich mit Wahrscheinlichkeit besser als Referenz", {
   expect_error(vofi_plot(cmp, type = "differenz", kpi = "nix"), class = "vofi_error_input")
 })
 
+test_that("vofi_plot: Simulation eines Bestandsprojekts (Prim\u00e4rkennzahl nur im Vergleich)", {
+  skip_if_not_installed("ggplot2")
+  mc <- wsh_mc_existing()
+  for (t in c("verteilung", "cdf", "konvergenz", "streu", "tornado")) {
+    build_ok(vofi_plot(mc, type = t))
+  }
+  # Rückfall auf die Endwertdifferenz mit Vermerk „enthält Bestandszahlungen“ (12.3a)
+  p <- plot(mc)
+  expect_identical(p$labels$title,
+                   lbl("report.plot.title_verteilung", kpi = kpi_label("delta_terminal_value")))
+  expect_identical(p$labels$caption, rep_existing_note("kpi.notes.contains_existing"))
+  expect_identical(vofi_plot(mc, type = "cdf")$labels$caption, p$labels$caption)
+  # ausdrücklich angegebene Kennzahl: kein Rückfall, kein Vermerk
+  expect_error(vofi_plot(mc, kpi = "delta_vs_reference"), class = "vofi_error_input")
+  expect_null(vofi_plot(mc, kpi = "roe_mirr")$labels$caption)
+  # Neubau: Primärkennzahl vorhanden, kein Vermerk
+  expect_null(vofi_plot(wsh_mc())$labels$caption)
+  # Ergebnis eines Bestandsprojekts: Differenzvermögen zur Unterlassung mit Vermerk
+  res <- wsh_run(wsh_self_scenario())
+  expect_identical(vofi_plot(res, type = "differenz")$labels$caption,
+                   rep_existing_note("kpi.notes.contains_existing"))
+  expect_null(vofi_plot(example_result(), type = "differenz")$labels$caption)
+})
+
+test_that("vofi_plot: Verteilungsfunktionen eines Vergleichs (Vergleichs-, Ergebniskennzahlen)", {
+  skip_if_not_installed("ggplot2")
+  cmp <- wsh_mc_comparison()
+  # Vergleichskennzahl: Werte je Lauf aus differences, nur Varianten außer der Referenz
+  p <- vofi_plot(cmp, type = "cdf", kpi = "delta_vs_reference")
+  build_ok(p)
+  expect_identical(levels(p$data$variant), "a")
+  expect_equal(sort(p$data$value), sort(cmp$differences$delta_vs_reference[, 1L]))
+  expect_identical(p$labels$title,
+                   lbl("report.plot.title_cdf", kpi = kpi_label("delta_vs_reference")))
+  # Kennzahl der Ergebnisse: alle Varianten
+  p2 <- vofi_plot(cmp, type = "cdf", kpi = "roe_mirr")
+  expect_identical(levels(p2$data$variant), c("base", "a"))
+  # Default (Neubau): Primärkennzahl delta_terminal_value je Variante
+  p3 <- vofi_plot(cmp, type = "cdf")
+  expect_identical(levels(p3$data$variant), c("base", "a"))
+  expect_equal(sort(p3$data$value[p3$data$variant == "a"]),
+               sort(cmp$results$a$kpis$delta_terminal_value))
+  expect_error(vofi_plot(cmp, type = "cdf", kpi = "nix"), class = "vofi_error_input")
+  # Bestandsprojekt: Default ist die Primärkennzahl delta_vs_reference; die Endwertdifferenz
+  # gegenüber der Unterlassung trägt den Vermerk (12.3a)
+  wp <- wsh_run(wsh_self_scenario())
+  gas <- wsh_run(wsh_self_scenario(energy = 4500, capex = -12000, loan = 0, id = "gas"))
+  ce <- wsh_comparison(list(gas = gas, wp = wp))
+  pe <- vofi_plot(ce, type = "cdf")
+  expect_identical(levels(pe$data$variant), "wp")
+  expect_null(pe$labels$caption)
+  note <- rep_existing_note("kpi.notes.contains_existing")
+  expect_identical(vofi_plot(ce, type = "cdf", kpi = "delta_terminal_value")$labels$caption,
+                   note)
+  expect_identical(vofi_plot(ce, type = "endwert")$labels$caption, note)
+})
+
 test_that("vofi_plot: Sensitivit\u00e4t (Tornado, Spider, Balken)", {
   skip_if_not_installed("ggplot2")
   for (m in c("tornado", "spider", "global")) {
