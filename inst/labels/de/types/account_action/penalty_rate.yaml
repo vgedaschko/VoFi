@@ -1,4 +1,4 @@
-# Labels der Ausgleichsaktion penalty_rate (WS-D, Spec 00 Abschnitt 8.9). Phase-0-Minimalfassung.
+# Labels der Ausgleichsaktion penalty_rate (WS-D, Spec 00 Abschnitt 8.9).
 label: "Strafzinstranche"
 description: "D4: verbleibendes Defizit geht in die Kontokorrent-Strafzinstranche."
 rows:

@@ -1,19 +1,20 @@
 # Laufkontext ctx (WS-D, Spec 00 Abschnitt 6).
-# Phase-0-Minimalfassung, Eigentuemer: WS-D. Umgesetzt: alle Felder und Funktionen aus 6.2 als
-# Closures einer gesperrten Umgebung (Klasse vofi_ctx), Aufloesung nach 6.3 ueber
-# R/values-resolve.R, Zwischenspeicher je Kontext (Pfad + Shape + Basisfall), Zugriff auf
-# gebaute Komponenten ueber die private Engine-Umgebung (engine_env$components).
-# Phase-0-Nacharbeit (17.5.4 P0-07) umgesetzt: ctx$rows() mit measure_id, local_row, id als Vektor.
-# Nur deklarierte Abhaengigkeiten (6.1 Nr. 3) fuer component(), component_base() und rows()
-# (ohne id: Schnitt mit engine_env$deps).
-# Offen fuer WS-D: Designwerte (mode "design"), ctx$legal() mit Bibliothekseintraegen (WS-A/WS-L).
+# Alle Felder und Funktionen aus 6.2 als Closures einer gesperrten Umgebung (Klasse vofi_ctx).
+# Aufloesung nach 6.3 ueber R/values-resolve.R mit Zwischenspeicher je Kontext (Pfad + Shape +
+# Basisfall, 6.1 Nr. 4). Ergebnisse gebauter Komponenten liegen in der privaten Engine-Umgebung
+# (engine_env$components) und sind nur fuer deklarierte Abhaengigkeiten lesbar (6.1 Nr. 3;
+# engine_env$deps der gerade gebauten Komponente). Basisfallwerte (R-70): param_base(),
+# value_base() ohne Ziehungen und Designwerte, component_base() aus dem Basisfall-Vorlauf.
+# ctx$auto() liefert den auto-Plan aus model$base (fest, auf n Laeufe gehoben) bzw. den
+# topup-Betrag des Chunks aus der Engine-Umgebung (8.7); ctx$rebalance() ist nur in der Stufe
+# "kpi" zulaessig und rechnet ueber den Instrument-Cache ohne Ledger-Buchung (9.3, 12.8).
 
 #' Laufkontext eines Modells (6.1 Nr. 1)
 #'
-#' Phase-0-Minimalfassung, Eigentümer: WS-D.
 #' @param model `vofi_model`.
 #' @param draws `NULL` (deterministisch) oder `vofi_draws`.
-#' @param engine_env private Engine-Umgebung (`stage`, `components`, `rebalance`, `auto`).
+#' @param engine_env private Engine-Umgebung (`stage`, `components`, `rebalance`, `auto`,
+#'   `quiet`) aus `eng_engine_env()`.
 #' @return `vofi_ctx`.
 #' @noRd
 eng_context <- function(model, draws = NULL, engine_env = NULL) {
@@ -25,18 +26,22 @@ eng_context <- function(model, draws = NULL, engine_env = NULL) {
 
 #' Laufkontext aus Einzelteilen (Prüfkit, Testhelfer; Spec 00 Abschnitt 6.1)
 #'
-#' Phase-0-Minimalfassung, Eigentümer: WS-D. Erzeugt eine gesperrte Umgebung der Klasse
-#' `vofi_ctx` mit den Feldern und Funktionen aus Spec 00, Abschnitt 6.2, ohne Modell.
+#' Erzeugt eine gesperrte Umgebung der Klasse `vofi_ctx` mit den Feldern und Funktionen aus
+#' Spec 00, Abschnitt 6.2, ohne Modell.
 #'
 #' Vertrag (vom Prüfkit vorausgesetzt):
 #' - `n` = `draws$n`, wenn `draws` gesetzt ist, sonst 1; `mode` wie übergeben.
 #' - `components` sind vorab gebaute `vofi_flows` je id (für `ctx$component()`/`ctx$rows()`),
-#'   `components_base` die des Basisfalls (für `ctx$component_base()`).
+#'   `components_base` die des Basisfalls (für `ctx$component_base()`; im Modus
+#'   `"deterministic"` ohne Eintrag gleich `ctx$component()`).
 #' - `engine_env` ist `NULL` oder eine Umgebung mit `stage` (`"flows"`, `"balance"`, `"kpi"`),
 #'   `rebalance(extra_out)` und `auto(id)`; `ctx$rebalance()` delegiert an
 #'   `engine_env$rebalance` (nur bei `stage == "kpi"`, sonst `vofi_error_contract`),
 #'   `ctx$auto(id)` an `engine_env$auto`. Enthält `engine_env` ein Element `components`, liest
-#'   `ctx$component()` die dort laufend ergänzten Ergebnisse der Engine.
+#'   `ctx$component()` die dort laufend ergänzten Ergebnisse der Engine; `deps` begrenzt den
+#'   Zugriff auf deklarierte Abhängigkeiten, `current` benennt die gerade gebaute Komponente,
+#'   `quiet = TRUE` unterdrückt die Hinweise der Wertauflösung (Laufkontexte nach dem
+#'   Basisfall-Vorlauf, der sie einmal meldet); `ctx$inform()` der Typen bleibt aktiv.
 #' - `ctx$assets()`/`ctx$measures()` enthalten mindestens `spec$registers`.
 #' @param grid `vofi_grid`.
 #' @param spec `vofi_spec`.
@@ -53,8 +58,11 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
                                    engine_env = NULL) {
   mode <- utl_match_arg(mode, c("deterministic", "mc", "design"), "mode")
   n <- if (is.null(draws)) 1L else as.integer(draws$n)
-  rc <- res_context(spec, grid, n, draws, mode)
-  rc_base <- res_context(spec, grid, n, NULL, "deterministic")
+  quiet <- is.environment(engine_env) && isTRUE(get0("quiet", envir = engine_env,
+                                                     inherits = FALSE))
+  once <- new.env(parent = emptyenv())
+  rc <- res_context(spec, grid, n, draws, mode, quiet = quiet, once = once)
+  rc_base <- res_context(spec, grid, n, NULL, "deterministic", quiet = quiet, once = once)
   cache <- new.env(parent = emptyenv())
   priv <- new.env(parent = emptyenv())
   priv$components <- components
@@ -107,7 +115,7 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
   }
   raw_setting <- function(s, name) {
     v <- path_get(s, name)
-    if (is.null(v)) v <- path_get(ctx$spec, param_path(s, name))
+    if (is.null(v)) v <- path_get(spec, param_path(s, name))
     if (!is.null(v)) return(v)
     pp <- type_param(s, name)
     if (is.null(pp)) return(NULL)
@@ -117,8 +125,11 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
     NULL
   }
   where <- function() {
-    if (is.environment(engine_env)) get0("current", envir = engine_env, inherits = FALSE) %||%
-      "" else ""
+    if (is.environment(engine_env)) {
+      get0("current", envir = engine_env, inherits = FALSE) %||% ""
+    } else {
+      ""
+    }
   }
   # deklarierte Abhaengigkeiten der gerade gebauten Komponente (6.1 Nr. 3); NULL = keine Pruefung
   # (Kennzahlen, Ausgleich, Testhelfer ohne Engine-Attrappe)
@@ -179,6 +190,9 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
   ctx$component_base <- function(id) {
     check_dep(id)
     fl <- components_base[[id]]
+    # im deterministischen Modus (auch im Basisfall-Vorlauf selbst) sind Basisfall und Lauf
+    # dieselbe Komponente (6.3)
+    if (is.null(fl) && identical(mode, "deterministic")) fl <- comps()[[id]]
     if (is.null(fl)) {
       vofi_abort("engine.component_unknown", id = id, where = where(),
                  .class = "vofi_error_contract")
@@ -246,10 +260,12 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
     out <- list()
     for (cid in ids) {
       fl <- if (is.null(id)) cs[[cid]] else ctx$component(cid)
+      # Tag der Zeile, sonst der Komponente (dieselbe Regel wie im Ledger, eng_flow_row_meta())
+      comp_mid <- (spec$components[[cid]] %||% spec$financing[[cid]])[["measure_id"]]
       for (r in fl$rows) {
         if (hit(r$section, section) && hit(r$category, category) &&
-              hit(r$tax_category, tax_category) && hit(r$measure_id, measure_id) &&
-              hit(r$key, local_row)) {
+              hit(r$tax_category, tax_category) &&
+              hit(r$measure_id %||% comp_mid, measure_id) && hit(r$key, local_row)) {
           out[[paste0(cid, "__", r$key)]] <- r$values
         }
       }
@@ -260,7 +276,24 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
     if (!is.environment(engine_env) || !is.function(engine_env$auto)) {
       vofi_abort("engine.auto_unavailable", id = id, .class = "vofi_error_contract")
     }
-    engine_env$auto(id)
+    a <- engine_env$auto(id)
+    # auto-Plan des Basisfalls (Laenge 1 bzw. T+1) auf n Laeufe heben (8.7); andere Laengen
+    # und nicht endliche Werte sind Vertragsfehler (kein stilles Recycling, N1)
+    src <- paste0("ctx$auto('", id, "')")
+    if (is.null(a$commitment)) {
+      vofi_abort("engine.return_length", what = "commitment", source = src, n = n, actual = 0L,
+                 .class = "vofi_error_contract",
+                 .data = list(invariant = "N1", source = src, row = "commitment"))
+    }
+    a$commitment <- eng_num(a$commitment, n, "commitment", src)
+    if (!is.matrix(a$draws)) a$draws <- grid_by_period(grid, a$draws, n)
+    if (ncol(a$draws) != grid$T + 1L || !(nrow(a$draws) %in% c(1L, n))) {
+      vofi_abort("core.contract.length", what = paste0(src, "$draws"), expected = n,
+                 actual = nrow(a$draws), .class = "vofi_error_contract")
+    }
+    if (nrow(a$draws) == 1L && n > 1L) a$draws <- a$draws[rep(1L, n), , drop = FALSE]
+    eng_check_finite(list(commitment = a$commitment, draws = a$draws), src)
+    a
   }
   ctx$rule <- function(name) eng_rule_for(name, spec)
   ctx$legal <- function(topic) spec$legal[[topic]]$values
@@ -323,5 +356,8 @@ eng_rule_for <- function(name, spec) {
   if (length(ok) == 0L) {
     vofi_abort("engine.rule_unknown", rule = name, date = ls, .class = "vofi_error_registry")
   }
-  ok[[length(ok)]]$fun
+  # Reformversion vor der Version ohne Reform (4.10), sonst die mit dem spaetesten valid_from
+  vf <- vapply(ok, function(d) as.numeric(d$valid_from), double(1))
+  rf <- vapply(ok, function(d) !is.null(d$reform), logical(1))
+  ok[[order(rf, vf, method = "radix")[length(ok)]]]$fun
 }

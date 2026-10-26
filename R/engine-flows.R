@@ -1,23 +1,42 @@
 # Zahlungskomponenten bauen und zum exogenen Ledger buendeln (WS-D, Spec 00 Abschnitte 7.1-7.3,
-# 9.2 Stufe 3). Phase-0-Minimalfassung, Eigentuemer: WS-D. Umgesetzt: build() in
-# Topo-Reihenfolge, Laufzeitpruefung des Zeilenvertrags (Dimension, deklarierte Zeilen,
-# Abschnitt/Kategorie, Vorzeichen; vofi_error_contract), Ledger-Schluessel <id>__<zeile>,
-# Default-Tags der Komponente, Labels mit vorangestelltem Komponentenlabel, Grob-Ordnung,
-# Register. Offen fuer WS-D: extra_rows (Differential-Modus, 9.6 Nr. 6).
+# 9.2 Stufe 3). build() in Topo-Reihenfolge, Laufzeitpruefung des Zeilenvertrags (Dimension,
+# deklarierte Zeilen, Abschnitt/Kategorie, Vorzeichen; vofi_error_contract), Ledger-Schluessel
+# <id>__<zeile>, Default-Tags der Komponente, Labels mit vorangestelltem Komponentenlabel,
+# Grob-Ordnung (7.8), Register; extra_rows (exogene Zusatzzeilen, z. B. negierte project-/
+# grants-Zeilen der Referenz im Modus differential, 9.6 Nr. 6).
 
 #' Private Engine-Umgebung eines Kontexts (6.1 Nr. 3)
+#'
+#' Felder: `stage` (`"flows"`, `"balance"`, `"kpi"`), `components` (gebaute `vofi_flows`),
+#' `current`/`deps` (gerade gebaute Komponente und ihre deklarierten Abhängigkeiten),
+#' `inst_cache` (Instrument-Cache, 9.3), `setup` (Vorbereitung der Periodenschleife je Lauf),
+#' `acc_rates` (Kontoraten), `topup` (Nachfinanzierung des Chunks, 8.7), `quiet` (Hinweise der
+#' Auflösung unterdrücken), `rebalance(extra_out)` und `auto(id)`.
+#' @param model `vofi_model`.
+#' @param quiet Hinweise der Auflösung unterdrücken (Laufkontexte; der Basisfall meldet sie).
 #' @noRd
-eng_engine_env <- function(model) {
+eng_engine_env <- function(model, quiet = FALSE) {
   env <- new.env(parent = emptyenv())
   env$stage <- "flows"
   env$components <- list()
   env$current <- NULL
   env$deps <- NULL
   env$inst_cache <- NULL
+  env$setup <- list()
+  env$acc_rates <- NULL
+  env$topup <- NULL
+  env$quiet <- isTRUE(quiet)
   env$rebalance <- function(extra_out = NULL) {
     vofi_abort("engine.rebalance_stage", .class = "vofi_error_contract")
   }
   env$auto <- function(id) {
+    if (length(model$topup_id) == 1L && identical(id, model$topup_id)) {
+      tp <- env$topup
+      if (is.null(tp)) {
+        vofi_abort("engine.auto_unavailable", id = id, .class = "vofi_error_contract")
+      }
+      return(tp)
+    }
     a <- model$base$auto
     if (is.null(a) || !identical(id, model$auto_id)) {
       vofi_abort("engine.auto_unavailable", id = id, .class = "vofi_error_contract")
@@ -31,9 +50,11 @@ eng_engine_env <- function(model) {
 #' @param model `vofi_model`.
 #' @param ctx Laufkontext.
 #' @param engine_env private Engine-Umgebung (erhält `components`).
+#' @param extra_rows `NULL` oder `vofi_ledger` mit n Läufen (exogene Zusatzzeilen, 9.6 Nr. 6);
+#'   Schlüssel müssen eindeutig sein (Kollision: `vofi_error_engine`).
 #' @return `list(ledger = <vofi_ledger>, registers = list(assets, measures))`.
 #' @noRd
-eng_flows <- function(model, ctx, engine_env) {
+eng_flows <- function(model, ctx, engine_env, extra_rows = NULL) {
   n <- ctx$n
   big_t <- ctx$T
   meta <- list()
@@ -62,10 +83,31 @@ eng_flows <- function(model, ctx, engine_env) {
   ord <- order(rows$order, method = "radix")
   rows <- rows[ord, , drop = FALSE]
   rownames(rows) <- NULL
-  list(ledger = new_vofi_ledger(rows, values[rows$key], n = n, T = big_t),
+  led <- new_vofi_ledger(rows, values[rows$key], n = n, T = big_t)
+  if (!is.null(extra_rows)) led <- eng_add_extra_rows(led, extra_rows)
+  list(ledger = led,
        registers = list(assets = utl_register_list(assets, "vofi_asset", "asset_id"),
                         measures = utl_register_list(measures, "vofi_measure",
                                                      "measure_id")))
+}
+
+#' Exogene Zusatzzeilen an den exogenen Ledger anhängen (9.2 extra_rows, 9.6 Nr. 6)
+#'
+#' Zulässig sind Zeilen der Abschnitte `project`, `grants` und `memo` mit Dimension n x (T+1)
+#' wie der Chunk; doppelte Schlüssel sind `vofi_error_engine` (7.3).
+#' @noRd
+eng_add_extra_rows <- function(led, extra_rows) {
+  if (!inherits(extra_rows, "vofi_ledger")) {
+    vofi_abort("engine.extra_rows_invalid", what = "vofi_ledger", .class = "vofi_error_input")
+  }
+  if (!identical(as.integer(extra_rows$n), as.integer(led$n)) ||
+        !identical(as.integer(extra_rows$T), as.integer(led$T))) {
+    vofi_abort("engine.extra_rows_invalid", what = "n x (T+1)", .class = "vofi_error_input")
+  }
+  if (!all(extra_rows$rows$section %in% c("project", "grants", "memo"))) {
+    vofi_abort("engine.extra_rows_invalid", what = "section", .class = "vofi_error_input")
+  }
+  ledger_add(led, extra_rows$rows, extra_rows$values)
 }
 
 #' Laufzeitprüfung des Zeilenvertrags einer Komponente (7.1, 5.6 F1-F5)
@@ -87,8 +129,8 @@ eng_check_flows <- function(fl, nd, n, big_t) {
     if (length(probs) > 0L) bad(utl_collapse(probs, "; "))
     cat_row <- vocab_category(r$section, r$category)
     tol <- vofi_tol$zero_abs
-    if ((cat_row$sign == "pos" && min(r$values) < -tol) ||
-          (cat_row$sign == "neg" && max(r$values) > tol)) {
+    if ((cat_row$sign == "pos" && isTRUE(min(r$values) < -tol)) ||
+          (cat_row$sign == "neg" && isTRUE(max(r$values) > tol))) {
       bad(msg("core.testkit.rows_failed", what = "F5", rows = r$key))
     }
   }

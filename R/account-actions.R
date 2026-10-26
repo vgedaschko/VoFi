@@ -1,10 +1,10 @@
 # Ausgleichsaktionen Ue1-Ue4, D1-D4 (WS-D, Spec 00 Abschnitt 8.9).
-# Phase-0-Minimalfassung, Eigentuemer: WS-D. Alle zehn Aktionen aus 8.9 sind umgesetzt (die
-# Ketten der Profile verwenden auch dep_fill_reserve, dep_use_reserve und penalty_rate; die
-# Unterlassungsalternative braucht penalty_rate, 9.5 Nr. 5). Signatur: apply(acc, amount, t,
-# ctx, inst) -> list(acc, used, flows, flags, inst). Alle Formeln elementweise ueber n.
+# Alle zehn Aktionen aus 8.9 (die Ketten der Profile verwenden auch dep_fill_reserve,
+# dep_use_reserve und penalty_rate; die Unterlassungsalternative braucht penalty_rate, 9.5 Nr. 5).
+# Signatur: apply(acc, amount, t, ctx, inst) -> list(acc, used, flows, flags, inst). Alle Formeln
+# elementweise ueber n (pmin.int/pmax.int, keine Verzweigung auf simulierte Werte).
 # `inst` ist eine benannte Liste je Kredit k: list(state = <vofi_inst_state>, def = <typedef>).
-# Offen fuer WS-D: Warnung zur Heuristik von loan_prepay einmal je Lauf (derzeit in vofi_run).
+# Die Warnung zur Heuristik von loan_prepay meldet eng_warn_prepay() einmal je Lauf.
 
 #' Ergebnis einer Ausgleichsaktion
 #' @noRd
@@ -19,9 +19,9 @@ typedef_action_od_repay <- function() {
     name = "od_repay", kind = "account_action", role = "surplus", rank = "U1",
     rows = c("od_repay", "odp_repay"),
     apply = function(acc, amount, t, ctx, inst) {
-      x1 <- pmin(amount, acc$KKP)
+      x1 <- pmin.int(amount, acc$KKP)
       acc$KKP <- acc$KKP - x1
-      x2 <- pmin(amount - x1, acc$KK)
+      x2 <- pmin.int(amount - x1, acc$KK)
       acc$KK <- acc$KK - x2
       acc_result(acc, x1 + x2, flows = list(odp_repay = -x1, od_repay = -x2))
     }
@@ -35,7 +35,7 @@ typedef_action_dep_fill_reserve <- function() {
     name = "dep_fill_reserve", kind = "account_action", role = "surplus", rank = "U2",
     rows = "dep_invest",
     apply = function(acc, amount, t, ctx, inst) {
-      x <- pmin(amount, pmax(acc$Lmin[, acc$j] - acc$G, 0))
+      x <- pmin.int(amount, pmax.int(acc$Lmin[, acc$j] - acc$G, 0))
       acc$G <- acc$G + x
       acc_result(acc, x, flows = list(dep_invest = -x))
     }
@@ -53,7 +53,7 @@ typedef_action_loan_prepay <- function() {
       used <- rep(0, n)
       if (t <= 0L || length(inst) == 0L) return(acc_result(acc, used, inst = NULL))
       j <- acc$j
-      avail <- pmax(amount - pmax(acc$Lmin[, j] + acc$prepay_buffer - acc$G, 0), 0)
+      avail <- pmax.int(amount - pmax.int(acc$Lmin[, j] + acc$prepay_buffer - acc$G, 0), 0)
       ids <- names(inst)
       caps <- list()
       rates <- matrix(-Inf, n, length(ids))
@@ -80,8 +80,8 @@ typedef_action_loan_prepay <- function() {
         for (q in seq_along(ids)) {
           if (is.null(caps[[ids[q]]])) next
           e <- inst[[ids[q]]]
-          x <- pmin(rest * (rank[, q] == r) * elig[, q], caps[[ids[q]]])
-          x <- pmax(x, 0)
+          x <- pmin.int(rest * (rank[, q] == r) * elig[, q], caps[[ids[q]]])
+          x <- pmax.int(x, 0)
           p <- e$def$prepay(e$state, x, t, ctx)
           inst[[ids[q]]]$state <- p$state
           u <- as.double(p$used)
@@ -116,7 +116,7 @@ typedef_action_dep_withdraw <- function() {
     name = "dep_withdraw", kind = "account_action", role = "deficit", rank = "D1",
     rows = "dep_withdraw",
     apply = function(acc, amount, t, ctx, inst) {
-      x <- pmin(amount, pmax(acc$G - acc$Lmin[, acc$j], 0))
+      x <- pmin.int(amount, pmax.int(acc$G - acc$Lmin[, acc$j], 0))
       acc$G <- acc$G - x
       acc_result(acc, x, flows = list(dep_withdraw = x))
     }
@@ -130,7 +130,7 @@ typedef_action_od_draw <- function() {
     name = "od_draw", kind = "account_action", role = "deficit", rank = "D2",
     rows = "od_draw",
     apply = function(acc, amount, t, ctx, inst) {
-      x <- pmin(amount, pmax(acc$KL[, acc$j] - acc$KK, 0))
+      x <- pmin.int(amount, pmax.int(acc$KL[, acc$j] - acc$KK, 0))
       acc$KK <- acc$KK + x
       acc_result(acc, x, flows = list(od_draw = x),
                  flags = list(overdraft_threshold = (acc$KK + acc$KKP) > acc$flag_threshold))
@@ -145,7 +145,7 @@ typedef_action_dep_use_reserve <- function() {
     name = "dep_use_reserve", kind = "account_action", role = "deficit", rank = "D3",
     rows = "dep_withdraw",
     apply = function(acc, amount, t, ctx, inst) {
-      x <- pmin(amount, acc$G)
+      x <- pmin.int(amount, acc$G)
       acc$G <- acc$G - x
       acc_result(acc, x, flows = list(dep_withdraw = x),
                  flags = list(reserve_used = x > vofi_tol$zero_abs))

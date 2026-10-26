@@ -1,4 +1,4 @@
-# Labels der Ausgleichsaktion dep_use_reserve (WS-D, Spec 00 Abschnitt 8.9). Phase-0-Minimalfassung.
+# Labels der Ausgleichsaktion dep_use_reserve (WS-D, Spec 00 Abschnitt 8.9).
 label: "Liquiditätsreserve verwenden"
 description: "D3: Defizit wird aus der Mindestliquidität gedeckt."
 rows:

@@ -1,4 +1,4 @@
-# Labels der Ausgleichsaktion equity_call (WS-D, Spec 00 Abschnitt 8.9). Phase-0-Minimalfassung.
+# Labels der Ausgleichsaktion equity_call (WS-D, Spec 00 Abschnitt 8.9).
 label: "Nachschuss"
 description: "D4: verbleibendes Defizit wird durch Nachschuss des Investors gedeckt."
 rows:

@@ -1,21 +1,45 @@
 # Knoten -> n-Vektor bzw. n x (T+1) im Laufkontext (WS-D, Spec 00 Abschnitte 4.5, 6.3).
-# Phase-0-Minimalfassung, Eigentuemer: WS-D. Umgesetzt: Aufloesungsreihenfolge 6.3 (statische
-# Ziehung -> Prozesspfad -> Knoten), alle Knotenarten aus 4.5, Bezuege mit Zyklusschutz,
-# Basisfallwerte (ohne Ziehungen, R-70), Attribut "annual_before" fuer series_year/points.
-# Phase-0-Nacharbeit (17.5.4 P0-06) umgesetzt: Wachstumsform mit index (calendar_year Default,
-# period_end), Abbildung per -> Feld, apply multiply/add, setting-Semantik in Ausdruecken.
-# Offen fuer WS-D: Designwerte (mode "design", 11.11) ueber dieselbe Schnittstelle,
-# Meldung "Zahlung nach dem Horizont entfaellt" je Pfad nur einmal, quantity mit
-# Bezugsgroessen kw/kwp/kwh aus weiteren Bloecken.
+# Aufloesungsreihenfolge 6.3: statische Ziehung (mit Verknuepfung apply, R-94) -> Prozesspfad ->
+# Knoten. Alle Knotenarten aus 4.5 (const, series_t, series_year, points, schedule, ref mit
+# scale/offset/floor/cap bzw. anchor, growth mit Kalenderjahres- bzw. Stichtagsindex, expr mit
+# setting-Semantik fuer Codes, quantity mit Bezugsobjekt, auto), Elementknoten (Regel 4),
+# Bezuege mit Zyklusschutz, Basisfallwerte ohne Ziehungen und Designwerte (R-70), Attribut
+# "annual_before" fuer series_year/points (Vorlauf vor dem Stichtag, 3.6), Typ-Defaults
+# (Schicht 0) fuer Bezuege auf nicht gesetzte Komponentenparameter (auch map-Felder).
+# Design-Laeufe (11.11) laufen ueber dieselbe Schnittstelle: smp_design() liefert Ziehungen im
+# Modus "design" (Zielpfade als replace, Overlay-Schluessel mit ihrer Verknuepfung).
 
 #' Auflösungskontext (intern)
+#'
+#' @param spec `vofi_spec`.
+#' @param grid `vofi_grid`.
+#' @param n Anzahl der Läufe.
+#' @param draws `NULL` oder `vofi_draws`.
+#' @param mode `"deterministic"`, `"mc"` oder `"design"`.
+#' @param quiet Meldungen der Auflösung unterdrücken (Laufkontexte; der Basisfall-Vorlauf in
+#'   `vofi_build()` meldet sie einmal).
+#' @param once Umgebung der bereits gemeldeten Hinweise (je Kontext höchstens einmal je Pfad).
 #' @noRd
-res_context <- function(spec, grid, n, draws = NULL, mode = "deterministic") {
-  list(spec = spec, grid = grid, n = as.integer(n), draws = draws, mode = mode)
+res_context <- function(spec, grid, n, draws = NULL, mode = "deterministic", quiet = FALSE,
+                        once = new.env(parent = emptyenv())) {
+  list(spec = spec, grid = grid, n = as.integer(n), draws = draws, mode = mode,
+       quiet = isTRUE(quiet), once = once)
+}
+
+#' Hinweis höchstens einmal je Kontext und Schlüssel (6.1 Nr. 4, 9.8)
+#' @param .once_id Kennung des Hinweises im Kontext.
+#' @param .key Label-Schlüssel; `...` sind die Platzhalter (auch `id`, `key`).
+#' @noRd
+res_inform_once <- function(rc, .once_id, .key, ...) {
+  if (isTRUE(rc$quiet) || !is.environment(rc$once)) return(invisible(FALSE))
+  if (exists(.once_id, envir = rc$once, inherits = FALSE)) return(invisible(FALSE))
+  assign(.once_id, TRUE, envir = rc$once)
+  vofi_inform(.key, ...)
+  invisible(TRUE)
 }
 
 #' Ziehung für einen Zielpfad (6.3 Schritte 1–2)
-#' @return n-Vektor, n x (T+1) oder `NULL`.
+#' @return n-Vektor (Attribut `"apply"` bei multiply/add), n x (T+1) oder `NULL`.
 #' @noRd
 res_draw <- function(rc, path) {
   d <- rc$draws
@@ -28,31 +52,34 @@ res_draw <- function(rc, path) {
   key <- d$targets$key[hit[1L]]
   kind <- d$targets$kind[hit[1L]]
   if (identical(kind, "static")) {
-    x <- as.double(d$static[[key]])
+    x <- d$static[[key]]
+    if (is.null(x)) return(NULL)
+    x <- as.double(x)
     ap <- if ("apply" %in% names(d$targets)) d$targets$apply[hit[1L]] else NA_character_
     if (!is.na(ap) && !identical(ap, "replace")) attr(x, "apply") <- ap
     return(x)
   }
+  # Entscheidungsschluessel (Rolle decision, 9.11) wirken nicht auf ihr Ziel
   if (identical(kind, "process")) return(d$paths[[key]])
   NULL
 }
 
-#' Verknuepfung einer statischen Ziehung mit dem Knotenwert (6.3 Schritt 1, R-94)
+#' Verknüpfung einer statischen Ziehung mit dem Knotenwert (6.3 Schritt 1, R-94)
 #'
 #' `apply = multiply`: b * x, `apply = add`: b + x mit b = Knotenwert nach Schritt 3 (Shape von
-#' b; x zeilenweise gehoben wie `by_sim()`); Ziele der Art `share` auf `[0, 1]` begrenzt (Hinweis).
+#' b; x zeilenweise gehoben wie `by_sim()`); Ziele der Art `share` auf `[0, 1]` begrenzt (ohne
+#' Laufzeithinweis: die Validierung meldet die Begrenzung als Information, Spec 01c 1).
 #' @noRd
 res_apply_draw <- function(rc, x, path, stack, node) {
   ap <- attr(x, "apply")
   attr(x, "apply") <- NULL
-  nd <- path_get(rc$spec, path)
-  if (is.null(nd)) nd <- node
+  nd <- path_get(rc$spec, path) %||% node %||% res_default_node(rc$spec, path)
   b <- if (is.null(nd)) NULL else res_node(rc, nd, path, FALSE, c(stack, path))
   if (is.null(b) || is.character(b)) {
     vofi_abort("engine.ref_missing", path = path, target = path, .class = "vofi_error_contract")
   }
   if (is.matrix(b)) {
-    x <- matrix(x, nrow = nrow(b), ncol = ncol(b))
+    x <- matrix(rep_len(x, nrow(b)), nrow = nrow(b), ncol = ncol(b))
   } else {
     b <- rep_len(as.double(b), rc$n)
   }
@@ -61,22 +88,20 @@ res_apply_draw <- function(rc, x, path, stack, node) {
     add = b + x,
     vofi_abort("engine.apply_unknown", path = path, apply = ap, .class = "vofi_error_contract")
   )
-  if (identical(res_param_kind(rc, path), "share") && any(out < 0 | out > 1)) {
-    vofi_inform("engine.apply_share_clamped", path = path)
-    out[] <- pmin(pmax(out, 0), 1)
-  }
+  # Ziel der Art share: Ergebnis auf [0, 1] begrenzt (6.3 Schritt 1); den Hinweis gibt die
+  # Validierung einmal je Szenario (Spec 01c, apply: I bei add/multiply auf share-Ziele)
+  if (identical(res_param_kind(rc, path), "share")) out[] <- pmin(pmax(out, 0), 1)
   out
 }
 
-#' Parameterart eines Spec-Pfads (Typschema bzw. Blockschema; Suffix _share als Rueckfall)
+#' Parameterart eines Spec-Pfads (Typschema bzw. Blockschema; Suffix _share als Rückfall)
 #' @noRd
 res_param_kind <- function(rc, path) {
   segs <- path_split(path)
   kind <- NULL
   if (length(segs) >= 3L && segs[1L] %in% c("components", "financing")) {
-    comp <- rc$spec[[segs[1L]]][[segs[2L]]]
-    def <- tryCatch(scn_type_def(comp, segs[1L]), error = function(e) NULL)
-    kind <- def$params[[segs[3L]]]$kind
+    pp <- res_type_param(rc$spec, segs)
+    kind <- if (inherits(pp, "vofi_param")) pp$kind else NULL
   } else if (length(segs) == 2L) {
     kind <- tryCatch(val_domain_schema(segs[1L])[[segs[2L]]]$kind, error = function(e) NULL)
   }
@@ -84,11 +109,41 @@ res_param_kind <- function(rc, path) {
   kind %||% NA_character_
 }
 
+#' Parameterschema eines Komponentenpfads `<sammlung>.<id>.<param>[.<feld>...]`
+#' @param spec `vofi_spec`.
+#' @param segs Pfadsegmente.
+#' @return `vofi_param` oder `NULL`.
+#' @noRd
+res_type_param <- function(spec, segs) {
+  if (length(segs) < 3L || !(segs[1L] %in% c("components", "financing"))) return(NULL)
+  comp <- spec[[segs[1L]]][[segs[2L]]]
+  if (!is.list(comp)) return(NULL)
+  def <- tryCatch(scn_type_def(comp[["type"]], segs[1L]), error = function(e) NULL)
+  if (is.null(def)) return(NULL)
+  pp <- def$params[[segs[3L]]]
+  for (sg in segs[-(1:3)]) pp <- if (inherits(pp, "vofi_param")) pp$fields[[sg]] else NULL
+  if (inherits(pp, "vofi_param")) pp else NULL
+}
+
+#' Typ-Default (Schicht 0) eines nicht gesetzten Komponentenparameters als Knoten
+#'
+#' Schicht 0 setzt nur Parameter der obersten Ebene; Felder einer fehlenden Map (z. B.
+#' `financing.bank.fees.processing_fee_share`) und Parameter ohne gesetzten Wert erhalten hier
+#' ihren Default aus dem Parameterschema des Typs.
+#' @return Knoten bzw. normalisierter Wert oder `NULL`.
+#' @noRd
+res_default_node <- function(spec, path) {
+  segs <- path_split(path)
+  pp <- res_type_param(spec, segs)
+  if (is.null(pp) || is.null(pp$default)) return(NULL)
+  node_normalize(pp$default, pp, path)
+}
+
 #' Wert eines Spec-Pfads auflösen (6.3)
 #' @param rc Auflösungskontext.
 #' @param path Pfad.
 #' @param shape `"scalar"` oder `"path"`.
-#' @param base Basisfallwert (ohne Ziehungen).
+#' @param base Basisfallwert (ohne Ziehungen und Designwerte, R-70).
 #' @param node optional: Knoten, falls er nicht unter `path` in der Spezifikation liegt.
 #' @return double n-Vektor bzw. n x (T+1); `NULL`, wenn der Pfad weder Knoten noch Ziehung hat.
 #' @noRd
@@ -113,6 +168,7 @@ res_path <- function(rc, path, base, stack, node = NULL) {
   }
   nd <- path_get(rc$spec, path)
   if (is.null(nd)) nd <- node
+  if (is.null(nd)) nd <- res_default_node(rc$spec, path)
   if (is.null(nd)) return(NULL)
   res_node(rc, nd, path, base, c(stack, path))
 }
@@ -284,7 +340,11 @@ res_points <- function(rc, node, path, base, stack) {
   out
 }
 
-#' Zahlungsplan: Betrag in der Periode grid_period_of(date)
+#' Zahlungsplan: Betrag in der Periode grid_period_of(date) (3.4, R-98)
+#'
+#' Termine vor dem Stichtag sind ein Eingabefehler; Termine nach dem Horizontende entfallen
+#' (Hinweis höchstens einmal je Pfad und Kontext). Die Beträge dürfen selbst Knoten sein
+#' (Regel 4); `unit: share` liefert die Anteile, den Gesamtbetrag bestimmt der Typ (R-119).
 #' @noRd
 res_schedule <- function(rc, node, path, base, stack) {
   g <- rc$grid
@@ -299,7 +359,8 @@ res_schedule <- function(rc, node, path, base, stack) {
   }
   for (i in seq_along(els)) {
     if (is.na(p[i])) {
-      vofi_inform("engine.schedule_after", path = path, date = node$dates[i])
+      res_inform_once(rc, paste0("after|", path, "|", format(node$dates[i])),
+                      "engine.schedule_after", path = path, date = node$dates[i])
       next
     }
     out[, p[i] + 1L] <- out[, p[i] + 1L] + els[[i]]
@@ -377,11 +438,14 @@ res_growth <- function(rc, node, path, base, stack) {
 }
 
 #' Ausdruck (4.5 Regel 5)
+#'
+#' Pfadsymbole auf deterministische nicht-numerische Blätter (Codes, Code-Listen, Wahrheitswerte)
+#' werden mit der Semantik von `ctx$setting()` als Zeichen- bzw. Wahrheitswerte übergeben (R-91);
+#' die Zulässigkeit der Operationen prüft `expr_eval()`.
 #' @noRd
 res_expr <- function(rc, node, path, base, stack) {
   resolve <- function(p) {
     raw <- path_get(rc$spec, p)
-    # setting-Semantik fuer deterministische nicht-numerische Blaetter (R-91)
     if (is.character(raw) || is.logical(raw)) return(raw)
     v <- res_path(rc, p, base, stack)
     if (is.null(v)) {
@@ -408,20 +472,55 @@ res_quantity_field <- function(per) {
   )
 }
 
-#' Mengenbezug: value * Bezugsgröße (zuerst am Bezugsobjekt, dann aus building; 4.5, R-91)
+#' Pfad der Bezugsgröße eines Mengenbezugs (Spec 01 Teil A 3.5)
+#'
+#' Bezugsobjekt ist das nächste Objekt, in dem der Knoten steht (vom Knoten aufwärts: z. B.
+#' `measures.<m>`, `unit_groups.<g>`, `building.elements.<e>` bzw. die Komponente); danach
+#' `building`. `kw`, `kwp` und `kwh` haben keinen Rückfall auf `building`.
+#' @return Pfad oder `NULL`.
 #' @noRd
-res_quantity <- function(rc, node, path, base, stack) {
-  v <- res_element(rc, node$value, path, base, stack)
-  per <- node$per
-  if (identical(per, "total")) return(v)
+res_quantity_target <- function(spec, path, per) {
   field <- res_quantity_field(per)
   segs <- path_split(path)
-  own <- path_join(segs[seq_len(max(0L, length(segs) - 1L))], field)
-  target <- if (!is.null(path_get(rc$spec, own))) own else paste0("building.", field)
+  k <- length(segs) - 1L
+  while (k >= 1L) {
+    cand <- path_join(paste(segs[seq_len(k)], collapse = "."), field)
+    if (!is.null(path_get(spec, cand))) return(cand)
+    k <- k - 1L
+  }
+  if (per %in% c("kw", "kwp", "kwh")) return(NULL)
+  fb <- paste0("building.", field)
+  if (!is.null(path_get(spec, fb))) fb else NULL
+}
+
+#' Mengenbezug: value * Bezugsgröße (4.5, R-91)
+#'
+#' `value` darf jede skalare oder zeitabhängige Wertform sein; die Bezugsgröße ist ein
+#' deterministisches Blatt (Bezugsobjekt nach `res_quantity_target()`).
+#' @noRd
+res_quantity <- function(rc, node, path, base, stack) {
+  per <- node$per
+  v <- res_node(rc, node$value, path, base, stack)
+  if (is.null(v) || is.character(v)) {
+    vofi_abort("engine.not_numeric", path = path, .class = "vofi_error_contract")
+  }
+  if (identical(per, "total")) return(v)
+  target <- res_quantity_target(rc$spec, path, per)
+  if (is.null(target)) {
+    vofi_abort("engine.ref_missing", path = path,
+               target = paste0("<", res_quantity_field(per), ">"),
+               .class = "vofi_error_contract")
+  }
   q <- res_path(rc, target, base, stack)
-  if (is.null(q)) {
+  if (is.null(q) || is.character(q)) {
     vofi_abort("engine.ref_missing", path = path, target = target,
                .class = "vofi_error_contract")
   }
+  if (is.matrix(q) && !is.matrix(v)) {
+    v <- matrix(rep_len(as.double(v), nrow(q)), nrow(q), ncol(q))
+  } else if (is.matrix(v) && !is.matrix(q)) {
+    q <- rep_len(as.double(q), nrow(v))
+  }
+  if (!is.matrix(v)) v <- rep_len(as.double(v), max(length(v), length(q)))
   v * q
 }

@@ -1,3 +1,6 @@
-# Texte des Steuer-Hooks (WS-D, Spec 00 Abschnitt 10). Phase-0-Minimalfassung.
+# Texte des Steuer-Hooks (WS-D, Spec 00 Abschnitt 10): Generics, Registrierung, einfache Module.
 hook:
   none_note: "Ertragsteuern nicht berücksichtigt (Vor-Steuer-VoFi)."
+constructor_invalid: "Steuermodul '{name}': constructor muss eine Funktion constructor(params, spec) sein."
+simple_fun_invalid: "Steuermodul '{name}': fun muss eine Funktion fun(inputs, params) sein."
+simple_payment_invalid: "Steuermodul '{name}': fun() muss eine endliche Zahlung je Lauf liefern (Länge 1 oder {n:int})."
