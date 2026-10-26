@@ -76,12 +76,14 @@ test_that("Zahlen als Text: Regeln aus 4.6 mit Blatt und Zelle in der Meldung", 
   f <- kv_book(list(list("market.a", xl_text("3,5")), list("market.b", xl_text("3,5 %")),
                     list("market.c", xl_text("1.234.567")), list("market.d", xl_text("0.039"))),
                role = "market")
-  w <- NULL
+  acc <- new.env(parent = emptyenv())
+  acc$w <- NULL
   sc <- withCallingHandlers(suppressMessages(vofi_read_scenario(f)),
                             vofi_warning_input = function(cond) {
-                              w <<- c(w, conditionMessage(cond))
+                              acc$w <- c(acc$w, conditionMessage(cond))
                               invokeRestart("muffleWarning")
                             })
+  w <- acc$w
   expect_identical(sc$market$a, node_const(3.5))
   expect_identical(sc$market$b, node_const(0.035))
   expect_identical(sc$market$c, node_const(1234567))
@@ -328,4 +330,119 @@ test_that("Zelldeutung: Datumszellen, Jahre als Termin, Bezeichnungen, Flussnota
   expect_identical(io_xl_series_key(str("01.07.2027")), "2027-07-01")
   expect_true(is.na(io_xl_series_key(str("abc"))))
   expect_true(is.na(io_xl_series_key(num(12.5))))
+})
+
+test_that("Varianten und Szenario-Sets: Zellen nach dem Schema des Zielpfads (Review A2-01)", {
+  sc <- vofi_read_scenario(vofi_example("skeleton"))
+  x <- scn_input_tree(sc)
+  x$variants <- list(v1 = list(
+    label = "V1",
+    set = list(project.valuation_date = "2027-07-01", project.perspective = "wu_privat"),
+    overrides = list(project = list(application_date = "2026-11-01"))
+  ))
+  x$scenario_sets <- list(s1 = list(label = "S1",
+                                    set = list("funding.*.application_date" = "2027-03-01")))
+  f <- xl_tempfile()
+  vofi_write_scenario(vofi_scenario(x), f)
+  var_sheet <- sheet("variants")
+  set_sheet <- sheet("scenario_sets")
+  # Bearbeitung wie in einem deutschen Excel: Datum als Datumszelle, Auswahl als Bezeichnung,
+  # Datum als Text TT.MM.JJJJ
+  v <- xl_read_sheet(f, var_sheet)
+  s <- xl_read_sheet(f, set_sheet)
+  vcol <- match(".value", unlist(v[1L, ]))
+  scol <- match(".value", unlist(s[1L, ]))
+  vrow <- function(p) which(v[[match(".path", unlist(v[1L, ]))]] == p)
+  persp <- io_xl_list("enum:perspective")
+  wb <- openxlsx::loadWorkbook(f)
+  openxlsx::writeData(wb, var_sheet, as.Date("2028-01-01"), startCol = vcol,
+                      startRow = vrow("project.valuation_date"))
+  openxlsx::writeData(wb, var_sheet, persp$label[persp$code == "selbstnutzer"],
+                      startCol = vcol, startRow = vrow("project.perspective"))
+  openxlsx::writeData(wb, var_sheet, "01.02.2027", startCol = vcol,
+                      startRow = vrow("project.application_date"))
+  openxlsx::writeData(wb, set_sheet, as.Date("2027-04-01"), startCol = scol,
+                      startRow = which(s[[match(".path", unlist(s[1L, ]))]] ==
+                                         "funding.*.application_date"))
+  openxlsx::saveWorkbook(wb, f, overwrite = TRUE)
+  back <- vofi_read_scenario(f)
+  expect_identical(back$variants$v1$set,
+                   list(project.valuation_date = "2028-01-01",
+                        project.perspective = "selbstnutzer"))
+  expect_identical(back$variants$v1$overrides$project$application_date, "2027-02-01")
+  expect_identical(back$scenario_sets$s1$set[["funding.*.application_date"]], "2027-04-01")
+  locs <- attr(back, "source")$locations
+  expect_identical(locs[["variants.v1.set.project.valuation_date"]],
+                   paste0(var_sheet, "!", openxlsx::int2col(vcol), vrow("project.valuation_date")))
+  r <- suppressWarnings(suppressMessages(vofi_resolve(back, "v1")))
+  expect_identical(r$project$valuation_date, as.Date("2028-01-01"))
+  expect_identical(r$project$perspective, "selbstnutzer")
+  expect_identical(r$project$application_date, as.Date("2027-02-01"))
+  # Felder ohne Zielschema (generate) bleiben in der allgemeinen Wertgrammatik
+  expect_null(io_xl_variant_param("generate", "probs"))
+  expect_identical(io_xl_variant_param("set", "funding.*.approved")$kind,
+                   io_xl_param_at("funding.x.approved")$kind)
+  expect_identical(io_xl_variant_param("overrides", "project.valuation_date")$kind, "date")
+  expect_null(io_xl_variant_param("set", NULL))
+})
+
+test_that("Arbeitsmappen im 1904-Datumssystem werden umgerechnet (Review A2-03)", {
+  sc <- vofi_read_scenario(vofi_example("skeleton"))
+  f <- xl_tempfile()
+  vofi_write_scenario(sc, f)
+  expect_identical(io_xl_date_origin(f), "1900-01-01")
+  prj <- sheet("project")
+  p <- xl_read_sheet(f, prj)
+  row <- which(p[[1L]] == "project.valuation_date")
+  wb <- openxlsx::loadWorkbook(f)
+  # wie eine 1904-Mappe (Excel für den Mac bis 2011): Seriennummer um 1462 Tage kleiner
+  wb$workbook$workbookPr <- "<workbookPr date1904=\"1\"/>"
+  openxlsx::writeData(wb, prj, 46388 - 1462, startCol = 5L, startRow = row)
+  openxlsx::saveWorkbook(wb, f, overwrite = TRUE)
+  expect_identical(io_xl_date_origin(f), "1904-01-01")
+  back <- vofi_read_scenario(f)
+  expect_identical(back$project$valuation_date, as.Date("2027-01-01"))
+  expect_identical(io_xl_serial_date(46388), as.Date("2027-01-01"))
+  expect_identical(io_xl_serial_date(46388 - 1462, "1904-01-01"), as.Date("2027-01-01"))
+  expect_identical(io_xl_series_key(list(t = "num", v = 46388 - 1462), "1904-01-01"),
+                   "2027-01-01")
+  rs <- io_xl_new_reader("x.xlsx")
+  rs$date_origin <- "1904-01-01"
+  expect_identical(io_xl_decode_cell(list(t = "num", v = 44926), vofi_param("date"), "p", rs),
+                   "2027-01-01")
+})
+
+test_that("Blätter ohne Rolle: Warnung bei umbenanntem Datenblatt, sonst Hinweis (Review A2-04)", {
+  sc <- vofi_read_scenario(vofi_example("skeleton"))
+  f <- xl_tempfile()
+  vofi_write_scenario(sc, f)
+  wb <- openxlsx::loadWorkbook(f)
+  openxlsx::renameWorksheet(wb, sheet("financing"), "Finanzierung (2)")
+  openxlsx::addWorksheet(wb, "Notizen")
+  openxlsx::writeData(wb, "Notizen", "eigene Notiz", startRow = 5L)
+  openxlsx::addWorksheet(wb, "Leer")
+  openxlsx::saveWorkbook(wb, f, overwrite = TRUE)
+  acc <- new.env(parent = emptyenv())
+  acc$w <- list()
+  acc$m <- list()
+  back <- withCallingHandlers(
+    vofi_read_scenario(f),
+    vofi_warning = function(w) {
+      acc$w <- c(acc$w, list(w))
+      invokeRestart("muffleWarning")
+    },
+    vofi_message = function(m) {
+      acc$m <- c(acc$m, list(m))
+      invokeRestart("muffleMessage")
+    }
+  )
+  expect_length(back$financing, 0L)
+  wkeys <- vapply(acc$w, function(w) w$key, "")
+  expect_identical(wkeys, "excel_input.sheet_ignored")
+  expect_s3_class(acc$w[[1L]], "vofi_warning_input")
+  expect_match(conditionMessage(acc$w[[1L]]), "Finanzierung (2)", fixed = TRUE)
+  expect_match(conditionMessage(acc$w[[1L]]), sheet("financing"), fixed = TRUE)
+  mkeys <- vapply(acc$m, function(m) m$key, "")
+  expect_identical(mkeys, "excel_input.sheet_not_read")
+  expect_match(conditionMessage(acc$m[[1L]]), "Notizen", fixed = TRUE)
 })

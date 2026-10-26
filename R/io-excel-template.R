@@ -32,7 +32,9 @@
 #' („Stochastik-Einstellungen“, „Unsicherheiten“, „Prozesse“, „Korrelationen“) sowie eine
 #' Anleitung. Zeile 1 jedes Datenblatts enthält die Maschinenschlüssel (Pfade, ausgeblendet),
 #' Zeile 2 die deutschen Überschriften, ab Zeile 3 folgen die Daten; gelbe Zellen sind Eingaben,
-#' graue Zellen Angaben der Vorlage.
+#' graue Zellen Angaben der Vorlage. Die Blätter sind ohne Kennwort geschützt: Maschinenschlüssel,
+#' Pfade, Überschriften und Vorgaben sind gesperrt, Eingabezellen, freie Zeilen am Blattende und
+#' freie Spalten im Blatt „Zeitreihen“ bleiben bearbeitbar.
 #'
 #' Mit `example` wird ein Szenario in die Vorlage eingetragen; die Datei entspricht dann
 #' `vofi_write_scenario(szenario, path)` und lässt sich mit `vofi_read_scenario()` verlustfrei
@@ -338,6 +340,25 @@ io_xl_param_at <- function(path, types = character(0)) {
     return(NULL)
   }
   tryCatch(val_param_at(list(), path), error = function(e) NULL)
+}
+
+#' Parameterbeschreibung des Ziels einer Operation in Varianten und Szenario-Sets
+#'
+#' Die Werte von `set`, `replace`, `add` und `overrides` zielen auf Szenariopfade (in Sets auch
+#' mit Platzhalter `*`, z. B. `funding.*.approved`). Leser und Schreiber deuten sie nach dem
+#' Schema dieses Ziels wie in den übrigen Blättern (Datumszellen, deutsche Bezeichnungen der
+#' Auswahllisten, Text statt Zahl bei Zeichenketten). Andere Felder (`generate`) haben kein Schema.
+#' @param field Feld der Variante bzw. des Sets.
+#' @param target Zielpfad (relativ zur Szenariowurzel) oder `NULL`.
+#' @param types benannter Zeichenvektor der Typen (`io_xl_param_at()`).
+#' @return `vofi_param` oder `NULL`.
+#' @noRd
+io_xl_variant_param <- function(field, target, types = character(0)) {
+  if (!(field %in% c("set", "replace", "add", "overrides")) || !utl_is_string(target) ||
+        !nzchar(target)) {
+    return(NULL)
+  }
+  io_xl_param_at(target, types)
 }
 
 #' Deutsche Bezeichnung eines Felds (letztes Pfadsegment; Platzhalter `*` übersprungen)
@@ -658,34 +679,34 @@ io_xl_kv_template <- function(block) {
   }
   cat <- val_schema_catalog()
   rows <- list(hdr(block))
-  add_fields <- function(fields, prefix) {
+  # Zeilen der Felder rekursiv als Rueckgabewert (keine Akkumulation per <<-, 2.7 Nr. 3)
+  field_rows <- function(fields, prefix) {
+    out <- list()
     for (f in names(fields)) {
       if (f == ".key") next
       p <- fields[[f]]
       path <- path_join(prefix, f)
       coll <- p$extra[["collection"]]
-      if (utl_is_string(coll)) {
-        rows[[length(rows) + 1L]] <<- hdr(path)
-        add_fields(cat[[coll]], path_join(path, "*"))
+      out <- c(out, if (utl_is_string(coll)) {
+        c(list(hdr(path)), field_rows(cat[[coll]], path_join(path, "*")))
       } else if (io_xl_param_is_fixed_map(p)) {
-        rows[[length(rows) + 1L]] <<- hdr(path)
-        add_fields(p$fields, path)
+        c(list(hdr(path)), field_rows(p$fields, path))
       } else {
-        rows[[length(rows) + 1L]] <<- list(path = path, label = io_xl_field_label(path),
-                                           param = p, header = FALSE)
-      }
+        list(list(path = path, label = io_xl_field_label(path), param = p, header = FALSE))
+      })
     }
+    out
   }
   if (block == "stochastic") {
-    rows[[length(rows) + 1L]] <- hdr("stochastic.settings")
-    add_fields(cat[["stochastic.settings"]], "stochastic.settings")
+    rows <- c(rows, list(hdr("stochastic.settings")),
+              field_rows(cat[["stochastic.settings"]], "stochastic.settings"))
   } else if (block == "market") {
     for (path in io_xl_market_paths()) {
       rows[[length(rows) + 1L]] <- list(path = path, label = io_xl_market_label(path),
                                         param = NULL, header = FALSE)
     }
   } else if (!is.null(cat[[block]])) {
-    add_fields(cat[[block]], block)
+    rows <- c(rows, field_rows(cat[[block]], block))
   }
   st$kv[[block]] <- rows
   rows
@@ -814,34 +835,31 @@ io_xl_num_text <- function(v) {
 #' Zeilen des Blatts Anleitung: Liste `list(text, style)`
 #' @noRd
 io_xl_instruction_rows <- function() {
-  rows <- list()
-  add <- function(text, style = "text") {
-    rows[[length(rows) + 1L]] <<- list(text = text, style = style)
-  }
-  add(lbl("excel_input.instructions.title"), "title")
-  for (ln in strsplit(lbl("excel_input.instructions.intro"), "\n", fixed = TRUE)[[1L]]) add(ln)
-  add("")
-  add(lbl("excel_input.instructions.legend_title"), "subtitle")
-  add(lbl("excel_input.instructions.legend_input"), "input")
-  add(lbl("excel_input.instructions.legend_info"), "info")
-  add("")
-  add(lbl("excel_input.instructions.sheets_title"), "subtitle")
-  for (r in setdiff(io_xl_roles(), c("instructions", "lists", "meta"))) {
-    add(paste0(io_xl_sheet_name(r), ": ", lbl(paste0("excel_input.sheet_help.", r))))
-  }
-  add("")
-  add(lbl("excel_input.instructions.numbers_title"), "subtitle")
-  for (ln in strsplit(lbl("excel_input.instructions.numbers"), "\n", fixed = TRUE)[[1L]]) add(ln)
-  add("")
-  add(lbl("excel_input.instructions.forms_title"), "subtitle")
+  row <- function(text, style = "text") list(text = text, style = style)
+  lines <- function(text) lapply(strsplit(text, "\n", fixed = TRUE)[[1L]], row)
+  sheets <- setdiff(io_xl_roles(), c("instructions", "lists", "meta"))
   forms <- io_xl_list("forms")
-  for (i in seq_len(nrow(forms))) {
-    add(paste0(forms$label[i], " (", forms$code[i], "): ",
-               lbl(paste0("excel_input.form_help.", forms$code[i]))))
-  }
-  add(lbl("excel_input.form_help.timeseries"))
-  add("")
-  add(lbl("excel_input.instructions.rows_title"), "subtitle")
-  for (ln in strsplit(lbl("excel_input.instructions.rows"), "\n", fixed = TRUE)[[1L]]) add(ln)
-  rows
+  c(
+    list(row(lbl("excel_input.instructions.title"), "title")),
+    lines(lbl("excel_input.instructions.intro")), list(row("")),
+    list(row(lbl("excel_input.instructions.legend_title"), "subtitle"),
+         row(lbl("excel_input.instructions.legend_input"), "input"),
+         row(lbl("excel_input.instructions.legend_info"), "info"), row("")),
+    list(row(lbl("excel_input.instructions.sheets_title"), "subtitle")),
+    lapply(sheets, function(r) {
+      row(paste0(io_xl_sheet_name(r), ": ", lbl(paste0("excel_input.sheet_help.", r))))
+    }),
+    list(row(""), row(lbl("excel_input.instructions.numbers_title"), "subtitle")),
+    lines(lbl("excel_input.instructions.numbers")),
+    list(row(""), row(lbl("excel_input.instructions.forms_title"), "subtitle")),
+    lapply(seq_len(nrow(forms)), function(i) {
+      row(paste0(forms$label[i], " (", forms$code[i], "): ",
+                 lbl(paste0("excel_input.form_help.", forms$code[i]))))
+    }),
+    list(row(lbl("excel_input.form_help.timeseries")), row(""),
+         row(lbl("excel_input.instructions.rows_title"), "subtitle")),
+    lines(lbl("excel_input.instructions.rows")),
+    list(row(""), row(lbl("excel_input.instructions.protection_title"), "subtitle")),
+    lines(lbl("excel_input.instructions.protection"))
+  )
 }

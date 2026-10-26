@@ -11,6 +11,7 @@
 # Regeln der Zellen (Gegenstueck: R/io-excel-write.R):
 #   leer            nicht gesetzt
 #   Zahl            double; bei Feldern der Art date/timing Seriennummer >= 10000 -> Datum
+#                   (Datumssystem der Mappe: 1900 oder 1904, openxlsx::getDateOrigin())
 #   Wahrheitswert   logical
 #   Text "~"        explizites NULL
 #   Text { ... } bzw. [ ... ]   YAML-Flussnotation; {timeseries: <id>} = Zeile im Blatt Zeitreihen
@@ -48,6 +49,7 @@ io_xl_new_reader <- function(path) {
   rs$label_maps <- list()
   rs$parts <- list()
   rs$meta <- list(order = character(0), empty = list(), extra = list(), children = list())
+  rs$date_origin <- "1900-01-01"
   rs
 }
 
@@ -132,6 +134,25 @@ io_xl_sheet_names <- function(path) {
                .class = "vofi_error_input")
   }
   res
+}
+
+#' Datumssystem der Arbeitsmappe (`"1900-01-01"` bzw. `"1904-01-01"`, `openxlsx::getDateOrigin()`)
+#'
+#' Mappen im 1904-System (ältere Excel-Fassungen für den Mac) speichern um 1462 Tage kleinere
+#' Seriennummern; ohne Umrechnung lägen alle Datumswerte vier Jahre und einen Tag zu früh.
+#' @noRd
+io_xl_date_origin <- function(path) {
+  res <- tryCatch(suppressWarnings(openxlsx::getDateOrigin(path)), error = function(e) NULL)
+  if (identical(res, "1904-01-01")) "1904-01-01" else "1900-01-01"
+}
+
+#' Excel-Seriennummer als Datum (Datumssystem 1900 bzw. 1904)
+#' @param v Seriennummer.
+#' @param origin Ergebnis von `io_xl_date_origin()`; `NULL` = 1900-System.
+#' @noRd
+io_xl_serial_date <- function(v, origin = NULL) {
+  if (identical(origin, "1904-01-01")) return(as.Date(v, origin = "1904-01-01"))
+  as.Date(v - 25569, origin = "1970-01-01")
 }
 
 #' Blatt lesen: Raster mit Zellart (`num`, `str`, `bool`) und Wert
@@ -254,6 +275,8 @@ io_xl_read_book <- function(rs) {
   if (!any(!is.na(roles) & !(roles %in% c("instructions", "lists")))) {
     vofi_abort("excel_input.no_sheets", path = rs$path, .class = "vofi_error_input")
   }
+  rs$date_origin <- io_xl_date_origin(rs$path)
+  for (nm in names[is.na(roles)]) io_xl_note_ignored_sheet(rs, nm)
   order <- c("lists", "meta", "series", "financing", "components", "unit_groups", "measures",
              "funding", "parameters", "processes", "correlations", "variants", "scenario_sets",
              "project", "household", "market", "building", "settings")
@@ -283,6 +306,30 @@ io_xl_read_book <- function(rs) {
     vofi_inform("excel_input.series_unused", ids = utl_collapse(unused))
   }
   invisible(rs)
+}
+
+#' Meldung zu einem Blatt ohne Rolle (wird nicht eingelesen)
+#'
+#' Ein Blatt mit Maschinenschlüsseln der Vorlage in Zeile 1 und Daten ab Zeile 3 ist vermutlich
+#' ein umbenanntes oder kopiertes Datenblatt (z. B. „Finanzierung (2)“): Warnung mit den
+#' Blattnamen der Vorlage, weil seine Werte fehlen. Andere Blätter mit Inhalt (eigene Notizen)
+#' ergeben einen Hinweis; leere Blätter nichts.
+#' @noRd
+io_xl_note_ignored_sheet <- function(rs, sheet) {
+  g <- io_xl_read_grid(rs$path, sheet)
+  if (g$n == 0L) return(invisible(NULL))
+  keys <- io_xl_grid_keys(g)
+  machine <- c("path", ".id", ".key", ".kind")
+  has_data <- g$n >= 3L && any(!is.na(g$type[3:g$n, , drop = FALSE]))
+  if (any(keys %in% machine) && has_data) {
+    data_roles <- setdiff(io_xl_roles(), c("instructions", "lists", "meta"))
+    vofi_warn("excel_input.sheet_ignored", sheet = sheet,
+              sheets = utl_collapse(vapply(data_roles, io_xl_sheet_name, "", USE.NAMES = FALSE)),
+              .class = "vofi_warning_input")
+  } else {
+    vofi_inform("excel_input.sheet_not_read", sheet = sheet)
+  }
+  invisible(NULL)
 }
 
 #' Spalte eines Maschinenschlüssels (Pflichtspalte: Fehler mit Blatt)
@@ -322,7 +369,7 @@ io_xl_decode_cell <- function(cell, param, path, rs, list_name = io_xl_list_for(
   if (cell$t == "num") {
     v <- cell$v
     if (kind %in% c("date", "timing") && is.finite(v) && v >= 10000) {
-      return(format(as.Date(v - 25569, origin = "1970-01-01"), "%Y-%m-%d"))
+      return(format(io_xl_serial_date(v, rs$date_origin), "%Y-%m-%d"))
     }
     return(v)
   }
@@ -480,14 +527,14 @@ io_xl_decode_leaf <- function(form_cell, value_cell, options_cell, param, path, 
 
 #' Spaltenschlüssel einer Zeitreihenspalte aus Zeile 1 bzw. 2 (Jahr, t<k>, Termin)
 #' @noRd
-io_xl_series_key <- function(cell) {
+io_xl_series_key <- function(cell, origin = NULL) {
   if (is.null(cell)) return(NA_character_)
   if (cell$t == "num") {
     v <- cell$v
     if (is.finite(v) && v >= 1000 && v <= 9999 && v == round(v)) {
       return(sprintf("%d", as.integer(v)))
     }
-    if (is.finite(v) && v >= 10000) return(format(as.Date(v - 25569, origin = "1970-01-01")))
+    if (is.finite(v) && v >= 10000) return(format(io_xl_serial_date(v, origin), "%Y-%m-%d"))
     return(NA_character_)
   }
   s <- trimws(io_xl_cell_text(cell))
@@ -510,8 +557,8 @@ io_xl_parse_series <- function(g, keys, rs) {
   fixed <- io_xl_fixed_columns("series")
   tcols <- which(!(keys %in% fixed))
   tkeys <- vapply(tcols, function(j) {
-    k <- io_xl_series_key(io_xl_grid_cell(g, 1L, j))
-    if (is.na(k)) k <- io_xl_series_key(io_xl_grid_cell(g, 2L, j))
+    k <- io_xl_series_key(io_xl_grid_cell(g, 1L, j), rs$date_origin)
+    if (is.na(k)) k <- io_xl_series_key(io_xl_grid_cell(g, 2L, j), rs$date_origin)
     k
   }, "")
   ok <- !is.na(tkeys)
@@ -997,12 +1044,16 @@ io_xl_decode_variant_field <- function(role, f, rows, rs, sheet, base = role) {
     if (is.null(pc)) return(NULL)
     io_xl_decode_string(pc, fpath, rs)
   }
-  value_of <- function(r, path) {
+  # Werte nach dem Schema des Zielpfads deuten (Datumszellen, Bezeichnungen der Auswahllisten,
+  # Text bei Zeichenketten), wie in den übrigen Blättern (4.14 Nr. 4); Gegenstück ist op_row
+  # in der Funktion io_xl_variant_rows des Schreibers.
+  value_of <- function(r, path, target = NULL) {
     row <- r$.row %||% NA_integer_
     if (!is.na(row) && nzchar(sheet)) {
       rs$locations[path] <- io_xl_loc_text(sheet, row, match(".value", names(r)))
     }
-    v <- io_xl_decode_leaf(r[[".form"]], r[[".value"]], r[[".options"]], NULL, path, rs)
+    param <- io_xl_variant_param(f, target, rs$types)
+    v <- io_xl_decode_leaf(r[[".form"]], r[[".value"]], r[[".options"]], param, path, rs)
     if (is.null(v)) io_xl_null() else v
   }
   if (length(rows) == 1L && is.null(rows[[1L]][[".path"]])) {
@@ -1023,7 +1074,7 @@ io_xl_decode_variant_field <- function(role, f, rows, rs, sheet, base = role) {
         vofi_abort("excel_input.path_duplicate", path = path_join(fpath, p), location = "",
                    .class = "vofi_error_input")
       }
-      out[p] <- list(io_xl_unnull(value_of(r, path_join(fpath, p))))
+      out[p] <- list(io_xl_unnull(value_of(r, path_join(fpath, p), p)))
     }
     return(out)
   }
@@ -1033,7 +1084,7 @@ io_xl_decode_variant_field <- function(role, f, rows, rs, sheet, base = role) {
     if (is.null(p)) {
       vofi_abort("excel_input.variant_path_missing", path = fpath, .class = "vofi_error_input")
     }
-    out <- io_xl_put(out, path_split(p), io_xl_unnull(value_of(r, path_join(fpath, p))),
+    out <- io_xl_put(out, path_split(p), io_xl_unnull(value_of(r, path_join(fpath, p), p)),
                      path_join(fpath, p), NULL)
   }
   out

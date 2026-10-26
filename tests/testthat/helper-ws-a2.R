@@ -131,3 +131,29 @@ xl_sheet_xml <- function(path, index) {
   paste(readLines(file.path(dir, "xl", "worksheets", sprintf("sheet%d.xml", index)),
                   warn = FALSE, encoding = "UTF-8"), collapse = "\n")
 }
+
+#' Ist eine Zelle gesperrt (Blattschutz)? Stil der Zelle aus `openxlsx::loadWorkbook()`;
+#' ohne Stil bzw. ohne Angabe gilt die Excel-Vorgabe „gesperrt“.
+xl_cell_locked <- function(wb, sheet, row, col) {
+  locked <- TRUE
+  for (so in wb$styleObjects) {
+    if (!identical(so$sheet, sheet)) next
+    if (any(so$rows == row & so$cols == col)) locked <- !isFALSE(so$style$locked)
+  }
+  locked
+}
+
+#' Kein Aufruf von `<<-` im Rumpf einer Funktion (Codierregel 2.7 Nr. 3)
+xl_uses_superassign <- function(f) {
+  walk <- function(e) {
+    if (is.call(e) && identical(e[[1L]], as.name("<<-"))) return(TRUE)
+    if (is.call(e) || is.pairlist(e)) {
+      parts <- as.list(e)
+      for (i in seq_along(parts)) {
+        if (!identical(parts[[i]], quote(expr = )) && walk(parts[[i]])) return(TRUE)
+      }
+    }
+    FALSE
+  }
+  walk(body(f)) || walk(formals(f))
+}

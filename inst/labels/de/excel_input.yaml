@@ -207,7 +207,7 @@ instructions:
   title: "VoFi-Eingabevorlage (Vollständiger Finanzplan mit Monte-Carlo-Simulation)"
   intro: |-
     Diese Arbeitsmappe ist eine verlustfreie Darstellung eines vofi-Szenarios. Einlesen mit vofi_read_scenario("datei.xlsx"), schreiben mit vofi_write_scenario(szenario, "datei.xlsx").
-    Zeile 1 jedes Datenblatts enthält die Maschinenschlüssel (ausgeblendet, über das Pluszeichen am linken Rand einblendbar); der Leser orientiert sich nur an ihnen. Zeile 2 enthält die deutschen Überschriften, ab Zeile 3 folgen die Daten.
+    Zeile 1 jedes Datenblatts enthält die Maschinenschlüssel (ausgeblendet und gesperrt); der Leser orientiert sich nur an ihnen. Zeile 2 enthält die deutschen Überschriften, ab Zeile 3 folgen die Daten.
     Leere Zellen bedeuten „nicht gesetzt“: Es gelten die Vorgaben aus Typ-Defaults, global.yaml, Profil und Ableitungsregeln (Spalte Herkunft der Vorgabe). Die Spalten Quelle und Kommentar werden nicht eingelesen.
     Fehlermeldungen nennen Blatt und Zelle; die Herkunft jedes eingelesenen Werts ist die Excel-Zelle.
   legend_title: "Farblegende"
@@ -225,10 +225,15 @@ instructions:
   forms_title: "Wertformen (Spalten Wertform, Wert, Optionen)"
   rows_title: "Zeilen ergänzen"
   rows: |-
-    Schlüssel-Wert-Blätter: eine neue Zeile mit dem vollständigen Pfad in der Spalte Pfad anlegen, z. B. energy.carriers.gas.price_eur_kwh oder shared.co2_2030. Platzhalter * durch die id ersetzen.
+    Schlüssel-Wert-Blätter: eine neue Zeile mit dem vollständigen Pfad in der Spalte Pfad anlegen (freie gelbe Zeilen am Blattende), z. B. energy.carriers.gas.price_eur_kwh oder shared.co2_2030. In Platzhalterzeilen (Pfad mit *) den Platzhalter * durch die id ersetzen.
     Breite Blätter: eine Zeile je Element mit der id in Spalte A; nicht vorgesehene Felder als YAML-Map in der Spalte Weitere Angaben.
     Lange Blätter: eine Zeile je Parameter; die id wiederholen oder leer lassen (gilt die id der Zeile darüber).
-    Varianten: Aktion setzen/ersetzen/hinzufügen mit Pfad und Wert, entfernen mit Pfad; Bezeichnung und basiert auf in der ersten Zeile der Variante.
+    Varianten: Aktion setzen/ersetzen/hinzufügen mit Pfad und Wert, entfernen mit Pfad; Bezeichnung und basiert auf in der ersten Zeile der Variante. Werte gelten wie im Zielfeld (Datum als Excel-Datum, Auswahlfelder mit deutscher Bezeichnung).
+    Zeitreihen: rechts der vorhandenen Jahresspalten stehen freie Spalten bereit; die Überschrift in Zeile 2 nennt das Jahr (2076), die Periode (t0, t1, ...) bzw. den Termin (01.07.2027).
+  protection_title: "Blattschutz"
+  protection: |-
+    Die Blätter sind ohne Kennwort geschützt, damit Maschinenschlüssel, Pfade, Überschriften und Vorgaben nicht versehentlich überschrieben werden. Gelbe Zellen bleiben bearbeitbar; Zeilen dürfen eingefügt werden.
+    Für weitergehende Änderungen (Zeile 1 einblenden, Spalten einfügen, Zeilen mit grauen Zellen löschen) den Blattschutz aufheben: Überprüfen > Blattschutz aufheben (ohne Kennwort). Der Leser braucht den Blattschutz nicht.
 
 at_cell: " (Excel: {location})"
 extension: "Die Excel-Vorlage braucht die Dateiendung .xlsx (erhalten: '{path}')."
@@ -238,6 +243,8 @@ write_failed: "Die Excel-Datei '{path}' konnte nicht geschrieben werden: {detail
 read_failed: "Die Datei '{path}' ist keine lesbare Excel-Arbeitsmappe (.xlsx): {detail}"
 no_sheets: "Die Arbeitsmappe '{path}' enthält keines der Blätter der vofi-Vorlage (z. B. Projekt, Finanzierung, Komponenten)."
 sheet_duplicate: "Das Blatt '{sheet}' ist doppelt vorhanden (gleiche Rolle wie ein anderes Blatt)."
+sheet_ignored: "Das Blatt '{sheet}' hat Maschinenschlüssel in Zeile 1 und Daten, gehört aber zu keinem Blatt der vofi-Vorlage und wird nicht eingelesen (umbenannt oder kopiert?). Blattnamen der Vorlage: {sheets}."
+sheet_not_read: "Das Blatt '{sheet}' gehört nicht zur vofi-Vorlage und wird nicht eingelesen."
 column_missing: "Blatt '{sheet}': die Spalte mit dem Maschinenschlüssel '{column}' fehlt in Zeile 1."
 not_text: "'{path}': '{value}' ist keine Zeichenkette."
 yaml_invalid: "'{path}': '{value}' ist keine gültige YAML-Flussnotation: {detail}"

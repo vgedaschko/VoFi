@@ -195,3 +195,23 @@ test_that("Zerlegung in Blätter und Einordnung in die Vorlagenzeilen", {
   expect_identical(io_xl_star_path("measures.wp.cost_eur"), "measures.*.cost_eur")
   expect_identical(io_xl_star_path("project.horizon_years"), "project.horizon_years")
 })
+
+test_that("Excel-Ein- und -Ausgabe ohne <<- (Codierregel 2.7 Nr. 3, Review A2-07)", {
+  ns <- asNamespace("vofi")
+  fns <- c(grep("^io_xl_", ls(ns, all.names = TRUE), value = TRUE), "io_read_excel",
+           "io_write_excel", "vofi_excel_template")
+  uses <- fns[vapply(fns, function(nm) {
+    f <- get(nm, envir = ns)
+    is.function(f) && xl_uses_superassign(f)
+  }, logical(1))]
+  expect_identical(uses, character(0))
+  expect_true(xl_uses_superassign(function() x <<- 1))
+  expect_false(xl_uses_superassign(function(a = 1) a <- 2))
+  # Zerlegungen ohne Akkumulator: Reihenfolge und leere Fälle
+  expect_identical(io_xl_concat(list()), list())
+  expect_identical(io_xl_tree_leaves(list(a = list(b = 1, c = NULL))),
+                   list(list(path = "a.b", value = 1), list(path = "a.c", value = NULL)))
+  expect_null(io_xl_tree_leaves(list(a = list(`b.c` = 1))))
+  expect_identical(io_xl_wide_leaves(list(x = list(y = 1), z = 2), "x", "p"),
+                   list(list(rel = "x", value = list(y = 1)), list(rel = "z", value = 2)))
+})

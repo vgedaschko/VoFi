@@ -170,9 +170,87 @@ test_that("in Excel geänderte Werte werden gelesen (Bearbeitung einer geschrieb
 test_that("Fixtures im Excel-Format (eingecheckt) lesen sich wie ihre YAML-Quelle", {
   # Die xlsx-Fixtures erzeugt data-raw/build_examples_xlsx.R bzw. die Funktion
   # xl_build_fixtures() (helper-ws-a2.R); sie sichern das Dateiformat gegen Änderungen ab.
+  # Sie stammen vom Schreiber vor den Review-Fixes (ohne Blattschutz, Varianten ohne Zielschema)
+  # und prüfen damit zugleich, dass ältere Dateien derselben Vorlagenversion lesbar bleiben.
   for (name in c("skeleton", "rich")) {
     xl <- xl_fixture(paste0(name, ".xlsx"))
     yml <- xl_fixture(paste0(name, ".yaml"))
     expect_xl_identical(vofi_read_scenario(xl), vofi_read_scenario(yml))
   }
+})
+
+test_that("Varianten und Sets: Werte nach dem Zielschema, verlustfrei (Review A2-01)", {
+  sc <- vofi_read_scenario(vofi_example("skeleton"))
+  x <- scn_input_tree(sc)
+  x$variants <- list(
+    v1 = list(
+      label = "V1",
+      set = list(project.valuation_date = "2028-01-01", project.perspective = "selbstnutzer",
+                 meta.title = "123", project.pending_reforms = "a, b",
+                 project.application_date = "2028-1-1", accounts.deposit_rate_pa = 0.025),
+      replace = list(project.perspective = lbl("vocab.enums.perspective.selbstnutzer")),
+      overrides = list(project = list(valuation_date = "2029-01-01", horizon_years = 4),
+                       meta = list(title = "3,5"))
+    )
+  )
+  x$scenario_sets <- list(
+    s1 = list(label = "S1", set = list("funding.*.application_date" = "2027-03-01",
+                                       "funding.*.approved" = 0)),
+    s2 = list(label = "S2", generate = list(method = "cautious", probs = c(0.1, 0.9)))
+  )
+  sc2 <- vofi_scenario(x)
+  f <- xl_tempfile()
+  vofi_write_scenario(sc2, f)
+  back <- vofi_read_scenario(f)
+  expect_xl_identical(back, sc2)
+  # Darstellung wie im Zielfeld: Datumszelle, Bezeichnung, Text ohne Anführungszeichen
+  vs <- lbl("excel_input.sheets.variants")
+  g <- io_xl_read_grid(f, vs)
+  keys <- io_xl_grid_keys(g)
+  jp <- match(".path", keys)
+  jv <- match(".value", keys)
+  cell <- function(action, p) {
+    a <- io_xl_list("actions:variants")
+    i <- which(g$str[, jp] == p & g$str[, match(".action", keys)] == a$label[a$code == action])
+    io_xl_grid_cell(g, i, jv)
+  }
+  expect_identical(cell("set", "project.valuation_date"), list(t = "num", v = 46753))
+  expect_identical(cell("set", "project.perspective")$v,
+                   lbl("vocab.enums.perspective.selbstnutzer"))
+  expect_identical(cell("set", "meta.title"), list(t = "str", v = "123"))
+  expect_identical(cell("set", "project.pending_reforms")$v, "\"a, b\"")
+  expect_identical(cell("set", "project.application_date")$v, "2028-1-1")
+  expect_identical(cell("replace", "project.perspective")$v,
+                   io_xl_quote(lbl("vocab.enums.perspective.selbstnutzer")))
+  expect_identical(cell("overrides", "project.valuation_date"), list(t = "num", v = 47119))
+})
+
+test_that("Zeichenketten true/false in beliebiger Schreibweise bleiben erhalten (Review A2-02)", {
+  sc <- vofi_read_scenario(vofi_example("skeleton"))
+  x <- scn_input_tree(sc)
+  x$meta$title <- "true"
+  x$shared <- list(a = "False", b = "tRuE", c = "TRUE", d = " true")
+  x$components$z$label <- "false"
+  x$variants <- list(v = list(label = "True", set = list(meta.title = "false", shared.a = "true"),
+                              remove = "shared.b"))
+  sc2 <- vofi_scenario(x)
+  f <- xl_tempfile()
+  vofi_write_scenario(sc2, f)
+  back <- vofi_read_scenario(f)
+  expect_xl_identical(back, sc2)
+  expect_identical(back$meta$title, "true")
+  expect_identical(back$shared$b, "tRuE")
+  expect_identical(back$components$z$label, "false")
+  expect_identical(back$variants$v$set$meta.title, "false")
+  # Schreibregeln: Anführungszeichen; die Prüfung beim Schreiben deutet Zellen wie openxlsx
+  str <- vofi_param("string")
+  for (s in c("true", "True", "FALSE", " false ")) expect_true(io_xl_needs_quote(s, str), info = s)
+  expect_identical(io_xl_id_cell("true")$v, "\"true\"")
+  expect_identical(io_xl_as_read(io_xl_cell_str("tRuE")), io_xl_cell_str("TRUE"))
+  expect_identical(io_xl_as_read(io_xl_cell_str(" true")), io_xl_cell_str(" true"))
+  st <- io_xl_new_state(NULL)
+  enc <- list(form = NULL, value = io_xl_cell_str("true"), options = NULL)
+  expect_false(io_xl_check_raw(enc, "true", "variants.v.set.meta.title", str, st))
+  enc$value <- io_xl_cell_str("\"true\"")
+  expect_true(io_xl_check_raw(enc, "true", "variants.v.set.meta.title", str, st))
 })

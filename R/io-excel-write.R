@@ -33,15 +33,18 @@ io_write_excel <- function(x, path) {
 #' Arbeitsmappe speichern (Fehler als vofi_error_input)
 #' @noRd
 io_xl_save <- function(wb, path) {
-  detail <- character(0)
+  # Warnungen von saveWorkbook() in einer lokalen Umgebung sammeln (kein <<-, 2.7 Nr. 3)
+  acc <- new.env(parent = emptyenv())
+  acc$detail <- character(0)
   if (file.exists(path)) unlink(path)
   res <- tryCatch(withCallingHandlers({
     openxlsx::saveWorkbook(wb, path, overwrite = TRUE)
     TRUE
   }, warning = function(w) {
-    detail <<- c(detail, conditionMessage(w))
+    acc$detail <- c(acc$detail, conditionMessage(w))
     invokeRestart("muffleWarning")
   }), error = function(e) e)
+  detail <- acc$detail
   if (inherits(res, "error")) detail <- c(detail, conditionMessage(res))
   if (!isTRUE(res) || !file.exists(path)) {
     vofi_abort("excel_input.write_failed", path = path, detail = utl_collapse(detail, "; "),
@@ -138,6 +141,22 @@ io_xl_cell_date <- function(d) {
   list(t = "num", v = as.double(as.numeric(d) + 25569), date = TRUE)
 }
 
+#' Ist ein Datum als Datumszelle darstellbar? Der Leser deutet erst Seriennummern ab 10000
+#' (18.05.1927) bei Feldern der Arten date/timing als Datum.
+#' @noRd
+io_xl_date_cell_ok <- function(d) {
+  length(d) == 1L && !is.na(d) && as.numeric(d) + 25569 >= 10000
+}
+
+#' Kanonisches ISO-Datum `JJJJ-MM-TT` als Text (`NULL` sonst)
+#' @noRd
+io_xl_iso_date <- function(s) {
+  if (!utl_is_string(s) || !grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", s)) return(NULL)
+  d <- as.Date(s, format = "%Y-%m-%d")
+  if (is.na(d) || !identical(format(d, "%Y-%m-%d"), s)) return(NULL)
+  d
+}
+
 #' Ist eine Parameterart numerisch (Leser deutet Text als Zahl, 4.6)?
 #' @noRd
 io_xl_numeric_ctx <- function(param) {
@@ -146,14 +165,19 @@ io_xl_numeric_ctx <- function(param) {
 }
 
 #' Muss eine Zeichenkette in Anführungszeichen stehen (sonst andere Deutung beim Lesen)?
+#'
+#' Textzellen `true`/`false` in beliebiger Schreibweise liefert `openxlsx::read.xlsx()` als
+#' `"TRUE"`/`"FALSE"` (`io_xl_as_read()`); sie stehen daher immer in Anführungszeichen.
 #' @noRd
 io_xl_needs_quote <- function(s, param, list_name = NULL) {
   if (!nzchar(s)) return(TRUE)
   tt <- trimws(s)
   if (!nzchar(tt) || tt == "~") return(TRUE)
+  if (tolower(tt) %in% c("true", "false")) return(TRUE)
   if (substr(tt, 1L, 1L) %in% c("{", "[", "\"", "'")) return(TRUE)
   kind <- param$kind %||% "value"
   if (kind %in% c("date", "timing") && grepl(io_xl_de_date_pattern(), tt)) return(TRUE)
+  if (kind == "ids" && grepl(",", tt, fixed = TRUE)) return(TRUE)
   if (!is.null(list_name)) {
     lst <- io_xl_list(list_name)
     if (s %in% lst$label) return(TRUE)
@@ -199,7 +223,7 @@ io_xl_scalar_cell <- function(v, param, path, st) {
   kind <- param$kind %||% "value"
   if (inherits(v, "Date")) {
     if (length(v) != 1L || is.na(v)) return(NULL)
-    if (kind %in% c("date", "timing")) return(io_xl_cell_date(v))
+    if (kind %in% c("date", "timing") && io_xl_date_cell_ok(v)) return(io_xl_cell_date(v))
     s <- format(v, "%Y-%m-%d")
     return(io_xl_cell_str(if (io_xl_needs_quote(s, param)) io_xl_quote(s) else s))
   }
@@ -207,6 +231,10 @@ io_xl_scalar_cell <- function(v, param, path, st) {
   if (is.logical(v)) return(io_xl_cell_bool(v))
   if (is.numeric(v)) return(io_xl_cell_num(v))
   if (is.character(v)) {
+    # Datum als Text (rohe Werte der Varianten und Sets, wie YAML sie liefert): Datumszelle;
+    # der Leser ergibt denselben Text JJJJ-MM-TT
+    d <- if (kind %in% c("date", "timing")) io_xl_iso_date(v) else NULL
+    if (!is.null(d) && io_xl_date_cell_ok(d)) return(io_xl_cell_date(d))
     ln <- io_xl_list_for(path, param)
     if (!is.null(ln) && ln != "logical") {
       lst <- io_xl_list(ln)
@@ -374,9 +402,31 @@ io_xl_encode_raw_form <- function(v, path, param, st) {
   io_xl_form_cells(form, value, v[-1L], st)
 }
 
+#' Zelle so, wie `openxlsx::read.xlsx()` sie aus der Datei liefert
+#'
+#' Textzellen `true`/`false` in beliebiger Schreibweise liest openxlsx als `"TRUE"`/`"FALSE"`.
+#' Die Prüfungen beim Schreiben deuten die Zellen in dieser Form, damit ein solcher Verlust die
+#' Kodierung verwirft (Rückfall auf YAML-Flussnotation).
+#' @param cell Zelle oder `NULL`.
+#' @noRd
+io_xl_as_read <- function(cell) {
+  if (is.null(cell) || !identical(cell$t, "str")) return(cell)
+  low <- tolower(cell$v)
+  if (low %in% c("true", "false")) cell$v <- toupper(low)
+  cell
+}
+
+#' Kodierung (Wertform, Wert, Optionen) in der Form des Rücklesens
+#' @noRd
+io_xl_enc_as_read <- function(enc) {
+  list(form = io_xl_as_read(enc$form), value = io_xl_as_read(enc$value),
+       options = io_xl_as_read(enc$options))
+}
+
 #' Prüfung einer Knotenkodierung: Ruecklesen und Normalisieren ergibt denselben Knoten
 #' @noRd
 io_xl_check_node <- function(enc, v, path, param, st) {
+  enc <- io_xl_enc_as_read(enc)
   dec <- tryCatch(suppressWarnings(suppressMessages(
     io_xl_decode_leaf(enc$form, enc$value, enc$options, param, path, io_xl_reader_state(st))
   )), error = function(e) io_xl_null())
@@ -389,6 +439,7 @@ io_xl_check_node <- function(enc, v, path, param, st) {
 #' Prüfung einer Rohkodierung: Ruecklesen ergibt denselben Wert
 #' @noRd
 io_xl_check_raw <- function(enc, v, path, param, st) {
+  enc <- io_xl_enc_as_read(enc)
   dec <- tryCatch(suppressWarnings(suppressMessages(
     io_xl_decode_leaf(enc$form, enc$value, enc$options, param, path, io_xl_reader_state(st))
   )), error = function(e) structure(list(), class = "io_xl_failed"))
@@ -491,6 +542,10 @@ io_xl_series_keys <- function(st) {
 # ---------------------------------------------------------------------------------------------
 
 #' Leeres Blattmodell
+#'
+#' `extra_rows` freie Zeilen unter den Daten (Stil je Spalte aus `extra_style`, sonst
+#' `col_style`), `extra_cols` freie Eingabespalten rechts (Überschrift in Zeile 2 bearbeitbar;
+#' Blatt Zeitreihen). Alle Blätter sind ohne Kennwort geschützt (`io_xl_protect()`).
 #' @noRd
 io_xl_model <- function(role, keys, headers = vapply(keys, io_xl_column_label, ""),
                         col_style = NULL) {
@@ -498,13 +553,15 @@ io_xl_model <- function(role, keys, headers = vapply(keys, io_xl_column_label, "
        headers = unname(headers), rows = list(),
        col_style = col_style %||% stats::setNames(rep("input", length(keys)), keys),
        col_fmt = list(), col_list = list(), widths = NULL, freeze = c(3L, 2L),
-       extra_rows = 0L, comments = list(), cond = list())
+       extra_rows = 0L, extra_style = NULL, extra_cols = 0L, comments = list(), cond = list())
 }
 
 #' Zeile eines Modells
+#' @param unlock Maschinenschlüssel der Spalten, deren Zelle in dieser Zeile Eingabe ist
+#'   (Pfad der Platzhalterzeilen).
 #' @noRd
-io_xl_row <- function(cells, style = "data", fmt = NULL, list_name = NULL) {
-  list(cells = cells, style = style, fmt = fmt, list = list_name)
+io_xl_row <- function(cells, style = "data", fmt = NULL, list_name = NULL, unlock = NULL) {
+  list(cells = cells, style = style, fmt = fmt, list = list_name, unlock = unlock)
 }
 
 #' Blätter der obersten Ebene eines Schlüssel-Wert-Blocks (Pfad, Wert)
@@ -513,17 +570,20 @@ io_xl_row <- function(cells, style = "data", fmt = NULL, list_name = NULL) {
 #' Sammlungselementen), Maps mit Punkt in Schlüsseln und explizites `NULL`.
 #' @noRd
 io_xl_leaves <- function(x, path) {
-  out <- list()
+  # rekursiv mit Rückgabewerten (keine Akkumulation per <<-, 2.7 Nr. 3)
   walk <- function(v, p) {
-    if (io_xl_is_leaf(v, p)) {
-      out[[length(out) + 1L]] <<- list(path = p, value = v)
-      return(invisible(NULL))
-    }
-    for (i in seq_along(v)) walk(v[[i]], path_join(p, names(v)[i]))
+    if (io_xl_is_leaf(v, p)) return(list(list(path = p, value = v)))
+    io_xl_concat(lapply(seq_along(v), function(i) walk(v[[i]], path_join(p, names(v)[i]))))
   }
   if (!is_map(x) || length(x) == 0L) return(list(list(path = path, value = x)))
-  for (i in seq_along(x)) walk(x[[i]], path_join(path, names(x)[i]))
-  out
+  io_xl_concat(lapply(seq_along(x), function(i) walk(x[[i]], path_join(path, names(x)[i]))))
+}
+
+#' Listen von Datensätzen aneinanderhängen (eine Ebene; leere Eingabe ergibt `list()`)
+#' @noRd
+io_xl_concat <- function(parts) {
+  if (length(parts) == 0L) return(list())
+  do.call(c, unname(parts))
 }
 
 #' Ist der Wert ein Blatt der Zerlegung?
@@ -551,6 +611,10 @@ io_xl_model_kv <- function(role, st) {
   m <- io_xl_model(role, keys, col_style = cs)
   m$widths <- c(34, 42, 14, 16, 22, 26, 22, 18, 22, 22, 6)
   m$freeze <- c(3L, 3L)
+  # freie Zeilen am Blattende für weitere Pfade (Blattschutz: Pfad dort Eingabe)
+  m$extra_rows <- 40L
+  m$extra_style <- cs
+  m$extra_style["path"] <- "input"
   for (b in io_xl_kv_blocks(role)) {
     leaves <- list()
     if (!is.null(st$x) && b %in% names(st$x)) leaves <- io_xl_kv_block_leaves(st$x[[b]], b)
@@ -655,7 +719,9 @@ io_xl_kv_row <- function(r, st) {
     cells$.seq <- io_xl_cell_num(r$seq)
   }
   if (!is.null(ln)) st$lists_used <- union(st$lists_used, ln)
-  io_xl_row(cells, style = "data", fmt = fmt, list_name = ln)
+  # Platzhalterzeilen (Pfad mit *): der Pfad ist trotz Blattschutz bearbeitbar (* -> id)
+  unlock <- if (grepl("*", path, fixed = TRUE)) "path" else NULL
+  io_xl_row(cells, style = "data", fmt = fmt, list_name = ln, unlock = unlock)
 }
 
 #' Elemente einer Sammlung (breites bzw. langes Blatt)
@@ -679,17 +745,12 @@ io_xl_collection_path <- function(role) {
 #' Zerlegung eines Elements für breite Blätter (Spalten der Rolle als Blätter)
 #' @noRd
 io_xl_wide_leaves <- function(el, colkeys, prefix) {
-  out <- list()
   walk <- function(v, rel) {
     p <- path_join(prefix, rel)
-    if (rel %in% colkeys || io_xl_is_leaf(v, p)) {
-      out[[length(out) + 1L]] <<- list(rel = rel, value = v)
-      return(invisible(NULL))
-    }
-    for (i in seq_along(v)) walk(v[[i]], path_join(rel, names(v)[i]))
+    if (rel %in% colkeys || io_xl_is_leaf(v, p)) return(list(list(rel = rel, value = v)))
+    io_xl_concat(lapply(seq_along(v), function(i) walk(v[[i]], path_join(rel, names(v)[i]))))
   }
-  for (i in seq_along(el)) walk(el[[i]], names(el)[i])
-  out
+  io_xl_concat(lapply(seq_along(el), function(i) walk(el[[i]], names(el)[i])))
 }
 
 #' Modell eines breiten Blatts (ein Element je Zeile)
@@ -957,7 +1018,9 @@ io_xl_variant_rows <- function(role, id, el, st) {
       cells$.path <- io_xl_cell_str(qp)
     }
     if (!missing(v)) {
-      enc <- io_xl_encode(v, mode_path, NULL, st, mode = "kv", ctx = "raw")
+      # Werte nach dem Schema des Zielpfads (wie der Leser, io_xl_decode_variant_field())
+      param <- io_xl_variant_param(action, path, st$types)
+      enc <- io_xl_encode(v, mode_path, param, st, mode = "kv", ctx = "raw")
       if (!is.null(enc$form)) cells$.form <- enc$form
       cells$.value <- enc$value
       if (!is.null(enc$options)) cells$.options <- enc$options
@@ -1017,33 +1080,28 @@ io_xl_variant_field_rows <- function(role, f, v, base, op_row) {
 #' Blätter eines Baums (Overrides): Maps rekursiv; `NULL` bei unzulässigen Schlüsseln
 #' @noRd
 io_xl_tree_leaves <- function(v) {
-  out <- list()
-  ok <- TRUE
+  # rekursiv mit Rückgabewerten; NULL = nicht darstellbar (keine Akkumulation per <<-)
   walk <- function(x, p) {
-    if (!ok) return(invisible(NULL))
     if (is.null(x) || node_is(x) || !is_map(x) || length(x) == 0L ||
           (nzchar(p) && !is.na(utl_value_form_kind(x)))) {
-      out[[length(out) + 1L]] <<- list(path = p, value = x)
-      return(invisible(NULL))
+      return(list(list(path = p, value = x)))
     }
     nms <- names(x)
-    if (any(grepl(".", nms, fixed = TRUE)) || any(!nzchar(nms))) {
-      ok <<- FALSE
-      return(invisible(NULL))
-    }
-    for (i in seq_along(x)) walk(x[[i]], path_join(p, nms[i]))
+    if (any(grepl(".", nms, fixed = TRUE)) || any(!nzchar(nms))) return(NULL)
+    parts <- lapply(seq_along(x), function(i) walk(x[[i]], path_join(p, nms[i])))
+    if (any(vapply(parts, is.null, logical(1)))) return(NULL)
+    io_xl_concat(parts)
   }
   walk(v, "")
-  if (!ok) return(NULL)
-  out
 }
 
 #' Prüfung der Zeilen eines Variantenfelds (Rücklesen ergibt dasselbe Feld)
 #' @noRd
 io_xl_check_variant_field <- function(role, f, v, rows, st) {
   rs <- io_xl_reader_state(st)
+  cells <- lapply(rows, function(r) lapply(r$cells, io_xl_as_read))
   dec <- tryCatch(suppressWarnings(suppressMessages(
-    io_xl_decode_variant_field(role, f, lapply(rows, function(r) r$cells), rs, "", role)
+    io_xl_decode_variant_field(role, f, cells, rs, "", role)
   )), error = function(e) structure(list(), class = "io_xl_failed"))
   if (inherits(dec, "io_xl_failed")) return(FALSE)
   identical(io_unmark(dec), v)
@@ -1070,7 +1128,8 @@ io_xl_model_corr <- function(st) {
     dec <- NULL
     if (!is.null(rows)) {
       dec <- tryCatch(
-        io_xl_decode_corr_pairs(lapply(rows, function(r) r$cells), io_xl_reader_state(st)),
+        io_xl_decode_corr_pairs(lapply(rows, function(r) lapply(r$cells, io_xl_as_read)),
+                                io_xl_reader_state(st)),
         error = function(e) NULL
       )
     }
@@ -1123,6 +1182,8 @@ io_xl_model_series <- function(st) {
   cs[c(".label", ".unit")] <- "info"
   m <- io_xl_model("series", keys, headers = headers, col_style = cs)
   m$extra_rows <- 30L
+  # freie Spalten für weitere Jahre, Perioden t<k> und Termine (Überschrift in Zeile 2)
+  m$extra_cols <- 40L
   m$col_list[[".form"]] <- "forms"
   m$widths <- c(30, 30, 18, 12, 22, rep(10, length(tkeys)))
   for (row in st$series) {
@@ -1142,31 +1203,34 @@ io_xl_model_meta <- function(st) {
   keys <- io_xl_fixed_columns("meta")
   m <- io_xl_model("meta", keys)
   m$widths <- c(22, 40, 60)
-  add <- function(key, value, extra = NULL) {
+  row <- function(key, value, extra = NULL) {
     cells <- list(.key = io_xl_cell_str(key))
     if (!is.null(value)) cells$.value <- value
     if (!is.null(extra)) cells$.extra <- io_xl_cell_str(extra)
-    m$rows[[length(m$rows) + 1L]] <<- io_xl_row(cells)
+    io_xl_row(cells)
   }
   x <- st$x
   sv <- if (!is.null(x) && "schema_version" %in% names(x)) x$schema_version else 1L
-  add("schema_version", io_xl_value_cell(sv, io_xl_meta_param("string"), "schema_version", st))
-  add("template_version", io_xl_cell_num(io_xl_template_version()))
-  add("package_version", io_xl_cell_str(as.character(utils::packageVersion("vofi"))))
+  m$rows <- list(
+    row("schema_version", io_xl_value_cell(sv, io_xl_meta_param("string"), "schema_version", st)),
+    row("template_version", io_xl_cell_num(io_xl_template_version())),
+    row("package_version", io_xl_cell_str(as.character(utils::packageVersion("vofi"))))
+  )
   if (is.null(x)) return(m)
   known <- c("schema_version", utl_scenario_blocks())
   for (b in names(x)) {
     v <- x[[b]]
-    if (!(b %in% known)) {
-      add("block", io_xl_cell_str(b), io_xl_flow(v))
+    m$rows[[length(m$rows) + 1L]] <- if (!(b %in% known)) {
+      row("block", io_xl_cell_str(b), io_xl_flow(v))
     } else if (is.list(v) && length(v) == 0L) {
-      add("block", io_xl_cell_str(b), if (is.null(names(v))) "[]" else "{}")
+      row("block", io_xl_cell_str(b), if (is.null(names(v))) "[]" else "{}")
     } else {
-      add("block", io_xl_cell_str(b))
+      row("block", io_xl_cell_str(b))
     }
   }
   if (is_map(x$stochastic) && length(x$stochastic) > 0L) {
-    add("order", io_xl_cell_str("stochastic"), io_xl_flow(names(x$stochastic)))
+    m$rows[[length(m$rows) + 1L]] <- row("order", io_xl_cell_str("stochastic"),
+                                         io_xl_flow(names(x$stochastic)))
   }
   m
 }
@@ -1314,6 +1378,7 @@ io_xl_render <- function(wb, m, st) {
       }
     }
     openxlsx::setColWidths(wb, sheet, 1L, m$widths)
+    io_xl_protect(wb, sheet)
     return(invisible(NULL))
   }
   head <- as.data.frame(t(c(keys)), stringsAsFactors = FALSE)
@@ -1358,27 +1423,36 @@ io_xl_render <- function(wb, m, st) {
     openxlsx::freezePane(wb, sheet, firstActiveRow = m$freeze[1L], firstActiveCol = m$freeze[2L])
   }
   openxlsx::groupRows(wb, sheet, rows = 1L, hidden = TRUE)
+  io_xl_protect(wb, sheet)
   invisible(NULL)
 }
 
 #' Stile der Datenzellen (gruppiert nach Stil und Format)
+#'
+#' Der Stil einer Zelle folgt der Spalte (`col_style`), in Kopfzeilen der Blöcke `block`, in den
+#' Spalten `unlock` der Zeile `input`; freie Zeilen nach `extra_style` (sonst `col_style`), freie
+#' Spalten (`extra_cols`) ab Zeile 2 `input`. Eingabezellen sind entsperrt, alle übrigen gesperrt.
 #' @noRd
 io_xl_render_styles <- function(wb, sheet, m, st) {
   keys <- m$keys
-  groups <- list()
-  addg <- function(base, fmt, r, c) {
-    k <- paste(base, fmt %||% "", sep = "\r")
-    g <- groups[[k]] %||% list(base = base, fmt = fmt, rows = integer(0), cols = integer(0))
-    g$rows <- c(g$rows, r)
-    g$cols <- c(g$cols, c)
-    groups[[k]] <<- g
-  }
+  nk <- length(keys)
   nr <- length(m$rows)
+  n <- nr * nk
+  base_v <- character(n)
+  fmt_v <- character(n)
+  row_v <- integer(n)
+  col_v <- integer(n)
   for (i in seq_len(nr)) {
     r <- m$rows[[i]]
-    for (j in seq_along(keys)) {
+    for (j in seq_len(nk)) {
       k <- keys[j]
-      base <- if (r$style == "block") "block" else m$col_style[[k]] %||% "input"
+      base <- if (r$style == "block") {
+        "block"
+      } else if (k %in% r$unlock) {
+        "input"
+      } else {
+        m$col_style[[k]] %||% "input"
+      }
       cell <- r$cells[[k]]
       fmt <- NULL
       if (base == "input") {
@@ -1386,21 +1460,58 @@ io_xl_render_styles <- function(wb, sheet, m, st) {
         if (isTRUE(cell$date)) fmt <- "DATE"
       }
       if (!is.null(cell) && isTRUE(cell$date) && base != "input") fmt <- "DATE"
-      addg(base, fmt, 2L + i, j)
+      idx <- (i - 1L) * nk + j
+      base_v[idx] <- base
+      fmt_v[idx] <- fmt %||% ""
+      row_v[idx] <- 2L + i
+      col_v[idx] <- j
     }
   }
   if (m$extra_rows > 0L) {
     rows <- (nr + 3L):(nr + 2L + m$extra_rows)
-    for (j in seq_along(keys)) {
-      base <- m$col_style[[keys[j]]] %||% "input"
+    styles <- m$extra_style %||% m$col_style
+    for (j in seq_len(nk)) {
+      base <- styles[[keys[j]]] %||% "input"
       fmt <- if (base == "input") m$col_fmt[[keys[j]]] else NULL
-      addg(base, fmt, rep(rows, 1L), rep(j, length(rows)))
+      base_v <- c(base_v, rep(base, length(rows)))
+      fmt_v <- c(fmt_v, rep(fmt %||% "", length(rows)))
+      row_v <- c(row_v, rows)
+      col_v <- c(col_v, rep(j, length(rows)))
     }
   }
-  for (g in groups) {
-    openxlsx::addStyle(wb, sheet, io_xl_style(st, g$base, g$fmt), rows = g$rows, cols = g$cols,
-                       gridExpand = FALSE, stack = FALSE)
+  if (m$extra_cols > 0L) {
+    rows <- 2L:(nr + 2L + m$extra_rows)
+    cols <- nk + seq_len(m$extra_cols)
+    base_v <- c(base_v, rep("input", length(rows) * length(cols)))
+    fmt_v <- c(fmt_v, rep("", length(rows) * length(cols)))
+    row_v <- c(row_v, rep(rows, times = length(cols)))
+    col_v <- c(col_v, rep(cols, each = length(rows)))
   }
+  key <- paste(base_v, fmt_v, sep = "\r")
+  for (k in unique(key)) {
+    idx <- which(key == k)
+    fmt <- fmt_v[idx[1L]]
+    openxlsx::addStyle(wb, sheet, io_xl_style(st, base_v[idx[1L]], if (nzchar(fmt)) fmt),
+                       rows = row_v[idx], cols = col_v[idx], gridExpand = FALSE, stack = FALSE)
+  }
+  invisible(NULL)
+}
+
+#' Blattschutz ohne Kennwort (Memo 05 4.10: Zeile 1 und graue Zellen gesperrt)
+#'
+#' Gesperrt sind Maschinenschlüssel, Überschriften, Pfade und Angaben der Vorlage; Eingabezellen
+#' (gelb) sind entsperrt. Erlaubt bleiben Auswählen, Formatieren, Einfügen von Zeilen und Löschen
+#' von Zeilen ohne gesperrte Zellen. Der Leser braucht den Blattschutz nicht.
+#' @noRd
+io_xl_protect <- function(wb, sheet) {
+  openxlsx::protectWorksheet(
+    wb, sheet, protect = TRUE, password = NULL, lockSelectingLockedCells = FALSE,
+    lockSelectingUnlockedCells = FALSE, lockFormattingCells = FALSE,
+    lockFormattingColumns = FALSE, lockFormattingRows = FALSE, lockInsertingColumns = TRUE,
+    lockInsertingRows = FALSE, lockInsertingHyperlinks = FALSE, lockDeletingColumns = TRUE,
+    lockDeletingRows = FALSE, lockSorting = TRUE, lockAutoFilter = FALSE,
+    lockPivotTables = TRUE, lockObjects = TRUE, lockScenarios = TRUE
+  )
   invisible(NULL)
 }
 
@@ -1422,7 +1533,8 @@ io_xl_render_validation <- function(wb, sheet, m, st) {
   }
   if (m$kind == "kv") {
     jv <- match("value", keys)
-    if (nr > 0L) dv(match("form", keys), 3L:(nr + 2L), "forms")
+    last <- nr + m$extra_rows + 2L
+    if (last >= 3L) dv(match("form", keys), 3L:last, "forms")
     for (i in seq_len(nr)) {
       r <- m$rows[[i]]
       if (r$style != "block" && !is.null(r$list)) dv(jv, 2L + i, r$list)

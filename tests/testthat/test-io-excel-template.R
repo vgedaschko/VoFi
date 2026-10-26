@@ -287,3 +287,87 @@ test_that("Vorgaben, Einheiten, Formate und Auswahllisten der Felder", {
   expect_null(io_xl_param_at("stochastic.processes.k.r0.x", character(0)))
   expect_identical(io_xl_param_at("project.valuation_date")$kind, "date")
 })
+
+test_that("Blattschutz ohne Kennwort: Schlüssel gesperrt, Eingaben offen (Review A2-05)", {
+  f <- xl_template()
+  dir <- withr::local_tempdir()
+  utils::unzip(f, exdir = dir)
+  roles <- io_xl_roles()
+  for (i in seq_along(roles)) {
+    x <- paste(readLines(file.path(dir, "xl", "worksheets", sprintf("sheet%d.xml", i)),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "")
+    expect_match(x, "<sheetProtection [^>]*sheet=\"1\"", info = roles[i])
+    expect_match(x, "<sheetProtection [^>]*insertRows=\"0\"", info = roles[i])
+    expect_false(grepl("<sheetProtection [^>]*(password|hashValue)=", x), info = roles[i])
+  }
+  wb <- openxlsx::loadWorkbook(f)
+  prj <- io_xl_sheet_name("project")
+  p <- xl_read_sheet(f, prj)
+  keys <- unlist(p[1L, ], use.names = FALSE)
+  col <- function(k) match(k, keys)
+  row_of <- function(path) which(p[[1L]] == path)
+  r <- row_of("project.perspective")
+  # Zeile 1 und 2, Pfad, Bezeichnung und Vorgabe gesperrt; Wert, Wertform, Quelle offen
+  expect_true(xl_cell_locked(wb, prj, 1L, col("value")))
+  expect_true(xl_cell_locked(wb, prj, 2L, col("value")))
+  for (k in c("path", "label", "unit", "default", "default_source", ".seq")) {
+    expect_true(xl_cell_locked(wb, prj, r, col(k)), info = k)
+  }
+  for (k in c("form", "value", "options", "source", "note")) {
+    expect_false(xl_cell_locked(wb, prj, r, col(k)), info = k)
+  }
+  # Platzhalterzeilen: Pfad bearbeitbar (* durch die id ersetzen); freie Zeilen am Blattende
+  bld <- io_xl_sheet_name("building")
+  b <- xl_read_sheet(f, bld)
+  ph <- which(grepl("*", b[[1L]], fixed = TRUE) & !is.na(b[[1L]]))
+  expect_true(length(ph) > 0L)
+  hdr_rows <- which(b[[1L]] %in% c("building.elements", "energy.carriers"))
+  expect_false(xl_cell_locked(wb, bld, ph[1L], 1L))
+  expect_true(xl_cell_locked(wb, bld, hdr_rows[1L], 1L))
+  last <- nrow(p)
+  expect_false(xl_cell_locked(wb, prj, last + 1L, col("path")))
+  expect_false(xl_cell_locked(wb, prj, last + 40L, col("value")))
+  expect_true(xl_cell_locked(wb, prj, last + 1L, col("label")))
+  # Zeitreihen: freie Spalten rechts mit bearbeitbarer Überschrift in Zeile 2
+  zs <- io_xl_sheet_name("series")
+  nk <- ncol(xl_read_sheet(f, zs))
+  expect_true(xl_cell_locked(wb, zs, 2L, nk))
+  expect_false(xl_cell_locked(wb, zs, 2L, nk + 1L))
+  expect_false(xl_cell_locked(wb, zs, 3L, nk + 40L))
+  # breite Blätter: freie Zeilen für neue Elemente, Feldreihenfolge gesperrt
+  ms <- io_xl_sheet_name("measures")
+  mk <- vapply(io_xl_wide_columns("measures"), function(cl) cl$key, "")
+  expect_false(xl_cell_locked(wb, ms, 10L, 1L))
+  expect_true(xl_cell_locked(wb, ms, 10L, match(".order", mk)))
+  expect_true(any(grepl(lbl("excel_input.instructions.protection_title"),
+                        xl_read_sheet(f, io_xl_sheet_name("instructions"))[[1L]], fixed = TRUE)))
+})
+
+test_that("freie Zeilen und Spalten der Vorlage werden gelesen", {
+  f <- xl_template()
+  g <- xl_tempfile()
+  file.copy(f, g, overwrite = TRUE)
+  prj <- io_xl_sheet_name("project")
+  zs <- io_xl_sheet_name("series")
+  last <- nrow(xl_read_sheet(g, prj))
+  nk <- ncol(xl_read_sheet(g, zs))
+  wb <- openxlsx::loadWorkbook(g)
+  openxlsx::writeData(wb, prj, "shared.zins", startCol = 1L, startRow = last + 1L)
+  openxlsx::writeData(wb, prj, "shared.reihe", startCol = 1L, startRow = last + 2L)
+  forms <- io_xl_list("forms")
+  openxlsx::writeData(wb, prj, forms$label[forms$code == "series_t"], startCol = 4L,
+                      startRow = last + 2L)
+  openxlsx::writeData(wb, prj, "r1", startCol = 5L, startRow = last + 2L)
+  openxlsx::writeData(wb, prj, 0.04, startCol = 5L, startRow = last + 1L)
+  openxlsx::writeData(wb, zs, "t0", startCol = nk + 1L, startRow = 2L)
+  openxlsx::writeData(wb, zs, "t1", startCol = nk + 2L, startRow = 2L)
+  openxlsx::writeData(wb, zs, "r1", startCol = 1L, startRow = 3L)
+  openxlsx::writeData(wb, zs, "series_t", startCol = 3L, startRow = 3L)
+  openxlsx::writeData(wb, zs, 5, startCol = nk + 1L, startRow = 3L)
+  openxlsx::writeData(wb, zs, 6, startCol = nk + 2L, startRow = 3L)
+  openxlsx::saveWorkbook(wb, g, overwrite = TRUE)
+  sc <- vofi_read_scenario(g)
+  expect_identical(sc$shared$zins, node_const(0.04))
+  expect_identical(sc$shared$reihe$kind, "series_t")
+  expect_identical(sc$shared$reihe$values, c(5, 6))
+})
