@@ -9,12 +9,20 @@
 #    (13.2-13.4): example_mc_result(), example_comparison() (Integrator) sowie wsh_comparison()
 #    (Vergleich aus echten Engine-Läufen) und wsh_sensitivity() (alle drei Methoden).
 
-#' Szenario einlesen, bauen und rechnen; Bibliothekswarnungen (Gültigkeit) werden verschluckt
+#' Szenario einlesen, bauen und rechnen; Bibliothekswarnungen (Gültigkeit) werden verschluckt,
+#' ebenso die erwartete Warnung zur fehlenden Grundsteuer der selbstgenutzten Gruppe `main` in
+#' wsh_self_scenario() (die Testszenarien rechnen bewusst ohne Grundsteuer; festgehalten in
+#' test-report-views.R, "WS-H-Testszenarien ...")
 wsh_run <- function(sc) {
   withr::local_options(vofi.verbose = FALSE)
   withCallingHandlers(
     vofi_run(vofi_build(sc)),
-    vofi_warning_library_outdated = function(w) invokeRestart("muffleWarning")
+    vofi_warning_library_outdated = function(w) invokeRestart("muffleWarning"),
+    vofi_warning_plausibility = function(w) {
+      if (identical(w$key, "expand.unit_groups.property_tax_missing_owner")) {
+        invokeRestart("muffleWarning")
+      }
+    }
   )
 }
 
@@ -40,6 +48,12 @@ wsh_accounts <- function(...) {
 }
 
 #' Selbstnutzer-EFH mit Bauphase (6 Monate), Energie, Wartung, Kredit und bisheriger Miete
+#'
+#' `building` und `unit_groups` liefern nur Flächen und Stammdaten: Baujahr (Pflicht im Bestand,
+#' 01a 3.1), keine Instandhaltungspauschale (`maintenance.enabled = FALSE`, sonst m_maintenance
+#' nach R-118 a), ausdrückliche Gruppe `main` mit Nebenkostenpauschale 0 (01b 2.2, F-11; sonst
+#' u_main_opex mit 1,70 EUR/(m2 Monat)) und Restwertmethode `zero` (sonst rv_value nach Profil).
+#' Alle Zahlungen stammen damit aus den Komponenten des Szenarios.
 #' @param energy Energiekosten p. a.; @param capex Investition; @param loan Kreditbetrag.
 wsh_self_scenario <- function(energy = 3542.5, capex = -30000, loan = 20000, id = "wsh_self",
                               construction = 6L, income = 4000, rent_now = 900) {
@@ -59,7 +73,10 @@ wsh_self_scenario <- function(energy = 3542.5, capex = -30000, loan = 20000, id 
     project = list(perspective = "selbstnutzer", project_type = "sanierung_einzelmassnahmen",
                    valuation_date = as.Date("2027-01-01"), horizon_years = 8L),
     grid = grid,
-    building = list(living_area_m2 = 140, n_units = 1L),
+    building = list(living_area_m2 = 140, n_units = 1L, construction_year = 1995L,
+                    maintenance = list(enabled = FALSE)),
+    unit_groups = list(main = list(owner_occupied = TRUE, n_units = 1L, living_area_m2 = 140,
+                                   operating = list(recoverable_opex_eur_m2_month = 0))),
     household = list(net_income_month_eur = income, current_rent_month_eur = rent_now),
     components = list(
       inv = list(type = "custom_series", label = "W\u00e4rmepumpe", category = "capex",
@@ -70,11 +87,16 @@ wsh_self_scenario <- function(energy = 3542.5, capex = -30000, loan = 20000, id 
       wa = list(type = "recurring", label = "Wartung", category = "maintenance",
                 amount_eur = 250, start_event = "completion")
     ),
-    financing = fin, accounts = wsh_accounts(), tax = list(module = "none")
+    financing = fin, accounts = wsh_accounts(), tax = list(module = "none"),
+    residual_value = list(method = "zero")
   ))
 }
 
 #' Mietwohnungsbau (Perspektive wu_*) mit Miete, Umlage und Mieter-Merkzeilen vorher/nachher
+#'
+#' `building` ohne Instandhaltungspauschale (sonst m_maintenance) und mit Restwertmethode `zero`:
+#' der Restwert steht als eigene Reihe `rw` im Szenario (sonst doppelt bzw. rv_value nach Profil
+#' mit income_value und fehlendem Bodenwert).
 wsh_tenant_scenario <- function(perspective = "wu_kommunal", levy = 3000, pre = 17157.42,
                                 after = 4998, side_income = 0, tenant_power = FALSE,
                                 id = "wsh_tenant") {
@@ -108,12 +130,13 @@ wsh_tenant_scenario <- function(perspective = "wu_kommunal", levy = 3000, pre = 
     schema_version = 1L, meta = list(scenario_id = id, title = "Mietwohnungsbau"),
     project = list(perspective = perspective, project_type = "neubau",
                    valuation_date = as.Date("2027-01-01"), horizon_years = 6L),
-    building = list(living_area_m2 = 1000, n_units = 12L),
+    building = list(living_area_m2 = 1000, n_units = 12L, maintenance = list(enabled = FALSE)),
     components = comps,
     financing = list(ek = list(type = "equity", amount_eur = 150000),
                      bank = list(type = "annuity_loan", amount_eur = 250000, rate_pa = 0.035,
                                  term_years = 20, payments_per_year = 1L)),
     accounts = wsh_accounts(), tax = list(module = "none"),
+    residual_value = list(method = "zero"),
     analysis = list(tenant_view = TRUE)
   ))
 }

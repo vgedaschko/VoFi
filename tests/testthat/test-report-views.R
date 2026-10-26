@@ -278,3 +278,32 @@ test_that("Snapshots der Sichten (15.6)", {
   hv <- vofi_household_view(wsh_run(wsh_self_scenario()))
   expect_snapshot(writeLines(attr(hv, "summary")$text))
 })
+
+test_that("WS-H-Testszenarien: building und unit_groups erzeugen keine Zusatzzahlungen", {
+  # Expander laufen mit building (01a 3.1, 01b 2.2); die Testszenarien setzen Baujahr,
+  # Instandhaltung aus, Nebenkostenpauschale 0 und Restwert zero, damit alle Zahlungen aus den
+  # Komponenten des Szenarios stammen (Sollwerte 530/390/1.100/13 % der Haushaltssicht)
+  expander_rows <- function(res) {
+    rows <- res$ledger$rows
+    keys <- rows$key[rows$cash & rows$origin == "expander"]
+    stats::setNames(vapply(keys, function(k) sum(abs(res$ledger$values[[k]])), 0), keys)
+  }
+  self <- wsh_run(wsh_self_scenario())
+  rows <- self$ledger$rows
+  expect_false("m_maintenance" %in% rows$source_id)
+  expect_true("u_main_opex" %in% rows$source_id)
+  expect_true(all(expander_rows(self) == 0))
+  expect_identical(sum(self$ledger$values[["rv_value__value"]]), 0)
+  # Grundsteuer fehlt bewusst: W der selbstgenutzten Gruppe (in wsh_run() verschluckt)
+  expect_warning(withCallingHandlers(
+    vofi_build(wsh_self_scenario()),
+    vofi_warning_library_outdated = function(w) invokeRestart("muffleWarning")
+  ), class = "vofi_warning_plausibility", regexp = "building.property_tax", fixed = TRUE)
+  tenant <- wsh_run(wsh_tenant_scenario())
+  rows <- tenant$ledger$rows
+  expect_false("m_maintenance" %in% rows$source_id)
+  expect_true(all(expander_rows(tenant) == 0))
+  # Restwert nur aus der eigenen Reihe rw (300.000 am Horizont), nicht doppelt
+  rv <- rows$key[rows$cash & rows$category == "residual_value"]
+  expect_identical(sum(vapply(rv, function(k) sum(tenant$ledger$values[[k]]), 0)), 300000)
+})
