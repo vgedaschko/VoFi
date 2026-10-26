@@ -39,7 +39,8 @@
 #' @param delta relative Abweichung, wenn keine Verteilung vorliegt.
 #' @param steps Stützstellen je Seite (Spider).
 #' @param kpi Kennzahl (`NULL` = Primärkennzahl).
-#' @param variant Variante (Default `"base"`).
+#' @param variant Variante (Default `"base"`; nur bei einem Szenario, bei einem Modell bzw. einer
+#'   Simulation gilt deren Variante).
 #' @param reference Referenzvariante für Vergleichskennzahlen.
 #' @return Objekt der Klasse `vofi_sensitivity`.
 #' @family Analysieren
@@ -80,15 +81,26 @@ vofi_sensitivity <- function(x, params = NULL, method = c("tornado", "spider", "
     list(setup = setup, out = out)
   })
   mc_emit_conditions(run$conditions)
-  setup <- run$value$setup
-  out <- run$value$out
+  sens_result(method, run$value$setup, run$value$out, probs = probs, delta = delta,
+              steps = steps)
+}
+
+#' Ergebnisobjekt eines Tornados bzw. einer Spinne (13.4)
+#'
+#' Die Variante stammt aus dem Modell (`model$spec$variant`), nicht aus dem Argument.
+#' @param setup Einstellungen aus `sens_setup()` bzw. `sens_setup_models()`.
+#' @param out Ergebnis von `sens_tornado()` bzw. `sens_spider()`.
+#' @noRd
+sens_result <- function(method, setup, out, probs = c(0.1, 0.9), delta = NULL, steps = 5L) {
   new_vofi_sensitivity(list(
-    method = method, kpi = setup$kpi, variant = variant, base_value = out$base_value,
-    params = out$params, results = out$results, spider = out$spider, global = NULL,
-    r2_src = NA_real_,
+    method = method, kpi = setup$kpi, variant = setup$model$spec$variant %||% "base",
+    base_value = out$base_value, params = out$params, results = out$results,
+    spider = out$spider, global = NULL, r2_src = NA_real_,
     meta = list(probs = probs, delta = delta %||% 0.2, steps = steps,
-                reference = setup$reference, higher_is_better = setup$hib,
-                n_rows = out$n_rows, unit = kpi_unit(setup$kpi), created = Sys.time())
+                reference = setup$reference %||% setup$ref_model$spec$variant,
+                higher_is_better = setup$hib, n_rows = out$n_rows,
+                unit = kpi_unit(setup$kpi), notes = out$notes %||% character(0),
+                created = Sys.time())
   ))
 }
 
@@ -191,13 +203,14 @@ sens_setup <- function(x, variant = "base", reference = NULL, kpi = NULL) {
 #' @return numerischer Vektor (eine Zahl je Zeile).
 #' @noRd
 sens_eval <- function(setup, design) {
-  cv <- cmp_design_run(setup$model, design, kpis = setup$kpis, return_paths = setup$paths)
   vals <- if (setup$compare) {
-    cr <- cmp_design_run(setup$ref_model, design, kpis = setup$kpis,
-                         return_paths = setup$paths)
-    cmp_compare_sides(cmp_side(cv, setup$model), cmp_side(cr, setup$ref_model))$kpis
+    # dieselbe Designmatrix fuer Variante und Referenz; im Modus differential mit den negierten
+    # Zeilen der Referenz je Designzeile in der Variante (9.6 Nr. 6)
+    pr <- cmp_design_pair(setup$model, setup$ref_model, design, kpis = setup$kpis,
+                          return_paths = setup$paths)
+    cmp_compare_sides(pr$var, pr$ref)$kpis
   } else {
-    cv$kpis
+    cmp_design_run(setup$model, design, kpis = setup$kpis, return_paths = setup$paths)$kpis
   }
   v <- vals[[setup$kpi]]
   if (is.null(v)) {
@@ -462,13 +475,21 @@ sens_tornado <- function(setup, cands) {
 
 #' Spider als ein Design-Lauf: je Parameter `steps` Stützstellen je Seite zwischen P05 und P95
 #' (bzw. Basis × (1 ± delta)), Schritt 0 = Basisfall (Teil C 6.4)
+#'
+#' Bei Prozesskandidaten ist der Designwert das Quantilniveau; Schritt 0 ist dort der eigene
+#' P50-Quantilpfad (Wert 0,5, eine zusätzliche Designzeile), damit Wert und Kennzahl auch bei
+#' schiefen Prozessen (`gbm`, `mr_trend`) zusammenpassen. Bei Overlay-Verteilungen ist Schritt 0
+#' der Basiswert mit der Kennzahl des Basisfalls (nicht das P50 der Verteilung).
 #' @noRd
 sens_spider <- function(setup, cands, steps = 5L) {
   k <- length(cands)
   cols <- unname(vapply(cands, function(cc) cc$param, ""))
   s <- c(-rev(seq_len(steps)), seq_len(steps))
-  design <- sens_design_frame(1L + length(s) * k, cols)
+  is_proc <- vapply(cands, function(cc) identical(cc$source, "process"), logical(1))
+  n_main <- 1L + length(s) * k
+  design <- sens_design_frame(n_main + sum(is_proc), cols)
   vals <- list()
+  mid_row <- rep(1L, k)
   for (j in seq_len(k)) {
     cc <- cands[[j]]
     v <- if (identical(cc$source, "delta")) cc$base * (1 + s * cc$delta / steps) else
@@ -476,15 +497,20 @@ sens_spider <- function(setup, cands, steps = 5L) {
     rows <- 1L + (j - 1L) * length(s) + seq_along(s)
     design[[j]][rows] <- v
     vals[[j]] <- v
+    if (is_proc[j]) {
+      mid_row[j] <- n_main + sum(is_proc[seq_len(j)])
+      design[[j]][mid_row[j]] <- 0.5
+    }
   }
   if (k == 0L) design <- data.frame(row.names = 1L)
   y <- sens_eval(setup, design)
   parts <- lapply(seq_len(k), function(j) {
     rows <- 1L + (j - 1L) * length(s) + seq_along(s)
-    base_v <- if (identical(cands[[j]]$source, "process")) 0.5 else cands[[j]]$base
+    base_v <- if (is_proc[j]) 0.5 else cands[[j]]$base
     data.frame(param = cols[j], step = c(s[s < 0], 0L, s[s > 0]),
                value = c(vals[[j]][s < 0], base_v, vals[[j]][s > 0]),
-               kpi = c(y[rows][s < 0], y[1L], y[rows][s > 0]), stringsAsFactors = FALSE)
+               kpi = c(y[rows][s < 0], y[mid_row[j]], y[rows][s > 0]),
+               stringsAsFactors = FALSE)
   })
   spider <- if (k > 0L) do.call(rbind, parts) else
     data.frame(param = character(0), step = integer(0), value = numeric(0),
@@ -516,7 +542,8 @@ sens_std_fit <- function(m, y) {
 #' @param y Kennzahl je Lauf.
 #' @param bins Klassen für `s1_binned` (gleich besetzt nach Rang).
 #' @return Liste `global` (Data Frame `input`, `spearman`, `src`, `srrc`, `prcc`, `s1_binned`,
-#'   geordnet), `r2_src`, `r2_srrc`, `rank_by`, `n_valid`.
+#'   geordnet), `r2_src`, `r2_srrc`, `rank_by`, `n_valid`, `dropped` (ausgelassene konstante
+#'   bzw. nicht numerische Spalten).
 #' @noRd
 sens_global <- function(x, y, bins = 20L) {
   empty <- list(global = data.frame(input = character(0), spearman = numeric(0),
@@ -530,7 +557,9 @@ sens_global <- function(x, y, bins = 20L) {
   y <- y[ok]
   n <- length(y)
   keep <- vapply(x, function(v) is.numeric(v) && length(unique(v)) > 1L, logical(1))
+  dropped <- names(x)[!keep]
   x <- x[, keep, drop = FALSE]
+  empty$dropped <- dropped
   if (n < 3L || ncol(x) == 0L || stats::var(y) <= 0) {
     empty$n_valid <- n
     return(empty)
@@ -565,7 +594,8 @@ sens_global <- function(x, y, bins = 20L) {
     order(-g$s1_binned, g$input, method = "radix")
   g <- g[o, , drop = FALSE]
   rownames(g) <- NULL
-  list(global = g, r2_src = src$r2, r2_srrc = srrc$r2, rank_by = rank_by, n_valid = n)
+  list(global = g, r2_src = src$r2, r2_srrc = srrc$r2, rank_by = rank_by, n_valid = n,
+       dropped = dropped)
 }
 
 #' Globale Sensitivität einer Simulation als `vofi_sensitivity` (13.4)
@@ -594,9 +624,18 @@ sens_global_result <- function(x, params, kpi, variant) {
   dec_keys <- if (is.data.frame(st)) st$key[st$role == "decision"] else character(0)
   if (!is.null(mc$model$decision)) dec_keys <- c(dec_keys, mc$model$decision$key)
   xx <- if (ncol(x_fe) > 0L && nrow(x_fe) == nrow(x_in)) cbind(x_in, x_fe) else x_in
+  dec_out <- intersect(names(xx), dec_keys)
   xx <- xx[, setdiff(names(xx), dec_keys), drop = FALSE]
-  if (!is.null(params)) xx <- xx[, intersect(params, names(xx)), drop = FALSE]
+  if (!is.null(params)) {
+    xx <- xx[, intersect(params, names(xx)), drop = FALSE]
+    dec_out <- intersect(dec_out, params)
+  }
   g <- sens_global(xx, mc$kpis[[kpi]])
+  # Entscheidungsschluessel und konstante Merkmale werden ausgelassen (Teil C 6.4, I)
+  omitted <- c(dec_out, g$dropped)
+  if (length(omitted) > 0L) {
+    vofi_inform("mc.sensitivity.global_omitted", inputs = utl_collapse(omitted))
+  }
   det <- mc$deterministic$kpis[[kpi]]
   params_df <- data.frame(param = g$global$input, label = g$global$input,
                           base = rep(NA_real_, nrow(g$global)),
@@ -608,6 +647,7 @@ sens_global_result <- function(x, params, kpi, variant) {
     base_value = if (is.null(det)) NA_real_ else as.double(det[1L]), params = params_df,
     results = NULL, spider = NULL, global = g$global, r2_src = g$r2_src,
     meta = list(r2_srrc = g$r2_srrc, rank_by = g$rank_by, n_valid = g$n_valid, bins = 20L,
-                n_sim = mc$meta$n_sim, seed = mc$meta$seed, created = Sys.time())
+                omitted = omitted, n_sim = mc$meta$n_sim, seed = mc$meta$seed,
+                created = Sys.time())
   ))
 }

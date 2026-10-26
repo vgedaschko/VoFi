@@ -69,6 +69,8 @@ test_that("Spider: Stützstellen je Seite zwischen P05 und P95, Schritt 0 = Basi
   expect_equal(s2$kpi, 100 - 5 * s2$value, tolerance = 1e-9)
   expect_identical(nrow(sp$spider), 15L)
   expect_identical(sp$meta$n_rows, 13L)
+  # Overlay-Verteilung: Schritt 0 = Basiswert mit der Kennzahl des Basisfalls
+  expect_equal(s1$kpi[s1$step == 0L], sp$base_value)
   sc <- vofi_read_scenario(vofi_example("grob_lehrbuch_a"))
   sp2 <- wsg_quiet(vofi_sensitivity(sc, params = "financing.ann.rate_pa", method = "spider",
                                     steps = 2L, delta = 0.2, kpi = "terminal_value"))
@@ -104,6 +106,23 @@ test_that("Prozess mit Quantilpfad als Kandidat (S01C-10); unsicherer Prozesspar
   expect_equal(r$kpi_high, ch$kpis$terminal_value, tolerance = 1e-12)
 })
 
+test_that("Spider: Schritt 0 eines Prozesses ist der eigene P50-Quantilpfad (gbm, schief)", {
+  gb <- list(target = "market.rent_growth", type = "gbm", p0 = 0.015, sigma = 0.5)
+  m <- wsg_quiet(vofi_build(wsg_process_scenario(gb)))
+  sp <- wsg_quiet(vofi_sensitivity(m, kpi = "terminal_value", method = "spider", steps = 2L))
+  s0 <- sp$spider[sp$spider$param == "rg" & sp$spider$step == 0L, ]
+  expect_equal(s0$value, 0.5)
+  p50 <- eng_run_chunk(m, 1L, NULL, "design", "kpi", design = data.frame(rg = 0.5),
+                       kpis = "terminal_value")
+  expect_equal(s0$kpi, p50$kpis$terminal_value, tolerance = 1e-9)
+  # bei gbm liegt der Median unter dem Erwartungspfad des Basisfalls
+  expect_lt(s0$kpi, sp$base_value)
+  # Stützstellen monoton im Quantilniveau
+  s <- sp$spider[sp$spider$param == "rg", ]
+  expect_true(all(diff(s$kpi) > 0))
+  expect_identical(sp$meta$n_rows, 1L + 4L + 1L)
+})
+
 test_that("delta_vs_reference: dieselbe Designmatrix für Variante und Referenz", {
   sc <- wsg_linear_scenario()
   z_a <- list(0, 0, list(expr = "120 + 20 * shared.x1 - 5 * shared.x2 + 1 * shared.x3"))
@@ -120,6 +139,46 @@ test_that("delta_vs_reference: dieselbe Designmatrix für Variante und Referenz"
                class = "vofi_error_input")
   expect_error(wsg_quiet(vofi_sensitivity(sc, kpi = "delta_vs_reference", variant = "a",
                                           reference = "a")), class = "vofi_error_input")
+  expect_identical(tor$variant, "a")
+})
+
+test_that("delta_vs_reference im Modus differential: Referenzzeilen je Designzeile (9.6 Nr. 6)", {
+  sc <- wsg_linear_scenario()
+  z_a <- list(0, 0, list(expr = "120 + 20 * shared.x1 - 5 * shared.x2 + 1 * shared.x3"))
+  sc$variants <- wsg_variant_a(components.z.values = z_a,
+                               project.comparison_mode = "differential")
+  tor <- wsg_quiet(vofi_sensitivity(sc, kpi = "delta_vs_reference", variant = "a"))
+  # wie im Modus absolute: Basis 20, Ausschläge 16 / 0 / 0 (nicht 120 bzw. 32 / 8 / 1,6)
+  expect_equal(tor$base_value, 20, tolerance = 1e-9)
+  expect_equal(tor$results$swing, c(16, 0, 0), tolerance = 1e-9)
+  sp <- wsg_quiet(vofi_sensitivity(sc, kpi = "delta_vs_reference", variant = "a",
+                                   method = "spider", steps = 2L))
+  s1 <- sp$spider[sp$spider$param == "x1", ]
+  expect_equal(s1$kpi, 20 + 10 * s1$value, tolerance = 1e-9)
+  s2 <- sp$spider[sp$spider$param == "x2", ]
+  expect_equal(s2$kpi, rep(20, 5L), tolerance = 1e-9)
+  # Paar der Design-Läufe: Variante mit den negierten Zeilen der Referenz
+  setup <- wsg_quiet(sens_setup(sc, "a", NULL, "delta_vs_reference"))
+  pr <- wsg_quiet(cmp_design_pair(setup$model, setup$ref_model, data.frame(x1 = c(-1, 1)),
+                                  kpis = setup$kpis, store = "full"))
+  expect_true(pr$differential)
+  expect_true(pr$var$differential)
+  expect_false(pr$ref$differential)
+  key <- "ref_z__value"
+  expect_true(key %in% pr$var_chunk$ledger$rows$key)
+  expect_equal(pr$var_chunk$ledger$values[[key]], -pr$ref_chunk$ledger$values$z__value)
+})
+
+test_that("Variante des Ergebnisses aus dem Modell, nicht aus dem Argument", {
+  sc <- wsg_linear_scenario()
+  sc$variants <- wsg_variant_a(shared.x3 = 0.5)
+  ma <- wsg_quiet(vofi_build(sc, variant = "a"))
+  expect_identical(wsg_quiet(vofi_sensitivity(ma, kpi = "delta_terminal_value"))$variant, "a")
+  expect_identical(wsg_quiet(vofi_sensitivity(sc, kpi = "delta_terminal_value"))$variant,
+                   "base")
+  sp <- wsg_quiet(vofi_sensitivity(ma, kpi = "delta_terminal_value", method = "spider",
+                                   steps = 1L))
+  expect_identical(sp$variant, "a")
 })
 
 test_that("Argumentprüfung", {
@@ -159,9 +218,22 @@ test_that("Globale Sensitivität (Teil C 6.4): synthetische Stichprobe y = 2 x1 
   g2 <- sens_global(x, y2)
   expect_identical(g2$rank_by, "s1_binned")
   expect_identical(g2$global$input[1L], "x1")
+  expect_identical(g$dropped, "konst")
   # Randfälle
   expect_identical(nrow(sens_global(data.frame(), y)$global), 0L)
   expect_identical(nrow(sens_global(x["konst"], y)$global), 0L)
+})
+
+test_that("Globale Sensitivität: Entscheidungsschlüssel und konstante Merkmale mit Hinweis", {
+  m <- wsg_quiet(vofi_build(wsg_decision_scenario(n_sim = 400L, p = 0.6)))
+  mc <- wsg_quiet(vofi_mc(m, n_sim = 400L, seed = 11L, store = "kpi"))
+  key <- mc$decision$key
+  expect_true(key %in% names(mc$inputs))
+  expect_message(gs <- vofi_sensitivity(mc, method = "global", kpi = "delta_terminal_value"),
+                 class = "vofi_message")
+  expect_false(key %in% gs$global$input)
+  expect_true(key %in% gs$meta$omitted)
+  expect_true("rent" %in% gs$global$input)
 })
 
 test_that("Globale Sensitivität aus einer Simulation (inputs und Pfadmerkmale)", {
@@ -186,4 +258,20 @@ test_that("Globale Sensitivität aus einer Simulation (inputs und Pfadmerkmale)"
   # Tornado (P10/P90) derselben Kennzahl: Ausschläge 160 / 80
   tor <- wsg_quiet(vofi_sensitivity(mc, kpi = "delta_terminal_value"))
   expect_equal(tor$results$swing, c(160, 80), tolerance = 1e-9)
+})
+
+test_that("9.10: Tornado 20 Parameter x 2 (ein Design-Lauf, eine Kennzahl; < 1 s)", {
+  wsg_perf_skip()
+  m <- wsg_quiet(vofi_build(wsg_bench_scenario(53L)))
+  params <- c("rent", "opex", "maint", "admin", "inv", "kfw_rate", "haben", "zins", "infl",
+              "miete", "financing.bul.rate_pa", "financing.bank.rate_pa",
+              "accounts.overdraft_rate_pa", "accounts.penalty_spread_pa",
+              "components.maint.growth", "components.admin.growth",
+              "financing.ek.withdrawals_pa", "zins.theta", "infl.mu", "miete.mu")
+  run <- function() wsg_quiet(vofi_sensitivity(m, params = params, kpi = "delta_terminal_value"))
+  tor <- run()
+  expect_identical(nrow(tor$params), 20L)
+  expect_identical(tor$meta$n_rows, 41L)
+  ms <- wsg_cpu_ms(run, 2L)
+  expect_lt(ms, 1000 * wsg_perf_factor(), label = sprintf("Tornado %.0f ms", ms))
 })

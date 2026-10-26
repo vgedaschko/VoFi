@@ -50,7 +50,7 @@ traffic_light:
   ko_dscr: "Restriktion DSCR verletzt: {value} im Jahr {year} (Schwelle {threshold}; Wahrscheinlichkeit {prob})"
   ko_liquidity: "Restriktion Liquidität verletzt: Kontokorrent {value} € im Jahr {year} (Schwelle {threshold}; Wahrscheinlichkeit {prob})"
   ko_warm_rent: "Restriktion Warmmiete verletzt: Anstieg {value} €/m² im Jahr {year} (Schwelle {threshold}; Wahrscheinlichkeit {prob})"
-  ko_burden: "Restriktion Belastung verletzt: Belastungsquote {value} (Schwelle {threshold}; Wahrscheinlichkeit {prob})"
+  ko_burden: "Restriktion Belastung verletzt: Belastungsquote {value} im Jahr {year} (Schwelle {threshold}; Wahrscheinlichkeit {prob})"
   ko_savings: "Restriktion Sparfähigkeit verletzt: Nachschuss {value} € im Jahr {year} (Schwelle {threshold}; Wahrscheinlichkeit {prob})"
   ko_other: "Restriktion {code} verletzt (Wahrscheinlichkeit {prob})"
 
@@ -66,6 +66,7 @@ sensitivity:
   no_quantile_path: "Der Prozess '{param}' liefert keinen Quantilpfad und ist keine Designspalte."
   path_target: "Der Pfad '{param}' hat keinen konstanten Basiswert; für Pfade bitte eine Overlay-Verteilung oder einen Prozess angeben."
   param_unknown: "'{param}' ist kein Designziel (Overlay-Schlüssel, Prozess, <prozess>.<parameter> oder Zahlenpfad).{suggestion}"
+  global_omitted: "Globale Sensitivität: ausgelassen werden Entscheidungsschlüssel sowie konstante bzw. nicht numerische Eingangsgrößen und Merkmale ({inputs})."
 
 solve:
   tol: "tol muss eine positive Zahl sein."

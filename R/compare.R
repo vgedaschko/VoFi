@@ -11,9 +11,9 @@
 # Differenz-VoFi (nur bei gleichem Raster), Ampel (cmp_traffic_light(), 12.9), generiertes Set
 # "vorsichtig" (cmp_cautious(), 4.11, Teil C 4.3) und Pflichtsensitivitaeten
 # (cmp_mandatory_sensitivities(), Teil C 4.4, fuer den Bericht).
-# Registriert die Vergleichskennzahlen delta_vs_reference und prob_better_than_ref als Typen
-# der Art kpi; im Einzellauf sind sie nicht berechenbar (NA "not_computed"), vofi_compare()
-# fuellt sie je Lauf.
+# Die Vergleichskennzahlen (12.6) sind keine Registry-Typen (Spec 00 2.4: typedef_kpi_* in
+# R/kpi-*.R; Spec 01 Teil A: nicht Teil von analysis.kpis); Einheiten, Restwertbezug und Labels
+# kommen aus kpi_compare_specs() und kpi.compare.* (WS-D2), vofi_compare() fuellt sie je Lauf.
 
 #' Varianten vergleichen
 #'
@@ -31,6 +31,13 @@
 #' Vergleichskennzahl als Designzeile auf Variante und Referenz gerechnet (Fall
 #' `<variante>@vorsichtig`) und geht in die Ampel ein. Varianten mit Entscheidungsknoten der
 #' Förderzusage gehen als Kompositum ein, bedingte Ergebnisse stehen in `conditional`.
+#'
+#' Im Modus `differential` (`project.comparison_mode`, Spec 00 Abschnitt 9.6 Nr. 6) erhält die
+#' Variante in jedem Lauf die negierten Zahlungen der Abschnitte `project` und `grants` der
+#' Referenz desselben Laufs; das gilt auch für die Design-Läufe des Sets „vorsichtig“, der
+#' Rendite der Mehrinvestition, der Pflichtsensitivitäten sowie für `vofi_sensitivity()` und
+#' `vofi_solve()` mit Vergleichskennzahlen. `delta_vs_reference` ist dann das ΔEW der Variante
+#' selbst (Vermerk „Vereinfachungsmodus Differenzzahlungen“).
 #'
 #' @param x Objekt der Klasse `vofi_scenario`.
 #' @param variants `NULL` (alle) oder Namen der Varianten.
@@ -87,30 +94,6 @@ vofi_compare <- function(x, variants = NULL, baseline = NULL, scenario_sets = NU
   fl <- mc_capture(for (cs in names(out$results)) eng_flag_conditions(out$results[[cs]]$flags))
   mc_emit_conditions(c(conds, fl$conditions))
   cmp_assemble(out, models, setup, comp, cautious, mode, n_sim, seed, allow_unequal, t0)
-}
-
-# ---------------------------------------------------------------------------------------------
-# Vergleichskennzahlen als Registry-Typen (12.6)
-# ---------------------------------------------------------------------------------------------
-
-#' Vergleichskennzahl im Einzellauf: nicht berechenbar (NA `not_computed`)
-#' @noRd
-cmp_kpi_not_computed <- function(core, ctx) {
-  vofi_kpi_value(rep(NA_real_, core$n), na_reason = "not_computed")
-}
-
-#' @noRd
-typedef_kpi_delta_vs_reference <- function() {
-  kpi_typedef("delta_vs_reference", cmp_kpi_not_computed, unit = "EUR", rv_variant = TRUE,
-              higher_is_better = TRUE, mc_default = FALSE, requires = "opportunity",
-              rv_ref = "with")
-}
-
-#' @noRd
-typedef_kpi_prob_better_than_ref <- function() {
-  kpi_typedef("prob_better_than_ref", cmp_kpi_not_computed, unit = "share",
-              higher_is_better = TRUE, mc_default = FALSE, requires = "opportunity",
-              rv_ref = "with")
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -231,37 +214,58 @@ cmp_build <- function(x, variant, scenario_set = NA_character_) {
 cmp_paths <- function() c("net_position", "opp_net_position", "wealth")
 
 #' Seite eines Vergleichs aus einem Chunk-Ergebnis (für `kpi_compare_values()`)
+#' @param with_ref_rows `TRUE`, wenn der Lauf die negierten project-/grants-Zeilen der Referenz
+#'   enthält (Modus differential, 9.6 Nr. 6); nur dann ist das eigene ΔEW der Vorteil gegenüber
+#'   der Referenz.
 #' @noRd
-cmp_side <- function(ch, model) {
+cmp_side <- function(ch, model, with_ref_rows = FALSE) {
   list(kpis = ch$kpis, kpi_na = ch$kpi_na, paths = ch$paths, grid = model$grid,
        perspective = model$spec$project$perspective, spec = model$spec,
-       q_T = ch$kpis[[cmp_qt_name()]],
-       differential = identical(model$spec$project$comparison_mode, "differential"))
+       q_T = ch$kpis[[cmp_qt_name()]], differential = isTRUE(with_ref_rows))
+}
+
+#' Ist das Modell im Modus differential (9.6 Nr. 6)?
+#' @noRd
+cmp_is_differential <- function(model) {
+  identical(model$spec$project$comparison_mode, "differential")
+}
+
+#' Neutrale Referenzseite für die Vermögensgrößen im Modus differential
+#'
+#' Die Variante enthält die negierten Zahlungen der Referenz bereits; ΔEW, Vermögens- und
+#' Bestandspfade der Referenz gehen daher mit 0 ein (`delta_vs_reference` = eigenes ΔEW,
+#' `payback_vs_reference` aus dem eigenen Vermögensvorteil, `co2_abatement_cost` aus diesem
+#' `delta_vs_reference`). Nicht monetäre Vergleichsgrößen (CO2, Belastung, Warmmiete) bleiben
+#' die der Referenz.
+#' @noRd
+cmp_neutral_ref <- function(ref, var) {
+  n <- nrow(var$kpis)
+  for (k in c("delta_terminal_value", "delta_terminal_value_ex_rv", "terminal_value_ex_rv")) {
+    if (is.null(var$kpis[[k]]) && is.null(ref$kpis[[k]])) next
+    ref$kpis[[k]] <- rep(0, n)
+    if (!is.null(ref$kpi_na)) ref$kpi_na[[k]] <- rep(NA_character_, n)
+  }
+  for (nm in c("wealth", "net_position", "opp_net_position")) {
+    if (!is.null(ref$paths[[nm]])) ref$paths[[nm]][] <- 0
+  }
+  ref
 }
 
 #' Vergleichskennzahlen einer Variante gegen die Referenz je Lauf (12.6, 9.6 Nr. 4, 6)
 #'
 #' `kpi_compare_values()` (WS-D2) mit q_T der Variante; dazu `prob_better_than_ref` = 1, wenn
 #' `delta_vs_reference > 0` (deterministisch 0/1, in der MC ist der Mittelwert die
-#' Wahrscheinlichkeit). Im Modus `differential` enthält die Variante bereits die negierten
-#' Zahlungen der Referenz; ihr ΔEW ist dann selbst der Vorteil gegenüber der Referenz.
+#' Wahrscheinlichkeit). Enthält die Variantenseite die negierten Zahlungen der Referenz
+#' (`var$differential`, Modus `differential`), ist ihr ΔEW selbst der Vorteil gegenüber der
+#' Referenz; ΔEW und Vermögenspfade der Referenz gehen dann mit 0 ein (`cmp_neutral_ref()`).
 #' @return `list(kpis = data.frame, na = data.frame)` mit n Zeilen.
 #' @noRd
 cmp_compare_sides <- function(var, ref) {
   qt <- var$q_T
+  if (isTRUE(var$differential)) ref <- cmp_neutral_ref(ref, var)
   cv <- kpi_compare_values(var, ref, q_T = qt)
   k <- cv$kpis
   na <- cv$na
-  if (isTRUE(var$differential)) {
-    for (sfx in c("", "_ex_rv")) {
-      src <- paste0("delta_terminal_value", sfx)
-      if (!is.null(var$kpis[[src]])) {
-        k[[paste0("delta_vs_reference", sfx)]] <- as.double(var$kpis[[src]])
-        na[[paste0("delta_vs_reference", sfx)]] <-
-          as.character(var$kpi_na[[src]] %||% rep(NA_character_, nrow(k)))
-      }
-    }
-  }
   dvr <- k$delta_vs_reference
   k$prob_better_than_ref <- as.double(dvr > 0)
   na$prob_better_than_ref <- na$delta_vs_reference
@@ -284,15 +288,18 @@ cmp_add_columns <- function(kpis, kpi_na, cv) {
 
 #' Deterministischer Lauf eines Falls mit Rückgabepfaden (bei Entscheidungsknoten der
 #' realisierte Zweig, der andere in `decision$alternative`; 9.11 Nr. 4)
+#' @param extra_rows `NULL` oder negierte Zeilen der Referenz (Modus differential, 9.6 Nr. 6).
+#' @param with_ref_rows `TRUE`, wenn der Lauf die Zeilen der Referenz enthält (`cmp_side()`).
 #' @return Liste `result` (`vofi_result`), `side` (für die Vergleichskennzahlen), `model`
-#'   (Modell des realisierten Zweigs).
+#'   (Modell des realisierten Zweigs); bei Entscheidungsknoten zusätzlich `approved` und
+#'   `fallback` (je Zweig `result`, `side`, `model`).
 #' @noRd
-cmp_det_run <- function(model) {
+cmp_det_run <- function(model, extra_rows = NULL, with_ref_rows = FALSE) {
   one <- function(m) {
     t0 <- proc.time()[["elapsed"]]
     ch <- eng_run_chunk(m, blocks = 1L, seed = NULL, mode = "deterministic", store = "full",
-                        return_paths = cmp_paths())
-    side <- cmp_side(ch, m)
+                        return_paths = cmp_paths(), extra_rows = extra_rows)
+    side <- cmp_side(ch, m, with_ref_rows)
     res <- eng_result(m, cmp_strip_qt(ch), mode = "deterministic", store = "full", seed = NULL,
                       runtime = proc.time()[["elapsed"]] - t0)
     list(result = res, side = side, model = m)
@@ -332,33 +339,67 @@ cmp_design_known <- function(plan, cn) {
 #' Variante), bleiben für dieses Modell auf dem Basiswert. Eine Spalte mit dem
 #' Entscheidungsschlüssel wählt den Zweig, sonst gilt der Zweig des Basisfalls.
 #' @param design Data Frame der Designzeilen.
+#' @param extra_rows `NULL` oder negierte Zeilen der Referenz je Designzeile (Modus
+#'   differential, 9.6 Nr. 6; in beiden Zweigen eines Entscheidungsknotens).
 #' @return Chunk-Ergebnis wie `eng_run_chunk()` (mit `n` Zeilen).
 #' @noRd
 cmp_design_run <- function(model, design, kpis = NULL, store = "kpi",
-                           return_paths = character()) {
+                           return_paths = character(), extra_rows = NULL) {
   run1 <- function(m) {
     keep <- vapply(names(design), function(cn) cmp_design_known(m$sampler, cn), logical(1))
     d <- design[, keep, drop = FALSE]
     if (ncol(d) == 0L) d <- data.frame(row.names = seq_len(nrow(design)))
     sel <- if (is.null(kpis)) NULL else intersect(kpis, names(m$kpis))
     eng_run_chunk(m, blocks = 1L, seed = NULL, mode = "design", store = store, design = d,
-                  return_paths = return_paths, kpis = sel)
+                  return_paths = return_paths, kpis = sel, extra_rows = extra_rows)
   }
   dec <- model$decision
   if (is.null(dec)) return(run1(model))
   mc_composite(run1(model), run1(dec$fallback))
 }
 
-#' Ergebnis eines Design-Laufs mit einer Zeile als `vofi_result` (4.11, R-74)
+#' Design-Läufe von Variante und Referenz mit derselben Designmatrix (11.11, 12.8)
+#'
+#' Im Modus differential der Variante (9.6 Nr. 6) wird die Referenz je Designzeile mit
+#' vollständigem Ledger gerechnet; ihre negierten project-/grants-Zeilen gehen als
+#' `extra_rows` in den Lauf der Variante, deren Seite dann `differential = TRUE` trägt.
+#' @return Liste `var`, `ref` (Seiten nach `cmp_side()`), `var_chunk`, `ref_chunk`,
+#'   `differential`.
 #' @noRd
-cmp_design_result <- function(model, design, set_name, notes = character(0)) {
+cmp_design_pair <- function(model_v, model_r, design, kpis = NULL, store = "kpi",
+                            return_paths = character()) {
+  diff <- cmp_is_differential(model_v)
+  if (diff) cmp_check_grid(model_v, model_r)
+  cr <- cmp_design_run(model_r, design, kpis = kpis, store = if (diff) "full" else store,
+                       return_paths = return_paths)
+  extra <- if (diff) cmp_differential_rows(cr$ledger) else NULL
+  if (diff && !identical(store, "full")) {
+    cr$ledger <- NULL
+    cr$draws <- NULL
+    cr$opp$ledger <- NULL
+  }
+  cv <- cmp_design_run(model_v, design, kpis = kpis, store = store,
+                       return_paths = return_paths, extra_rows = extra)
+  list(var = cmp_side(cv, model_v, diff), ref = cmp_side(cr, model_r), var_chunk = cv,
+       ref_chunk = cr, differential = diff)
+}
+
+#' Ergebnis eines Design-Laufs mit einer Zeile als `vofi_result` (4.11, R-74)
+#' @param extra_rows,with_ref_rows wie `cmp_det_run()`.
+#' @noRd
+cmp_design_result <- function(model, design, set_name, notes = character(0),
+                              extra_rows = NULL, with_ref_rows = FALSE) {
   t0 <- proc.time()[["elapsed"]]
-  ch <- cmp_design_run(model, design, store = "full", return_paths = cmp_paths())
-  side <- cmp_side(ch, model)
+  ch <- cmp_design_run(model, design, store = "full", return_paths = cmp_paths(),
+                       extra_rows = extra_rows)
+  side <- cmp_side(ch, model, with_ref_rows)
   res <- eng_result(model, cmp_strip_qt(ch), mode = "design", store = "full", seed = NULL,
                     runtime = proc.time()[["elapsed"]] - t0)
   res$meta$scenario_set <- set_name
   res$meta$notes <- c(res$meta$notes, notes)
+  if (isTRUE(with_ref_rows)) {
+    res$meta$notes <- c(res$meta$notes, lbl("mc.compare.differential_note"))
+  }
   list(result = res, side = side)
 }
 
@@ -404,6 +445,10 @@ cmp_spec_value <- function(spec, path, grid = NULL) {
   if (is.null(v)) return(NULL)
   if (is.numeric(v) && !is.list(v)) return(as.double(v))
   if (is.character(v) || is.logical(v)) return(v)
+  # Konstantenknoten ohne Raster (der Rasteraufbau ist teuer)
+  if (is.list(v) && identical(v$kind, "const") && is.numeric(v$value)) {
+    return(as.double(v$value))
+  }
   g <- grid %||% eng_build_grid(spec)
   tryCatch(res_value(res_context(spec, g, 1L), path, "scalar", base = TRUE),
            error = function(e) NULL)
@@ -542,23 +587,29 @@ cmp_differential_rows <- function(led) {
 cmp_incremental_return <- function(model_v, model_r, interval = c(-0.02, 0.15), n_grid = 41L,
                                    tol = 1e-8) {
   cache <- new.env(parent = emptyenv())
-  differential <- identical(model_v$spec$project$comparison_mode, "differential")
   kp <- c("delta_terminal_value")
+  dtv <- function(ch, ex_rv) {
+    k <- ch$kpis
+    v <- if (ex_rv) k$delta_terminal_value_ex_rv %||% k$delta_terminal_value else
+      k$delta_terminal_value
+    as.double(v)
+  }
   g_both <- function(h) {
     keys <- sprintf("%.17g", h)
     miss <- unique(h[!vapply(keys, exists, logical(1), envir = cache, inherits = FALSE)])
     if (length(miss) > 0L) {
       d <- data.frame(accounts.deposit_rate_pa = miss, check.names = FALSE)
-      cv <- cmp_design_run(model_v, d, kpis = kp)
-      a <- as.double(cv$kpis$delta_terminal_value)
-      a_ex <- as.double(cv$kpis$delta_terminal_value_ex_rv %||% cv$kpis$delta_terminal_value)
-      if (differential) {
+      # Modus differential: die Variante enthaelt je Zeile die negierten Zahlungen der Referenz,
+      # ihr dEW ist dann selbst delta_vs_reference (9.6 Nr. 6)
+      pr <- cmp_design_pair(model_v, model_r, d, kpis = kp)
+      a <- dtv(pr$var_chunk, FALSE)
+      a_ex <- dtv(pr$var_chunk, TRUE)
+      if (pr$differential) {
         b <- rep(0, length(miss))
         b_ex <- b
       } else {
-        cr <- cmp_design_run(model_r, d, kpis = kp)
-        b <- as.double(cr$kpis$delta_terminal_value)
-        b_ex <- as.double(cr$kpis$delta_terminal_value_ex_rv %||% cr$kpis$delta_terminal_value)
+        b <- dtv(pr$ref_chunk, FALSE)
+        b_ex <- dtv(pr$ref_chunk, TRUE)
       }
       for (i in seq_along(miss)) {
         assign(sprintf("%.17g", miss[i]), c(a[i] - b[i], a_ex[i] - b_ex[i]), envir = cache)
@@ -621,19 +672,47 @@ cmp_run_det <- function(models, dets, setup) {
 }
 
 #' Deterministischer Lauf einer Variante im Modus differential (9.6 Nr. 6)
+#'
+#' Wie `cmp_det_run()` mit den negierten project-/grants-Zeilen des deterministischen Laufs der
+#' Referenz (bei Entscheidungsknoten in beiden Zweigen) und dem Vermerk
+#' „Vereinfachungsmodus Differenzzahlungen“.
 #' @noRd
 cmp_det_differential <- function(model, det_ref) {
   extra <- cmp_differential_rows(det_ref$result$ledger)
-  t0 <- proc.time()[["elapsed"]]
-  m <- if (is.null(model$decision) || identical(as.integer(model$decision$branch %||% 1L), 1L))
-    model else model$decision$fallback
-  ch <- eng_run_chunk(m, blocks = 1L, seed = NULL, mode = "deterministic", store = "full",
-                      return_paths = cmp_paths(), extra_rows = extra)
-  side <- cmp_side(ch, m)
-  res <- eng_result(m, cmp_strip_qt(ch), mode = "deterministic", store = "full", seed = NULL,
-                    runtime = proc.time()[["elapsed"]] - t0)
-  res$meta$notes <- c(res$meta$notes, lbl("mc.compare.differential_note"))
-  list(result = res, side = side, model = m)
+  out <- cmp_det_run(model, extra_rows = extra, with_ref_rows = TRUE)
+  note <- lbl("mc.compare.differential_note")
+  out$result$meta$notes <- c(out$result$meta$notes, note)
+  alt <- out$result$decision$alternative
+  if (!is.null(alt)) {
+    alt$meta$notes <- c(alt$meta$notes, note)
+    out$result$decision$alternative <- alt
+  }
+  out
+}
+
+#' Deterministische Läufe von Variante und Referenz für Vergleichskennzahlen (im Modus
+#' differential mit den negierten Zeilen der Referenz in der Variante)
+#' @return Liste `var`, `ref` (je wie `cmp_det_run()`).
+#' @noRd
+cmp_det_pair <- function(model_v, model_r) {
+  dr <- cmp_det_run(model_r)
+  dv <- if (cmp_is_differential(model_v)) {
+    cmp_check_grid(model_v, model_r)
+    cmp_det_differential(model_v, dr)
+  } else {
+    cmp_det_run(model_v)
+  }
+  list(var = dv, ref = dr)
+}
+
+#' Modus differential braucht dasselbe Zeitraster von Variante und Referenz (9.6 Nr. 6)
+#' @noRd
+cmp_check_grid <- function(model_v, model_r) {
+  if (!identical(model_v$grid$months, model_r$grid$months)) {
+    vofi_abort("mc.compare.differential_grid", variant = model_v$spec$variant %||% "-",
+               reference = model_r$spec$variant %||% "-", .class = "vofi_error_validation")
+  }
+  invisible(TRUE)
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -754,8 +833,8 @@ cmp_mc_chunk <- function(cfgs, cases, union, blocks, seed) {
       cv <- run(m, cfg, store, extra)
       cf <- run(m$decision$fallback, cfg, store, extra)
       ch <- mc_composite(cv, cf)
-      v <- cv[c("kpis", "kpi_na", "sims", "blocks", "n")]
-      f <- cf[c("kpis", "kpi_na", "sims", "blocks", "n")]
+      v <- cmp_strip_qt(cv[c("kpis", "kpi_na", "sims", "blocks", "n")])
+      f <- cmp_strip_qt(cf[c("kpis", "kpi_na", "sims", "blocks", "n")])
     }
     if (cs %in% need_ledger) {
       ref_led[[cs]] <- ch$ledger
@@ -771,7 +850,7 @@ cmp_mc_chunk <- function(cfgs, cases, union, blocks, seed) {
     cs <- cases$case[i]
     rf <- cases$reference[i]
     if (identical(cs, rf)) next
-    cv <- cmp_compare_sides(cmp_side(out[[cs]]$chunk, cfgs[[cs]]$model),
+    cv <- cmp_compare_sides(cmp_side(out[[cs]]$chunk, cfgs[[cs]]$model, is_diff[i]),
                             cmp_side(out[[rf]]$chunk, cfgs[[rf]]$model))
     added <- cmp_add_columns(out[[cs]]$chunk$kpis, out[[cs]]$chunk$kpi_na, cv)
     n <- nrow(added$kpis)
@@ -782,7 +861,8 @@ cmp_mc_chunk <- function(cfgs, cases, union, blocks, seed) {
     out[[cs]]$chunk$kpis <- added$kpis
     out[[cs]]$chunk$kpi_na <- added$kpi_na
     if (!is.null(out[[cs]]$v)) {
-      ref_dtv <- out[[rf]]$chunk$kpis$delta_terminal_value
+      # Modus differential: das eigene dEW des Zweigs ist bereits der Vorteil (9.6 Nr. 6)
+      ref_dtv <- if (is_diff[i]) 0 else as.double(out[[rf]]$chunk$kpis$delta_terminal_value)
       cond_v <- as.double(out[[cs]]$v$kpis$delta_terminal_value) - ref_dtv
       cond_f <- as.double(out[[cs]]$f$kpis$delta_terminal_value) - ref_dtv
       out[[cs]]$cond <- list(v = cond_v, f = cond_f, sims = out[[cs]]$chunk$sims)
@@ -871,7 +951,7 @@ cmp_cautious <- function(model, ref_model = NULL, gen = list(), set_name = "vors
   exclude <- as.character(unlist(gen$exclude %||% character(0)))
   setup <- sens_setup_models(model, if (k %in% sens_compare_kpis()) ref_model else NULL, k)
   cands <- sens_candidates(setup, params, probs, delta = NULL, exclude = exclude)
-  tornado <- sens_tornado(setup, cands)
+  tornado <- sens_result("tornado", setup, sens_tornado(setup, cands), probs = probs)
   res <- tornado$results
   base <- tornado$base_value
   thr <- 1e-9 * max(1, abs(base), na.rm = TRUE)
@@ -902,10 +982,19 @@ cmp_cautious <- function(model, ref_model = NULL, gen = list(), set_name = "vors
                        optional = TRUE)
   shown <- paste0(drivers$param, " = ", format(drivers$value, digits = 6))
   notes <- lbl("mc.cautious.note", set = set_name, values = utl_collapse(shown))
-  rv <- cmp_design_result(model, row, set_name, notes)
-  result <- rv$result
-  if (!is.null(setup$ref_model)) {
+  if (is.null(setup$ref_model)) {
+    rv <- cmp_design_result(setup$model, row, set_name, notes)
+    result <- rv$result
+  } else {
+    # dieselbe Designzeile auf Referenz und Variante; im Modus differential erhaelt die Variante
+    # die negierten Zeilen der Referenz aus deren Designzeile (9.6 Nr. 6)
     rr <- cmp_design_result(setup$ref_model, row, set_name, notes)
+    diff <- cmp_is_differential(setup$model)
+    if (diff) cmp_check_grid(setup$model, setup$ref_model)
+    extra <- if (diff) cmp_differential_rows(rr$result$ledger) else NULL
+    rv <- cmp_design_result(setup$model, row, set_name, notes, extra_rows = extra,
+                            with_ref_rows = diff)
+    result <- rv$result
     cv <- cmp_compare_sides(rv$side, rr$side)
     added <- cmp_add_columns(result$kpis, result$kpi_na, cv)
     result$kpis <- added$kpis
@@ -926,18 +1015,20 @@ cmp_cautious <- function(model, ref_model = NULL, gen = list(), set_name = "vors
 
 #' Zahl aus der Spezifikation (Konstante bzw. Basisfallwert) mit Default
 #' @noRd
-cmp_spec_num <- function(spec, path, default = NA_real_) {
-  v <- tryCatch(cmp_spec_value(spec, path), error = function(e) NULL)
+cmp_spec_num <- function(spec, path, default = NA_real_, grid = NULL) {
+  v <- tryCatch(cmp_spec_value(spec, path, grid), error = function(e) NULL)
   if (is.null(v) || !is.numeric(v) || length(v) == 0L || is.na(v[1L])) default else
     as.double(v[1L])
 }
 
 #' Schwellen der Ampel (`analysis.traffic_light`, Defaults 0,70 / 0,40 / 0,30)
 #' @noRd
-cmp_tl_thresholds <- function(spec) {
-  list(green_prob = cmp_spec_num(spec, "analysis.traffic_light.green_prob", 0.70),
-       red_prob = cmp_spec_num(spec, "analysis.traffic_light.red_prob", 0.40),
-       restriction_prob = cmp_spec_num(spec, "analysis.traffic_light.restriction_prob", 0.30))
+cmp_tl_thresholds <- function(spec, grid = NULL) {
+  num <- function(nm, default) {
+    cmp_spec_num(spec, paste0("analysis.traffic_light.", nm), default, grid)
+  }
+  list(green_prob = num("green_prob", 0.70), red_prob = num("red_prob", 0.40),
+       restriction_prob = num("restriction_prob", 0.30))
 }
 
 #' Zweistufige Ampel aus Eingaben (12.9)
@@ -1024,8 +1115,10 @@ cmp_traffic_light_core <- function(p_base, p_base_ex_rv = p_base, mc = NULL, p_c
 #' @noRd
 cmp_restriction_note <- function(r) {
   yr <- if (is.na(r$year)) "-" else as.character(r$year)
-  val <- if (is.na(r$value)) "-" else fmt_num(r$value, 2)
-  thr <- if (is.na(r$threshold)) "-" else fmt_num(r$threshold, 2)
+  # Belastungsquote als Prozentsatz, uebrige Groessen als Zahl
+  fmt <- if (identical(r$code, "burden")) function(v) fmt_pct(v, 1) else function(v) fmt_num(v, 2)
+  val <- if (is.na(r$value)) "-" else fmt(r$value)
+  thr <- if (is.na(r$threshold)) "-" else fmt(r$threshold)
   prob <- if (is.na(r$prob)) "-" else fmt_pct(r$prob, 1)
   switch(r$code,
     dscr = lbl("mc.traffic_light.ko_dscr", year = yr, value = val, threshold = thr,
@@ -1052,7 +1145,7 @@ cmp_restriction_detail <- function(res, code) {
   if (is.null(res) || is.null(res$ledger)) return(none)
   spec <- res$spec
   thr <- function(name, default = NA_real_) {
-    cmp_spec_num(spec, paste0("analysis.thresholds.", name), default)
+    cmp_spec_num(spec, paste0("analysis.thresholds.", name), default, res$grid)
   }
   kv <- function(k) {
     v <- res$kpis[[k]]
@@ -1080,7 +1173,7 @@ cmp_restriction_detail <- function(res, code) {
         v <- res$ledger$values
         kk <- v$od_balance[1L, ] + (v$odp_balance %||% matrix(0, 1L, g$T + 1L))[1L, ]
         odp <- (v$odp_balance %||% matrix(0, 1L, g$T + 1L))[1L, ]
-        t1 <- cmp_spec_num(spec, "accounts.overdraft_flag_threshold_eur", Inf)
+        t1 <- cmp_spec_num(spec, "accounts.overdraft_flag_threshold_eur", Inf, g)
         hit <- which(odp > vofi_tol$zero_abs | kk > t1)
         if (length(hit) > 0L) {
           list(year = as.integer(g$year[hit[1L]]), value = kk[hit[1L]],
@@ -1096,23 +1189,60 @@ cmp_restriction_detail <- function(res, code) {
         list(year = as.integer(yr), value = kv("warm_rent_change_prepost_y1"),
              threshold = thr("warm_rent_increase_eur_m2", 0.5))
       },
-      burden = list(year = NA_integer_, value = kv("burden_ratio_max"),
-                    threshold = thr("burden_share", 0.4)),
+      burden = {
+        t1 <- thr("burden_share", 0.4)
+        r <- cmp_burden_ratio_years(res, core)
+        hit <- which(!is.na(r$ratio) & r$ratio > t1)
+        if (length(hit) > 0L) {
+          list(year = r$year[hit[1L]], value = r$ratio[hit[1L]], threshold = t1)
+        } else {
+          list(year = NA_integer_, value = kv("burden_ratio_max"), threshold = t1)
+        }
+      },
       savings = {
         oy <- kpi_op_years(g)
         ns <- kpi_by_year(kpi_ns(core), oy)[1L, ]
-        cap <- 12 * cmp_spec_num(spec, "household.savings_capacity_month_eur", NA_real_)
+        cap <- 12 * cmp_spec_num(spec, "household.savings_capacity_month_eur", NA_real_, g)
+        # erstes Betriebsjahr mit Nachschuss ueber der Sparfaehigkeit
+        # (flags$equity_call_over_savings)
+        hit <- which(!is.na(ns) & ns > cap + vofi_tol$zero_abs)
         if (length(ns) == 0L) {
           none
+        } else if (length(hit) > 0L) {
+          list(year = as.integer(oy$year[hit[1L]]), value = ns[hit[1L]], threshold = cap)
         } else {
           i <- which.max(ns)
-          list(year = as.integer(oy$year[i]), value = ns[i], threshold = cap)
+          list(year = NA_integer_, value = ns[i], threshold = cap)
         }
       },
       none
     )
   }, error = function(e) none)
   out
+}
+
+#' Belastungsquote je Betriebsjahr im Basisfall (wie `burden_ratio_max`, 12.3)
+#'
+#' Monatliche Belastung je Betriebsjahr / Einkommen des Jahres (`household.net_income_month_eur`
+#' × Kalenderjahresindex von `household.income_growth`, Preisstand `project.price_base_year`).
+#' @param res `vofi_result` (Basisfall).
+#' @param core Kern mit `ledger` (ein Lauf), `grid`, `n`.
+#' @return Liste `year` (Kalenderjahr je Betriebsjahr), `ratio` (`NA` ohne Einkommen).
+#' @noRd
+cmp_burden_ratio_years <- function(res, core) {
+  g <- res$grid
+  oy <- kpi_op_years(g)
+  na <- list(year = oy$year, ratio = rep(NA_real_, length(oy$year)))
+  if (length(oy$P) == 0L) return(na)
+  ctx <- eng_context_from_parts(g, res$spec, mode = "deterministic")
+  inc <- ctx$value("household.net_income_month_eur", "scalar")
+  if (is.null(inc)) return(na)
+  growth <- ctx$value("household.income_growth", "path")
+  if (is.null(growth)) growth <- 0
+  idx <- ctx$index_year(growth, base_date = kpi_price_base_date(ctx, g))
+  income <- as.double(inc)[1L] * idx[1L, oy$first]
+  burden <- kpi_monthly_by_year(kpi_burden(core), oy)[1L, ]
+  list(year = oy$year, ratio = ifelse(income > vofi_tol$zero_abs, burden / income, NA_real_))
 }
 
 #' Restriktionen der Ampel aus Basisfall und Simulation (12.9 Stufe 2)
@@ -1166,7 +1296,7 @@ cmp_traffic_light <- function(x, kpi = NULL, cautious = NULL) {
   restr <- cmp_restrictions(det, if (is_mc) x$kpis else NULL)
   out <- cmp_traffic_light_core(p_base, p_ex, mc = mc, p_cautious = cautious,
                                 restrictions = restr,
-                                thresholds = cmp_tl_thresholds(x$spec), kpi = kpi)
+                                thresholds = cmp_tl_thresholds(x$spec, det$grid), kpi = kpi)
   out[c("level", "stage1", "basis", "kpi", "rv_dependent", "restrictions", "notes")]
 }
 
@@ -1349,7 +1479,7 @@ cmp_assemble <- function(out, models, setup, comp, cautious, mode, n_sim, seed, 
     restr <- cmp_restrictions(det, if (is.null(mcv)) NULL else r$kpis)
     res_tl <- cmp_traffic_light_core(p_base, p_ex, mc = mcv, p_cautious = cz,
                                      restrictions = restr,
-                                     thresholds = cmp_tl_thresholds(det$spec),
+                                     thresholds = cmp_tl_thresholds(det$spec, det$grid),
                                      kpi = "delta_vs_reference")
     ko_codes <- res_tl$restrictions$code[res_tl$restrictions$ko]
     tl[[cs]] <- data.frame(variant = cs, level = res_tl$level, stage1 = res_tl$stage1,
@@ -1380,11 +1510,11 @@ cmp_assemble <- function(out, models, setup, comp, cautious, mode, n_sim, seed, 
       if (is.null(models[[cs]]$decision)) next
       d <- out$dets[[cs]]
       rf <- cmp_cases$reference[match(cs, cmp_cases$case)]
-      ref_dtv <- as.double(out$dets[[rf]]$result$kpis$delta_terminal_value[1L])
       for (b in c(1L, 0L)) {
-        side <- if (b == 1L) d$approved else d$fallback
-        dv <- as.double(side$result$kpis$delta_terminal_value[1L]) - ref_dtv
-        cond[[length(cond) + 1L]] <- cmp_cond_row(cs, b, dv)
+        br <- if (b == 1L) d$approved else d$fallback
+        # bedingter Vorteil je Zweig gegen die Referenz (Modus differential: eigenes dEW)
+        dv <- cmp_compare_sides(br$side, out$dets[[rf]]$side)$kpis$delta_vs_reference[1L]
+        cond[[length(cond) + 1L]] <- cmp_cond_row(cs, b, as.double(dv))
       }
     }
     if (length(cond) > 0L) conditional <- do.call(rbind, cond)
@@ -1470,14 +1600,15 @@ cmp_mandatory_sensitivities <- function(x, variant = "base", reference = NULL) {
   kpi <- if (is.null(reference)) kpi_primary(m0$spec)$kpi else "delta_vs_reference"
   if (identical(kpi, "delta_vs_reference") && is.null(reference)) kpi <- "delta_terminal_value"
   eval_pair <- function(mv, mr) {
-    dv <- cmp_det_run(cmp_with_qt(mv))
     if (is.null(mr)) {
+      dv <- cmp_det_run(cmp_with_qt(mv))
       return(c(as.double(dv$result$kpis[[kpi]][1L]),
                as.double((dv$result$kpis[[paste0(kpi, "_ex_rv")]] %||%
                             dv$result$kpis[[kpi]])[1L])))
     }
-    dr <- cmp_det_run(cmp_with_qt(mr))
-    cv <- cmp_compare_sides(dv$side, dr$side)
+    # Modus differential: Variante mit den negierten Zeilen der Referenz (9.6 Nr. 6)
+    pr <- cmp_det_pair(cmp_with_qt(mv), cmp_with_qt(mr))
+    cv <- cmp_compare_sides(pr$var$side, pr$ref$side)
     c(cv$kpis$delta_vs_reference[1L], cv$kpis$delta_vs_reference_ex_rv[1L])
   }
   base <- eval_pair(m0, r0)

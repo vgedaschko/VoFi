@@ -19,6 +19,9 @@
 #   8. Rendite der Mehrinvestition (zwei Design-Laeufe à 41 Zeilen + Verfeinerung): < 1,5 s
 # Ausgabe: Tabelle mit gemessener Zeit, Ziel und Status; danach die Anteile Sampler/Engine eines
 # MC-Chunks (2.000 Laeufe x 53 Perioden) und optional das Profil.
+# Die Pflicht-Leistungstests (Spec 00 15.6, skip_on_cran(), Faktor VOFI_PERF_FACTOR) mit
+# demselben Szenario (wsg_bench_scenario() in tests/testthat/helper-ws-g.R) stehen in
+# test-mc.R, test-compare.R und test-sensitivity.R.
 
 if (nzchar(Sys.getenv("VOFI_BENCH_LOAD_ALL"))) {
   suppressMessages(pkgload::load_all(".", quiet = TRUE))

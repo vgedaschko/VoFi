@@ -345,3 +345,80 @@ test_that("Entscheidungsknoten mit store = full: Ledger des Kompositums", {
   expect_true(all(zus[b == 1L] == 20000))
   expect_identical(names(mc$runs), "p50")
 })
+
+test_that("parallel = TRUE über future.apply: Ergebnis identisch (9.9, R-28)", {
+  skip_if_not_installed("future")
+  skip_if_not_installed("future.apply")
+  m <- grob_model()
+  a <- vofi_mc(m, n_sim = 400L, seed = 5L, store = "kpi", chunk_size = 200L)
+  # Plan im selben Prozess: geht auch im Entwicklungsmodus über future_lapply()
+  oplan <- future::plan(future::sequential)
+  on.exit(future::plan(oplan), add = TRUE)
+  expect_true(mc_future_inprocess())
+  calls <- 0L
+  orig <- future.apply::future_lapply
+  testthat::local_mocked_bindings(
+    future_lapply = function(...) {
+      calls <<- calls + 1L
+      orig(...)
+    },
+    .package = "future.apply"
+  )
+  p <- vofi_mc(m, n_sim = 400L, seed = 5L, store = "kpi", chunk_size = 200L, parallel = TRUE)
+  expect_identical(calls, 1L)
+  expect_identical(p$meta$n_chunks, 2L)
+  expect_identical(p$kpis, a$kpis)
+  expect_identical(p$inputs, a$inputs)
+})
+
+test_that("parallel = TRUE mit Workern in eigenen Prozessen (installiertes Paket)", {
+  skip_on_cran()
+  skip_if_not_installed("future")
+  skip_if_not_installed("future.apply")
+  skip_if(mc_dev_mode(), "Entwicklungsmodus: Worker sehen den Namespace nicht")
+  m <- grob_model()
+  a <- vofi_mc(m, n_sim = 400L, seed = 5L, store = "kpi", chunk_size = 200L)
+  oplan <- future::plan(future::multisession, workers = 2L)
+  on.exit(future::plan(oplan), add = TRUE)
+  p <- vofi_mc(m, n_sim = 400L, seed = 5L, store = "kpi", chunk_size = 200L, parallel = TRUE)
+  expect_identical(p$kpis, a$kpis)
+  expect_identical(p$inputs, a$inputs)
+})
+
+# ---------------------------------------------------------------------------------------------
+# Leistung (9.10, 15.6; skip_on_cran())
+# ---------------------------------------------------------------------------------------------
+
+# Markierungen (Strafzinstranche in einem Teil der Läufe) sind hier erwartet
+wsg_bench_mc <- function(m, n = 10000L) {
+  suppressWarnings(wsg_quiet(vofi_mc(m, n_sim = n, seed = 20261025L, store = "bands",
+                                     keep_runs = character(0))))
+}
+
+test_that("9.10: MC 10.000 x 53 Perioden inkl. KPIs, Unterlassung, Bänder (< 1,5 s)", {
+  wsg_perf_skip()
+  m <- wsg_quiet(vofi_build(wsg_bench_scenario(53L)))
+  expect_identical(m$grid$T, 53L)
+  ms <- wsg_cpu_ms(function() wsg_bench_mc(m))
+  expect_lt(ms, 1500 * wsg_perf_factor(), label = sprintf("MC 10.000 x 53 %.0f ms", ms))
+})
+
+test_that("9.10: MC 10.000 x 83 Perioden (< 3 s) und Spitzenspeicher mit bands (< 1 GB)", {
+  wsg_perf_skip()
+  m <- wsg_quiet(vofi_build(wsg_bench_scenario(83L)))
+  expect_identical(m$grid$T, 83L)
+  invisible(gc(reset = TRUE))
+  ms <- wsg_cpu_ms(function() wsg_bench_mc(m))
+  peak_mb <- sum(gc()[, 6L])
+  expect_lt(ms, 3000 * wsg_perf_factor(), label = sprintf("MC 10.000 x 83 %.0f ms", ms))
+  expect_lt(peak_mb, 1024, label = sprintf("Spitzenspeicher %.0f MB", peak_mb))
+})
+
+test_that("9.10: Entscheidungsknoten <= 2 x Budget der Variante ohne Knoten (2.000 x 53)", {
+  wsg_perf_skip()
+  md <- wsg_quiet(vofi_build(wsg_bench_scenario(53L, decision = TRUE)))
+  expect_false(is.null(md$decision))
+  ms <- wsg_cpu_ms(function() wsg_bench_mc(md, 2000L))
+  expect_lt(ms, 2 * 1500 / 5 * wsg_perf_factor(),
+            label = sprintf("MC mit Knoten 2.000 x 53 %.0f ms", ms))
+})

@@ -327,12 +327,21 @@ mc_dev_mode <- function() {
   !is.null(get0(".__DEVTOOLS__", envir = ns, inherits = FALSE))
 }
 
+#' Rechnet der aktuelle future-Plan im selben Prozess (`sequential`)?
+#' @noRd
+mc_future_inprocess <- function() {
+  if (!requireNamespace("future", quietly = TRUE)) return(FALSE)
+  inherits(future::plan(), c("sequential", "uniprocess"))
+}
+
 #' Chunks sequenziell oder über `future.apply` rechnen (9.9, R-28, 11.12)
 #'
 #' Die Worker ziehen nur benannte Ströme ihrer Blöcke (`with_stream()`), die Ergebnisse sind
 #' daher unabhängig von der Zahl der Worker. Meldungen werden je Chunk gesammelt und vom
-#' Aufrufer einmal ausgegeben. Im Entwicklungsmodus (Paket nicht installiert) wird sequenziell
-#' gerechnet (Hinweis).
+#' Aufrufer einmal ausgegeben. Im Entwicklungsmodus (Paket nicht installiert) wird mit einem
+#' Plan in eigenen Prozessen sequenziell gerechnet (Hinweis), weil die Worker den
+#' Entwicklungs-Namespace nicht sehen; der Plan `future::sequential` läuft im selben Prozess und
+#' geht auch dort über `future.apply`.
 #' @param chunks Liste der Blockvektoren.
 #' @param fun Funktion `blocks -> Ergebnis`.
 #' @param parallel logisch.
@@ -342,7 +351,7 @@ mc_run_chunks <- function(chunks, fun, parallel = FALSE) {
   wrap <- function(blocks) mc_capture(fun(blocks))
   if (isTRUE(parallel) && length(chunks) > 1L) {
     utl_require("future.apply", "vofi_mc")
-    if (mc_dev_mode()) {
+    if (mc_dev_mode() && !mc_future_inprocess()) {
       vofi_inform("mc.parallel_dev")
       parallel <- FALSE
     }

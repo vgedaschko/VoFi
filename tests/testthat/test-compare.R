@@ -1,20 +1,20 @@
 # Tests für R/compare.R (WS-G; Spec 00 Abschnitte 4.11, 9.6, 9.11, 11.10, 12.6, 12.9, 13.3,
 # 15.3 (g), 15.4 V1, 15.6; Spec 01 Teil C 4.3, 4.4, 6.6).
 
-test_that("Vergleichskennzahlen als Registry-Typen (12.6): Vertrag, Einheit, Restwertbezug", {
+test_that("Vergleichskennzahlen (12.6): keine Registry-Typen, Einheit und Label aus WS-D2", {
+  # Spec 00 2.4 (typedef_kpi_* in R/kpi-*.R), Spec 01 Teil A 2.1 (nicht Teil von analysis.kpis)
   for (nm in c("delta_vs_reference", "prob_better_than_ref")) {
-    expect_true(reg_has("kpi", nm), info = nm)
-    expect_type_contract(nm, "kpi")
+    expect_false(reg_has("kpi", nm), info = nm)
   }
   expect_identical(kpi_unit("delta_vs_reference"), "EUR")
   expect_identical(kpi_unit("prob_better_than_ref"), "share")
-  expect_true(reg_get("kpi", "delta_vs_reference")$rv_variant)
   expect_identical(kpi_rv_info("prob_better_than_ref"), list(class = "with",
                                                              note = NA_character_))
-  core <- example_core(n = 3L)
-  v <- reg_get("kpi", "delta_vs_reference")$compute(core, NULL)
-  expect_true(all(is.na(v$values)))
-  expect_identical(unique(v$na_reason), "not_computed")
+  expect_identical(kpi_rv_class("delta_vs_reference_ex_rv"), "without")
+  expect_identical(kpi_label("delta_vs_reference"),
+                   lbl("kpi.compare.delta_vs_reference.label"))
+  sc <- wsg_scenario(kpis = c("terminal_value", "delta_terminal_value", "delta_vs_reference"))
+  expect_error(wsg_quiet(vofi_build(sc)), class = "vofi_error_validation")
 })
 
 test_that("Orakel (g): Vergleichsregel, Vergleichbarkeit trotz ungleicher Nachschüsse", {
@@ -151,8 +151,12 @@ test_that("CRN in der MC: Differenzen je Lauf = getrennte Simulationen mit gleic
                cmp$results$a$deterministic$kpis$delta_vs_reference)
   expect_identical(cmp$traffic_light$basis, "mc")
   expect_true(all(cmp$results$a$kpi_na$incremental_return == "not_computed"))
-  expect_false(is.na(cmp$results$a$deterministic$kpis$incremental_return) &&
-                 FALSE)
+  # deterministisch: keine Mehrinvestition (g(h) = 3.000 q^4 > 0 auf dem ganzen Intervall),
+  # daher kein fallender Vorzeichenwechsel -> NA no_solution (12.6, 12.8)
+  det_a <- cmp$results$a$deterministic
+  expect_true(is.na(det_a$kpis$incremental_return))
+  expect_identical(det_a$kpi_na$incremental_return, "no_solution")
+  expect_identical(det_a$kpi_na$incremental_return_ex_rv, "no_solution")
   # Rangfolge nach mittlerem delta_vs_reference
   expect_identical(cmp$ranking$value[cmp$ranking$variant == "a"], mean(dvr[, "a"]))
 })
@@ -203,9 +207,38 @@ test_that("Set „vorsichtig“ (Teil C 4.3 (v1)): Swings 16 / 8 / 1,6; KPI 88 b
   cze <- wsg_quiet(cmp_cautious(m, NULL, gen = list(n_drivers = 2L, exclude = "x1")))
   expect_identical(cze$drivers$param, c("x2", "x3"))
   expect_equal(cze$value, 100 - 4 - 0.8, tolerance = 1e-9)
-  # Tornado identisch zu vofi_sensitivity(method = "tornado", probs = c(0.1, 0.9))
+  # Tornado als vofi_sensitivity (Teil C 4.3 Nr. 5), identisch zu vofi_sensitivity(method =
+  # "tornado", probs = c(0.1, 0.9))
+  expect_s3_class(cz$tornado, "vofi_sensitivity")
+  expect_identical(cz$tornado$method, "tornado")
+  expect_identical(cz$tornado$kpi, "delta_terminal_value")
   tor2 <- wsg_quiet(vofi_sensitivity(m, kpi = "delta_terminal_value"))
-  expect_equal(tor2$results$swing, tor$swing, tolerance = 1e-12)
+  expect_equal(tor2$results, cz$tornado$results, tolerance = 1e-12)
+  expect_equal(tor2$params, cz$tornado$params)
+  expect_equal(tor2$base_value, cz$tornado$base_value)
+})
+
+test_that("Set „vorsichtig“ (Teil C 4.3 (v6)): Prozess und eigener Parameter nicht zugleich", {
+  ar <- list(target = "market.rent_growth", type = "ar1",
+             mu = list(dist = "uniform", min = 0.005, max = 0.025), phi = 0.5, sigma = 0.01,
+             x0 = 0.015)
+  par <- list(f = list(target = "shared.f", dist = "uniform", min = 29700, max = 30300))
+  m <- wsg_quiet(vofi_build(wsg_process_scenario(ar, par)))
+  cz <- wsg_quiet(cmp_cautious(m, NULL, gen = list(n_drivers = 2L), kpi = "terminal_value"))
+  tor <- cz$tornado$results
+  # Rangfolge rg (Quantilpfad) > rg.mu (Prozessparameter) > f; beide Prozesskandidaten unter
+  # den zwei stärksten -> rg bleibt, f rückt nach
+  expect_identical(tor$param, c("rg", "rg.mu", "f"))
+  expect_identical(cz$drivers$param, c("rg", "f"))
+  expect_identical(cz$drivers$side, c("low", "low"))
+  expect_equal(cz$drivers$value, c(0.1, 29760), tolerance = 1e-12)
+  # Designzeile = beide Treiber auf der ungünstigen Seite
+  d <- data.frame(rg = 0.1, f = 29760)
+  ch <- eng_run_chunk(m, 1L, NULL, "design", "kpi", design = d, kpis = "terminal_value")
+  expect_equal(cz$value, ch$kpis$terminal_value, tolerance = 1e-9)
+  # mit drei Treibern: rg.mu bleibt ausgeschlossen
+  cz3 <- wsg_quiet(cmp_cautious(m, NULL, gen = list(n_drivers = 3L), kpi = "terminal_value"))
+  expect_identical(cz3$drivers$param, c("rg", "f"))
 })
 
 test_that("Set „vorsichtig“ ohne Overlay: keine Treiber, Hinweis, Ampel ohne cautious", {
@@ -233,6 +266,10 @@ test_that("vofi_compare mit Set „vorsichtig“: Designzeile auf Variante und R
   expect_identical(cmp$traffic_light$basis[cmp$traffic_light$variant == "a"], "cautious")
   inf <- cmp$meta$cautious[["a@vorsichtig"]]
   expect_true(is.data.frame(inf$drivers))
+  expect_s3_class(inf$tornado, "vofi_sensitivity")
+  expect_identical(inf$tornado$kpi, "delta_vs_reference")
+  expect_identical(inf$tornado$variant, "a")
+  expect_identical(inf$tornado$meta$reference, "base")
 })
 
 test_that("Ampel (12.9, Teil C 6.6): Prüffälle A1 bis A12", {
@@ -327,6 +364,39 @@ test_that("Restriktionen: Jahr und Betrag der ersten Verletzung (DSCR, Liquidit�
                    list(year = NA_integer_, value = NA_real_, threshold = NA_real_))
 })
 
+test_that("Restriktionen savings und burden: Jahr und Betrag der ersten Verletzung (12.9)", {
+  hh <- list(net_income_month_eur = 1500, savings_capacity_month_eur = 50, income_growth = 0.02)
+  kp <- c("terminal_value", "terminal_value_opp", "delta_terminal_value", "burden_ratio_max",
+          "restriction_burden", "restriction_savings")
+  # Nachschüsse 5.000 (Betriebsjahr 1, 2027) und 8.000 (Betriebsjahr 2, 2028) über der
+  # Sparfähigkeit 600 je Jahr: erste Verletzung 2027, nicht das Jahr mit dem größten Nachschuss
+  sc <- wsg_scenario(perspective = "selbstnutzer", loan = FALSE,
+                     flows = c(-100000, -5000, -8000, 1000, 1000), final = 1000, kpis = kp,
+                     accounts = list(overdraft_limit_eur = 0,
+                                     deficit_order = c("dep_withdraw", "od_draw",
+                                                       "equity_call")),
+                     extra = list(household = hh))
+  res <- wsg_quiet(vofi_run(wsg_quiet(vofi_build(sc))))
+  expect_identical(res$kpis$restriction_savings, 1)
+  s <- cmp_restriction_detail(res, "savings")
+  expect_identical(s$year, 2027L)
+  expect_equal(s$value, 5000, tolerance = 1e-6)
+  expect_equal(s$threshold, 600)
+  # Belastung: Kredit mit Annuität; Quote je Jahr fällt mit dem Einkommenswachstum, erste
+  # Verletzung im ersten Betriebsjahr
+  sc2 <- wsg_scenario(perspective = "selbstnutzer", loan = TRUE,
+                      flows = c(-100000, 1000, 1000, 1000, 1000), final = 1000, kpis = kp,
+                      extra = list(household = hh))
+  res2 <- wsg_quiet(vofi_run(wsg_quiet(vofi_build(sc2))))
+  expect_identical(res2$kpis$restriction_burden, 1)
+  b <- cmp_restriction_detail(res2, "burden")
+  expect_identical(b$year, 2027L)
+  expect_equal(b$value, res2$kpis$burden_ratio_max, tolerance = 1e-12)
+  expect_equal(b$threshold, 0.4)
+  tl <- cmp_traffic_light(res2)
+  expect_true(any(grepl("Belastungsquote 40,3 % im Jahr 2027", tl$notes, fixed = TRUE)))
+})
+
 test_that("Differenz-VoFi (9.6 Nr. 5): zeilenweise Differenz, nur bei gleichem Raster", {
   testthat::local_mocked_bindings(vofi_table = wsg_mock_table)
   sc <- wsg_scenario(variants = wsg_variant_a(components.z.values = wsg_z_a))
@@ -388,6 +458,102 @@ test_that("Entscheidungsknoten im Vergleich: Kompositum und bedingte Ergebnisse 
   expect_identical(cnd$branch, c(1L, 0L))
   expect_equal(cnd$prob_better[cnd$branch == 0L], 0)
   expect_equal(cnd$prob_better[cnd$branch == 1L], 1)
+  # die interne Kennzahl q_T erscheint in keiner Statistik (auch nicht bedingt je Zweig)
+  dec <- mc$results$base$decision
+  expect_false(cmp_qt_name() %in% dec$stats_approved$kpi)
+  expect_false(cmp_qt_name() %in% dec$stats_fallback$kpi)
+  expect_false(cmp_qt_name() %in% mc$results$base$stats$kpi)
+  expect_false(cmp_qt_name() %in% names(mc$results$base$kpis))
+})
+
+test_that("Set foerderstopp mit Entscheidungsknoten (Teil C 4.2 (z1)): Zweig 0 im Basisfall", {
+  sc <- wsg_decision_scenario(n_sim = 200L, p = 0.6)
+  cmp <- wsg_quiet(vofi_compare(sc, variants = "base", baseline = "ohne",
+                                scenario_sets = "foerderstopp"))
+  expect_setequal(names(cmp$results), c("ohne", "base", "ohne@foerderstopp",
+                                        "base@foerderstopp"))
+  expect_identical(cmp$results[["base@foerderstopp"]]$decision$branch, 0L)
+  expect_identical(cmp$results$base$decision$branch, 1L)
+  dvr <- cmp$differences$delta_vs_reference
+  # ohne Zusage realisiert der Basisfall die Ausweichvariante = Referenz: Vorteil 0
+  expect_equal(unname(dvr[1L, "base@foerderstopp"]), 0, tolerance = 1e-9)
+  expect_gt(unname(dvr[1L, "base"]), 0)
+  expect_identical(cmp$traffic_light$level[cmp$traffic_light$variant == "base@foerderstopp"],
+                   "red")
+})
+
+test_that("Modus differential in Einzel- und Design-Auswertungen (9.6 Nr. 6)", {
+  # gleiche Ökonomie in beiden Modi: die Vergleichskennzahlen müssen übereinstimmen
+  abs_sc <- wsg_incremental_scenario("absolute")
+  dif_sc <- wsg_incremental_scenario("differential")
+  ca <- wsg_quiet(vofi_compare(abs_sc))
+  cd <- wsg_quiet(vofi_compare(dif_sc))
+  expect_true(cd$meta$differential)
+  for (k in c("delta_vs_reference", "delta_vs_reference_ex_rv", "incremental_return",
+              "incremental_return_ex_rv", "payback_vs_reference", "payback_year_vs_reference",
+              "prob_better_than_ref")) {
+    expect_equal(cd$results$a$kpis[[k]], ca$results$a$kpis[[k]], tolerance = 1e-7, info = k)
+  }
+  expect_equal(cd$results$a$kpis$incremental_return, 0.10, tolerance = 1e-7)
+  # Rendite der Mehrinvestition über vofi_solve
+  sd <- wsg_quiet(vofi_solve(dif_sc, what = "incremental_return", variant = "a"))
+  expect_equal(sd$value, 0.10, tolerance = 1e-7)
+  expect_equal(attr(sd, "value_ex_rv"), 0.10, tolerance = 1e-7)
+  expect_lt(abs(sd$kpi_at_value), 1e-4)
+  # Pflichtsensitivitäten auf Variante und Referenz
+  ma <- wsg_quiet(cmp_mandatory_sensitivities(abs_sc, variant = "a", reference = "base"))
+  md <- wsg_quiet(cmp_mandatory_sensitivities(dif_sc, variant = "a", reference = "base"))
+  expect_equal(md$base, ma$base, tolerance = 1e-7)
+  expect_equal(md$value, ma$value, tolerance = 1e-7)
+  expect_identical(md$status, ma$status)
+  expect_equal(unique(md$base), -10000 * 1.02^5 + 11000 * 1.02^4, tolerance = 1e-6)
+})
+
+test_that("Modus differential: Set „vorsichtig“ und bedingte Ergebnisse wie im Modus absolute", {
+  lin <- function(mode) {
+    sc <- wsg_linear_scenario()
+    z_a <- list(0, 0, list(expr = "120 + 20 * shared.x1 - 5 * shared.x2 + 1 * shared.x3"))
+    sc$variants <- wsg_variant_a(components.z.values = z_a, project.comparison_mode = mode)
+    sc
+  }
+  ca <- wsg_quiet(vofi_compare(lin("absolute"), scenario_sets = "vorsichtig"))
+  cd <- wsg_quiet(vofi_compare(lin("differential"), scenario_sets = "vorsichtig"))
+  ia <- ca$meta$cautious[["a@vorsichtig"]]
+  id <- cd$meta$cautious[["a@vorsichtig"]]
+  # delta_vs_reference = 20 + 10 x1: Ausschläge 16 / 0 / 0, x1 = -0,8 -> 12
+  expect_equal(id$tornado$base_value, 20, tolerance = 1e-9)
+  expect_equal(id$tornado$results$swing, ia$tornado$results$swing, tolerance = 1e-9)
+  expect_equal(id$tornado$results$swing[1L], 16, tolerance = 1e-9)
+  expect_equal(id$value, 12, tolerance = 1e-9)
+  expect_equal(id$value, ia$value, tolerance = 1e-9)
+  rd <- cd$results[["a@vorsichtig"]]
+  expect_true(any(startsWith(rd$ledger$rows$key, "ref_")))
+  expect_true(any(grepl("Differenzzahlungen", rd$meta$notes)))
+  expect_identical(cd$traffic_light$basis, ca$traffic_light$basis)
+  # Entscheidungsknoten: bedingte Ergebnisse deterministisch und in der MC gleich
+  for (n_sim in c(1L, 200L)) {
+    res <- lapply(c("absolute", "differential"), function(mode) {
+      sc <- wsg_decision_scenario(n_sim = 200L, p = 0.6)
+      sc$project$comparison_mode <- mode
+      wsg_quiet(vofi_compare(sc, variants = "base", baseline = "ohne", n_sim = n_sim,
+                             seed = 3L, store = "kpi"))
+    })
+    expect_equal(res[[2L]]$conditional$mean, res[[1L]]$conditional$mean, tolerance = 1e-7,
+                 info = n_sim)
+    expect_equal(res[[2L]]$conditional$prob_better, res[[1L]]$conditional$prob_better,
+                 info = n_sim)
+    expect_equal(res[[2L]]$differences$delta_vs_reference,
+                 res[[1L]]$differences$delta_vs_reference, tolerance = 1e-7, info = n_sim)
+  }
+})
+
+test_that("Modus differential braucht dasselbe Raster auch in Design-Läufen", {
+  sc <- wsg_linear_scenario()
+  sc$variants <- wsg_variant_a(project.comparison_mode = "differential",
+                               project.horizon_years = 3L,
+                               components.z.values = list(0, 0, 0, 1))
+  expect_error(wsg_quiet(vofi_sensitivity(sc, variant = "a", kpi = "delta_vs_reference")),
+               class = "vofi_error_validation")
 })
 
 test_that("Zwei identische Varianten: Differenz exakt 0 in jedem Lauf (11.10 Nr. 4)", {
@@ -439,4 +605,67 @@ test_that("Pflichtsensitivitäten (Teil C 4.4) auf dem Walking Skeleton", {
   ov3 <- cmp_mandatory_override(list(project = list(pending_reforms = "a")),
                                 list(path = "project.pending_reforms", add = "stufe_2045"))
   expect_identical(ov3[[1L]], c("a", "stufe_2045"))
+})
+
+test_that("Prüffall R-107 auf einer über vofi_build normalisierten Spezifikation", {
+  ref_node <- list(ref = "market.mortgage_rate", anchor = 0.02, floor = 0)
+  sc <- wsg_scenario(accounts = list(deposit_rate_pa = ref_node),
+                     extra = list(market = list(mortgage_rate = 0.04)))
+  m0 <- wsg_quiet(vofi_build(sc))
+  node <- path_get(m0$spec, "accounts.deposit_rate_pa")
+  expect_identical(node$kind, "ref")
+  # delta: Anker + delta, Kopplung an den Zinspfad bleibt
+  ov <- cmp_mandatory_override(m0$spec, list(path = "accounts.deposit_rate_pa", delta = 0.01))
+  m1 <- wsg_quiet(vofi_build(sc, overrides = ov))
+  n1 <- path_get(m1$spec, "accounts.deposit_rate_pa")
+  expect_identical(n1$kind, "ref")
+  expect_identical(n1$path, node$path)
+  expect_equal(n1$anchor, 0.03)
+  expect_equal(n1$floor, 0)
+  sc$analysis$mandatory_sensitivities <- list(
+    list(id = "d", path = "accounts.deposit_rate_pa", delta = 0.01, label = "delta"),
+    list(id = "v", path = "accounts.deposit_rate_pa", value = 0.035, label = "value")
+  )
+  ms <- wsg_quiet(cmp_mandatory_sensitivities(sc))
+  run_h <- function(h) {
+    sc_h <- wsg_scenario(accounts = list(deposit_rate_pa = h))
+    r <- wsg_quiet(vofi_run(wsg_quiet(vofi_build(sc_h))))
+    r$kpis$delta_terminal_value
+  }
+  expect_equal(ms$base[1L], run_h(0.02), tolerance = 1e-9)
+  expect_equal(ms$value[ms$id == "d"], run_h(0.03), tolerance = 1e-9)
+  expect_equal(ms$value[ms$id == "v"], run_h(0.035), tolerance = 1e-9)
+  expect_identical(ms$status, c("computed", "computed"))
+})
+
+# ---------------------------------------------------------------------------------------------
+# Leistung (9.10, 15.6; skip_on_cran())
+# ---------------------------------------------------------------------------------------------
+
+test_that("9.10: Vergleich 5 Varianten x 10.000 x 53 (CRN, inkl. Modellbau; < 8 s)", {
+  wsg_perf_skip()
+  sc <- wsg_bench_scenario(53L, variants = wsg_bench_variants())
+  run <- function() {
+    suppressWarnings(wsg_quiet(vofi_compare(sc, n_sim = 10000L, seed = 20261025L,
+                                            store = "kpi")))
+  }
+  ms <- wsg_cpu_ms(run)
+  expect_lt(ms, 8000 * wsg_perf_factor(), label = sprintf("Vergleich %.0f ms", ms))
+})
+
+test_that("9.10: Set „vorsichtig“ und Rendite der Mehrinvestition (je < 1,5 s)", {
+  wsg_perf_skip()
+  sc <- wsg_bench_scenario(53L, variants = wsg_bench_variants())
+  m0 <- wsg_quiet(vofi_build(sc))
+  mv <- wsg_quiet(vofi_build(sc, variant = "v1"))
+  ms_c <- wsg_cpu_ms(function() {
+    suppressWarnings(wsg_quiet(cmp_cautious(cmp_with_qt(mv), cmp_with_qt(m0),
+                                            gen = list(n_drivers = 5L),
+                                            kpi = "delta_vs_reference")))
+  }, 2L)
+  expect_lt(ms_c, 1500 * wsg_perf_factor(), label = sprintf("Set vorsichtig %.0f ms", ms_c))
+  ms_i <- wsg_cpu_ms(function() suppressWarnings(wsg_quiet(cmp_incremental_return(mv, m0))),
+                     2L)
+  expect_lt(ms_i, 1500 * wsg_perf_factor(),
+            label = sprintf("Rendite der Mehrinvestition %.0f ms", ms_i))
 })

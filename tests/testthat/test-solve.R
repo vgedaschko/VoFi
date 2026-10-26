@@ -106,6 +106,33 @@ test_that("Vergleichskennzahl gegen die Referenz mit derselben Designmatrix", {
                class = "vofi_error_input")
 })
 
+test_that("Vergleichskennzahl im Modus differential: gleiche Lösung wie im Modus absolute", {
+  for (mode in c("absolute", "differential")) {
+    sc <- wsg_expr_scenario("100 * shared.x1", x1 = 1)
+    z_a <- list(0, 0, list(expr = "150 * shared.x1 - 25"))
+    sc$variants <- wsg_variant_a(components.z.values = z_a, project.comparison_mode = mode)
+    sol <- wsg_quiet(vofi_solve(sc, param = "shared.x1", kpi = "delta_vs_reference",
+                                variant = "a", interval = c(0, 2)))
+    expect_equal(sol$value, 0.5, tolerance = 1e-8, info = mode)
+    expect_lt(abs(sol$kpi_at_value), 1e-6)
+    # über Schicht 8 (rebuild) ebenso
+    sr <- wsg_quiet(vofi_solve(sc, param = "shared.x1", kpi = "delta_vs_reference",
+                               variant = "a", interval = c(0, 2), rebuild = TRUE))
+    expect_equal(sr$value, 0.5, tolerance = 1e-6, info = mode)
+  }
+})
+
+test_that("Entnahme-Äquivalent für die Orakel (b1), (b2), (c1) über vofi_solve", {
+  for (id in c("b1", "b2", "c1")) {
+    ex <- oracle_expected(id)$kpis
+    sol <- wsg_quiet(vofi_solve(oracle_scenario(id), what = "withdrawal_equivalent"))
+    expect_equal(sol$value, ex$value[ex$kpi == "withdrawal_equivalent"], tolerance = 1e-6,
+                 info = id)
+    expect_equal(attr(sol, "value_ex_rv"), ex$value[ex$kpi == "withdrawal_equivalent_ex_rv"],
+                 tolerance = 1e-6, info = id)
+  }
+})
+
 test_that("Entnahme-Äquivalent mit der Toleranz des Aufrufs (12.8): 672,44", {
   ex <- oracle_expected("a")$kpis
   want <- ex$value[ex$kpi == "withdrawal_equivalent"]
