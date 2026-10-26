@@ -1,0 +1,9 @@
+# Labels des Verteilungstyps fixed (WS-C, Spec 01 Teil C 1.4.1).
+label: "Fester Wert"
+description: "Konstanter Wert ohne Streuung; für Entartungstests und zum Abschalten einzelner Unsicherheiten."
+params:
+  value:
+    label: "Wert"
+    help: "Konstanter Wert in der Einheit des Ziels."
+validate:
+  value_invalid: "fixed: value muss eine endliche Zahl sein."

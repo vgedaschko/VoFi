@@ -1,0 +1,20 @@
+# Labels des Verteilungstyps pert (WS-C, Spec 01 Teil C 1.4.7).
+label: "PERT-Verteilung"
+description: "Beta-PERT-Verteilung aus Minimum, wahrscheinlichstem Wert und Maximum; Standard für Expertenschätzungen."
+params:
+  min:
+    label: "Minimum"
+    help: "a (<= mode)."
+  mode:
+    label: "Wahrscheinlichster Wert"
+    help: "c (min <= mode <= max)."
+  max:
+    label: "Maximum"
+    help: "b (>= mode)."
+  lambda:
+    label: "Formparameter"
+    help: "λ > 0, Default 4; größere Werte verschieben Masse zum Modus."
+validate:
+  param_invalid: "pert: {param} muss eine endliche Zahl sein."
+  order: "pert: es muss min <= mode <= max gelten (erhalten: {min}, {mode}, {max})."
+  lambda_invalid: "pert: lambda muss eine Zahl > 0 sein (erhalten: {value})."

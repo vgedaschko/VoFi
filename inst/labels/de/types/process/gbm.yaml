@@ -1,0 +1,13 @@
+# Labels des Prozesstyps gbm (WS-C, Spec 01 Teil C 1.6.5).
+label: "Geometrische Brownsche Bewegung"
+description: "Log-normaler Random Walk mit Erwartung p0 (1 + g)^(y - 1); Option, nicht Default für Energiepreise."
+params:
+  p0:
+    label: "Startwert"
+    help: "Wert im Startjahr > 0 (Token base = Basisfallwert des Ziels)."
+  growth:
+    label: "Erwartete Wachstumsrate"
+    help: "g > -1 p. a. (Default 0)."
+  sigma:
+    label: "Volatilität"
+    help: "σ >= 0."

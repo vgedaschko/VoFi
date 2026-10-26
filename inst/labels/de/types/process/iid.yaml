@@ -1,0 +1,7 @@
+# Labels des Prozesstyps iid (WS-C, Spec 01 Teil C 1.6.7).
+label: "Jährlich unabhängige Schwankung"
+description: "Jedes Jahr eine unabhängige Ziehung aus der Jahresverteilung (Startjahr = Mittelwert), z. B. Leerstandsschwankung."
+params:
+  dist_spec:
+    label: "Jahresverteilung"
+    help: "Verteilungsangabe {dist: ..., ...} ohne verteilte Parameter."

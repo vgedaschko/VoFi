@@ -1,0 +1,19 @@
+# Labels des Prozesstyps mr_trend (WS-C, Spec 01 Teil C 1.6.4).
+label: "Mean-Reversion um einen Trend"
+description: "Energiepreise: log-normales AR(1)-Rauschen um einen Wachstumstrend, optional vom Startniveau (12-Monats-Mittel) zum Normalpreis."
+params:
+  p0:
+    label: "Startwert"
+    help: "Preis im Startjahr > 0 (Token base = Basisfallwert des Ziels)."
+  p_norm:
+    label: "Normalpreis"
+    help: "Normalpreis im Startjahr > 0 (Default p0; Token base = keine Krisenabweichung)."
+  growth:
+    label: "Trendwachstum"
+    help: "nominales Wachstum g > -1 p. a. (Default 0)."
+  phi:
+    label: "Persistenz"
+    help: "φ der Log-Abweichung mit |φ| < 1."
+  sigma:
+    label: "Streuung"
+    help: "Standardabweichung der Log-Innovation σ >= 0."

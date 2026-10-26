@@ -1,0 +1,30 @@
+# Labels des Verteilungstyps beta (WS-C, Spec 01 Teil C 1.4.8).
+label: "Beta-Verteilung"
+description: "Beta-Verteilung auf [min, max] (Default [0, 1]), angegeben über shape1/shape2 oder mean/sd."
+params:
+  shape1:
+    label: "Formparameter α"
+    help: "Form a: α > 0."
+  shape2:
+    label: "Formparameter β"
+    help: "Form a: β > 0."
+  mean:
+    label: "Mittelwert"
+    help: "Form b: min < mean < max."
+  sd:
+    label: "Standardabweichung"
+    help: "Form b: 0 < sd² < (mean - min)(max - mean)."
+  min:
+    label: "Untergrenze"
+    help: "Default 0."
+  max:
+    label: "Obergrenze"
+    help: "Default 1."
+validate:
+  forms_multiple: "beta: es ist genau eine Form anzugeben (shape1/shape2 oder mean/sd), nicht beide."
+  form_missing: "beta: keine Form vollständig angegeben (shape1/shape2 oder mean/sd)."
+  bounds_invalid: "beta: min und max müssen endliche Zahlen sein."
+  bounds_order: "beta: min muss kleiner als max sein."
+  shape_invalid: "beta: shape1 und shape2 müssen Zahlen > 0 sein."
+  mean_range: "beta: mean muss zwischen min und max liegen."
+  sd_range: "beta: sd muss > 0 sein und sd² < (mean - min)(max - mean) erfüllen."
