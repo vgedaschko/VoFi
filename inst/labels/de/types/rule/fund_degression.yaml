@@ -1,0 +1,9 @@
+# Labels der Förderregel fund_degression (WS-E2, Spec 01 Teil B 4.3.3, 5.4).
+label: "Förderdegression nach Antragsdatum"
+description: "Absenkung eines Fördersatzes bzw. Höchstbetrags in Stufen ab einem Starttermin bis zu einer Unter- bzw. Obergrenze; maßgeblich ist das Antragsdatum."
+msg:
+  date_invalid: "Degression: '{arg}' ist kein gültiges Datum ({value})."
+  every_invalid: "Degression: every_months muss größer als 0 sein ({value})."
+versions:
+  "20260721":
+    note: "Konditionen der BEG EM seit 21.07.2026 (Halbjahresschritte ab 01.02.2027)."

@@ -1,0 +1,8 @@
+# Labels der Förderregel fund_35c_params (WS-E2, Spec 01 Teil B 4.8, 5.4).
+label: "Parameter der Steuerermäßigung § 35c EStG"
+description: "Tranchen (7 %, 7 %, 6 %), Gesamtsatz, Höchstbetrag je Objekt, Anteil der Energieberatung und Jahresdeckel der Steuerermäßigung für energetische Maßnahmen."
+msg:
+  schedule_invalid: "§ 35c: schedule_shares muss genau drei Anteile enthalten ({value})."
+versions:
+  "20200101":
+    note: "§ 35c EStG in der Fassung ab 01.01.2020 (Abschluss der Maßnahme vor dem 01.01.2030)."

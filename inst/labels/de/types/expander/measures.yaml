@@ -1,0 +1,3 @@
+# Labels des Expanders measures (WS-E2, Spec 01 Teil A 4.5).
+label: "Maßnahmen und Bestandsbauteile"
+description: "Erzeugt je Maßnahme Investitions-, Ersatz- und Instandsetzungskomponenten (bzw. Kaufpreis und Erwerbsnebenkosten), je Bestandsbauteil den Ersatzzyklus, die Instandhaltung des Gebäudes sowie Maßnahmen- und Anlagenregister."

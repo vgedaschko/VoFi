@@ -1,0 +1,60 @@
+# Labels des Zahlungstyps tax_credit_35c (WS-E2, Spec 01 Teil B 4.8).
+label: "Steuerermäßigung § 35c EStG"
+description: "Steuerermäßigung für energetische Maßnahmen an selbstgenutztem Wohneigentum: drei Tranchen ab dem Jahr der Fertigstellung mit Jahresdeckeln, Energieberatung, Gesamtdeckel je Objekt und optionaler Deckelung durch die erwartete Einkommensteuer; Zahlung nach Ende des Veranlagungsjahres."
+params:
+  measures:
+    label: "Begünstigte Maßnahmen"
+    help: "Maßnahmen-ids; je Maßnahme entsteht eine Zeile credit_<id>."
+  cost_components:
+    label: "Kostenkomponenten"
+    help: "capex-Komponenten der Maßnahmen (auch in after)."
+  eligible_cost_eur:
+    label: "Feste Aufwendungen"
+    help: "Ersetzt die Ableitung aus den Maßnahmenkosten."
+  share_y1:
+    label: "Anteil im Jahr der Fertigstellung"
+    help: "Erste Tranche (Gesetz: 7 %)."
+  share_y2:
+    label: "Anteil im Folgejahr"
+    help: "Zweite Tranche (Gesetz: 7 %)."
+  share_y3:
+    label: "Anteil im übernächsten Jahr"
+    help: "Dritte Tranche (Gesetz: 6 %)."
+  total_share:
+    label: "Gesamtsatz"
+    help: "Summe der Tranchen (Gesetz: 20 %); bestimmt die Jahresdeckel."
+  cap_total_eur:
+    label: "Höchstbetrag je Objekt"
+    help: "Gesamtdeckel der Steuerermäßigung (Gesetz: 40.000 EUR)."
+  energy_advice_cost_eur:
+    label: "Kosten der Energieberatung"
+    help: "Aufwendungen für den Energieberater (§ 35c Abs. 1 S. 4)."
+  energy_advice_share:
+    label: "Anteil der Energieberatung"
+    help: "Ermäßigung auf die Beratungskosten im ersten Jahr (Gesetz: 50 %)."
+  prior_used_eur:
+    label: "Bereits genutzte Ermäßigung"
+    help: "Für dasselbe Objekt schon in Anspruch genommener Betrag."
+  income_tax_cap_eur_pa:
+    label: "Erwartete Einkommensteuer je Jahr"
+    help: "Deckel je Veranlagungsjahr; nicht nutzbare Beträge verfallen."
+  completion_before:
+    label: "Abschlussfrist"
+    help: "Abschluss der Maßnahme vor diesem Datum (Gesetz: 01.01.2030)."
+  approved:
+    label: "Inanspruchnahme"
+    help: "0/1 je Lauf (Bezug auf funding.<f>.approved)."
+  payout_delay_months:
+    label: "Zahlungsverzug nach Jahresende in Monaten"
+    help: "Abstand zwischen Ende des Veranlagungsjahres und Erstattung (Default 12)."
+rows:
+  "credit_*": "Steuerermäßigung § 35c {id}"
+msg:
+  no_measures: "Komponente '{id}': keine begünstigten Maßnahmen (measures bzw. measure_id angeben)."
+  no_completion: "Komponente '{id}': eine Maßnahme hat keinen Fertigstellungstermin."
+  completion_late: "Komponente '{id}': Abschluss nicht vor dem {date:date} in {share:pct} der Läufe; keine Steuerermäßigung."
+  capped_by_tax: "Komponente '{id}': Steuerermäßigung durch die erwartete Einkommensteuer gedeckelt ({share:pct} der Läufe); nicht nutzbare Beträge verfallen."
+  after_horizon: "Komponente '{id}': Erstattung nach dem Horizont, nicht gebucht ({share:pct} der Läufe)."
+  not_owner_occupied: "Komponente '{id}': § 35c EStG verlangt selbstgenutztes Wohneigentum (Perspektive {perspective})."
+  building_too_young: "Komponente '{id}': das Gebäude ist bei Beginn erst {age} Jahre alt (§ 35c verlangt mindestens 10 Jahre)."
+  income_tax_missing: "Komponente '{id}': household.expected_income_tax_eur_pa fehlt; die Deckelung durch die Einkommensteuer ist nicht prüfbar."

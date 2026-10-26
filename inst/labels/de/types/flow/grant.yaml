@@ -1,0 +1,59 @@
+# Labels des Zahlungstyps grant (WS-E2, Spec 01 Teil B 4.5).
+label: "Investitionszuschuss"
+description: "Zuschuss eines Förderinstruments je Maßnahme: Bemessung auf den realisierten Kosten mit förderfähigem Anteil, Höchstkosten je Deckelgruppe, Bonus über einer Schwelle, Höchstsatz und Zusage je Lauf; Auszahlung zum Nachweis der Fertigstellung bzw. zur Zusage plus Verzug."
+params:
+  measures:
+    label: "Geförderte Maßnahmen"
+    help: "Maßnahmen-ids; je Maßnahme entsteht eine Zeile grant_<id>."
+  cost_components:
+    label: "Kostenkomponenten"
+    help: "capex-Komponenten der Maßnahmen (auch in after); ihre Zeilen bestimmen die realisierten Kosten."
+  eligible_cost_eur:
+    label: "Feste förderfähige Kosten"
+    help: "Ersetzt die Ableitung aus den Maßnahmenkosten (mit dem größten Aktivierungsfaktor)."
+  rate:
+    label: "Fördersatz"
+    help: "Summe der aktiven Satzbausteine (mit Degression und Einkommensstaffel)."
+  rate_cap:
+    label: "Höchstfördersatz"
+    help: "Obergrenze des Zuschusses relativ zu den gedeckelten Kosten."
+  bonus_rate:
+    label: "Bonussatz über der Schwelle"
+    help: "Satz eines Bausteins mit Schwelle (z. B. iSFP-Bonus)."
+  bonus_threshold_eur:
+    label: "Bonusschwelle"
+    help: "Kosten, ab denen der Bonus gilt (Ein-WE-Schwelle bzw. Deckel ohne Bonus)."
+  bonus_mode:
+    label: "Bonusbasis"
+    help: "excess_over_threshold (nur der Teil über der Schwelle) oder whole_amount (gedeckelte Kosten)."
+  cost_cap_eur:
+    label: "Höchstkosten je Deckelgruppe"
+    help: "Förderfähige Höchstkosten nach Staffel bzw. Höchstbetrag des Programms."
+  cap_period:
+    label: "Deckelgruppen"
+    help: "total (eine Gruppe) oder calendar_year (je Kalenderjahr der Fertigstellung)."
+  amount_eur:
+    label: "Fester Zuschussbetrag"
+    help: "Zugesagter Betrag; aufgeteilt nach den Basisfallkosten der aktiven Maßnahmen."
+  approved:
+    label: "Zusage"
+    help: "0/1 je Lauf (Bezug auf funding.<f>.approved)."
+  payout_event:
+    label: "Auszahlungsereignis"
+    help: "completion_proof (Nachweis nach Fertigstellung) oder commitment (Zusage)."
+  payout_lag_months:
+    label: "Regelverzug der Auszahlung in Monaten"
+    help: "Abstand zwischen Ereignis und Auszahlung (Programm)."
+  payout_delay_months:
+    label: "Zusätzlicher Auszahlungsverzug in Monaten"
+    help: "Laufspezifischer Verzug (stochastisch zulässig), auf ganze Monate gerundet."
+  application_date:
+    label: "Antragsdatum"
+    help: "Bezugstermin des Ereignisses commitment."
+rows:
+  "grant_*": "Investitionszuschuss {id}"
+msg:
+  no_measures: "Komponente '{id}': keine geförderten Maßnahmen (measures bzw. measure_id angeben)."
+  no_completion: "Komponente '{id}': Maßnahme '{measure}' hat keinen Fertigstellungstermin für die Auszahlung."
+  cost_not_after: "Komponente '{id}': Kostenkomponenten {components} fehlen in after."
+  after_horizon: "Komponente '{id}': Auszahlung nach dem Horizont, nicht gebucht ({share:pct} der Läufe)."

@@ -1,0 +1,3 @@
+# Labels des Expanders household (WS-E2, Spec 01 Teil B 3.10.2).
+label: "Haushalt"
+description: "Erzeugt die Einlage des Ersparten (h_equity) und die laufende Einlage aus dem Einkommen (h_contrib) des Selbstnutzerhaushalts."
