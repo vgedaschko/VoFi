@@ -140,6 +140,63 @@ test_that("Ausgeliefertes JSON-Schema passt zum Katalog (data-raw/build_schema.R
   expect_identical(shipped[["$defs"]], gen[["$defs"]])
 })
 
+test_that("K1: freie Maps in Typparametern nach der Konvention free/.key, kein Platzhalter *", {
+  # Maps mit frei waehlbaren Schluesseln (z. B. Massnahmen-ids) beschreibt die DSL als
+  # vofi_param("map", fields = list(.key = <Blatt>), free = TRUE) (Kopf von R/schema.R); ein
+  # Feldname "*" ist kein Platzhalter und wuerde jeden echten Schluessel als unbekannt melden.
+  bad <- character(0)
+  walk <- function(params, path) {
+    for (nm in names(params)) {
+      pp <- params[[nm]]
+      full <- paste0(path, ".", nm)
+      if (identical(nm, "*")) bad <<- c(bad, full)
+      if (!inherits(pp, "vofi_param") || !identical(pp$kind, "map")) next
+      if (!isTRUE(pp$extra[["sequence"]]) &&
+            !identical(isTRUE(pp$extra[["free"]]), ".key" %in% names(pp$fields))) {
+        bad <<- c(bad, full)
+      }
+      walk(pp$fields, full)
+    }
+  }
+  types <- vofi_types()
+  for (i in seq_len(nrow(types))) {
+    walk(reg_get(types$kind[i], types$name[i])$params, paste0(types$kind[i], ":", types$name[i]))
+  }
+  cat <- val_schema_catalog()
+  for (b in names(cat)) walk(cat[[b]], b)
+  expect_identical(bad, character(0))
+  # die vier freien Maps der Typen (WS-E-INV, WS-E-OP, WS-E2)
+  free_leaf <- function(kind, name, param) {
+    pp <- reg_get(kind, name)$params[[param]]
+    expect_true(isTRUE(pp$extra[["free"]]), info = paste(name, param))
+    pp$fields[[".key"]]
+  }
+  expect_identical(free_leaf("flow", "residual_value", "points_measures")$kind, "map")
+  expect_identical(free_leaf("flow", "grant", "eligible_shares")$max, 1)
+  expect_identical(free_leaf("flow", "tax_credit_35c", "eligible_shares")$max, 1)
+  expect_identical(free_leaf("flow", "maintenance", "factors")$min, 0)
+  expect_identical(free_leaf("flow", "maintenance", "factor_years")$kind, "number")
+  # JSON-Schema: beliebige Schluessel mit dem Schema des Blatts statt einer Eigenschaft "*"
+  skip_if_not_installed("jsonlite")
+  s <- jsonlite::fromJSON(vofi_json_schema(), simplifyVector = FALSE)
+  star <- character(0)
+  find_star <- function(x, path) {
+    if (!is.list(x)) return(invisible(NULL))
+    if (is.list(x$properties) && "*" %in% names(x$properties)) star <<- c(star, path)
+    nms <- names(x) %||% rep("", length(x))
+    for (i in seq_along(x)) find_star(x[[i]], paste0(path, "/", if (nzchar(nms[i])) nms[i] else i))
+  }
+  find_star(s, "")
+  expect_identical(star, character(0))
+  comp <- s$properties$components$additionalProperties$oneOf
+  rv <- comp[[which(vapply(comp, function(o) o$properties$type$const, "") == "residual_value")]]
+  pm <- rv$properties$points_measures$anyOf[[1L]]
+  expect_identical(pm$type, "object")
+  expect_null(pm$properties)
+  expect_identical(pm$additionalProperties$type, "object")
+  expect_true("heating" %in% names(pm$additionalProperties$properties))
+})
+
 test_that("M2: JSON-Schema nach Metaschema Draft 2020-12 (enum und required als Array)", {
   skip_if_not_installed("jsonlite")
   s <- jsonlite::fromJSON(vofi_json_schema(), simplifyVector = FALSE)

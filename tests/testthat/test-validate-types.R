@@ -294,3 +294,40 @@ test_that("iid: dist_spec ist die Jahresverteilung, ihre Parameter sind nicht ve
   expect_identical(run(list(dist = "pert", min = 3, mode = 1, max = 2))$code,
                    "validation.stochastic.dist_invalid")
 })
+
+test_that("K1: freie Maps der Typparameter (eligible_shares, factors) mit echten Schluesseln", {
+  run <- function(f) {
+    v <- vofi_validate(wsb_with("skeleton", function(x) {
+      x$components$f <- list(type = "grant", rate = 0.2, eligible_cost_eur = 1000,
+                             eligible_shares = list(z = 0.5))
+      x$components$tc <- list(type = "tax_credit_35c", eligible_cost_eur = 1000,
+                              eligible_shares = list(z = 0.5))
+      x$components$mm <- list(type = "maintenance", rate_eur_m2_pa = 10, area_m2 = 100,
+                              factors = list(z = 0.8), factor_years = list(z = 5))
+      f(x)
+    }))
+    as.data.frame(unclass(v), stringsAsFactors = FALSE)
+  }
+  maps <- "^components\\.(f|tc|mm)\\.(eligible_shares|factors|factor_years)"
+  v <- run(identity)
+  expect_false(any(v$code == "validation.unknown_field"), info = paste(v$path, collapse = ","))
+  expect_false(any(grepl(maps, v$path) & startsWith(v$code, "validation.")))
+  # Blattpruefung je Schluessel: Bereich [0, 1] bzw. >= 0 am Pfad des Schluessels
+  v <- run(function(x) {
+    x$components$f$eligible_shares$y <- 1.5
+    x$components$tc$eligible_shares$z <- -0.1
+    x$components$mm$factors$w <- -1
+    x
+  })
+  rng <- v$path[v$code == "validation.range"]
+  expect_setequal(rng, c("components.f.eligible_shares.y", "components.tc.eligible_shares.z",
+                         "components.mm.factors.w"))
+  expect_false(any(v$code == "validation.unknown_field"))
+  # Parameterschema eines Schluessels (Stochastik- und Overlay-Ziele)
+  spec <- vofi_resolve(wsb_with("skeleton", function(x) {
+    x$components$f <- list(type = "grant", rate = 0.2, eligible_cost_eur = 1000,
+                           eligible_shares = list(z = 0.5))
+    x
+  }))
+  expect_identical(val_param_at(spec, "components.f.eligible_shares.z")$max, 1)
+})
