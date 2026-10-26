@@ -22,19 +22,28 @@
 #' und knitr aus Suggests); die Texte sind deutsch, Zahlen stehen im deutschen Format.
 #'
 #' **Fachmodus** (`mode = "expert"`, Wohnungsunternehmen und Genossenschaften): Management
-#' Summary mit zweistufiger Ampel und Primärkennzahl (mit und ohne Restwert), Variantenvergleich
-#' mit der Wahrscheinlichkeit „besser als Referenz“, Kennzahlen mit und ohne Restwert (auch je
-#' WE und je m²), Zeitverläufe, Finanzierung und Förderung mit DSCR und LTV, Mietersicht
-#' (Warmmiete vorher/nachher und gegenüber der Referenz), Energie und CO2, Risiko mit
-#' MC-Fehler, Sensitivitäten (Pflichtsensitivitäten, Tornado, Spider), Annahmenprotokoll mit
-#' Herkunft, Bibliotheksständen und Gültigkeitswarnungen, VoFi-Tabelle im Grob-Layout,
-#' Prüfungen, Methodik und Hinweise.
+#' Summary mit zweistufiger Ampel und Primärkennzahl (mit und ohne Restwert; im Vergleich dazu
+#' Rendite der Mehrinvestition, Renditekennzahl und Warmmietenänderung je Variante),
+#' Variantenvergleich (mit Simulation die Wahrscheinlichkeit „besser als Referenz“, ohne
+#' Simulation „besser bzw. schlechter im Basisfall“), Kennzahlen mit und ohne Restwert (auch je
+#' WE und je m², bei Vergleichen je Variante), Zeitverläufe, Finanzierung und Förderung mit
+#' DSCR und LTV und dem Berechtigungs-Check der Förderprogramme (geprüfte Bedingungen, Grund
+#' einer Nichtberechtigung, offene Prüfpunkte und Ausschlüsse, Antragsdatum und Gültigkeit des
+#' Programms), Mietersicht (Warmmiete vorher/nachher und gegenüber der Referenz, Rechenweg der
+#' Modernisierungsumlage „rechnerisch → gekappt → angesetzt“), Energie und CO2, Risiko mit
+#' MC-Fehler, Sensitivitäten (Pflichtsensitivitäten, kritische Werte, Tornado, Spider, global),
+#' Annahmenprotokoll mit Herkunft, Bibliotheksständen und Gültigkeitswarnungen (Förderung zum
+#' Antragsdatum, sonst zum Rechtsstand), VoFi-Tabelle im Grob-Layout, Prüfungen, Methodik und
+#' Hinweise.
 #'
 #' **Haushaltsmodus** (`mode = "household"`, Selbstnutzer und Kleinvermieter): das Wichtigste
 #' in Kürze in Worten („Sie sparen rund … € pro Monat“, gerundet), monatliche Belastung bzw.
-#' monatlicher Cashflow je Jahr, Eigenanteil, Nachschüsse, Amortisation in Worten, Förderung
-#' und Kredite, Risiko in einfachen Worten („In 8 von 10 simulierten Zukünften …“), die
-#' wichtigsten Annahmen, ein Glossar und deutlich sichtbare Hinweise.
+#' monatlicher Cashflow je Jahr (Wörter statt Vorzeichen: „spart … €“, „… € mehr“, „Überschuss“,
+#' „Zuschuss“), Eigenanteil, Nachschüsse, Amortisation in Worten, Förderung und Kredite mit
+#' Förderprüfung, bei Kleinvermietern die zulässige Mieterhöhung durch Modernisierung je
+#' Wohnung, Risiko in einfachen Worten („In 8 von 10 simulierten Zukünften …“), „Was passiert,
+#' wenn …“ aus den Pflichtsensitivitäten, die wichtigsten Annahmen (bei Vergleichen die Kredite
+#' je Variante), ein Glossar und deutlich sichtbare Hinweise.
 #'
 #' `mode = "auto"` folgt `project.report_mode` des Ergebnisses (Perspektive `wu_*`: Fachmodus,
 #' sonst Haushaltsmodus); `"fach"` und `"haushalt"` sind gleichbedeutend mit `"expert"` bzw.
@@ -62,14 +71,19 @@
 #' einem Einzelergebnis oder Energie und CO2 ohne Energiezahlungen) bzw. nennen den Grund (die
 #' Mietersicht eines Wohnungsunternehmens ohne Mieterdaten, das Risiko ohne Simulation).
 #'
+#' **Pflichtsensitivitäten** (Spec 01 Teil C 4.4) rechnet der Bericht selbst: je Eintrag aus
+#' `analysis.mandatory_sensitivities` ein deterministischer Lauf mit dem Szenario, das das
+#' Ergebnis bei seiner Auflösung mitführt (bei Vergleichen je Variante gegen die Referenz). Ein
+#' Ergebnis, das mit Laufzeit-Overrides oder einem Szenario-Set gerechnet wurde oder kein
+#' Szenario mitführt, nennt die Einträge als „nicht gerechnet“ mit dem Grund.
+#'
 #' **Ergänzende Objekte:** Statt eines Ergebnisses darf `x` eine Liste sein mit genau einem
 #' Ergebnis (`vofi_result`, `vofi_mc_result` oder `vofi_comparison`) und optional
 #' Sensitivitätsanalysen ([vofi_sensitivity()], Tornado, Spider, global), dem Szenario
-#' (`vofi_scenario`; dann rechnet der Bericht die Pflichtsensitivitäten nach Spec 01 Teil C 4.4,
-#' sofern die Vergleichsfunktionen verfügbar sind) bzw. einer fertigen Tabelle der
-#' Pflichtsensitivitäten als Element `mandatory` sowie Zielwertsuchen ([vofi_solve()], zum
+#' (`vofi_scenario`; es hat für die Pflichtsensitivitäten Vorrang) bzw. einer fertigen Tabelle
+#' der Pflichtsensitivitäten als Element `mandatory` sowie Zielwertsuchen ([vofi_solve()], zum
 #' Beispiel Break-even und kritische Werte; sie stehen im Abschnitt Sensitivitäten und in der
-#' Kurzvorlage).
+#' Kurzvorlage, das Ergebnis in der Einheit des gesuchten Parameters).
 #'
 #' DOCX ist technisch vorbereitet und wird mit Version 1.1 freigegeben (R-25); `format =
 #' "docx"` meldet deshalb `vofi_error_not_implemented`. Die Kurzvorlage ist für den Druck
@@ -108,8 +122,8 @@ vofi_report <- function(x, path, format = c("html", "docx"),
   }
   if (!utl_is_flag(open)) vofi_abort("report.html.errors.open", .class = "vofi_error_input")
   path <- rep_html_path(path, format)
-  utl_require("rmarkdown", "vofi_report")
-  utl_require("knitr", "vofi_report")
+  rep_html_require("rmarkdown")
+  rep_html_require("knitr")
   rep_html_check_pandoc()
   old <- rep_html_utf8_locale()
   if (!is.null(old)) on.exit(Sys.setlocale("LC_CTYPE", old), add = TRUE)
@@ -343,6 +357,21 @@ rep_html_path <- function(path, format = "html") {
   file.path(normalizePath(dir), basename(path))
 }
 
+#' Ist ein Paket aus Suggests installiert? (eigene Funktion, damit Tests das Fehlen simulieren
+#' können, ohne die Meldung selbst zu ersetzen)
+#' @noRd
+rep_html_has_pkg <- function(pkg) requireNamespace(pkg, quietly = TRUE)
+
+#' Paket aus Suggests verlangen (deutsche Meldung `core.suggests_missing` mit Installationshinweis)
+#' @noRd
+rep_html_require <- function(pkg) {
+  if (!isTRUE(rep_html_has_pkg(pkg))) {
+    vofi_abort("core.suggests_missing", pkg = pkg, fun = "vofi_report",
+               .class = "vofi_error_input")
+  }
+  invisible(TRUE)
+}
+
 #' pandoc vorhanden (ab Version 2)?
 #' @noRd
 rep_html_check_pandoc <- function() {
@@ -373,7 +402,7 @@ rep_html_context <- function(parts, mode, opts) {
        mandatory = parts$mandatory,
        perspective = persp, owner = identical(persp, "selbstnutzer"),
        household = identical(mode, "household"), is_mc = !is.null(mc) || cmp_mc,
-       plots = requireNamespace("ggplot2", quietly = TRUE),
+       plots = isTRUE(rep_html_has_pkg("ggplot2")),
        cache = new.env(parent = emptyenv()))
 }
 
@@ -429,6 +458,7 @@ rep_html_b_table <- function(m, align = NULL, caption = NULL, wide = NULL, max_r
   }
   if (!is.matrix(m) || ncol(m) == 0L || nrow(m) == 0L) return(NULL)
   if (isTRUE(attr(m, "picked"))) note <- c(note, lbl("report.html.table.years_shown", step = 5L))
+  note <- c(note, attr(m, "note"))
   m[is.na(m)] <- ""
   if (!is.null(max_rows) && nrow(m) > max_rows) {
     note <- c(note, lbl("report.html.table.truncated", shown = as.integer(max_rows),
@@ -680,6 +710,10 @@ rep_html_main_tl <- function(rc) {
 
 #' Ampel einer Variante eines Vergleichs als Liste nach 13.1 (aus `traffic_light` und
 #' `restrictions`)
+#'
+#' Die Hinweise stammen aus der Spalte `notes` (WS-G: Texte, mit „; “ verbunden), sonst aus
+#' Restwertregel, Grundlage und den Restriktionen: `restriction_<c>` ohne Wert im Basisfall
+#' und in der Simulation ist „nicht prüfbar“ (12.9, R-101).
 #' @noRd
 rep_html_cmp_tl <- function(cmp, variant) {
   tl <- cmp$traffic_light
@@ -688,10 +722,23 @@ rep_html_cmp_tl <- function(cmp, variant) {
   rs <- cmp$restrictions
   rs <- if (is.data.frame(rs) && nrow(rs) > 0L) rs[rs$variant == variant, , drop = FALSE] else
     NULL
-  notes <- if (isTRUE(r$rv_dependent)) "report.traffic.rv_dependent" else character(0)
-  if (identical(r$basis, "base_only")) notes <- c("report.traffic.no_robustness", notes)
+  stored <- if ("notes" %in% names(r)) as.character(r$notes) else NA_character_
+  if (!is.na(stored) && nzchar(stored)) {
+    notes <- strsplit(stored, "; ", fixed = TRUE)[[1L]]
+  } else {
+    notes <- if (isTRUE(r$rv_dependent)) "report.traffic.rv_dependent" else character(0)
+    if (identical(r$basis, "base_only")) notes <- c("report.traffic.no_robustness", notes)
+    if (is.data.frame(rs) && nrow(rs) > 0L) {
+      vb <- if ("violated_base" %in% names(rs)) rs$violated_base else rep(NA, nrow(rs))
+      pr <- if ("prob" %in% names(rs)) rs$prob else rep(NA_real_, nrow(rs))
+      for (cd in rs$code[is.na(vb) & is.na(pr)]) {
+        notes <- c(notes, lbl("report.traffic.restriction_unchecked",
+                              code = rep_restriction_label(cd)))
+      }
+    }
+  }
   list(level = r$level, stage1 = r$stage1 %||% r$level, basis = r$basis, kpi = r$kpi,
-       rv_dependent = isTRUE(r$rv_dependent), restrictions = rs, notes = notes)
+       rv_dependent = isTRUE(r$rv_dependent), restrictions = rs, notes = notes[nzchar(notes)])
 }
 
 #' Beste Variante eines Vergleichs (Rang 1 ohne Referenz)
@@ -922,27 +969,126 @@ rep_html_drivers_text <- function(rc, household = FALSE) {
 }
 
 #' Pflichtsensitivitäten (Spec 01 Teil C 4.4): übergebene Tabelle bzw. mit
-#' `cmp_mandatory_sensitivities()` (WS-G) aus dem Szenario gerechnet
+#' `cmp_mandatory_sensitivities()` (WS-G) gerechnet
+#'
+#' Ohne übergebene Tabelle rechnet der Bericht die Pflichtsensitivitäten selbst: mit dem
+#' übergebenen Szenario bzw. mit dem Szenario aus dem Auflösungszustand des Ergebnisses
+#' (`attr(spec, "scn_state")`, Variante des Ergebnisses; bei Vergleichen je Variante gegen die
+#' Referenz). Ergebnisse mit Laufzeit-Overrides oder Szenario-Set werden nicht nachgerechnet,
+#' weil ihr Basisfall nicht dem Szenario entspricht. Das Ergebnis wird im Kontext
+#' zwischengespeichert; der Grund für „nicht gerechnet“ steht in `rc$cache$mandatory_reason`.
 #' @return Data Frame nach `rep_html_mandatory_cols()` bzw. `NULL`.
 #' @noRd
 rep_html_mandatory <- function(rc) {
   if (!is.null(rc$mandatory)) return(rc$mandatory)
+  if (exists("mandatory", envir = rc$cache, inherits = FALSE)) return(rc$cache$mandatory)
+  out <- rep_html_mandatory_compute(rc)
+  assign("mandatory", out$table, envir = rc$cache)
+  assign("mandatory_reason", out$reason, envir = rc$cache)
+  out$table
+}
+
+#' Szenario und Variante für die Pflichtsensitivitäten (übergeben bzw. aus `scn_state`)
+#' @return Liste `scenario`, `variant` bzw. `reason` (Label-Schlüssel des Grundes).
+#' @noRd
+rep_html_mandatory_source <- function(rc) {
+  variant <- rc$res$meta$variant %||% "base"
+  if (!is.null(rc$scenario)) return(list(scenario = rc$scenario, variant = variant))
+  results <- if (is.null(rc$cmp)) list(rc$base) else
+    rc$cmp$results[intersect(c(rc$cmp$baseline, rc$cmp$variants), names(rc$cmp$results))]
+  states <- lapply(results, function(r) attr(rep_det_result(r)$spec, "scn_state"))
+  ok <- vapply(states, function(s) is.list(s) && inherits(s$scenario, "vofi_scenario"),
+               logical(1))
+  if (length(states) == 0L || !all(ok)) return(list(reason = "no_scenario"))
+  plain <- vapply(states, function(s) length(s$overrides) == 0L && is.null(s$scenario_set),
+                  logical(1))
+  if (!all(plain)) return(list(reason = "overrides"))
+  list(scenario = states[[1L]]$scenario, variant = states[[1L]]$variant %||% variant)
+}
+
+#' Pflichtsensitivitäten rechnen (ohne Zwischenspeicher)
+#' @return Liste `table` (Data Frame bzw. `NULL`) und `reason` (Text bzw. `NULL`).
+#' @noRd
+rep_html_mandatory_compute <- function(rc) {
+  none <- function(key, ...) {
+    list(table = NULL, reason = lbl(paste0("report.html.sensitivity.reason_", key), ...))
+  }
+  entries <- rc$res$spec$analysis$mandatory_sensitivities %||% list()
+  if (length(entries) == 0L && is.null(rc$scenario)) return(list(table = NULL, reason = NULL))
   f <- get0("cmp_mandatory_sensitivities", envir = asNamespace("vofi"), mode = "function",
             inherits = FALSE)
-  if (is.null(rc$scenario) || !is.function(f)) return(NULL)
-  if (is.null(rc$cmp)) {
-    return(f(rc$scenario, variant = rc$res$meta$variant %||% "base", reference = NULL))
+  if (!is.function(f)) return(none("unavailable"))
+  src <- rep_html_mandatory_source(rc)
+  if (!is.null(src$reason)) return(none(src$reason))
+  calc <- function() {
+    if (is.null(rc$cmp)) return(f(src$scenario, variant = src$variant, reference = NULL))
+    parts <- lapply(rc$cmp$variants %||% character(0), function(v) {
+      f(src$scenario, variant = v, reference = rc$cmp$baseline)
+    })
+    parts <- parts[!vapply(parts, is.null, logical(1))]
+    if (length(parts) == 0L) NULL else do.call(rbind, parts)
   }
-  parts <- lapply(rc$cmp$variants %||% character(0), function(v) {
-    f(rc$scenario, variant = v, reference = rc$cmp$baseline)
-  })
-  parts <- parts[!vapply(parts, is.null, logical(1))]
-  if (length(parts) == 0L) return(NULL)
-  do.call(rbind, parts)
+  # Die Laeufe wiederholen Aufloesung und Bau des Szenarios; deren Meldungen kennt der Nutzer
+  # bereits aus dem eigenen Lauf
+  tab <- tryCatch(
+    withCallingHandlers(calc(),
+                        vofi_message = function(m) invokeRestart("muffleMessage"),
+                        vofi_warning = function(w) invokeRestart("muffleWarning")),
+    error = function(e) structure(list(message = conditionMessage(e)), class = "rep_html_failure")
+  )
+  if (inherits(tab, "rep_html_failure")) {
+    vofi_warn("report.html.sensitivity.mandatory_failed", message = tab$message)
+    return(none("failed", message = tab$message))
+  }
+  if (!is.data.frame(tab)) return(none("unavailable"))
+  list(table = tab, reason = NULL)
+}
+
+#' Maßgebliche Daten der Gültigkeitsprüfung je Bibliothekseintrag (4.9)
+#'
+#' Für Einträge `funding/*` das Antragsdatum (`application_date`) der Instrumente, deren Werte
+#' aus dem Eintrag stammen (Herkunft der Spezifikation), sonst der Rechtsstand.
+#' @param res `vofi_result`.
+#' @param entries Bibliotheks-ids.
+#' @param ref Rechtsstand (Date).
+#' @return Liste `dates` (je Eintrag ein Date-Vektor) und `application` (logisch je Eintrag:
+#'   Antragsdatum statt Rechtsstand).
+#' @noRd
+rep_html_library_dates <- function(res, entries, ref) {
+  out <- list(dates = rep(list(ref), length(entries)),
+              application = rep(FALSE, length(entries)))
+  fund <- res$spec$funding
+  is_f <- startsWith(entries, "funding/")
+  if (!any(is_f) || !is.list(fund) || length(fund) == 0L) return(out)
+  prov <- tryCatch(as.data.frame(res$spec), error = function(e) NULL)
+  if (!is.data.frame(prov) || !all(c("path", "entry") %in% names(prov))) return(out)
+  prov <- prov[!is.na(prov$entry) & startsWith(as.character(prov$path), "funding."), ,
+               drop = FALSE]
+  for (i in which(is_f)) {
+    paths <- as.character(prov$path[prov$entry == entries[i]])
+    ids <- unique(vapply(strsplit(paths, ".", fixed = TRUE), function(s) s[2L], ""))
+    ids <- ids[ids %in% names(fund)]
+    dates <- lapply(ids, function(f) {
+      tryCatch(as.Date(fund_application_date(res$spec, fund[[f]])), error = function(e) NULL)
+    })
+    dates <- dates[!vapply(dates, function(d) length(d) == 0L, logical(1))]
+    if (length(dates) == 0L) next
+    d <- do.call(c, dates)
+    d <- d[!is.na(d)]
+    if (length(d) == 0L) next
+    out$dates[[i]] <- sort(unique(d))
+    out$application[i] <- TRUE
+  }
+  out
 }
 
 #' Prüfstatus der Bibliothekseinträge (Gültigkeit und Stand nach 4.9, Qualität nach Teil C 3.2)
-#' @return Data Frame der Einträge mit `status` (Text) und `flag` (hervorheben) bzw. `NULL`.
+#'
+#' Gültigkeit `[valid_from, valid_to)` zum maßgeblichen Datum (Förderung: Antragsdatum des
+#' Instruments, sonst Rechtsstand); Stand `as_of` älter als 6 Monate (Prozesseinträge 12 Monate)
+#' vor dem Rechtsstand.
+#' @return Data Frame der Einträge mit `status` (Text), `ref_date` (Text der maßgeblichen Daten)
+#'   und `flag` (hervorheben) bzw. `NULL`.
 #' @noRd
 rep_html_library_status <- function(res) {
   lib <- res$meta$library %||% res$spec$library
@@ -951,11 +1097,16 @@ rep_html_library_status <- function(res) {
   from <- as.Date(lib$valid_from)
   to <- as.Date(lib$valid_to)
   as_of <- as.Date(lib$as_of)
-  months <- ifelse(startsWith(as.character(lib$entry), "processes/"), 12L, 6L)
+  entries <- as.character(lib$entry)
+  months <- ifelse(startsWith(entries, "processes/"), 12L, 6L)
   limit <- vapply(months, function(mm) {
     as.numeric(seq(ref, by = paste0("-", mm, " months"), length.out = 2L)[2L])
   }, double(1))
-  expired <- (!is.na(from) & ref < from) | (!is.na(to) & ref >= to)
+  rd <- rep_html_library_dates(res, entries, ref)
+  expired <- vapply(seq_along(entries), function(i) {
+    d <- rd$dates[[i]]
+    any((!is.na(from[i]) & d < from[i]) | (!is.na(to[i]) & d >= to[i]))
+  }, logical(1))
   old <- !expired & !is.na(as_of) & as.numeric(as_of) < limit
   q <- as.character(lib$quality %||% rep(NA_character_, nrow(lib)))
   low_q <- !is.na(q) & q %in% c("C", "D")
@@ -967,9 +1118,13 @@ rep_html_library_status <- function(res) {
     lbl("report.html.assumptions.status_old", months = as.integer(mm))
   }, "")
   status[expired] <- lbl("report.html.assumptions.status_expired")
-  data.frame(entry = as.character(lib$entry), as_of = as_of, valid_from = from, valid_to = to,
-             quality = q, status = status, outdated = expired | old, flag = expired | old | low_q,
-             stringsAsFactors = FALSE)
+  ref_txt <- vapply(seq_along(entries), function(i) {
+    key <- if (rd$application[i]) "ref_application" else "ref_legal"
+    lbl(paste0("report.html.assumptions.", key), dates = utl_collapse(fmt_date(rd$dates[[i]])))
+  }, "")
+  data.frame(entry = entries, as_of = as_of, valid_from = from, valid_to = to,
+             quality = q, status = status, ref_date = ref_txt, outdated = expired | old,
+             flag = expired | old | low_q, stringsAsFactors = FALSE)
 }
 
 #' Spezifikationswert als Text (Konstante: Zahl; sonst Darstellung der Wertform)
@@ -1074,20 +1229,57 @@ rep_html_cmp_tl_matrix <- function(cmp) {
   m
 }
 
-#' Kernaussagen eines Vergleichs je Variante (Vergleichsregel, P(besser))
+#' Kopfkennzahlen eines Vergleichs (WS-H) ergänzt um die Rendite der Mehrinvestition, die
+#' Renditekennzahl der Perspektive und die Warmmietenänderung (Konzept 1.4 „auf einen Blick“)
 #' @noRd
-rep_html_cmp_lead <- function(cmp) {
+rep_html_cmp_head_kpis <- function(cmp) {
+  base_res <- rep_det_result(cmp$results[[cmp$baseline]] %||% cmp$results[[1L]])
+  rk <- kpi_primary(base_res$spec)$return_kpi
+  extra <- c("incremental_return", "incremental_return_ex_rv", if (utl_is_string(rk)) rk,
+             "warm_rent_change_prepost_y1", "warm_rent_change_y1")
+  unique(c(rep_cmp_kpis(cmp, head = TRUE), extra[extra %in% cmp$kpi_table$kpi]))
+}
+
+#' Kernaussagen eines Vergleichs je Variante (Vergleichsregel, P(besser) bzw. Basisfall)
+#'
+#' Die Wahrscheinlichkeit „besser als die Referenz“ steht nur bei Simulationen; im
+#' deterministischen Vergleich ist sie 0 oder 1 (12.6) und erscheint als „besser bzw.
+#' schlechter im Basisfall“ (keine Scheingenauigkeit, Konzept 4.7). Dazu die Rendite der
+#' Mehrinvestition und die Rendite- bzw. Warmmietenkennzahl je Variante (Konzept 1.4).
+#' @param is_mc Vergleich mit Simulation.
+#' @noRd
+rep_html_cmp_lead <- function(cmp, is_mc = FALSE) {
   ds <- cmp$diff_stats
   kpi <- "delta_vs_reference"
   out <- character(0)
+  base_res <- rep_det_result(cmp$results[[cmp$baseline]] %||% cmp$results[[1L]])
+  rk_kpi <- kpi_primary(base_res$spec)$return_kpi
   for (v in cmp$variants %||% character(0)) {
     d <- if (is.data.frame(ds)) ds[ds$variant == v & ds$kpi == kpi, , drop = FALSE] else NULL
-    val <- if (!is.null(d) && nrow(d) > 0L) d$mean[1L] else rep_cmp_value(cmp, v, kpi)
+    val <- rep_html_cmp_delta(cmp, v, kpi)
     pb <- if (!is.null(d) && nrow(d) > 0L) d$prob_better[1L] else NA_real_
-    prob <- if (is.na(pb)) "" else lbl("report.html.summary.lead_cmp_prob",
-                                       baseline = cmp$baseline, p = pb)
+    prob <- if (is_mc && !is.na(pb)) {
+      lbl("report.html.summary.lead_cmp_prob", baseline = cmp$baseline, p = pb)
+    } else if (!is_mc && !is.na(val) && abs(val) > vofi_tol$zero_abs) {
+      lbl(paste0("report.html.summary.lead_cmp_", if (val > 0) "better" else "worse"),
+          baseline = cmp$baseline)
+    } else {
+      ""
+    }
     out <- c(out, lbl("report.html.summary.lead_cmp", variant = v, baseline = cmp$baseline,
                       kpi = kpi_label(kpi), value = rep_fmt_value(val, "EUR", 0), prob = prob))
+    extra <- character(0)
+    for (k in unique(c("incremental_return", rk_kpi, "warm_rent_change_prepost_y1"))) {
+      if (!utl_is_string(k) || !(k %in% cmp$kpi_table$kpi)) next
+      x <- rep_cmp_value(cmp, v, k)
+      if (is.na(x)) next
+      extra <- c(extra, lbl("report.html.summary.kpi_item", kpi = kpi_label(k),
+                            value = rep_fmt_value(x, rep_html_unit(k), 2)))
+    }
+    if (length(extra) > 0L) {
+      out <- c(out, lbl("report.html.summary.lead_cmp_kpis", variant = v,
+                        items = utl_collapse(extra, "; ")))
+    }
   }
   rk <- cmp$ranking
   if (is.data.frame(rk) && nrow(rk) > 0L) {
@@ -1108,10 +1300,10 @@ rep_html_summary_expert <- function(rc) {
     best <- rep_html_best_variant(cmp)
     blocks <- c(blocks, list(
       rep_html_b_ampel(if (is.na(best)) NULL else rep_html_cmp_tl(cmp, best)),
-      rep_html_b_par(rep_html_cmp_lead(cmp)),
+      rep_html_b_par(rep_html_cmp_lead(cmp, rc$is_mc)),
       rep_html_b_table(rep_html_cmp_tl_matrix(cmp),
                        caption = lbl("report.html.variants.traffic_header")),
-      rep_html_b_table(rep_cmp_kpi_matrix(cmp, rep_cmp_kpis(cmp, head = TRUE), short = FALSE),
+      rep_html_b_table(rep_cmp_kpi_matrix(cmp, rep_html_cmp_head_kpis(cmp), short = FALSE),
                        caption = lbl("report.html.variants.kpi_header"))
     ))
     wr <- cmp$differences$warm_rent_change_y1
@@ -1240,9 +1432,13 @@ rep_html_sec_variants <- function(rc) {
   blocks <- list(
     rep_html_b_table(rep_cmp_kpi_matrix(cmp, kpis, short = FALSE),
                      caption = lbl("report.html.variants.kpi_header")),
-    rep_html_b_table(rep_cmp_diff_matrix(cmp), caption = lbl("report.html.variants.diff_header"))
+    rep_html_b_table(rep_html_diff_matrix(cmp, rc$is_mc),
+                     caption = lbl("report.html.variants.diff_header"))
   )
-  pb <- rep_prob_better_text(cmp)
+  pb <- if (rc$is_mc) rep_prob_better_text(cmp) else NULL
+  if (!rc$is_mc) {
+    blocks[[length(blocks) + 1L]] <- rep_html_b_par(rep_html_cmp_det_text(cmp))
+  }
   if (!is.null(pb)) {
     blocks[[length(blocks) + 1L]] <- rep_html_b_par(lbl("report.html.variants.prob_better",
                                                         text = pb))
@@ -1291,17 +1487,81 @@ rep_html_sec_variants <- function(rc) {
   rep_html_section("variants", title, blocks)
 }
 
-#' Kennzahlen eines Vergleichs für Haushalte (gerundet, Memo 07 Paragraf 5.4)
+#' Vergleich gegen die Referenz als Zeichenmatrix
+#'
+#' Mit Simulation die Statistik der Differenzen je Lauf (WS-H, `rep_cmp_diff_matrix()`); im
+#' deterministischen Vergleich nur der Wert des Basisfalls (Quantile und Wahrscheinlichkeit
+#' wären Scheingenauigkeit, Konzept 4.7).
 #' @noRd
-rep_html_hh_fmt <- function(v, unit) {
+rep_html_diff_matrix <- function(cmp, is_mc) {
+  if (is_mc) return(rep_cmp_diff_matrix(cmp))
+  ds <- cmp$diff_stats
+  if (!is.data.frame(ds) || nrow(ds) == 0L) return(NULL)
+  val <- vapply(seq_len(nrow(ds)), function(i) {
+    rep_fmt_value(ds$mean[i], rep_html_unit(ds$kpi[i]), 0)
+  }, "")
+  m <- cbind(ds$variant, vapply(ds$kpi, kpi_label, "", USE.NAMES = FALSE), val)
+  m <- matrix(m, nrow = nrow(ds))
+  colnames(m) <- c(lbl("report.compare.col_variant"), lbl("report.mc.col_kpi"),
+                   lbl("report.html.variants.col_base_case"))
+  m
+}
+
+#' Vergleichskennzahl `delta_vs_reference` einer Variante bzw. eines Falls eines Vergleichs
+#'
+#' Hauptvarianten aus `diff_stats` (Mittel je Lauf), Fälle der Szenario-Sets (z. B.
+#' `v2@vorsichtig`, nicht in `differences`/`diff_stats`, 13.3) aus `kpi_table`; die Referenz
+#' selbst hat keinen Wert (`NA`).
+#' @noRd
+rep_html_cmp_delta <- function(cmp, variant, kpi = "delta_vs_reference") {
+  if (identical(variant, cmp$baseline)) return(NA_real_)
+  ds <- cmp$diff_stats
+  if (is.data.frame(ds) && nrow(ds) > 0L) {
+    d <- ds[ds$variant == variant & ds$kpi == kpi, , drop = FALSE]
+    if (nrow(d) > 0L && !is.na(d$mean[1L])) return(as.double(d$mean[1L]))
+  }
+  rep_cmp_value(cmp, variant, kpi)
+}
+
+#' Ergebnis eines deterministischen Vergleichs in Worten („besser bzw. schlechter im
+#' Basisfall“)
+#' @noRd
+rep_html_cmp_det_text <- function(cmp) {
+  out <- character(0)
+  for (v in cmp$variants %||% character(0)) {
+    val <- rep_html_cmp_delta(cmp, v)
+    if (is.na(val)) next
+    key <- if (abs(val) <= vofi_tol$zero_abs) "det_equal" else if (val > 0) "det_better" else
+      "det_worse"
+    out <- c(out, lbl(paste0("report.html.variants.", key), variant = v,
+                      baseline = cmp$baseline, value = rep_fmt_value(abs(val), "EUR", 0)))
+  }
+  if (length(out) == 0L) return(character(0))
+  c(out, lbl("report.html.variants.det_note"))
+}
+
+#' Kennzahlen eines Vergleichs für Haushalte (gerundet, Wörter statt Vorzeichen, Memo 07
+#' Paragraf 5.4)
+#'
+#' Cashflow-Kennzahlen als „Überschuss … €“ bzw. „Zuschuss … €“, Ersparnisse als „spart … €“
+#' bzw. „… € mehr“, übrige Beträge (Belastung, Eigenanteil, Nachschüsse) gerundet ohne
+#' Vorzeichen (Gegenrichtung in Worten).
+#' @param kpi Kennzahl (für die Richtung).
+#' @noRd
+rep_html_hh_fmt <- function(v, unit, kpi = "") {
   if (is.na(v)) return(fmt_num(NA))
-  switch(unit,
-    EUR_month = lbl("report.html.household.amount", value = fmt_int(rep_round_household(v))),
-    EUR = lbl("report.html.household.amount",
-              value = fmt_int(rep_round_household(v, "sum"))),
-    share = paste0(fmt_int(rep_round_household(v, "pct")), " %"),
-    rep_fmt_value(v, unit, 0)
-  )
+  if (startsWith(kpi, "monthly_net_cashflow")) return(rep_html_hh_cash_text(v))
+  if (startsWith(kpi, "monthly_saving") || startsWith(kpi, "monthly_cashflow_change")) {
+    return(rep_html_hh_diff_text(v))
+  }
+  if (unit %in% c("EUR_month", "EUR")) {
+    kind <- if (identical(unit, "EUR")) "sum" else "month"
+    r <- rep_round_household(v, kind)
+    if (r >= 0) return(lbl("report.html.household.amount", value = fmt_int(r)))
+    return(rep_html_hh_amount(v, "out", kind))
+  }
+  if (identical(unit, "share")) return(paste0(fmt_int(rep_round_household(v, "pct")), " %"))
+  rep_fmt_value(v, unit, 0)
 }
 
 #' Varianten im Vergleich (Haushaltsmodus): 4–6 Kennzahlen und Klartext je Variante
@@ -1320,7 +1580,9 @@ rep_html_variants_household <- function(rc) {
   blocks <- list()
   if (length(keys) > 0L) {
     cells <- vapply(vars, function(v) {
-      vapply(keys, function(k) rep_html_hh_fmt(rep_cmp_value(cmp, v, k), rep_html_unit(k)), "")
+      vapply(keys, function(k) {
+        rep_html_hh_fmt(rep_cmp_value(cmp, v, k), rep_html_unit(k), k)
+      }, "")
     }, character(length(keys)))
     m <- cbind(vapply(keys, kpi_label, "", USE.NAMES = FALSE), matrix(cells, nrow = length(keys)))
     colnames(m) <- c(lbl("report.html.table.kpi"), vars)
@@ -1448,8 +1710,13 @@ rep_html_sec_kpis <- function(rc) {
   if (identical(rc$kind, "kurzvorlage")) return(rep_html_board_kpis(rc, title))
   blocks <- list(rep_html_b_par(lbl("report.html.kpis.intro")))
   if (!is.null(rc$cmp)) {
-    m <- rep_cmp_kpi_matrix(rc$cmp, rep_cmp_kpis(rc$cmp, head = FALSE), short = FALSE)
-    blocks[[2L]] <- rep_html_b_table(m, caption = lbl("report.html.variants.kpi_header"))
+    # je Variante die Kennzahlen mit und ohne Restwert, je WE und je m2 (Basisfall); der
+    # Vergleich der Varianten steht im Abschnitt Variantenvergleich
+    if (rc$is_mc) blocks[[2L]] <- rep_html_b_par(lbl("report.html.kpis.cmp_mc_note"))
+    for (v in rep_comparison_variants(rc$cmp)) {
+      res <- rep_det_result(rc$cmp$results[[v]])
+      blocks <- c(blocks, list(rep_html_var_heading(v)), rep_html_kpi_tables(res))
+    }
     return(rep_html_section("kpis", title, blocks))
   }
   blocks <- c(blocks, rep_html_kpi_tables(rc$res))
@@ -1533,6 +1800,262 @@ rep_html_grant_matrix <- function(g) {
   m
 }
 
+# ---------------------------------------------------------------------------------------------
+# Berechtigungs-Check der Foerderung (Konzept 5.5; Spec 01 Teil B 4.3.1; Memo 07 Paragraf 5.2 e)
+# ---------------------------------------------------------------------------------------------
+
+#' Bibliothekseintrag eines Förderinstruments (Herkunft der Werte `funding.<f>.*`)
+#' @return Bibliotheks-id bzw. `NA`.
+#' @noRd
+rep_html_funding_entry <- function(spec, f) {
+  prov <- tryCatch(as.data.frame(spec), error = function(e) NULL)
+  if (!is.data.frame(prov) || !all(c("path", "entry") %in% names(prov))) return(NA_character_)
+  e <- as.character(prov$entry[startsWith(as.character(prov$path), paste0("funding.", f, "."))])
+  e <- unique(e[!is.na(e) & startsWith(e, "funding/")])
+  if (length(e) == 0L) NA_character_ else e[1L]
+}
+
+#' Bezeichnung einer Berechtigungsbedingung (Labels des Expanders, sonst der Schlüssel)
+#' @noRd
+rep_html_condition_label <- function(key) {
+  lbl(paste0("expand.funding.conditions.", key), .default = key)
+}
+
+#' Wert einer verletzten Bedingung als Text (Codes von Antragsteller und Projektart mit
+#' Bezeichnung)
+#' @noRd
+rep_html_reason_value <- function(r) {
+  v <- r$args$value
+  if (is.null(v) || identical(v, "-") || length(v) == 0L) return("")
+  enum <- switch(r$code, applicants = "applicant", project_types = "project_type", NULL)
+  if (!is.null(enum)) return(rep_enum_label(enum, as.character(v)[1L]))
+  if (is.numeric(v)) return(fmt_num(v[1L], if (abs(v[1L] - round(v[1L])) < 1e-9) 0 else 2))
+  utl_collapse(format(v))
+}
+
+#' Berechtigungs-Check eines Förderinstruments
+#'
+#' Wertet die automatisch prüfbaren Bedingungen deterministisch zum Antragsdatum aus wie der
+#' Expander (`fund_check_eligibility()`, WS-E2) und ergänzt Antragsdatum, Zeitpunkt der Zusage,
+#' die Bedingung „Antrag vor Vorhabenbeginn“, Fristen (Fertigstellung) und die Gültigkeit des
+#' Bibliothekseintrags zum Antragsdatum. Ausschlüsse (`exclusions`) und nicht prüfbare
+#' Bedingungen erscheinen als offene Prüfpunkte.
+#' @param res `vofi_result`.
+#' @param f id des Instruments.
+#' @return Liste `id`, `title`, `eligible`, `status` (Text), `items` (Data Frame `check`,
+#'   `result`, `detail`, `state` mit `ok`, `violated`, `open`, `info`), `open` (Texte),
+#'   `application` (Text) bzw. `NULL`.
+#' @noRd
+rep_html_funding_check <- function(res, f) {
+  spec <- res$spec
+  fs <- spec$funding[[f]]
+  if (!is.list(fs)) return(NULL)
+  bctx <- list(value_base = function(path, ...) scn_value_base(spec, res$grid, path, "scalar"))
+  chk <- fund_check_eligibility(spec, f, fs, bctx)
+  el <- fs[["eligibility"]] %||% list()
+  # Pruefpunkte in einer lokalen Umgebung sammeln (keine Zuweisung nach aussen, 2.7)
+  acc <- new.env(parent = emptyenv())
+  acc$items <- list()
+  add <- function(check, state, detail = "") {
+    result <- lbl(paste0("report.html.funding_check.state_", state))
+    acc$items[[length(acc$items) + 1L]] <- data.frame(check = check, result = result,
+                                                      detail = detail, state = state,
+                                                      stringsAsFactors = FALSE)
+  }
+  r_codes <- vapply(chk$reasons, function(r) r$code, "")
+  r_value <- function(code) {
+    i <- match(code, r_codes)
+    if (is.na(i)) return("")
+    rep_html_reason_value(chk$reasons[[i]])
+  }
+  o_codes <- vapply(chk$open, function(o) o$code, "")
+  state_of <- function(code) {
+    if (code %in% r_codes) "violated" else if (code %in% o_codes) "open" else "ok"
+  }
+  if (length(exp_chr(el[["applicants"]])) > 0L) {
+    a <- fund_applicant(spec, fs)
+    add(rep_html_condition_label("applicants"), state_of("applicants"),
+        rep_enum_label("applicant", a))
+  }
+  if (length(exp_chr(el[["project_types"]])) > 0L) {
+    add(rep_html_condition_label("project_types"), state_of("project_types"),
+        rep_enum_label("project_type", spec$project$project_type))
+  }
+  if (length(exp_chr(el[["measure_types"]])) > 0L) {
+    bad <- vapply(chk$errors, function(e) paste0(e$measure, " (", e$measure_type, ")"), "")
+    add(lbl("report.html.funding_check.measure_types"),
+        if (length(bad) > 0L) "violated" else "ok", utl_collapse(bad))
+  }
+  cond <- el[["conditions"]] %||% list()
+  for (key in names(cond)) {
+    v <- cond[[key]]
+    if (is.null(v)) next
+    if (identical(key, "completion_before")) {
+      d <- exp_date(v)
+      add(lbl("report.html.funding_check.completion_before"), "info",
+          lbl("report.html.funding_check.per_run", date = if (is.null(d)) fmt_num(NA) else d))
+      next
+    }
+    if (identical(key, "requires_beg_em_commitment_months")) {
+      add(lbl("report.html.funding_check.requires_commitment",
+              months = as.integer(exp_num(v) %||% NA_real_)), "info",
+          lbl("report.html.funding_check.see_validation"))
+      next
+    }
+    code <- if (identical(key, "efficiency_standard") &&
+                  "efficiency_standard_missing" %in% r_codes) {
+      "efficiency_standard_missing"
+    } else {
+      key
+    }
+    add(rep_html_condition_label(code), state_of(code), r_value(code))
+  }
+  open_txt <- character(0)
+  for (o in chk$open) {
+    if (identical(o$code, "exclusion")) {
+      txt <- as.character(o$args$text %||% "")
+      add(lbl("report.html.funding_check.exclusion"), "open", txt)
+      open_txt <- c(open_txt, lbl("report.html.funding_check.exclusion_text", text = txt))
+    } else if (!(o$code %in% names(cond))) {
+      add(rep_html_condition_label(o$code), "open")
+      open_txt <- c(open_txt, rep_html_condition_label(o$code))
+    } else {
+      open_txt <- c(open_txt, rep_html_condition_label(o$code))
+    }
+  }
+  # Antragsdatum, Zusage, Antrag vor Vorhabenbeginn, Gueltigkeit des Programms
+  ad <- tryCatch(fund_application_date(spec, fs), error = function(e) NULL)
+  timing <- exp_code(fs[["approval_timing"]]) %||% "auto"
+  app_txt <- if (is.null(ad)) "" else
+    lbl("report.html.funding_check.application", date = ad,
+        timing = rep_enum_label("approval_timing", timing))
+  add(lbl("report.html.funding_check.application_date"), "info", app_txt)
+  if (isTRUE(exp_lgl(fs[["application_before_start"]]))) {
+    add(lbl("report.html.funding_check.before_start"),
+        if (identical(timing, "after_start")) "violated" else "ok",
+        rep_enum_label("approval_timing", timing))
+  }
+  entry <- rep_html_funding_entry(spec, f)
+  lib <- res$meta$library %||% spec$library
+  if (!is.na(entry) && is.data.frame(lib) && entry %in% lib$entry && !is.null(ad)) {
+    r <- lib[lib$entry == entry, , drop = FALSE][1L, , drop = FALSE]
+    vf <- as.Date(r$valid_from)
+    vt <- as.Date(r$valid_to)
+    ok <- (is.na(vf) || vf <= ad) && (is.na(vt) || ad < vt)
+    add(lbl("report.html.funding_check.validity", entry = entry), if (ok) "ok" else "violated",
+        lbl("report.html.funding_check.validity_range", from = fmt_date(vf),
+            to = if (is.na(vt)) "\u2013" else fmt_date(vt)))
+  }
+  if (isTRUE(chk$override)) {
+    add(lbl("report.html.funding_check.override"), "info")
+  }
+  items <- if (length(acc$items) > 0L) do.call(rbind, acc$items) else NULL
+  type <- exp_code(fs[["instrument_type"]])
+  prog <- trimws(paste(as.character(exp_code(fs[["provider"]]) %||% ""),
+                       as.character(fs[["program_code"]] %||% "")))
+  title <- lbl("report.html.funding_check.title", id = f,
+               details = utl_collapse(c(if (nzchar(prog)) prog,
+                                        if (!is.null(type)) rep_enum_label("instrument_type",
+                                                                           type)), ", "))
+  reasons <- vapply(seq_along(chk$reasons), function(i) {
+    r <- chk$reasons[[i]]
+    v <- rep_html_reason_value(r)
+    lab <- rep_html_condition_label(r$code)
+    if (!nzchar(v)) lab else paste0(lab, ": ", v)
+  }, "")
+  bad_measures <- vapply(chk$errors, function(e) e$measure, "")
+  status <- if (length(chk$errors) > 0L) {
+    lbl("report.html.funding_check.status_measure", measures = utl_collapse(bad_measures))
+  } else if (!isTRUE(chk$eligible)) {
+    lbl("report.html.funding_check.status_not_eligible", reasons = utl_collapse(reasons, "; "))
+  } else if (isTRUE(chk$override)) {
+    lbl("report.html.funding_check.status_override")
+  } else if (length(open_txt) > 0L) {
+    lbl("report.html.funding_check.status_open", n = length(unique(open_txt)))
+  } else {
+    lbl("report.html.funding_check.status_eligible")
+  }
+  list(id = f, title = title, eligible = isTRUE(chk$eligible) && length(chk$errors) == 0L,
+       status = status, items = items, open = unique(open_txt), application = app_txt)
+}
+
+#' Berechtigungs-Check aller Förderinstrumente eines Ergebnisses
+#' @return Liste der Ergebnisse von `rep_html_funding_check()` (leer ohne Förderinstrumente).
+#' @noRd
+rep_html_funding_checks <- function(res) {
+  fund <- res$spec$funding
+  if (!is.list(fund) || length(fund) == 0L) return(list())
+  out <- lapply(names(fund), function(f) {
+    tryCatch(rep_html_funding_check(res, f), error = function(e) {
+      vofi_warn("report.html.funding_check.failed", id = f, message = conditionMessage(e))
+      list(id = f, title = f, eligible = NA,
+           status = lbl("report.html.funding_check.failed", id = f,
+                        message = conditionMessage(e)),
+           items = NULL, open = character(0), application = "")
+    })
+  })
+  out[!vapply(out, is.null, logical(1))]
+}
+
+#' Blöcke des Berechtigungs-Checks (Fachmodus: Status und Tabelle je Instrument)
+#' @noRd
+rep_html_funding_check_blocks <- function(res, level = 2L) {
+  checks <- rep_html_funding_checks(res)
+  if (length(checks) == 0L) return(list())
+  blocks <- list(rep_html_b_heading(lbl("report.html.funding_check.header"), level),
+                 rep_html_b_par(lbl("report.html.funding_check.intro")))
+  for (ck in checks) {
+    blocks[[length(blocks) + 1L]] <- rep_html_b_par(lbl("report.html.funding_check.line",
+                                                        title = ck$title, status = ck$status))
+    it <- ck$items
+    if (is.data.frame(it) && nrow(it) > 0L) {
+      m <- matrix(c(it$check, it$result, it$detail), ncol = 3L)
+      colnames(m) <- c(lbl("report.html.funding_check.col_check"),
+                       lbl("report.html.funding_check.col_result"),
+                       lbl("report.html.funding_check.col_detail"))
+      blocks[[length(blocks) + 1L]] <- rep_html_b_table(m, align = c("l", "l", "l"))
+    }
+  }
+  blocks
+}
+
+#' Berechtigungs-Check in einfachen Worten (Haushaltsmodus)
+#' @return Zeichenvektor (Aufzählungspunkte).
+#' @noRd
+rep_html_funding_check_items <- function(res) {
+  out <- character(0)
+  for (ck in rep_html_funding_checks(res)) {
+    out <- c(out, lbl("report.html.funding_check.household_line", title = ck$title,
+                      status = ck$status))
+    if (length(ck$open) > 0L) {
+      out <- c(out, lbl("report.html.funding_check.household_open", title = ck$title,
+                        items = utl_collapse(ck$open, "; ")))
+    }
+    if (nzchar(ck$application)) {
+      out <- c(out, lbl("report.html.funding_check.household_application", title = ck$title,
+                        text = ck$application))
+    }
+  }
+  out
+}
+
+#' Berechtigungs-Check als kompakte Tabelle (Kurzvorlage)
+#' @noRd
+rep_html_funding_check_matrix <- function(res) {
+  checks <- rep_html_funding_checks(res)
+  if (length(checks) == 0L) return(NULL)
+  m <- do.call(rbind, lapply(checks, function(ck) {
+    c(ck$title, ck$status, if (length(ck$open) > 0L) utl_collapse(ck$open, "; ") else "\u2013",
+      ck$application)
+  }))
+  m <- matrix(m, nrow = length(checks))
+  colnames(m) <- c(lbl("report.html.funding_check.col_funding"),
+                   lbl("report.html.funding_check.col_result"),
+                   lbl("report.html.funding_check.col_open"),
+                   lbl("report.html.funding_check.col_application"))
+  m
+}
+
 #' Finanzierungsteil eines Einzelergebnisses
 #' @noRd
 rep_html_financing_blocks <- function(res, plots = TRUE, level = 2L) {
@@ -1557,7 +2080,9 @@ rep_html_financing_blocks <- function(res, plots = TRUE, level = 2L) {
   g <- rep_html_grants(res)
   blocks <- c(blocks, list(rep_html_b_heading(lbl("report.html.financing.grants_header"), level),
                            if (is.null(g)) rep_html_b_par(lbl("report.html.financing.no_grants"))
-                           else rep_html_b_table(rep_html_grant_matrix(g))))
+                           else rep_html_b_table(rep_html_grant_matrix(g))),
+              rep_html_try(rep_html_funding_check_blocks(res, level),
+                           lbl("report.html.funding_check.header")))
   pv <- rep_html_kn(res, "pv_subsidies")
   if (!is.na(pv)) {
     blocks[[length(blocks) + 1L]] <- rep_html_b_par(lbl("report.html.financing.pv_subsidies",
@@ -1609,8 +2134,10 @@ rep_html_sec_tenant <- function(rc) {
   tv <- vofi_tenant_view(rc$x)
   has <- is.data.frame(tv) && nrow(tv) > 0L && any(!is.na(tv$warm_rent))
   if (!has) {
-    if (!startsWith(rc$perspective, "wu_")) return(NULL)
-    return(rep_html_section("tenant", title, list(rep_html_b_par(lbl("report.html.tenant.none")))))
+    levy <- rep_html_try(rep_html_levy_blocks(rc), lbl("report.html.levy.header"))
+    if (!startsWith(rc$perspective, "wu_") && length(levy) == 0L) return(NULL)
+    return(rep_html_section("tenant", title,
+                            c(list(rep_html_b_par(lbl("report.html.tenant.none"))), levy)))
   }
   f <- function(v) fmt_num(v, 2)
   multi <- length(unique(tv$variant)) > 1L
@@ -1647,12 +2174,182 @@ rep_html_sec_tenant <- function(rc) {
                share = tv$coop_income_share[i], threshold = tv$coop_threshold[i])
     blocks[[length(blocks) + 1L]] <- rep_html_b_callout("warning", txt)
   }
+  blocks <- c(blocks, rep_html_try(rep_html_levy_blocks(rc), lbl("report.html.levy.header")))
   if (rc$plots) {
     x <- rc$x
     blocks[[length(blocks) + 1L]] <- rep_html_b_plot(function() rep_plot_warm_rent(x),
                                                      lbl("report.plot.title_warmmiete"))
   }
   rep_html_section("tenant", title, blocks)
+}
+
+# ---------------------------------------------------------------------------------------------
+# Umlage: Rechenweg rechnerisch -> gekappt -> angesetzt (Spec 01 Teil B 1.9.6; Memo 07
+# Paragraf 5.1 Nr. 5 und 5.2 a, c)
+# ---------------------------------------------------------------------------------------------
+
+#' Basisfallwert eines Spezifikationspfads (Konstante bzw. über den Auflöser) oder `NULL`
+#' @noRd
+rep_html_spec_value <- function(spec, grid, path) {
+  v <- rep_spec_number(spec, path)
+  if (!is.null(v)) return(v[1L])
+  out <- tryCatch(suppressWarnings(suppressMessages(scn_value_base(spec, grid, path, "scalar"))),
+                  error = function(e) NULL)
+  if (is.numeric(out) && length(out) >= 1L && !is.na(out[1L])) as.double(out[1L]) else NULL
+}
+
+#' Mietpfad-Komponenten mit Umlagezeilen (`rent_path` mit `levy_rows`)
+#' @noRd
+rep_html_levy_components <- function(spec) {
+  comps <- spec$components %||% list()
+  if (length(comps) == 0L) return(character(0))
+  names(comps)[vapply(comps, function(cmp) {
+    is.list(cmp) && identical(exp_code(cmp[["type"]]), "rent_path") &&
+      length(exp_chr(cmp[["levy_rows"]])) > 0L
+  }, logical(1))]
+}
+
+#' Rückgaben der Komponenten im Basisfall (mit Hilfsgrößen `aux`)
+#'
+#' Simulation: aus dem gespeicherten Modell; Einzelergebnis: Modell aus der Spezifikation neu
+#' gebaut (ohne neue Auflösung; Meldungen des Baus sind bekannt und werden unterdrückt).
+#' @return Liste `flows` (benannt nach Komponente) und `grid`.
+#' @noRd
+rep_html_component_flows <- function(x) {
+  res <- rep_det_result(x)
+  model <- if (inherits(x, "vofi_mc_result") && inherits(x$model, "vofi_model")) x$model else
+    NULL
+  if (is.null(model) || is.null(model$base$flows)) {
+    model <- withCallingHandlers(vofi_build(res$spec),
+                                 vofi_message = function(m) invokeRestart("muffleMessage"),
+                                 vofi_warning = function(w) invokeRestart("muffleWarning"))
+  }
+  list(flows = model$base$flows, grid = model$grid %||% res$grid)
+}
+
+#' Rechenweg der Modernisierungsumlage je Maßnahme und Wohnungsgruppe (Basisfall)
+#'
+#' Aus den Hilfsgrößen des Mietpfads: rechnerischer Jahresbetrag (`levy_<k>_computed`), nach
+#' Kappung (`levy_<k>_capped`), angesetzt nach freiwilliger Obergrenze und vor Härtefällen
+#' (`levy_<k>_charged`), jeweils in der Wirksamkeitsperiode, mit Verfahren
+#' (`levy_<k>_procedure`); je m² Wohnfläche und Monat sowie je Wohnung und Monat.
+#' @param x `vofi_result` bzw. `vofi_mc_result`.
+#' @return Data Frame `measure`, `group`, `period`, `procedure`, `computed`, `capped`,
+#'   `charged` (EUR/Jahr), `area`, `n_units` bzw. `NULL` (keine Umlage).
+#' @noRd
+rep_html_levy_chain <- function(x) {
+  res <- rep_det_result(x)
+  spec <- res$spec
+  ids <- rep_html_levy_components(spec)
+  if (length(ids) == 0L) return(NULL)
+  fl <- rep_html_component_flows(x)
+  codes <- c("none", "bgb_559", "bgb_559c", "bgb_559e")
+  rows <- list()
+  for (id in ids) {
+    aux <- fl$flows[[id]]$aux
+    if (is.null(aux)) next
+    comp <- spec$components[[id]]
+    group <- as.character(exp_code(comp[["unit_group"]]) %||% id)
+    area_m <- aux$area_m2
+    area <- if (is.matrix(area_m)) max(area_m[1L, ], na.rm = TRUE) else NA_real_
+    n_units <- rep_html_spec_value(spec, fl$grid, paste0("components.", id, ".n_units")) %||%
+      rep_html_spec_value(spec, fl$grid, paste0("unit_groups.", group, ".n_units")) %||%
+      NA_real_
+    for (k in exp_chr(comp[["levy_rows"]])) {
+      get_row <- function(fld) {
+        m <- aux[[paste0("levy_", k, "_", fld)]]
+        if (is.matrix(m)) as.double(m[1L, ]) else NULL
+      }
+      cp <- get_row("computed")
+      cap <- get_row("capped")
+      chg <- get_row("charged")
+      pr <- get_row("procedure")
+      if (is.null(cp) || is.null(cap) || is.null(chg)) next
+      hit <- which(abs(cp) > vofi_tol$zero_abs | abs(cap) > vofi_tol$zero_abs |
+                     abs(chg) > vofi_tol$zero_abs)
+      j <- if (length(hit) > 0L) hit[1L] else NA_integer_
+      pc <- if (is.na(j) || is.null(pr)) 0L else as.integer(round(pr[j]))
+      code <- codes[min(max(pc, 0L), 3L) + 1L]
+      lab <- spec$measures[[k]]$label %||% k
+      at <- function(v) if (is.na(j)) 0 else v[j]
+      period <- if (is.na(j)) NA_character_ else as.character(fl$grid$label[j])
+      rows[[length(rows) + 1L]] <- data.frame(measure = as.character(lab)[1L], group = group,
+                                              period = period, procedure = code,
+                                              computed = at(cp), capped = at(cap),
+                                              charged = at(chg), area = area,
+                                              n_units = as.double(n_units),
+                                              stringsAsFactors = FALSE)
+    }
+  }
+  if (length(rows) == 0L) return(NULL)
+  do.call(rbind, rows)
+}
+
+#' Rechenweg der Umlage als Zeichenmatrix (Fachmodus)
+#' @noRd
+rep_html_levy_matrix <- function(lc) {
+  if (!is.data.frame(lc) || nrow(lc) == 0L) return(NULL)
+  cell <- function(v, area) {
+    m2 <- ifelse(is.finite(area) & area > 0, v / (12 * area), NA_real_)
+    vapply(seq_along(v), function(i) {
+      lbl("report.html.levy.cell", value = rep_fmt_value(v[i], "EUR", 2),
+          per_m2 = fmt_num(m2[i], 2))
+    }, "")
+  }
+  proc <- vapply(lc$procedure, function(p) {
+    if (identical(p, "none")) lbl("report.html.levy.procedure_none") else
+      rep_enum_label("levy_procedure", p)
+  }, "", USE.NAMES = FALSE)
+  m <- cbind(lc$measure, lc$group, ifelse(is.na(lc$period), "\u2013", lc$period), proc,
+             cell(lc$computed, lc$area), cell(lc$capped, lc$area), cell(lc$charged, lc$area))
+  m <- matrix(m, nrow = nrow(lc))
+  colnames(m) <- c(lbl("report.html.levy.col_measure"), lbl("report.html.levy.col_group"),
+                   lbl("report.html.levy.col_period"), lbl("report.html.levy.col_procedure"),
+                   lbl("report.html.levy.col_computed"), lbl("report.html.levy.col_capped"),
+                   lbl("report.html.levy.col_charged"))
+  m
+}
+
+#' Blöcke des Rechenwegs der Umlage (Fachmodus; bei Vergleichen je Variante)
+#' @noRd
+rep_html_levy_blocks <- function(rc) {
+  results <- if (is.null(rc$cmp)) list(rc$base) else
+    rc$cmp$results[rep_comparison_variants(rc$cmp)]
+  multi <- length(results) > 1L
+  blocks <- list()
+  for (v in seq_along(results)) {
+    m <- rep_html_levy_matrix(rep_html_levy_chain(results[[v]]))
+    if (is.null(m)) next
+    cap <- if (multi) {
+      lbl("report.html.vofi_table.variant_header", variant = names(results)[v])
+    } else {
+      NULL
+    }
+    blocks[[length(blocks) + 1L]] <- rep_html_b_table(m, caption = cap)
+  }
+  if (length(blocks) == 0L) return(list())
+  c(list(rep_html_b_heading(lbl("report.html.levy.header")),
+         rep_html_b_par(lbl("report.html.levy.intro"))), blocks)
+}
+
+#' Zulässige Mieterhöhung durch Modernisierung je Wohnung (Haushaltsmodus, Kleinvermieter)
+#' @return Zeichenvektor (Aufzählungspunkte).
+#' @noRd
+rep_html_levy_household <- function(x) {
+  lc <- rep_html_levy_chain(x)
+  if (!is.data.frame(lc) || nrow(lc) == 0L) return(character(0))
+  vapply(seq_len(nrow(lc)), function(i) {
+    r <- lc[i, , drop = FALSE]
+    if (is.na(r$period)) {
+      return(lbl("report.html.levy.household_none", measure = r$measure))
+    }
+    per_unit <- function(v) {
+      if (!is.finite(r$n_units) || r$n_units <= 0) return(fmt_num(NA))
+      rep_amount_text(v / (12 * r$n_units))
+    }
+    lbl("report.html.levy.household_item", measure = r$measure, period = r$period,
+        allowed = per_unit(r$capped), charged = per_unit(r$charged))
+  }, "")
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -1833,12 +2530,16 @@ rep_html_what_if <- function(rc) {
   ms <- rep_html_mandatory(rc)
   if (!is.data.frame(ms) || nrow(ms) == 0L) return(character(0))
   ms <- ms[ms$status %in% c("computed", "no_effect", "same_as_base"), , drop = FALSE]
+  multi <- "variant" %in% names(ms) && length(unique(ms$variant)) > 1L
   vapply(seq_len(nrow(ms)), function(i) {
     d <- ms$diff[i]
     r <- rep_round_household(d, "sum")
     key <- if (is.na(d) || r == 0) "same" else if (r > 0) "better" else "worse"
     txt <- lbl(paste0("report.html.household.what_if_", key), value = fmt_int(abs(r)))
-    lbl("report.html.household.what_if_item", label = ms$label[i], text = txt)
+    item <- lbl("report.html.household.what_if_item", label = ms$label[i], text = txt)
+    if (multi) item <- lbl("report.html.variants.household_text", variant = ms$variant[i],
+                           text = item)
+    item
   }, "")
 }
 
@@ -1922,15 +2623,48 @@ rep_html_mandatory_blocks <- function(rc) {
       m <- matrix(c(labs, st), ncol = 2L)
       colnames(m) <- c(lbl("report.html.sensitivity.col_sensitivity"),
                        lbl("report.html.sensitivity.col_status"))
+      reason <- rc$cache$mandatory_reason %||% character(0)
       blocks <- c(blocks, list(rep_html_b_table(m),
-                               rep_html_b_callout("info",
-                                                  lbl("report.html.sensitivity.not_computed"))))
+                               rep_html_b_callout("warning",
+                                                  c(reason,
+                                                    lbl("report.html.sensitivity.not_computed")))))
     }
   }
   if (rc$perspective %in% c("selbstnutzer", "kleinvermieter")) {
     blocks[[length(blocks) + 1L]] <- rep_html_b_par(lbl("report.html.sensitivity.deposit_tax_note"))
   }
   blocks
+}
+
+#' Ergebnistabelle einer Sensitivitätsanalyse (WS-H, `rep_sens_matrix()`)
+#'
+#' Die globale Sensitivität mit genau einer Eingangsgröße formt der Bericht selbst (die
+#' Tabellenfunktion von WS-H scheitert an der Matrixform einer einzelnen Zeile).
+#' @noRd
+rep_html_sens_matrix <- function(s, n, unit) {
+  g <- s$global
+  if (!identical(s$method, "global") || !is.data.frame(g) || nrow(g) != 1L) {
+    return(rep_sens_matrix(s, n, unit))
+  }
+  cols <- intersect(c("spearman", "src", "srrc", "prcc", "s1_binned"), names(g))
+  m <- matrix(c(as.character(g$input), vapply(cols, function(cc) fmt_num(g[[cc]], 3), "")),
+              nrow = 1L)
+  colnames(m) <- c(lbl("report.sensitivity.input"),
+                   vapply(cols, function(cc) lbl(paste0("report.sensitivity.", cc)), ""))
+  m
+}
+
+#' Blöcke erzeugen; ein Fehler ergibt einen Hinweis im Bericht (mit Warnung), die übrigen Blöcke
+#' des Abschnitts bleiben erhalten
+#' @param expr Ausdruck, der eine Liste von Blöcken liefert.
+#' @param what Bezeichnung des Teils (für die Meldung).
+#' @noRd
+rep_html_try <- function(expr, what) {
+  tryCatch(expr, error = function(e) {
+    vofi_warn("report.html.block_failed", block = what, message = conditionMessage(e))
+    list(rep_html_b_callout("warning", lbl("report.html.block_failed", block = what,
+                                           message = conditionMessage(e))))
+  })
 }
 
 #' Blöcke einer übergebenen Sensitivitätsanalyse (Tornado, Spider, global)
@@ -1945,7 +2679,7 @@ rep_html_sens_blocks <- function(s, plots) {
     blocks[[2L]] <- rep_html_b_par(lbl("report.html.sensitivity.base_value",
                                        value = rep_fmt_value(s$base_value, unit, 0)))
   }
-  blocks[[length(blocks) + 1L]] <- rep_html_b_table(rep_sens_matrix(s, 10L, unit))
+  blocks[[length(blocks) + 1L]] <- rep_html_b_table(rep_html_sens_matrix(s, 10L, unit))
   if (identical(s$method, "global") && !is.null(s$r2_src) && !is.na(s$r2_src)) {
     measure <- if (s$r2_src >= 0.7) lbl("report.sensitivity.srrc") else
       lbl("report.sensitivity.s1_binned")
@@ -1965,35 +2699,77 @@ rep_html_sens_blocks <- function(s, plots) {
   blocks
 }
 
+#' Einheit eines Spezifikationspfads (für Ergebnisse von Zielwertsuchen)
+#'
+#' Vorrang: Einheit des Parameters aus Registry bzw. Feldkatalog (`val_param_at()`), sonst nach
+#' dem letzten Pfadsegment (`rate`, `share`, `quota` als Anteil, Endung `_eur` als EUR);
+#' `shared.*` und `market.*` haben kein Schema. Unbekannt: `NA` (Ausgabe als Zahl).
+#' @noRd
+rep_html_path_unit <- function(spec, path) {
+  if (!utl_is_string(path)) return(NA_character_)
+  p <- if (is.null(spec)) NULL else tryCatch(val_param_at(spec, path), error = function(e) NULL)
+  u <- if (inherits(p, "vofi_param")) p$unit else NULL
+  if (utl_is_string(u) && nzchar(u)) return(u)
+  seg <- sub("^.*\\.", "", path)
+  if (grepl("(^|_)(rate|share|quota)(_|$)", seg)) return("share")
+  if (grepl("(^|_)eur$", seg)) return("EUR")
+  NA_character_
+}
+
+#' Bezeichnung eines Parameterpfads: Label des Overlay-Eintrags mit diesem Ziel und Pfad
+#' @noRd
+rep_html_param_label <- function(spec, path) {
+  if (!utl_is_string(path)) return("")
+  st <- spec$stochastic %||% list()
+  for (blk in c("parameters", "processes")) {
+    for (e in st[[blk]] %||% list()) {
+      hit <- is.list(e) && identical(as.character(e$target %||% "")[1L], path)
+      if (hit && utl_is_string(e$label)) {
+        return(lbl("report.html.sensitivity.param_with_label", label = e$label, path = path))
+      }
+    }
+  }
+  path
+}
+
 #' Ergebnisse von Zielwertsuchen (`vofi_solution`, 12.8) als Zeichenmatrix
 #'
-#' Ergebnis als Prozent bei der Rendite der Mehrinvestition und bei Raten-Parametern, als
-#' EUR-Betrag beim Entnahme-Äquivalent, sonst als Zahl (Zielwert entfällt bei Entnahme-Äquivalent
-#' und Rendite der Mehrinvestition, deren Ziel die Endwertdifferenz null ist); Vermerke bei
-#' fehlender Monotonie, Sprungstellen, Überschreitungswahrscheinlichkeit und die Meldung der
+#' Ergebnis in der Einheit des gesuchten Parameters (`rep_html_path_unit()`; z. B. Anteile in
+#' Prozent, `shared.*` als Zahl), beim Entnahme-Äquivalent und bei der Rendite der
+#' Mehrinvestition in der Einheit der Kennzahl. Der Zielwert steht in der Einheit der Kennzahl,
+#' eine Schwelle (`target_source = "threshold:<name>"`) mit Bezeichnung und Wert; er entfällt bei
+#' Entnahme-Äquivalent und Rendite der Mehrinvestition (Ziel: Endwertdifferenz null). Vermerke
+#' bei fehlender Monotonie, Sprungstellen, Überschreitungswahrscheinlichkeit und die Meldung der
 #' Suche.
 #' @param sols Liste von `vofi_solution`.
+#' @param spec Spezifikation (Einheiten und Bezeichnungen der Parameter) bzw. `NULL`.
 #' @noRd
-rep_html_solution_matrix <- function(sols) {
+rep_html_solution_matrix <- function(sols, spec = NULL) {
   if (length(sols) == 0L) return(NULL)
   rows <- lapply(sols, function(s) {
     what <- as.character(s$what %||% "")
-    rate <- identical(what, "incremental_return") ||
-      (utl_is_string(s$param) && grepl("(rate|share)", s$param))
     val <- s$value %||% NA_real_
-    value <- if (identical(what, "withdrawal_equivalent")) {
-      rep_fmt_value(val, "EUR", 0)
-    } else if (rate) {
-      fmt_pct(val, 2)
+    own <- what %in% c("withdrawal_equivalent", "incremental_return")
+    value <- if (own) {
+      rep_fmt_value(val, rep_html_unit(what), 0)
     } else {
-      fmt_num(val, 2)
+      u <- rep_html_path_unit(spec, s$param)
+      if (is.na(u)) fmt_num(val, 2) else rep_fmt_value(val, u, 2)
     }
-    target <- if (what %in% c("withdrawal_equivalent", "incremental_return")) {
+    kpi <- if (utl_is_string(s$kpi)) s$kpi else ""
+    src <- as.character(s$target_source %||% "value")[1L]
+    target <- if (own) {
       ""
-    } else if (identical(s$target_source %||% "value", "value")) {
-      fmt_num(s$target %||% NA_real_, 2)
     } else {
-      s$target_source
+      tv <- rep_fmt_value(s$target %||% NA_real_, if (nzchar(kpi)) rep_html_unit(kpi) else "",
+                          0)
+      if (startsWith(src, "threshold:")) {
+        nm <- sub("^threshold:", "", src)
+        lbl("report.html.sensitivity.target_threshold", value = tv,
+            name = lbl(paste0("report.html.sensitivity.threshold_", nm), .default = nm))
+      } else {
+        tv
+      }
     }
     pe <- s$prob_exceed %||% NA_real_
     note <- c(if (isFALSE(s$monotone)) lbl("report.html.sensitivity.not_monotone"),
@@ -2003,9 +2779,8 @@ rep_html_solution_matrix <- function(sols) {
               },
               if (utl_is_string(s$message)) s$message)
     c(lbl(paste0("report.html.sensitivity.what_", what), .default = what),
-      if (utl_is_string(s$param)) s$param else "",
-      if (utl_is_string(s$kpi)) kpi_label(s$kpi) else "", target, value,
-      utl_collapse(note, "; "))
+      rep_html_param_label(spec, s$param), if (nzchar(kpi)) kpi_label(kpi) else "", target,
+      value, utl_collapse(note, "; "))
   })
   m <- do.call(rbind, rows)
   colnames(m) <- c(lbl("report.html.sensitivity.col_what"),
@@ -2019,7 +2794,7 @@ rep_html_solution_matrix <- function(sols) {
 #' Blöcke der Zielwertsuchen (Überschrift und Tabelle) bzw. `list()`
 #' @noRd
 rep_html_solution_blocks <- function(rc) {
-  m <- rep_html_solution_matrix(rc$solutions)
+  m <- rep_html_solution_matrix(rc$solutions, rc$res$spec)
   if (is.null(m)) return(list())
   list(rep_html_b_heading(lbl("report.html.sensitivity.solutions_header")), rep_html_b_table(m))
 }
@@ -2027,16 +2802,23 @@ rep_html_solution_blocks <- function(rc) {
 #' @noRd
 rep_html_sec_sensitivity <- function(rc) {
   title <- rep_html_sec_title("sensitivity", rc)
-  blocks <- c(rep_html_mandatory_blocks(rc), rep_html_solution_blocks(rc))
+  blocks <- c(rep_html_try(rep_html_mandatory_blocks(rc),
+                           lbl("report.html.sensitivity.mandatory_header")),
+              rep_html_try(rep_html_solution_blocks(rc),
+                           lbl("report.html.sensitivity.solutions_header")))
   if (length(rc$sens) == 0L) {
     blocks[[length(blocks) + 1L]] <- rep_html_b_par(c(
       lbl("report.html.sensitivity.no_analysis"),
       if (!is.null(rc$mc) && !is.null(rep_mc_inputs(rc$mc))) lbl("report.html.sensitivity.mc_ranks")
     ))
   } else {
-    for (s in rc$sens) blocks <- c(blocks, rep_html_sens_blocks(s, rc$plots))
+    for (s in rc$sens) {
+      what <- lbl(paste0("report.sensitivity.method_", s$method), .default = s$method)
+      blocks <- c(blocks, rep_html_try(rep_html_sens_blocks(s, rc$plots), what))
+    }
   }
-  blocks[[length(blocks) + 1L]] <- rep_html_b_par(rep_html_drivers_text(rc))
+  blocks <- c(blocks, rep_html_try(list(rep_html_b_par(rep_html_drivers_text(rc))),
+                                   lbl("report.html.sensitivity.drivers_header")))
   rep_html_section("sensitivity", title, blocks)
 }
 
@@ -2100,12 +2882,14 @@ rep_html_library_matrix <- function(ls) {
   st <- ls$status
   st[ls$flag] <- paste0("\u26a0 ", st[ls$flag])
   m <- cbind(ls$entry, fmt_date(ls$as_of), fmt_date(ls$valid_from),
-             ifelse(is.na(ls$valid_to), "\u2013", fmt_date(ls$valid_to)), q, st)
+             ifelse(is.na(ls$valid_to), "\u2013", fmt_date(ls$valid_to)),
+             ls$ref_date %||% rep("", nrow(ls)), q, st)
   m <- matrix(m, nrow = nrow(ls))
   colnames(m) <- c(lbl("report.html.assumptions.col_entry"),
                    lbl("report.html.assumptions.col_as_of"),
                    lbl("report.html.assumptions.col_valid_from"),
                    lbl("report.html.assumptions.col_valid_to"),
+                   lbl("report.html.assumptions.col_ref_date"),
                    lbl("report.html.assumptions.col_quality"),
                    lbl("report.html.assumptions.col_status"))
   m
@@ -2222,14 +3006,25 @@ rep_html_assumptions_short <- function(rc) {
     if (is.na(it[2L])) return(NULL)
     c(lbl(paste0("report.html.assumptions.", it[1L])), it[2L])
   })
-  ins <- rep_html_instruments(res)
-  for (i in seq_len(if (is.null(ins)) 0L else nrow(ins))) {
-    rate <- rep_html_spec_text(sp, paste0("financing.", ins$id[i], ".rate_pa"), "pct")
-    label <- lbl("report.html.assumptions.item_loan", label = ins$label[i])
-    value <- lbl("report.html.assumptions.item_loan_value",
-                 amount = rep_fmt_value(ins$draw[i], "EUR", 0),
-                 rate = if (is.na(rate)) fmt_num(NA) else rate)
-    rows[[length(rows) + 1L]] <- c(label, value)
+  # Kredite je Variante (bei Vergleichen alle Varianten, Referenz zuerst)
+  loan_res <- if (is.null(rc$cmp)) list(res) else
+    lapply(rc$cmp$results[rep_comparison_variants(rc$cmp)], rep_det_result)
+  multi <- length(loan_res) > 1L
+  for (v in seq_along(loan_res)) {
+    rv <- loan_res[[v]]
+    ins <- rep_html_instruments(rv)
+    for (i in seq_len(if (is.null(ins)) 0L else nrow(ins))) {
+      rate <- rep_html_spec_text(rv$spec, paste0("financing.", ins$id[i], ".rate_pa"), "pct")
+      label <- lbl("report.html.assumptions.item_loan", label = ins$label[i])
+      if (multi) {
+        label <- lbl("report.html.variants.household_text", variant = names(loan_res)[v],
+                     text = label)
+      }
+      value <- lbl("report.html.assumptions.item_loan_value",
+                   amount = rep_fmt_value(ins$draw[i], "EUR", 0),
+                   rate = if (is.na(rate)) fmt_num(NA) else rate)
+      rows[[length(rows) + 1L]] <- c(label, value)
+    }
   }
   lib <- res$meta$library_version %||% NA_character_
   if (is.na(lib)) lib <- lbl("report.html.assumptions.none")
@@ -2350,13 +3145,45 @@ rep_html_sec_method <- function(rc) {
 # Abschnitte des Haushaltsmodus: Belastung, Förderung, Glossar
 # ---------------------------------------------------------------------------------------------
 
-#' Betrag pro Monat für Haushalte (gerundet, ohne Vorzeichen bei Kosten)
+#' Betrag für Haushalte ohne Vorzeichen (Memo 07 Paragraf 5.4 Nr. 4 und 5)
+#'
+#' `v` ist so ausgerichtet, dass positive Werte der erwarteten Richtung der Spalte entsprechen
+#' (Kosten positiv bzw. Erlöse positiv); sie erscheinen als gerundeter Betrag. Werte der
+#' Gegenrichtung erscheinen in Worten („Einnahme … €“ in einer Kostenspalte, „Ausgabe … €“ in
+#' einer Erlösspalte), nie mit Minuszeichen.
+#' @param v Zahlen.
+#' @param dir `"out"` (Kostenspalte) oder `"in"` (Erlösspalte).
+#' @param kind Rundung (`"month"` bzw. `"sum"`, `rep_round_household()`).
 #' @noRd
-rep_html_hh_month <- function(v) {
-  ifelse(is.na(v), fmt_num(NA), fmt_int(rep_round_household(v)))
+rep_html_hh_amount <- function(v, dir = "out", kind = "month") {
+  vapply(as.double(v), function(x) {
+    if (is.na(x)) return(fmt_num(NA))
+    r <- rep_round_household(x, kind)
+    if (r >= 0) return(fmt_int(r))
+    key <- if (identical(dir, "out")) "inflow" else "outflow"
+    lbl(paste0("report.html.household.", key), value = fmt_int(abs(r)))
+  }, "")
+}
+
+#' Zahlung mit wechselnder Richtung in Worten („Einnahme … €“ / „Ausgabe … €“)
+#' @noRd
+rep_html_hh_signed <- function(v, kind = "month") {
+  vapply(as.double(v), function(x) {
+    if (is.na(x)) return(fmt_num(NA))
+    r <- rep_round_household(x, kind)
+    if (r == 0) return(fmt_int(0))
+    key <- if (r > 0) "inflow" else "outflow"
+    lbl(paste0("report.html.household.", key), value = fmt_int(abs(r)))
+  }, "")
 }
 
 #' Tabelle der Haushaltssicht einer Variante
+#'
+#' Selbstnutzer: Bestandteile der monatlichen Belastung, Belastung mit und ohne Tilgung, bei
+#' Vergleichen Ersparnis und kumulierte Ersparnis in Worten. Kleinvermieter: Mieten, Förderung
+#' und sonstige Erlöse, laufende Kosten, Investitionen, sonstige Zahlungen, Kapitaldienst und
+#' Cashflow; die Spalten ergeben zusammen den Cashflow (Spalten ohne Werte entfallen).
+#' @return Zeichenmatrix mit den Attributen `picked` und `note` bzw. `NULL`.
 #' @noRd
 rep_html_burden_matrix <- function(d, owner) {
   if (nrow(d) == 0L) return(NULL)
@@ -2367,42 +3194,58 @@ rep_html_burden_matrix <- function(d, owner) {
                paste0(lbl("report.html.table.phase_construction"), " ", d$year),
                sprintf("%d", as.integer(d$year)))
   num <- function(col) if (col %in% names(d)) as.double(d[[col]]) else rep(0, nrow(d))
+  any_nz <- function(v) any(abs(v) > vofi_tol$zero_abs, na.rm = TRUE)
+  note <- NULL
+  out <- function(v) rep_html_hh_amount(v, "out")
   if (owner) {
-    m <- cbind(yr, rep_html_hh_month(num("interest") + num("fees")),
-               rep_html_hh_month(num("repay")),
-               rep_html_hh_month(num("energy") + num("energy_income")),
-               rep_html_hh_month(num("maintenance")),
-               rep_html_hh_month(num("operating") + num("other")))
+    m <- cbind(yr, out(num("interest") + num("fees")), out(num("repay")),
+               out(num("energy") + num("energy_income")), out(num("maintenance")),
+               out(num("operating") + num("other")))
     cn <- c("col_interest", "col_repay", "col_energy", "col_maintenance", "col_other")
     if (any(num("current_rent") > 0)) {
-      m <- cbind(m, rep_html_hh_month(num("current_rent")))
+      m <- cbind(m, out(num("current_rent")))
       cn <- c(cn, "col_current_rent")
     }
-    m <- cbind(m, rep_html_hh_month(num("burden")), rep_html_hh_month(num("burden_ex_repay")))
+    m <- cbind(m, out(num("burden")), out(num("burden_ex_repay")))
     cn <- c(cn, "col_burden", "col_burden_ex")
     if ("saving" %in% names(d)) {
-      sv <- num("saving")
-      m <- cbind(m, vapply(sv, rep_html_hh_diff_text, ""),
-                 fmt_int(rep_round_household(num("cumulative_saving"), "sum")))
+      m <- cbind(m, vapply(num("saving"), rep_html_hh_diff_text, ""),
+                 vapply(num("cumulative_saving"), rep_html_hh_diff_text, "", kind = "sum"))
       cn <- c(cn, "col_saving", "col_cum_saving")
     }
   } else {
-    cf <- num("cashflow")
-    m <- cbind(yr, rep_html_hh_month(num("rent")),
-               rep_html_hh_month(-(num("costs"))),
-               rep_html_hh_month(-(num("interest") + num("repay") + num("fees"))),
-               vapply(cf, rep_html_hh_cash_text, ""))
-    cn <- c("col_rent", "col_costs", "col_debt", "col_cashflow")
+    inc <- num("other_income") + num("grants")
+    m <- cbind(yr, rep_html_hh_amount(num("rent"), "in"))
+    cn <- "col_rent"
+    if (any_nz(inc)) {
+      m <- cbind(m, rep_html_hh_amount(inc, "in"))
+      cn <- c(cn, "col_other_income")
+    }
+    m <- cbind(m, out(-num("costs")))
+    cn <- c(cn, "col_costs")
+    if (any_nz(num("investment"))) {
+      m <- cbind(m, out(-num("investment")))
+      cn <- c(cn, "col_investment")
+    }
+    if (any_nz(num("other"))) {
+      m <- cbind(m, rep_html_hh_signed(num("other")))
+      cn <- c(cn, "col_other_flows")
+    }
+    m <- cbind(m, out(-(num("interest") + num("repay") + num("fees"))),
+               vapply(num("cashflow"), rep_html_hh_cash_text, ""))
+    cn <- c(cn, "col_debt", "col_cashflow")
     if ("cashflow_change" %in% names(d)) {
       m <- cbind(m, vapply(num("cashflow_change"), rep_html_hh_diff_text, ""))
       cn <- c(cn, "col_change")
     }
+    note <- lbl("report.html.household.cashflow_note")
   }
   m <- matrix(m, nrow = nrow(d))
   colnames(m) <- c(lbl("report.html.table.year"),
                    vapply(cn, function(k) lbl(paste0("report.html.household.", k)), "",
                           USE.NAMES = FALSE))
   attr(m, "picked") <- picked
+  attr(m, "note") <- note
   m
 }
 
@@ -2416,12 +3259,13 @@ rep_html_hh_cash_text <- function(v) {
 }
 
 #' Differenz in Worten („spart … €“ / „… € mehr“ / „gleich“)
+#' @param kind Rundung (`"month"` bzw. `"sum"` für kumulierte Beträge).
 #' @noRd
-rep_html_hh_diff_text <- function(v) {
+rep_html_hh_diff_text <- function(v, kind = "month") {
   if (is.na(v)) return(fmt_num(NA))
-  r <- rep_round_household(v)
+  r <- rep_round_household(v, kind)
   key <- if (r > 0) "saving" else if (r < 0) "more" else "equal"
-  lbl(paste0("report.html.household.", key), value = rep_amount_text(v))
+  lbl(paste0("report.html.household.", key), value = rep_amount_text(v, kind))
 }
 
 #' @noRd
@@ -2436,6 +3280,29 @@ rep_html_sec_burden <- function(rc) {
     if (length(vars) > 1L) blocks[[length(blocks) + 1L]] <- rep_html_var_heading(v)
     blocks[[length(blocks) + 1L]] <- rep_html_b_table(rep_html_burden_matrix(d, rc$owner),
                                                       caption = lbl("report.plot.y_eur_month"))
+  }
+  if (!rc$owner) {
+    results <- if (is.null(rc$cmp)) list(rc$base) else
+      rc$cmp$results[rep_comparison_variants(rc$cmp)]
+    for (v in seq_along(results)) {
+      items <- rep_html_try(rep_html_levy_household(results[[v]]), lbl("report.html.levy.header"))
+      if (!is.character(items)) {
+        blocks <- c(blocks, items)
+        next
+      }
+      if (length(items) == 0L) next
+      if (length(results) > 1L) {
+        items <- vapply(items, function(t) {
+          lbl("report.html.variants.household_text", variant = names(results)[v], text = t)
+        }, "", USE.NAMES = FALSE)
+      }
+      hdr <- lbl("report.html.levy.household_header")
+      seen <- vapply(blocks, function(b) {
+        identical(b$type, "heading") && identical(b$text, hdr)
+      }, logical(1))
+      if (!any(seen)) blocks[[length(blocks) + 1L]] <- rep_html_b_heading(hdr)
+      blocks[[length(blocks) + 1L]] <- rep_html_b_list(items)
+    }
   }
   if (rc$plots) {
     x <- if (is.null(rc$cmp)) rc$res else rc$cmp
@@ -2487,6 +3354,10 @@ rep_html_sec_funding <- function(rc) {
             balance = rep_amount_text(ins$balance_end[i], "sum"))
       }, ""))
     }
+    checks <- rep_html_try(rep_html_funding_check_items(res),
+                           lbl("report.html.funding_check.header"))
+    if (is.character(checks)) items <- c(items, checks) else
+      blocks <- c(blocks, checks)
     oc <- rep_html_kn(res, "own_contribution")
     if (!is.na(oc)) {
       items <- c(items, if (oc > vofi_tol$zero_abs) {
@@ -2568,7 +3439,7 @@ rep_html_sec_decision <- function(rc) {
   } else {
     lbl(paste0("report.html.board.proposal_", tl$level), object = obj, object_cap = obj_cap)
   }
-  lead <- if (!is.null(rc$cmp)) rep_html_cmp_lead(rc$cmp) else rep_html_lead(rc)
+  lead <- if (!is.null(rc$cmp)) rep_html_cmp_lead(rc$cmp, rc$is_mc) else rep_html_lead(rc)
   rep_html_section("decision", title, list(
     rep_html_b_ampel(tl),
     rep_html_b_callout("proposal", c(prop, lbl("report.html.board.draft"))),
@@ -2609,7 +3480,21 @@ rep_html_sec_investment <- function(rc) {
     })
     m <- do.call(rbind, c(list(inv_row), rows))
     colnames(m) <- c(lbl("report.html.board.col_source"), vars)
-    return(rep_html_section("investment", title, list(rep_html_b_table(m))))
+    fc <- lapply(vars, function(v) {
+      fm <- rep_html_funding_check_matrix(rep_det_result(rc$cmp$results[[v]]))
+      if (is.null(fm)) return(NULL)
+      out <- cbind(v, fm)
+      colnames(out)[1L] <- lbl("report.html.table.variant")
+      out
+    })
+    fc <- fc[!vapply(fc, is.null, logical(1))]
+    blocks <- list(rep_html_b_table(m))
+    if (length(fc) > 0L) {
+      blocks <- c(blocks, list(
+        rep_html_b_table(do.call(rbind, fc), caption = lbl("report.html.funding_check.header"))
+      ))
+    }
+    return(rep_html_section("investment", title, blocks))
   }
   s <- rep_html_sources(rc$res)
   m <- cbind(s$labels, rep_fmt_value(s$values, "EUR", 0))
@@ -2622,6 +3507,11 @@ rep_html_sec_investment <- function(rc) {
   if (!is.na(pv)) {
     blocks[[3L]] <- rep_html_b_par(lbl("report.html.financing.pv_subsidies",
                                        value = rep_html_kv(rc$res, "pv_subsidies")))
+  }
+  fm <- rep_html_funding_check_matrix(rc$res)
+  if (!is.null(fm)) {
+    cap <- lbl("report.html.funding_check.header")
+    blocks[[length(blocks) + 1L]] <- rep_html_b_table(fm, caption = cap)
   }
   rep_html_section("investment", title, blocks)
 }
@@ -2681,8 +3571,9 @@ rep_html_sec_risks <- function(rc) {
   extra <- character(0)
   if (!is.null(rc$mc)) extra <- utils::head(rep_mc_risk_lines(rc$mc), 3L)
   if (!is.null(rc$cmp)) {
-    pb <- rep_prob_better_text(rc$cmp)
-    if (!is.null(pb)) extra <- lbl("report.html.variants.prob_better", text = pb)
+    pb <- if (rc$is_mc) rep_prob_better_text(rc$cmp) else NULL
+    extra <- if (is.null(pb)) rep_html_cmp_det_text(rc$cmp) else
+      lbl("report.html.variants.prob_better", text = pb)
   }
   blocks <- list(
     if (length(items) > 0L) rep_html_b_list(items) else
@@ -2700,12 +3591,12 @@ rep_html_sec_scenarios <- function(rc) {
     cmp <- rc$cmp
     k <- "delta_terminal_value"
     for (v in rep_comparison_variants(cmp)) {
-      dv <- cmp$differences$delta_vs_reference
-      dvr <- if (is.matrix(dv) && v %in% colnames(dv)) mean(dv[, v], na.rm = TRUE) else NA_real_
+      dvr <- if (identical(v, cmp$baseline)) lbl("report.html.board.reference_row") else
+        rep_fmt_value(rep_html_cmp_delta(cmp, v), "EUR", 0)
       rows[[length(rows) + 1L]] <- c(v, rep_fmt_value(rep_cmp_value(cmp, v, k), "EUR", 0),
                                      rep_fmt_value(rep_cmp_value(cmp, v, paste0(k, "_ex_rv")),
                                                    "EUR", 0),
-                                     rep_fmt_value(dvr, "EUR", 0))
+                                     dvr)
     }
     m <- do.call(rbind, rows)
     colnames(m) <- c(lbl("report.html.board.col_scenario"), kpi_label(k),
@@ -2751,6 +3642,19 @@ rep_html_esc <- function(x) {
   x <- gsub("\\", "\\\\", x, fixed = TRUE)
   x <- gsub("([*_`|<>$~^@#{}\\[\\]])", "\\\\\\1", x, perl = TRUE)
   gsub("[\r\n]+", " ", x)
+}
+
+#' Text für Pandoc-Metadaten maskieren (Seitentitel)
+#'
+#' pandoc liest Metadaten als Markdown: Jedes ASCII-Satzzeichen wird mit einem Backslash
+#' maskiert, damit der Titel wörtlich (ohne Hervorhebung, HTML oder typografische
+#' Anführungszeichen) im Element `<title>` steht.
+#' @noRd
+rep_html_esc_meta <- function(x) {
+  x <- enc2utf8(as.character(x)[1L])
+  if (is.na(x)) return("")
+  x <- gsub("[\r\n]+", " ", x, perl = TRUE)
+  gsub("([!-/:-@\\[-`{-~])", "\\\\\\1", x, perl = TRUE)
 }
 
 #' Zeilenanfang maskieren (keine ungewollten Listen: „-“, „+“, „1.“)
@@ -2918,9 +3822,12 @@ rep_html_utf8_locale <- function() {
 rep_html_output_format <- function(format, css, meta_file, model, dir) {
   full <- identical(model$meta$kind, "bericht")
   args <- c("--metadata-file", meta_file)
+  # Der Bericht enthaelt keine Formeln: maskierte Klammern (\\[ ... \\]) und Dollarzeichen sind
+  # Text, keine TeX-Mathematik
+  ext <- "-tex_math_single_backslash-tex_math_dollars"
   if (identical(format, "docx")) {
     return(rmarkdown::word_document(toc = full, toc_depth = 1L, number_sections = FALSE,
-                                    pandoc_args = args))
+                                    md_extensions = ext, pandoc_args = args))
   }
   before <- file.path(dir, "vofi_vor.html")
   after <- file.path(dir, "vofi_nach.html")
@@ -2930,6 +3837,7 @@ rep_html_output_format <- function(format, css, meta_file, model, dir) {
                            number_sections = full && identical(model$meta$mode, "expert"),
                            self_contained = TRUE, theme = NULL, highlight = NULL, mathjax = NULL,
                            css = css, section_divs = TRUE, anchor_sections = FALSE,
+                           md_extensions = ext,
                            includes = rmarkdown::includes(before_body = before,
                                                           after_body = after),
                            pandoc_args = args)
@@ -2965,7 +3873,7 @@ rep_html_render <- function(model, path, format = "html", opts = list()) {
   css <- file.path(tmp, "vofi_bericht.css")
   file.copy(opts$css %||% file.path(tpl_dir, "vofi_bericht.css"), css, overwrite = TRUE)
   meta_file <- file.path(tmp, "vofi_meta.yaml")
-  meta <- yaml::as.yaml(list(pagetitle = enc2utf8(model$meta$title), lang = "de"))
+  meta <- yaml::as.yaml(list(pagetitle = rep_html_esc_meta(model$meta$title), lang = "de"))
   writeBin(charToRaw(enc2utf8(meta)), meta_file)
   tp <- rep_html_template_params(rmd)
   params <- list(body = body, report = model, x = model$x)
