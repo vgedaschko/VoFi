@@ -1,0 +1,3 @@
+# Labels des Expanders energy (WS-E2, Spec 01 Teil B 3.5).
+label: "Energie und CO₂"
+description: "Zerlegt die Energiezustände in Segmente (Zustand × Träger) mit Energie- und CO₂-Kosten und erzeugt die Mieterkosten (Warmmiete) sowie die PV-Anlage."

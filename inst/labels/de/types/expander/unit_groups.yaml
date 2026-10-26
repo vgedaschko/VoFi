@@ -1,0 +1,3 @@
+# Labels des Expanders unit_groups (WS-E2, Spec 01 Teil B 1.6, 2.2, 2.3, 3.10).
+label: "Wohnungsgruppen"
+description: "Erzeugt je vermieteter Gruppe den Mietpfad, je Gruppe die Bewirtschaftungskosten, die Grundsteuer (bei angegebenem Jahresbetrag) und für selbstgenutzte Gruppen den Mietwert."

@@ -1,0 +1,3 @@
+# Labels des Expanders residual (WS-E2, Spec 01 Teil A 6.2).
+label: "Restwert"
+description: "Erzeugt die Komponente rv_value (Restwert am Horizont, Marktwert- und Restwertpfad) nach der gewählten Bewertungsmethode."

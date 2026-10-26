@@ -1,0 +1,8 @@
+# Labels der Förderregel fund_income_rate (WS-E2, Spec 01 Teil B 4.3.3, 5.4).
+label: "Fördersatz nach Einkommensstaffel"
+description: "Satz einer Einkommensstaffel nach dem zu versteuernden Einkommen (Schwellen einschließlich, Verschiebung für Kinder bereits angewandt)."
+msg:
+  table_invalid: "Einkommensstaffel ungültig: {n_thresholds} aufsteigende Schwellen verlangen einen Satz mehr (erhalten: {n_rates} Sätze)."
+versions:
+  "20260721":
+    note: "Einkommensbonus der BEG EM (KfW 458) seit 21.07.2026."

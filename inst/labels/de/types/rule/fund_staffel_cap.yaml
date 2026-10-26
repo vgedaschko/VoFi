@@ -1,0 +1,8 @@
+# Labels der Förderregel fund_staffel_cap (WS-E2, Spec 01 Teil B 4.4, 5.4).
+label: "Höchstbetrag nach Wohneinheiten-Staffel"
+description: "Summe der Stufenwerte je Wohneinheit (förderfähige Höchstkosten bzw. Kreditdeckel), wahlweise mit den iSFP-Werten."
+msg:
+  table_invalid: "Staffel der Höchstbeträge fehlt oder ist leer."
+versions:
+  "20260721":
+    note: "Höchstgrenzen der BEG EM seit 21.07.2026."
