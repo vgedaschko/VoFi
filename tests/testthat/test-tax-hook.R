@@ -72,6 +72,27 @@ test_that("vofi_tax_module_simple: periodenweise Zahlung ohne Zustand", {
   expect_equal(fin$payment_T, c(0, 0))
 })
 
+test_that("vofi_tax_module_simple: fun gilt auch bei vorhandenen Methoden (WSD-09)", {
+  old <- reg_state$types
+  withr::defer(reg_state$types <- old)
+  expect_warning(vofi_tax_module_simple("none", function(inputs, params) 1000,
+                                        label = "Ersatz"), class = "vofi_warning")
+  sc <- wsd_scenario(c(-100000, 10000, 100000), accounts = list(overdraft_limit_eur = Inf))
+  model <- vofi_build(sc)
+  expect_identical(class(model$tax), c("vofi_tax_simple", "tax_none", "vofi_tax_module"))
+  res <- vofi_run(model)
+  expect_equal(res$ledger$values$tax[1L, ], c(-1000, -1000, -1000))
+  expect_identical(eng_tax_fun(model$tax, "tax_step"), tax_step.vofi_tax_simple)
+})
+
+test_that("eng_tax_fun: Methode der eingebauten Klassen, sonst das Generic", {
+  none <- new_tax_module("none")
+  expect_identical(eng_tax_fun(none, "tax_step"), tax_step.tax_none)
+  expect_identical(eng_tax_fun(none, "tax_finalize"), tax_finalize.tax_none)
+  other <- new_tax_module("fremd")
+  expect_identical(eng_tax_fun(other, "tax_step"), tax_step)
+})
+
 test_that("tax_inputs: zeilengenau, Vorzeichen disagio negativ, Metadaten (10.4, R-56)", {
   model <- wsd_skeleton()
   env <- eng_engine_env(model, quiet = TRUE)

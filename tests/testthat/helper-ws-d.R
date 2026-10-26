@@ -90,3 +90,48 @@ wsd_acc <- function(g = c(100, 0), kk = c(0, 50), kkp = c(0, 20), lmin = 30, kl 
        flag_threshold = rep_len(thr, n), h_pa = matrix(h_pa, n, 2L), w = rep(w, n),
        prepay_buffer = buffer, prepay_min_spread = spread, j = 2L)
 }
+
+#' Szenario der Leistungsmessung (wie bench/bench_engine.R; Spec 00 Abschnitt 9.10)
+#' @param horizon Horizont in Jahren.
+#' @param construction_months Bauphase in Monaten (monatliches Raster, sonst jährlich).
+wsd_bench_scenario <- function(horizon, construction_months) {
+  vofi_scenario(list(
+    schema_version = 1L,
+    meta = list(scenario_id = "bench", title = "Benchmark Engine"),
+    project = list(perspective = "wu_privat", project_type = "neubau",
+                   valuation_date = as.Date("2027-01-01"), horizon_years = horizon),
+    grid = list(construction_months = construction_months,
+                construction_step_months = if (construction_months > 0L) 1L else 12L),
+    components = list(
+      inv = list(type = "custom_series", label = "Investition",
+                 values = list(schedule = list("2027-01-01" = -1500000,
+                                               "2027-07-01" = -500000))),
+      rent = list(type = "recurring", category = "rent", amount_eur = 185000,
+                  growth = list(ref = "market.rent_growth"), start_event = "completion"),
+      opex = list(type = "recurring", category = "operating_cost", direction = "outflow",
+                  amount_eur = 30000, growth = list(ref = "market.inflation"),
+                  start_event = "completion"),
+      maint = list(type = "recurring", category = "maintenance", direction = "outflow",
+                   amount_eur = 20000, growth = 0.025, start_event = "completion"),
+      admin = list(type = "recurring", category = "other_cost", direction = "outflow",
+                   amount_eur = 8000, growth = 0.02, start_event = "completion")
+    ),
+    financing = list(
+      ek = list(type = "equity", amount_eur = 500000, withdrawals_pa = 10000),
+      bank = list(type = "annuity_loan", amount_eur = 1000000, rate_pa = 0.04, term_years = 30,
+                  payments_per_year = 12L, fixed_years = 10,
+                  followup_rate_pa = list(ref = "market.mortgage_rate")),
+      kfw = list(type = "installment_loan", amount_eur = 300000, rate_pa = 0.02,
+                 term_years = 20, payments_per_year = 4L),
+      bul = list(type = "bullet_loan", amount_eur = 200000, rate_pa = 0.05, term_years = 10,
+                 payments_per_year = 1L)
+    ),
+    accounts = list(deposit_rate_pa = 0.02, overdraft_rate_pa = 0.08,
+                    overdraft_limit_eur = 300000, penalty_spread_pa = 0.03,
+                    min_liquidity_eur = 0,
+                    surplus_order = c("od_repay", "dep_invest"),
+                    deficit_order = c("dep_withdraw", "od_draw", "penalty_rate")),
+    market = list(rent_growth = 0.015, inflation = 0.02, mortgage_rate = 0.045),
+    analysis = list(kpis = c("terminal_value", "terminal_value_opp", "delta_terminal_value"))
+  ))
+}

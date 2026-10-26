@@ -89,7 +89,8 @@ test_that("Overlay-Verknüpfung apply (6.3 Schritt 1, R-94) und Mengenbezug per 
   expect_equal(a[, 1], c(10, 11, 12))
   expect_equal(a[2, ], c(10, 10, 20, 30, 40, 50, 60) + 1)
   expect_identical(ctx$value("shared.r"), c(5, 6, 7))
-  expect_message(sh <- ctx$value("shared.p_share"), class = "vofi_message")
+  # Begrenzung auf [0, 1] ohne Laufzeithinweis (Information der Validierung, Spec 01c 1)
+  expect_silent(sh <- ctx$value("shared.p_share"))
   expect_equal(sh, c(0.2, 0.8, 1))
   q <- make_ctx(params = list("shared.n" = list(value = 3, per = "m2_net_floor_area"),
                               "shared.k" = list(value = 2, per = "parking"),
@@ -125,6 +126,23 @@ test_that("ctx$rows(): Filter UND-verknüpft, id als Vektor, measure_id und loca
                    c("a__kosten", "b__kosten"))
   expect_length(ctx$rows(section = "project", category = "rent", measure_id = "m1"), 0L)
   expect_equal(ctx$rows(id = "b")$b__kosten, -2 * z)
+})
+
+test_that("ctx$rows(measure_id): Tag der Komponente als Default wie im Ledger (R-93, WSD-06)", {
+  z <- matrix(1, 1, 7)
+  spec <- reg_test_spec(make_grid())
+  c2 <- list(id = "c2", type = "custom_series", measure_id = "m1")
+  spec <- path_set(spec, "components.c2", c2)
+  spec <- path_set(spec, "components.c3", list(id = "c3", type = "custom_series"))
+  comps <- list(c2 = vofi_flows(vofi_row("value", -z, "project", "operating_cost")),
+                c3 = vofi_flows(vofi_row("value", -2 * z, "project", "operating_cost",
+                                         measure_id = "m1"),
+                                vofi_row("rest", -3 * z, "project", "operating_cost")))
+  ctx <- make_ctx(spec = spec, components = comps)
+  expect_setequal(names(ctx$rows(measure_id = "m1")), c("c2__value", "c3__value"))
+  # die Zeile trägt ihren eigenen Tag vor dem der Komponente
+  expect_identical(names(ctx$rows(id = "c3", measure_id = "m1")), "c3__value")
+  expect_length(ctx$rows(measure_id = "m2"), 0L)
 })
 
 test_that("res_shape: Laufzahl 1 oder n, sonst Vertragsfehler (keine stille Verkuerzung)", {

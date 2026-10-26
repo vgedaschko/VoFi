@@ -1,10 +1,10 @@
 # Steuer-Hook (WS-D, Spec 00 Abschnitt 10): Generics tax_init/tax_step/tax_finalize mit
 # Default-Methoden (vofi_error_registry), Modulobjekt new_tax_module(), Registrierung von
 # Fremdmodulen (vofi_register_tax_module()), vereinfachtes Modul ohne Zustand
-# (vofi_tax_module_simple(), Klasse vofi_tax_simple), Steuer-Eingaben vor der Schleife
-# (tax_inputs(), zeilengenau mit Metadaten, R-56) und je Periode (tax_slice(), 10.4) mit der
-# Vorzeichenkonvention Ertrag/Zufluss +, Aufwand/Abfluss - (disagio negativ, repayment_grant
-# positiv). Der Hook laeuft in jeder Periode inkl. t = 0 (R-21), auch in der
+# (vofi_tax_module_simple(), Klasse vofi_tax_simple vor tax_<name>), Steuer-Eingaben vor der
+# Schleife (tax_inputs(), zeilengenau mit Metadaten, R-56) und je Periode (tax_slice(), 10.4)
+# mit der Vorzeichenkonvention Ertrag/Zufluss +, Aufwand/Abfluss - (disagio negativ,
+# repayment_grant positiv). Der Hook laeuft in jeder Periode inkl. t = 0 (R-21), auch in der
 # Unterlassungsalternative und in Wiederholungslaeufen.
 
 #' Steuermodul registrieren
@@ -81,7 +81,9 @@ vofi_register_tax_module <- function(name, constructor, label = NULL, perspectiv
 #' params)` liefert die Steuerzahlung der Periode (n-Vektor oder Skalar; positiv = Zahlung). Das
 #' Modul sieht die Steuer-Eingaben der Periode (Spec 00, Abschnitt 10.4), aber keine endogenen
 #' Zinsen (dokumentierte Grenze; nur für Experimente, Abschnitt 10.2). `tax_init()` liefert
-#' `list()`, `tax_finalize()` eine offene Steuer von 0.
+#' `list()`, `tax_finalize()` eine offene Steuer von 0. Die Klasse des Moduls ist
+#' `c("vofi_tax_simple", "tax_<name>", "vofi_tax_module")`; `fun` gilt damit auch für Namen,
+#' zu denen es bereits Methoden gibt.
 #'
 #' @param name Name des Moduls.
 #' @param fun Funktion `fun(inputs, params)` -> n-Vektor der Zahlung.
@@ -102,7 +104,9 @@ vofi_tax_module_simple <- function(name, fun, label = NULL) {
   nm <- name
   ctor <- function(params, spec) {
     m <- new_tax_module(nm, params = params, fun = fun)
-    class(m) <- c(paste0("tax_", nm), "vofi_tax_simple", "vofi_tax_module")
+    # vofi_tax_simple zuerst: die Methoden des einfachen Moduls rufen fun auf, auch wenn es zu
+    # tax_<name> bereits Methoden gibt (z. B. eingebaute Module)
+    class(m) <- c("vofi_tax_simple", paste0("tax_", nm), "vofi_tax_module")
     m
   }
   vofi_register_tax_module(name, ctor, label = label, overwrite = TRUE)

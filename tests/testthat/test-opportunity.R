@@ -46,6 +46,14 @@ test_that("Prüffall Sacheinlage (R-68): Sollwerte der Investition und der Alter
   expect_equal(res$opportunity$ledger$values$opp_in_kind_sale[1L, ], c(285000, 0))
   expect_true(all(res$checks$ok))
   expect_true(all(res$opportunity$checks$ok))
+  # die Alternative erhält statt der Sacheinlage nur den Verkauf (9.5 Nr. 7, WSD-01)
+  ol <- res$opportunity$ledger
+  expect_false("equity_in_kind" %in% ol$rows$key)
+  expect_false(any(ol$rows$category == "equity_in_kind"))
+  expect_false("equity_in_kind" %in% vofi_opportunity(res)$ledger$rows$key)
+  # EL_0 der Alternative (Einlagen inkl. Sacheinlage, 12.2): nur opp_in_kind_sale (I6)
+  el_keys <- ol$rows$key[ol$rows$category %in% c("equity_in", "equity_in_kind")]
+  expect_equal(sum(vapply(el_keys, function(k) ol$values[[k]][1L, 1L], double(1))), 285000)
   # ohne Bestandswert: keine Sacheinlage, kein Verkauf, EW_U = 0
   r0 <- vofi_run(vofi_build(wsd_in_kind_scenario(existing_value = NULL)))
   expect_equal(r0$kpis$terminal_value, 318700)

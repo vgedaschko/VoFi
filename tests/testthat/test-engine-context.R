@@ -126,3 +126,26 @@ test_that("eng_lift_flows und eng_collection", {
   expect_identical(eng_collection(model$spec, model$spec$financing$bank), "financing")
   expect_identical(eng_collection(model$spec, model$spec$components$z), "components")
 })
+
+test_that("ctx$auto: Plan auf n Läufe gehoben, falsche Längen und NA sind Vertragsfehler", {
+  g <- make_grid()
+  spec <- reg_test_spec(g)
+  env <- new.env(parent = emptyenv())
+  env$stage <- "flows"
+  plan <- seq(0, 6) * 1000
+  mk <- function(a) {
+    env$auto <- function(id) a
+    eng_context_from_parts(g, spec, draws = fake_draws(2L, g), mode = "mc", engine_env = env)
+  }
+  ok <- mk(list(commitment = 5, draws = plan))$auto("x")
+  expect_identical(ok$commitment, c(5, 5))
+  expect_identical(dim(ok$draws), c(2L, 7L))
+  expect_identical(mk(list(commitment = c(5, 6), draws = matrix(plan, 1L)))$auto("x")$commitment,
+                   c(5, 6))
+  bad <- list(list(commitment = c(1, 2, 3), draws = plan), list(commitment = NULL, draws = plan),
+              list(commitment = 1, draws = rbind(plan, plan, plan)),
+              list(commitment = 1, draws = matrix(plan, 7L, 1L)),
+              list(commitment = 1, draws = replace(plan, 2L, NA)),
+              list(commitment = NA_real_, draws = plan))
+  for (b in bad) expect_error(mk(b)$auto("x"), class = "vofi_error_contract")
+})

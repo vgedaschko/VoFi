@@ -3,18 +3,22 @@
 # Fehlbetraege als Einlage opp_equity_call_in (9.5 Nr. 1, Memo 01 K11); bei Sacheinlage statt
 # equity_in_kind der Verkauf des Bestands zum Stichtag nach Verkaufskosten und Abloesung der
 # Bestandsdarlehen (opp_in_kind_sale, Basisfallwerte, 9.5 Nr. 7, R-68). Keine Projekt- und
-# Foerderzeilen, keine Instrumente, Ketten ohne loan_prepay (Nr. 2); identische Konten,
-# Steuermodul und Ziehungen (Nr. 3, 4: derselbe Kontext, CRN). Keine eigenen Nachschuesse
+# Foerderzeilen, keine Instrumente, keine Sacheinlage equity_in_kind (Nr. 7), Ketten ohne
+# loan_prepay (Nr. 2); identische Konten, Steuermodul und Ziehungen (Nr. 3, 4: derselbe
+# Kontext, CRN). Keine eigenen Nachschuesse
 # (R-61): eine D4-Aktion mit Zufluss von aussen (equity_call, stop) wird zu penalty_rate mit
 # Regelzins s (R-81); Nutzung der Strafzinstranche setzt opp_limit_breach (Meldung in
 # eng_flag_conditions(), einmal je Lauf).
 
-#' Modell der Unterlassungsalternative (9.5 Nr. 2, 3, 5)
+#' Modell der Unterlassungsalternative (9.5 Nr. 2, 3, 5, 7)
 #' @param model `vofi_model` der Investition.
-#' @return Modell ohne Instrumente mit angepassten Ketten.
+#' @return Modell ohne Instrumente mit angepassten Ketten und `alternative = "opportunity"`
+#'   (ohne Sacheinlage; statt ihrer steht die exogene Zeile `opp_in_kind_sale`).
 #' @noRd
 eng_opportunity_model <- function(model) {
   m <- model
+  # Kennzeichen der Alternative: keine Sacheinlage equity_in_kind (9.5 Nr. 7, eng_assemble_core())
+  m$alternative <- "opportunity"
   m$instruments <- list()
   keep <- vapply(m$surplus_chain, function(a) !("loan_*_prepay" %in% a$rows), logical(1))
   m$surplus_chain <- m$surplus_chain[keep]

@@ -2,7 +2,8 @@
 # acc_init() nach 8.8: Raten als n x (T+1) (effektiv p. a. -> Periodenrate, 3.6), Abgeltungsteuer
 # auf positive Habenzinsen oberhalb des Sparer-Pauschbetrags je Periode (wa = Pauschbetrag p. a.
 # * delta, R-76), Limit KL (Pfad, .inf zulaessig, fehlt: unbegrenzt), Mindestliquiditaet L_min,
-# Markierungsschwelle, Parameter von Ue3. Die Raten werden je Kontext einmal berechnet
+# Markierungsschwelle, Parameter von Ue3 (alle ueber ctx$value(), auch Bezuege und Ausdruecke;
+# nicht endliche Werte: N1). Die Raten werden je Kontext einmal berechnet
 # (eng_acc_rates(), Zwischenspeicher in der Engine-Umgebung) und von Investition,
 # Unterlassungsalternative (sp := s bei D4 equity_call/stop, R-81) und Wiederholungslaeufen
 # (ctx$rebalance()) gemeinsam genutzt. Die Markierung arbitrage (h > s, 8.8) setzt die
@@ -10,6 +11,10 @@
 
 #' Kontenzustand initialisieren (8.8)
 #'
+#' Alle Kontoparameter werden über `ctx$value("accounts.<feld>")` aufgelöst (Ziehungen,
+#' Bezüge, Ausdrücke; 4.5, 6.3), auch die Parameter von Ü3 (`accounts.prepay.buffer_eur`,
+#' `accounts.prepay.min_spread_pa`, Default 0, als n-Vektoren). Nicht endliche Raten, Beträge
+#' und Anteile sind `vofi_error_contract` (N1, Quelle `accounts`); das Limit darf `Inf` sein.
 #' @param accounts normalisierte Kontoparameter des Modells (`model$accounts`); das Feld
 #'   `opp_regular_penalty = TRUE` setzt sp := s (Unterlassungsalternative, 9.5 Nr. 5, R-81).
 #' @param ctx Laufkontext.
@@ -30,22 +35,41 @@ acc_init <- function(accounts, ctx) {
   h_pa <- path("deposit_rate_pa")
   s_pa <- path("overdraft_rate_pa")
   spread <- path("penalty_spread_pa")
+  w <- scalar("deposit_withholding_tax_share")
+  allowance <- scalar("deposit_tax_allowance_eur_pa")
+  lmin <- path("min_liquidity_eur")
+  buffer <- scalar("prepay.buffer_eur")
+  min_spread <- scalar("prepay.min_spread_pa")
+  eng_check_finite(list(deposit_rate_pa = h_pa, overdraft_rate_pa = s_pa,
+                        penalty_spread_pa = spread, deposit_withholding_tax_share = w,
+                        deposit_tax_allowance_eur_pa = allowance, min_liquidity_eur = lmin,
+                        prepay.buffer_eur = buffer, prepay.min_spread_pa = min_spread),
+                   "accounts")
   s <- ctx$rate_eff(s_pa)
   sp <- if (isTRUE(accounts$opp_regular_penalty)) s else ctx$rate_eff(s_pa + spread)
   h <- ctx$rate_eff(h_pa)
-  wa <- scalar("deposit_tax_allowance_eur_pa") * ctx$by_period(g$delta)
+  wa <- allowance * ctx$by_period(g$delta)
   wa[, 1L] <- 0
   kl <- ctx$value("accounts.overdraft_limit_eur", "path")
   kl <- if (is.null(kl)) matrix(Inf, n, g$T + 1L) else acc_strip_attr(kl)
   thr <- ctx$value("accounts.overdraft_flag_threshold_eur", "scalar") %||% rep(Inf, n)
-  prepay <- accounts$prepay %||% list()
+  # Limit und Markierungsschwelle: +Inf zulaessig (unbegrenzt), NA/NaN/-Inf nicht
+  if (anyNA(kl) || any(kl == -Inf)) acc_abort_not_finite("overdraft_limit_eur")
+  if (anyNA(thr)) acc_abort_not_finite("overdraft_flag_threshold_eur")
   list(
     G = rep(0, n), KK = rep(0, n), KKP = rep(0, n),
-    h = h, h_pa = h_pa, w = scalar("deposit_withholding_tax_share"), wa = wa,
-    s = s, s_pa = s_pa, sp = sp, KL = kl, Lmin = path("min_liquidity_eur"),
-    flag_threshold = thr, prepay_buffer = acc_prepay_value(prepay$buffer_eur),
-    prepay_min_spread = acc_prepay_value(prepay$min_spread_pa), j = 1L
+    h = h, h_pa = h_pa, w = w, wa = wa,
+    s = s, s_pa = s_pa, sp = sp, KL = kl, Lmin = lmin,
+    flag_threshold = thr, prepay_buffer = buffer, prepay_min_spread = min_spread, j = 1L
   )
+}
+
+#' Nicht zulässiger Kontoparameter (N1, 9.7)
+#' @noRd
+acc_abort_not_finite <- function(field) {
+  vofi_abort("engine.return_not_finite", what = field, source = "accounts",
+             .class = "vofi_error_contract",
+             .data = list(invariant = "N1", source = "accounts", row = field))
 }
 
 #' Kontenzustand mit Zwischenspeicher je Kontext (8.8, Leistung 9.10)
@@ -82,12 +106,4 @@ acc_strip_attr <- function(x) {
   attr(x, "annual_before") <- NULL
   attr(x, "path") <- NULL
   x
-}
-
-#' Parameter von Ü3 (accounts.prepay) als Zahl
-#' @noRd
-acc_prepay_value <- function(x) {
-  if (is.null(x)) return(0)
-  if (node_is(x)) return(as.double(x$value %||% 0))
-  as.double(x)
 }

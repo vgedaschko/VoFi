@@ -129,8 +129,8 @@ eng_check_flows <- function(fl, nd, n, big_t) {
     if (length(probs) > 0L) bad(utl_collapse(probs, "; "))
     cat_row <- vocab_category(r$section, r$category)
     tol <- vofi_tol$zero_abs
-    if ((cat_row$sign == "pos" && min(r$values) < -tol) ||
-          (cat_row$sign == "neg" && max(r$values) > tol)) {
+    if ((cat_row$sign == "pos" && isTRUE(min(r$values) < -tol)) ||
+          (cat_row$sign == "neg" && isTRUE(max(r$values) > tol))) {
       bad(msg("core.testkit.rows_failed", what = "F5", rows = r$key))
     }
   }

@@ -4,18 +4,23 @@
 #   Rscript bench/bench_engine.R            # installiertes Paket vofi (byte-kompiliert)
 #   VOFI_BENCH_LOAD_ALL=1 Rscript bench/bench_engine.R   # Quellbaum ueber pkgload::load_all()
 #
-# Gemessen werden (Median aus mehreren Wiederholungen, ohne Einlesen):
+# Gemessen werden (Median der verstrichenen Zeit und kleinste CPU-Zeit aus mehreren
+# Wiederholungen, ohne Einlesen):
 #   1. deterministischer Lauf mit 83 Perioden (Bauphase 24 Monate monatlich, Betrieb jaehrlich):
 #      Ziel < 50 ms
 #   2. Entnahme-Aequivalent zusaetzlich (Wiederholungslaeufe ueber den Instrument-Cache wie
-#      kpi_withdrawal_equivalent(), Bisektion mit 40 Auswertungen): Ziel < 100 ms
+#      kpi_withdrawal_equivalent(), Bisektion mit 40 Auswertungen): Ziel < 100 ms; dazu je
+#      Wiederholungslauf (12.8: < 1 ms)
 #   3. Engine-Anteil der MC 10.000 x 53 Perioden (5 Chunks zu 2.000 Laeufen mit vorgegebenen
 #      Ziehungen inkl. Unterlassungsalternative, Invarianten, Kennzahlen und Baendern; ohne
 #      Sampler, der in bench_mc.R von WS-G gemessen wird): Budget der MC < 1,5 s
 #   4. dasselbe mit 83 Perioden: Budget < 3 s
 #   5. Design-Lauf mit 41 Zeilen (Tornado 20 Parameter x 2 + Basis), nur eine Kennzahl:
 #      Budget < 1 s
-# Ausgabe: Tabelle mit gemessener Zeit, Ziel und Status.
+# Ausgabe: Tabelle mit gemessener Zeit, Ziel und Status; danach die Anteile eines MC-Chunks
+# nach Eigentuemern (Zahlungskomponenten WS-E, Kredit-Schritte WS-F, uebrige Engine WS-D) und
+# des deterministischen Laufs. Der Pflichttest tests/testthat/test-engine-performance.R prueft
+# die Budgets mit Toleranzfaktor (VOFI_PERF_FACTOR).
 
 if (nzchar(Sys.getenv("VOFI_BENCH_LOAD_ALL"))) {
   suppressMessages(pkgload::load_all(".", quiet = TRUE))
@@ -77,6 +82,20 @@ median_ms <- function(expr_fun, reps) {
   1000 * stats::median(tt)
 }
 
+cpu_ms <- function(expr_fun, reps) {
+  tt <- vapply(seq_len(reps), function(i) {
+    t0 <- proc.time()
+    expr_fun()
+    d <- proc.time() - t0
+    d[["user.self"]] + d[["sys.self"]]
+  }, double(1))
+  1000 * min(tt)
+}
+
+both_ms <- function(expr_fun, reps) {
+  c(elapsed = median_ms(expr_fun, reps), cpu = cpu_ms(expr_fun, reps))
+}
+
 fake_chunk_draws <- function(model, n) {
   g <- model$grid
   i <- seq_len(n)
@@ -114,16 +133,39 @@ rebalance_bisection <- function(model, evals = 40L) {
   core <- get_int("eng_balance")(model, ctx, exo$ledger, engine_env = env)
   target <- core$stocks$BS[1L, ctx$T + 1L] / 2
   delta <- ctx$by_period(ctx$grid$delta)
-  t0 <- proc.time()[["elapsed"]]
-  lo <- -1e5
-  hi <- 1e5
-  for (k in seq_len(evals)) {
-    mid <- (lo + hi) / 2
-    r <- get_int("eng_balance")(model, ctx, exo$ledger, extra_out = -ctx$by_sim(mid) * delta,
-                                book = FALSE, engine_env = env)
-    if (r$BS_T[1L] > target) lo <- mid else hi <- mid
+  run <- function() {
+    lo <- -1e5
+    hi <- 1e5
+    for (k in seq_len(evals)) {
+      mid <- (lo + hi) / 2
+      r <- get_int("eng_balance")(model, ctx, exo$ledger, extra_out = -ctx$by_sim(mid) * delta,
+                                  book = FALSE, engine_env = env)
+      if (r$BS_T[1L] > target) lo <- mid else hi <- mid
+    }
   }
-  1000 * (proc.time()[["elapsed"]] - t0)
+  both_ms(run, 5L)
+}
+
+#' Anteile eines Laufs nach Eigentuemern (WS-E Komponenten, WS-F Kredit-Schritte, Rest WS-D)
+shares <- function(model, draws, reps) {
+  env <- get_int("eng_engine_env")(model, quiet = TRUE)
+  ctx <- get_int("eng_context")(model, draws, env)
+  steps <- function() {
+    for (id in names(model$instruments)) {
+      k <- model$instruments[[id]]
+      st <- k$def$init(k$spec, ctx)
+      for (j in seq_len(ctx$T + 1L)) st <- k$def$step(st, j - 1L, ctx)$state
+    }
+  }
+  total <- cpu_ms(function() {
+    suppressWarnings(suppressMessages(
+      get_int("eng_run_draws")(model, draws, store = if (is.null(draws)) "full" else "bands")
+    ))
+  }, reps)
+  flows <- cpu_ms(function() get_int("eng_flows")(model, ctx, env), reps)
+  inst <- cpu_ms(steps, reps)
+  c(gesamt = total, komponenten_ws_e = flows, kredit_schritte_ws_f = inst,
+    engine_ws_d = total - flows - inst)
 }
 
 m83 <- suppressMessages(vofi_build(bench_scenario(61L, 24L)))
@@ -132,24 +174,34 @@ m83y <- suppressMessages(vofi_build(bench_scenario(83L, 0L)))
 quiet_run <- function(m) suppressMessages(suppressWarnings(vofi_run(m)))
 invisible(quiet_run(m83))
 
+reb <- rebalance_bisection(m83)
+meas <- rbind(
+  both_ms(function() quiet_run(m83), 15L),
+  reb,
+  reb / 40,
+  both_ms(function() run_engine_mc(m53), 2L),
+  both_ms(function() run_engine_mc(m83y), 1L),
+  both_ms(function() {
+    suppressMessages(suppressWarnings(
+      get_int("eng_run_draws")(m53, fake_chunk_draws(m53, 41L), store = "kpi",
+                               kpis = "delta_terminal_value")
+    ))
+  }, 5L)
+)
 res <- data.frame(
   vorgang = c(sprintf("deterministischer Lauf, T = %d", m83$grid$T),
               "Entnahme-Aequivalent (40 Wiederholungslaeufe)",
+              "je Wiederholungslauf (12.8)",
               "Engine-Anteil MC 10.000 x 53 (5 Chunks)",
               "Engine-Anteil MC 10.000 x 83 (5 Chunks)",
               "Design-Lauf 41 Zeilen (Tornado 20 x 2)"),
-  ms = c(median_ms(function() quiet_run(m83), 15L),
-         stats::median(vapply(1:5, function(i) rebalance_bisection(m83), double(1))),
-         median_ms(function() run_engine_mc(m53), 2L),
-         median_ms(function() run_engine_mc(m83y), 1L),
-         median_ms(function() {
-           suppressMessages(suppressWarnings(
-             get_int("eng_run_draws")(m53, fake_chunk_draws(m53, 41L), store = "kpi",
-                                      kpis = "delta_terminal_value")
-           ))
-         }, 5L)),
-  ziel_ms = c(50, 100, 1500, 3000, 1000),
+  ms = round(meas[, "elapsed"], 1), cpu_ms = round(meas[, "cpu"], 1),
+  ziel_ms = c(50, 100, 1, 1500, 3000, 1000),
   stringsAsFactors = FALSE
 )
-res$status <- ifelse(res$ms <= res$ziel_ms, "ok", "ueber Ziel")
+res$status <- ifelse(res$cpu_ms <= res$ziel_ms, "ok", "ueber Ziel")
 print(res, row.names = FALSE)
+cat("\nAnteile (CPU-ms): MC-Chunk 2.000 x 53\n")
+print(round(shares(m53, fake_chunk_draws(m53, 2000L), 3L), 1))
+cat("\nAnteile (CPU-ms): deterministischer Lauf, T = 83 (Kette eng_run_draws)\n")
+print(round(shares(m83, NULL, 10L), 1))

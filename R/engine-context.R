@@ -260,10 +260,12 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
     out <- list()
     for (cid in ids) {
       fl <- if (is.null(id)) cs[[cid]] else ctx$component(cid)
+      # Tag der Zeile, sonst der Komponente (dieselbe Regel wie im Ledger, eng_flow_row_meta())
+      comp_mid <- (spec$components[[cid]] %||% spec$financing[[cid]])[["measure_id"]]
       for (r in fl$rows) {
         if (hit(r$section, section) && hit(r$category, category) &&
-              hit(r$tax_category, tax_category) && hit(r$measure_id, measure_id) &&
-              hit(r$key, local_row)) {
+              hit(r$tax_category, tax_category) &&
+              hit(r$measure_id %||% comp_mid, measure_id) && hit(r$key, local_row)) {
           out[[paste0(cid, "__", r$key)]] <- r$values
         }
       }
@@ -275,10 +277,22 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
       vofi_abort("engine.auto_unavailable", id = id, .class = "vofi_error_contract")
     }
     a <- engine_env$auto(id)
-    # auto-Plan des Basisfalls (Laenge 1 bzw. T+1) auf n Laeufe heben (8.7)
-    a$commitment <- rep_len(as.double(a$commitment), n)
+    # auto-Plan des Basisfalls (Laenge 1 bzw. T+1) auf n Laeufe heben (8.7); andere Laengen
+    # und nicht endliche Werte sind Vertragsfehler (kein stilles Recycling, N1)
+    src <- paste0("ctx$auto('", id, "')")
+    if (is.null(a$commitment)) {
+      vofi_abort("engine.return_length", what = "commitment", source = src, n = n, actual = 0L,
+                 .class = "vofi_error_contract",
+                 .data = list(invariant = "N1", source = src, row = "commitment"))
+    }
+    a$commitment <- eng_num(a$commitment, n, "commitment", src)
     if (!is.matrix(a$draws)) a$draws <- grid_by_period(grid, a$draws, n)
+    if (ncol(a$draws) != grid$T + 1L || !(nrow(a$draws) %in% c(1L, n))) {
+      vofi_abort("core.contract.length", what = paste0(src, "$draws"), expected = n,
+                 actual = nrow(a$draws), .class = "vofi_error_contract")
+    }
     if (nrow(a$draws) == 1L && n > 1L) a$draws <- a$draws[rep(1L, n), , drop = FALSE]
+    eng_check_finite(list(commitment = a$commitment, draws = a$draws), src)
     a
   }
   ctx$rule <- function(name) eng_rule_for(name, spec)

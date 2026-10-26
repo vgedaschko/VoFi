@@ -28,6 +28,27 @@ eng_bind_rows <- function(parts) {
   structure(out, class = "data.frame", row.names = c(NA_integer_, -n))
 }
 
+#' Ledger der Periodenschleife bauen (Struktur 7.4; N1 in `eng_checks()`)
+#'
+#' Wie `new_vofi_ledger()` mit Prüfung der Schlüssel und Dimensionen, aber ohne die Prüfung auf
+#' nicht endliche Werte je Zeile: Die Engine prüft N1 unmittelbar danach in `eng_checks()`
+#' (immer aktiv, 9.7) zusammen mit dem Volumen in einem Durchlauf (Leistung 9.10).
+#' @param rows Data Frame aus `new_ledger_rows()` (Reihenfolge der Werte).
+#' @param values benannte Liste n x (T+1)-Matrizen in der Reihenfolge `rows$key`.
+#' @param n,big_t Läufe und letzter Periodenindex.
+#' @return Objekt der Klasse `vofi_ledger`.
+#' @noRd
+eng_new_ledger <- function(rows, values, n, big_t) {
+  dims <- c(as.integer(n), as.integer(big_t) + 1L)
+  ok <- identical(names(values), rows$key) && !anyDuplicated(rows$key) &&
+    all(vapply(values, function(v) {
+      is.matrix(v) && is.double(v) && identical(dim(v), dims)
+    }, logical(1)))
+  if (!ok) return(new_vofi_ledger(rows, values, n = n, T = big_t))
+  structure(list(rows = rows, values = values, n = as.integer(n), T = as.integer(big_t)),
+            class = "vofi_ledger")
+}
+
 #' Zeilen an einen Ledger anhängen
 #' @param led `vofi_ledger` oder `NULL`.
 #' @param rows Data Frame aus `new_ledger_rows()`.

@@ -86,12 +86,40 @@ test_that("Unterlassungsalternative: sp := s, Raten einmal je Kontext berechnet 
   expect_equal(eng_acc_rates(model, ctx, NULL), a)
 })
 
-test_that("acc_modify und acc_prepay_value", {
+test_that("acc_modify", {
   expect_identical(acc_modify(NULL, a = 1), list(a = 1))
   expect_identical(acc_modify(list(a = 1), a = NULL), list(a = NULL))
-  expect_identical(acc_prepay_value(NULL), 0)
-  expect_identical(acc_prepay_value(list(kind = "const", value = 500)), 500)
-  expect_identical(acc_prepay_value(0.01), 0.01)
+})
+
+test_that("Ü3-Parameter über ctx$value(): Bezug, Konstante, Default 0, je Lauf (8.8, 4.5)", {
+  ctx <- make_ctx(n = 2L, params = list("accounts.prepay.buffer_eur" = list(ref = "shared.buf"),
+                                        "shared.buf" = 5000,
+                                        "accounts.prepay.min_spread_pa" = 0.005))
+  acc <- acc_init(list(), ctx)
+  expect_identical(acc$prepay_buffer, c(5000, 5000))
+  expect_identical(acc$prepay_min_spread, c(0.005, 0.005))
+  expect_identical(acc_init(list(), make_ctx())$prepay_buffer, 0)
+  # Ziehung auf den Puffer wirkt je Lauf
+  g <- make_grid()
+  d <- fake_draws(2L, g, static = list("accounts.prepay.buffer_eur" = c(1000, 2000)))
+  dctx <- make_ctx(n = 2L, draws = d, params = list("accounts.prepay.buffer_eur" = 500))
+  expect_identical(acc_init(list(), dctx)$prepay_buffer, c(1000, 2000))
+})
+
+test_that("Nicht endliche Kontoparameter sind N1-Vertragsfehler mit Quelle (9.7, WSD-04)", {
+  g <- make_grid()
+  rates <- rbind(rep(0.02, 7), c(0.02, NA, rep(0.02, 5)))
+  d <- fake_draws(2L, g, paths = list("accounts.deposit_rate_pa" = rates))
+  e <- expect_error(acc_init(list(), make_ctx(n = 2L, draws = d)), class = "vofi_error_contract")
+  expect_identical(e$data$invariant, "N1")
+  expect_identical(e$data$source, "accounts")
+  expect_identical(e$data$row, "deposit_rate_pa")
+  dl <- fake_draws(1L, g, static = list("accounts.overdraft_limit_eur" = NaN))
+  e2 <- expect_error(acc_init(list(), make_ctx(draws = dl)), class = "vofi_error_contract")
+  expect_identical(e2$data$row, "overdraft_limit_eur")
+  # Inf ist als Limit zulässig
+  di <- fake_draws(1L, g, static = list("accounts.overdraft_limit_eur" = Inf))
+  expect_true(all(is.infinite(acc_init(list(), make_ctx(draws = di))$KL)))
 })
 
 test_that("Fallendes Limit: Zwangstilgung des Überhangs, gedeckt durch die Defizitkette (6a)", {

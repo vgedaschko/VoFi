@@ -77,7 +77,7 @@ vofi_build <- function(x, variant = "base", overrides = NULL, scenario_set = NUL
     spec = spec, grid = grid, nodes = nodes, instruments = instruments,
     equity = names(nodes)[vapply(nodes, function(nd) identical(nd$def$name, "equity"),
                                  logical(1))],
-    accounts = list(prepay = spec$accounts$prepay %||% list()),
+    accounts = eng_model_accounts(spec),
     surplus_chain = surplus, deficit_chain = deficit, sampler = NULL,
     tax = tax$module, tax_params = tax$params,
     kpis = eng_build_kpis(spec), auto_id = auto$auto, topup_id = auto$topup,
@@ -92,6 +92,20 @@ vofi_build <- function(x, variant = "base", overrides = NULL, scenario_set = NUL
     model$decision <- eng_build_decision(x, node, overrides, scenario_set)
   }
   model
+}
+
+#' Normalisierte Kontoparameter des Modells (4.13, 8.8)
+#'
+#' Der Block `accounts` der Spezifikation (Knoten der Kontoparameter, Ketten `surplus_order`,
+#' `deficit_order`, `prepay`); Grundlage von `acc_init()` und der Vergleichbarkeitsprüfung
+#' identischer Kontenparameter (9.6 Nr. 2). Die Werte löst die Engine je Lauf über
+#' `ctx$value("accounts.<feld>")` auf (Ziehungen, Bezüge).
+#' @return Liste (mindestens `prepay`).
+#' @noRd
+eng_model_accounts <- function(spec) {
+  acc <- spec[["accounts"]] %||% list()
+  if (is.null(acc[["prepay"]])) acc["prepay"] <- list(list())
+  acc
 }
 
 #' Sampler-Plan (9.1 Stufe 7, WS-C: `smp_plan(spec, grid)`); ohne Sampler `NULL`

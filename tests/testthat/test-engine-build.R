@@ -32,6 +32,13 @@ test_that("vofi_build: Modellfelder, Zeilenmetadaten, Basisfall-Vorlauf (9.1)", 
   expect_null(model$base$auto)
   expect_null(model$auto_id)
   expect_identical(model$contract_version, VOFI_CONTRACT_VERSION)
+  # normalisierte Kontoparameter im Modell (4.13, 8.8; Vergleichbarkeit 9.6 Nr. 2, WSD-07)
+  expect_true(all(c("deposit_rate_pa", "overdraft_rate_pa", "overdraft_limit_eur",
+                    "surplus_order", "deficit_order", "prepay") %in% names(model$accounts)))
+  expect_identical(model$accounts[["deposit_rate_pa"]], model$spec$accounts[["deposit_rate_pa"]])
+  sc2 <- vofi_read_scenario(vofi_example("skeleton"))
+  sc2$accounts$deposit_rate_pa <- 0.03
+  expect_false(identical(vofi_build(sc2)$accounts, model$accounts))
   expect_true(nzchar(model$hash))
   expect_identical(vofi_build(vofi_read_scenario(vofi_example("skeleton")))$hash, model$hash)
 })

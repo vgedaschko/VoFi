@@ -26,7 +26,7 @@ tax_init.tax_none <- function(module, params, assets, measures, n_sim) {
 #' @export
 tax_step.tax_none <- function(module, t, inputs, interest, state, params) {
   # n aus den Zinsgroessen (10.4: n-Vektoren, immer uebergeben); tax_init liefert list() (10.6)
-  n <- max(c(1L, lengths(interest)))
+  n <- max(1L, length(interest[["endo_haben"]]), length(interest[["exo_soll"]]))
   list(payment = numeric(n), state = state, report = list())
 }
 

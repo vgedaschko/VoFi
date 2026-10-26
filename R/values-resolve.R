@@ -67,7 +67,8 @@ res_draw <- function(rc, path) {
 #' Verknüpfung einer statischen Ziehung mit dem Knotenwert (6.3 Schritt 1, R-94)
 #'
 #' `apply = multiply`: b * x, `apply = add`: b + x mit b = Knotenwert nach Schritt 3 (Shape von
-#' b; x zeilenweise gehoben wie `by_sim()`); Ziele der Art `share` auf `[0, 1]` begrenzt (Hinweis).
+#' b; x zeilenweise gehoben wie `by_sim()`); Ziele der Art `share` auf `[0, 1]` begrenzt (ohne
+#' Laufzeithinweis: die Validierung meldet die Begrenzung als Information, Spec 01c 1).
 #' @noRd
 res_apply_draw <- function(rc, x, path, stack, node) {
   ap <- attr(x, "apply")
@@ -87,10 +88,9 @@ res_apply_draw <- function(rc, x, path, stack, node) {
     add = b + x,
     vofi_abort("engine.apply_unknown", path = path, apply = ap, .class = "vofi_error_contract")
   )
-  if (identical(res_param_kind(rc, path), "share") && any(out < 0 | out > 1)) {
-    res_inform_once(rc, paste0("clamp|", path), "engine.apply_share_clamped", path = path)
-    out[] <- pmin(pmax(out, 0), 1)
-  }
+  # Ziel der Art share: Ergebnis auf [0, 1] begrenzt (6.3 Schritt 1); den Hinweis gibt die
+  # Validierung einmal je Szenario (Spec 01c, apply: I bei add/multiply auf share-Ziele)
+  if (identical(res_param_kind(rc, path), "share")) out[] <- pmin(pmax(out, 0), 1)
   out
 }
 
