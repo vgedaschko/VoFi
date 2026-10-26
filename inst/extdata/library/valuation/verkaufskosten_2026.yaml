@@ -1,0 +1,20 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag valuation/verkaufskosten_2026: Werte nach Spec 01 Teil C §3.8
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: valuation/verkaufskosten_2026
+block: valuation
+schema_version: 1
+label: "Verkaufskosten am Horizont"
+source: {document: "Memo 03 §10.4 (D), Memo 02 §7.5 (Makler 0-3,57 %, sonstige 0,1-0,5 %), Konzept §3.11 (Default 3 %)", url: "docs/Konzept.md", publisher: "eigene Ableitung"}
+as_of: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+legal_state: {as_of: 2026-10-25, status: derived, reference: "Konzept §3.11, A3"}
+values:
+  sale_cost_share: 0.03                       # Default residual_value.sale_cost_share (Spec 00 §4.3.12)
+  components: {broker_seller_share: [0.0, 0.0357], other_share: [0.001, 0.005]}
+uncertainty:
+  sale_cost_share: {dist: triangular, min: 0.0, mode: 0.03, max: 0.05}
+notes: "Keine Vorfälligkeitsentschädigung am Horizont (Konzept §10.3)."

@@ -1,0 +1,29 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag funding/kfw_459_heizung_unternehmen: Werte nach Spec 01 Teil C §3.4
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: funding/kfw_459_heizung_unternehmen
+block: funding
+schema_version: 1
+label: "BEG EM Heizungsförderung für Unternehmen – Wohngebäude (KfW 459)"
+from: funding/kfw_458_heizung_privat
+source: {document: "KfW-Merkblatt 459 (Konditionen seit 21.07.2026)", url: "https://www.kfw.de/459", publisher: KfW}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-07-21
+valid_to: null
+quality: C
+quality_detail: {basis.eligible_cost_caps_per_building: D}   # Staffel analog 458 angenommen (Konzept B2)
+legal_state: {as_of: 2026-08-27, status: administrative, reference: "Richtlinie BEG EM, BAnz AT 27.08.2026"}
+values:
+  program_code: "459"
+  eligibility:
+    applicants: [unternehmen, kommunales_unternehmen, genossenschaft, contractor, gemeinnuetzig]
+  rate_components:
+    klimageschwindigkeit: ~                 # entfällt (nur Selbstnutzer)
+    einkommen: ~
+  rate_cap: {default: 0.30, exceptions: []}
+  degression:                               # eigene Sequenz (X-02): ersetzt die geerbte; ohne Eintrag auf den entfallenen Bonus
+    - {target: "basis.eligible_cost_caps_per_building[1].cap_eur", start: 2027-02-01, step: -750, every_months: 6, floor: 22000}
+  budget_risk: {approval_probability: 0.90}
+notes: "Beispiel KfW: 10 WE -> 135.000 EUR förderfähig -> max. 40.500 EUR. Prüffall S3 (12 WE, Antrag 2027-01-15): 28.000 + 5 x 15.000 + 6 x 8.000 = 151.000 EUR; Zuschuss 0,30 x min(153.560; 151.000) = 45.300,00 EUR (S3-T1, S3-T2); Antrag ab 2027-02-01: 27.250 + 75.000 + 48.000 = 150.250 EUR -> 45.075,00 EUR. Maßnahmentypen und Antragsteller-Oberbegriff wie KfW 458."

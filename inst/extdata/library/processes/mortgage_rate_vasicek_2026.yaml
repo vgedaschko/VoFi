@@ -1,0 +1,29 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag processes/mortgage_rate_vasicek_2026: Werte nach Spec 01 Teil C §2.2
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+# Hinweis: Standardprozess Bauzins (Konzept F7)
+id: processes/mortgage_rate_vasicek_2026
+block: processes
+schema_version: 1
+label: "Bauzins 10 J. (Anschlussfinanzierung): Vasicek mit Untergrenze"
+source:
+  document: "Deutsche Bundesbank, MFI-Zinsstatistik SUD119 (BBIM1.M.DE.B.A2C.P.R.A.2250.EUR.N), 01/2003-08/2026; eigene Kalibrierung (Memo 04 §2.3)"
+  url: "https://api.statistiken.bundesbank.de/rest/data/BBIM1/M.DE.B.A2C.P.R.A.2250.EUR.N"
+  publisher: "Deutsche Bundesbank"
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D                       # theta normativ gesetzt (Stichprobenmittel 2,74 % durch Niedrigzinsphase verzerrt)
+quality_detail: {kappa: A, sigma: A, r0: A}
+fallback: {r0: 0.041}            # Default-Bauzins 10 J. (Memo 03 §4.1, Konzept §3.10); S1–S5: 0.040
+values:
+  type: vasicek
+  label: "Bauzins 10 J. Zinsbindung (Anschlusszins)"
+  r0: base                       # Startwert = deterministischer Bauzins des Szenarios (1.5.1)
+  theta: 0.0375                  # Option Parameterunsicherheit: {dist: normal, mean: 0.0375, sd: 0.005}
+  kappa: 0.12                    # OLS Jahresmittel 0,13; Monatsdaten 0,089 (Memo 04 §2.3)
+  sigma: 0.007                   # Jahresmittel 0,0054; sd 12-Monats-Änderung 0,0060; Punktvolatilität höher angesetzt
+  floor: 0.005
+notes: "Ausgabe gekappt, Zustand ungekappt (Spec 00 §11.7). Anschlusszins = Pfadwert der Periode des Anpassungsmonats (R-45)."

@@ -1,0 +1,41 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag funding/kfw_298_khn_vermietung: Werte nach Spec 01 Teil C §3.4
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: funding/kfw_298_khn_vermietung
+block: funding
+schema_version: 1
+label: "Klimafreundlicher Neubau Wohngebäude (KfW 298, Vermietung/Unternehmen) – Standard"
+source: {document: "KfW-Merkblatt 297/298; Konditionen Standard ab 17.09.2026", url: "https://www.kfw.de/297-298", publisher: KfW}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-09-17
+valid_to: null
+quality: B
+quality_detail: {loan.variants: A, budget_risk: D}
+legal_state: {as_of: 2026-09-17, status: administrative, reference: "Programm KFN, Merkblatt 297/298"}
+values:
+  instrument_type: loan
+  provider: KfW
+  program_code: "298"
+  application_before_start: true
+  budget_risk: {approval_probability: 0.90}
+  eligibility:
+    applicants: [unternehmen, kommunales_unternehmen, genossenschaft, privatperson_vermieter]
+    project_types: [neubau, erwerb_neubau]
+    conditions: {efficiency_standard: eh40, lca_thg: required, fossil_or_biomass_heating: excluded}   # lca_thg: LCA mit THG-Grenze QNG-PLUS (facts.lca_thg, N-10)
+  basis:
+    loan_cap_per_unit_eur: 100000
+    loan_cap_per_unit_qng_eur: 150000        # mit QNG-Zertifikat (PLUS/PREMIUM; facts.qng, nur Deckel)
+  loan:
+    repayment: annuity
+    payments_per_year: 12                    # D
+    variants:
+      v10_2_10: {term_years: 10, grace_years: 2, fixed_years: 10, rate_pa: 0.0194, effective_rate_pa: 0.0196, rate_date: 2026-10-22}
+      v25_3_10: {term_years: 25, grace_years: 3, fixed_years: 10, rate_pa: 0.0281, effective_rate_pa: 0.0285, rate_date: 2026-10-22}
+      v35_5_10: {term_years: 35, grace_years: 5, fixed_years: 10, rate_pa: 0.0294, effective_rate_pa: 0.0298, rate_date: 2026-10-22}
+    default_variant: v35_5_10
+    fees: {commitment_fee_rate_month: 0.0015, commitment_free_months: 12}
+    prepay_allowed: false
+    followup: market
+  rent_law: {loan_counts_as: none}           # Neubau: keine Modernisierungsumlage

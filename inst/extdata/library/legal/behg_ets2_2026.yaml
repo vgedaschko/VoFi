@@ -1,0 +1,28 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag legal/behg_ets2_2026: Werte nach Spec 01 Teil C §3.5
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: legal/behg_ets2_2026
+block: legal
+topic: co2_pricing
+schema_version: 1
+label: "CO2-Bepreisung Gebäude: BEHG-Preise und -Korridore, EU-ETS 2 ab 2028"
+source: {document: "BEHG; Drittes BEHG-Änderungsgesetz (BT-Drs. 21/7869, BR-Drs. 462/26); RL 2003/87/EG Art. 30h", url: "https://dserver.bundestag.de/brd/2026/0462-26.pdf", publisher: "Bundestag/Bundesrat"}
+references:
+  - {document: "UBA Climate Change 15/2026 (MSR)", url: "https://www.umweltbundesamt.de/system/files/medien/11850/publikationen/2026-03/15_2026_CC.pdf", publisher: UBA}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: B
+quality_detail: {corridor_2027: C, ets2.psm.release_volume_mt: C}
+legal_state: {as_of: 2026-10-15, status: in_force, reference: "BEHG; Korridor 2027: Bundestag 15.10.2026 beschlossen, Bundesrat ausstehend (adopted_pending)"}
+values:
+  price_history_eur_t: {2021: 25, 2022: 30, 2023: 30, 2024: 45, 2025: 55}
+  corridor_2026: {min: 55, max: 65, first_auction_2026_07_01: 65}
+  corridor_2027: {min: 55, max: 65, status: adopted_pending, surplus_price: 71, buyback_price: 73}
+  ets2:
+    start: 2028-01-01
+    first_auction: 2027-01-18             # C
+    psm: {trigger_eur2020: 45, trigger_nominal_2027_approx: 56, release_volume_mt: 40, release_volume_legacy_mt: 20, max_releases_per_year: 2}
+notes: "Preisannahme mit Statusvermerk (Konzept F5). Memo 02/03 widersprechen sich beim Verfahrensstand 2027 und bei der Freigabemenge (20 vs. 40 Mio.)."

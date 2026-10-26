@@ -1,0 +1,32 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag funding/kfw_308_jung_kauft_alt: Werte nach Spec 01 Teil C §3.4
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: funding/kfw_308_jung_kauft_alt
+block: funding
+schema_version: 1
+label: "Wohneigentum für Familien – Bestandserwerb „Jung kauft Alt“ (KfW 308)"
+from: funding/kfw_300_wohneigentum_familien
+source: {document: "KfW-Produktseite 308 (Sek. für Staffel)", url: "https://www.kfw.de/308", publisher: KfW}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-07-21
+valid_to: null
+quality: C
+legal_state: {as_of: 2026-07-21, status: administrative, reference: "Produktinformation 308"}
+values:
+  program_code: "308"
+  eligibility:
+    project_types: [erwerb_sanierung]
+    conditions:
+      efficiency_standard: ~
+      lca_thg: ~
+      energy_class_at_application: [F, G, H]
+      only_residential_property_in_de: required
+      renovation_obligation: {months: 54, target: eh85_ee}     # C (ursprünglich EH 70 EE; prüfen)
+  basis:
+    loan_cap_by_children_eur:
+      - {children_from: 1, children_to: 1, cap: 140000}
+      - {children_from: 2, children_to: 2, cap: 160000}
+      - {children_from: 3, children_to: .inf, cap: 180000}
+notes: "Sanierungskosten nicht über 308, sondern über 261. Prüfpunkte: Staffel 140/160/180 TEUR, Einkommensgrenzen, Zielstandard."

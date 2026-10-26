@@ -1,0 +1,53 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag legal/co2kostaufg_2026: Werte nach Spec 01 Teil C §3.5
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: legal/co2kostaufg_2026
+block: legal
+topic: co2kostaufg
+schema_version: 1
+label: "Kohlendioxidkostenaufteilungsgesetz (Wohngebäude), Stand GModG"
+source: {document: "CO2KostAufG Anlage zu §§ 5-7; §§ 5a-5d i. d. F. Art. 5 GModG-Änderungsgesetz (BGBl. 2026 I Nr. 226)", url: "https://www.gesetze-im-internet.de/co2kostaufg/", publisher: BMJ}
+references:
+  - {document: "Haufe 04.08.2026 (§§ 5b, 5d)", url: "https://www.haufe.de/immobilien/", publisher: Haufe}
+  - {document: "GÖRG 17.07.2026", url: "https://www.goerg.de/de/aktuelles/veroeffentlichungen/17-07-2026/gebaeudemodernisierungsgesetz-gmodg-schafft-geg-ab-was-sich-aendert-und-was-bleibt", publisher: GÖRG}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-07-29
+valid_to: null
+quality: B
+quality_detail: {s5b: C, s5d: C, s5a.transition: C, s9: C}
+legal_state: {as_of: 2026-07-29, status: in_force, reference: "CO2KostAufG §§ 5-7, 5a-5d, 9; § 5a wirksam ab 01.01.2028 bzw. 01.01.2029"}
+values:
+  stage_model:                            # kg CO2/(m2 Wohnfläche a): Obergrenze (exklusiv) -> Vermieteranteil
+    - {upper_kg_m2a: 12,   landlord_share: 0.00}
+    - {upper_kg_m2a: 17,   landlord_share: 0.10}
+    - {upper_kg_m2a: 22,   landlord_share: 0.20}
+    - {upper_kg_m2a: 27,   landlord_share: 0.30}
+    - {upper_kg_m2a: 32,   landlord_share: 0.40}
+    - {upper_kg_m2a: 37,   landlord_share: 0.50}
+    - {upper_kg_m2a: 42,   landlord_share: 0.60}
+    - {upper_kg_m2a: 47,   landlord_share: 0.70}
+    - {upper_kg_m2a: 52,   landlord_share: 0.80}
+    - {upper_kg_m2a: .inf, landlord_share: 0.95}
+  s5a:                                    # neue Heizung nach § 43 Abs. 1 GModG (Gas/Öl/Flüssiggas), eingebaut nach 29.07.2026
+    applies_to_installed_after: 2026-07-29
+    co2_from: 2028-01-01
+    co2_landlord_share: 0.5
+    network_fee_from: 2028-01-01
+    network_fee_landlord_share: 0.5       # Gasnetzentgelte (§ 40 Abs. 3 Nr. 4 EnWG)
+    bio_premium_from: 2029-01-01
+    bio_premium_landlord_share: 0.5
+    bio_premium_max_fuel_share: 0.30      # Vermieteranteil nur bis 30 % biogener Anteil
+    transition: {breakdown_install_months_before: 12, suspension_months: 12}   # C (Havarie)
+  s5b: {newbuild_applies: true, building_application_from: 2026-05-13, completed_until: 2029-12-31}   # C
+  s5d:                                    # C: Härtefall Kleinvermieter, Stufenmodell gilt weiter
+    max_rented_units: 6
+    energy_classes: [G, H]
+    rent_below_ovm_share: 0.85
+    rent_below_ovm_share_tight_market: 0.70
+    tenant_information: text_form
+  s9: {reduction_factor: 0.5}             # C: öffentlich-rechtliche Beschränkungen (Denkmal, Milieuschutz)
+  district_heating: co2_cost_in_heat_price
+  non_residential_split: 0.5
+notes: "Prüffall Rechenbeispiel 4 (Memo 02): 1.000 m2, 150 kWh_Hs/m2a Gas, EF 0,182 -> 27,3 kg/m2a -> 40 %; bei 65 EUR/t Kosten brutto 2.111 EUR/a, Vermieter 845 EUR/a (§ 5a: 1.056 EUR/a). S1-T9: 31,7 kg/m2a -> 40 %; S3-T5: 23,5 kg/m2a -> 30 %."

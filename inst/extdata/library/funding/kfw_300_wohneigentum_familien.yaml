@@ -1,0 +1,49 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag funding/kfw_300_wohneigentum_familien: Werte nach Spec 01 Teil C §3.4
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: funding/kfw_300_wohneigentum_familien
+block: funding
+schema_version: 1
+label: "Wohneigentum für Familien – Neubau (KfW 300)"
+source: {document: "KfW-Merkblatt 300; Konditionenanzeiger 22.10.2026", url: "https://www.kfw.de/300", publisher: KfW}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-07-21
+valid_to: null
+quality: B
+quality_detail: {loan.variants: A, budget_risk: D}
+legal_state: {as_of: 2026-07-21, status: administrative, reference: "Merkblatt 300"}
+values:
+  instrument_type: loan
+  provider: KfW
+  program_code: "300"
+  application_before_start: true
+  budget_risk: {approval_probability: 0.90}
+  eligibility:
+    applicants: [privatperson]
+    project_types: [neubau, erwerb_neubau]
+    conditions:
+      owner_occupied: required
+      children_u18_min: 1
+      taxable_income_max_eur: {base: 90000, per_additional_child: 10000}   # 1 Kind 90.000; 2 Kinder 100.000; ...
+      efficiency_standard: eh40
+      lca_thg: required                     # LCA mit THG-Grenze QNG-PLUS, facts.lca_thg (N-10)
+  basis:
+    loan_cap_by_children_eur:               # ohne / mit QNG-Zertifikat (facts.qng, nur Deckel)
+      - {children_from: 1, children_to: 2, cap: 170000, cap_qng: 220000}
+      - {children_from: 3, children_to: 4, cap: 200000, cap_qng: 250000}
+      - {children_from: 5, children_to: .inf, cap: 220000, cap_qng: 270000}
+  loan:
+    repayment: annuity
+    payments_per_year: 12
+    variants:
+      v10_2_10:  {term_years: 10, grace_years: 2, fixed_years: 10, rate_pa: 0.0001, rate_date: 2026-10-22}
+      v25_3_10:  {term_years: 25, grace_years: 3, fixed_years: 10, rate_pa: 0.0072, effective_rate_pa: 0.0072, rate_date: 2026-10-22}
+      v35_5_10:  {term_years: 35, grace_years: 5, fixed_years: 10, rate_pa: 0.0100, effective_rate_pa: 0.0100, rate_date: 2026-10-22}
+      b10_10_10: {repayment: bullet, term_years: 10, grace_years: 10, fixed_years: 10, rate_pa: 0.0115, rate_date: 2026-10-22}
+    default_variant: v35_5_10
+    fees: {commitment_fee_rate_month: 0.0015, commitment_free_months: 12}
+    prepay_allowed: false
+    followup: market
+notes: "Prüffälle S5-T2/T3 (01b F-13): zvE 85.000 EUR, 2 Kinder (Grenze 100.000), facts {lca_thg: true} -> berechtigt, Höchstbetrag 170.000 EUR; zusätzlich qng: true -> 220.000 EUR; ohne lca_thg -> nicht berechtigt; zvE 105.000 EUR -> nicht berechtigt (Berechtigungs-Check, Fallback V2b)."

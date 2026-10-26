@@ -1,0 +1,22 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag legal/gmodg_bio_treppe_2026: Werte nach Spec 01 Teil C §3.5
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: legal/gmodg_bio_treppe_2026
+block: legal
+topic: bio_treppe
+schema_version: 1
+label: "Bio-Treppe für neue fossile Heizungen im Bestand (§ 43 Abs. 1 GModG)"
+source: {document: "GModG § 43 Abs. 1 i. d. F. vom 23.07.2026 (BGBl. 2026 I Nr. 226)", url: "https://www.buzer.de/43_GModG.htm", publisher: "BMJ/buzer.de"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-07-29
+valid_to: null
+quality: B
+legal_state: {as_of: 2026-07-29, status: in_force, reference: "GModG § 43 Abs. 1; § 42a (Grüngasquote) angekündigt"}
+values:
+  applies_to: {heating_types: [gas, oil, lpg], installed_after: 2026-07-29, building: existing}
+  min_bio_share: {years: [2029, 2030, 2035, 2040], values: [0.10, 0.15, 0.30, 0.60], interpolate: step}
+  newbuild_zero_emission_from: 2030-01-01
+  bio_carriers: [biomethan, biooel, biogenes_fluessiggas, wasserstoff]
+notes: "Stufen gelten ab 1. Januar des Jahres. Erfüllungsoptionen (Solarthermie, WRG, WP-Hybrid) # 01b."

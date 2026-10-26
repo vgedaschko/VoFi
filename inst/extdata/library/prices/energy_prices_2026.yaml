@@ -1,0 +1,161 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag prices/energy_prices_2026: Werte nach Spec 01 Teil C §3.6
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: prices/energy_prices_2026
+block: market
+schema_version: 1
+label: "Energiepreise 2026 (netto): Erwartungspfad vom 12-Monats-Mittel zum Normalpreis, Komponenten"
+source: {document: "BDEW Gas-/Strompreisanalyse 08/2026; BNetzA Monitoringbericht 2025; waermepreise.info 04/2026; DEPI 10/2026; Destatis (Memo 03 §2.1-2.4)", url: "https://www.bdew.de/media/documents/BDEW_Gaspreisanalyse_082026.pdf", publisher: "BDEW; BNetzA; AGFW/BDEW/VKU; DEPI"}
+as_of: 2026-10-26
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: B
+quality_detail: {market.energy_price.heatpump_power: D, market.energy_price.heatpump_power_mfh: D, market.energy_price.oil: C, market.energy_price.pellets: C, market.energy_price.lpg: D, market.energy_price.power_mfh: D, market.energy_price.gas.growth: D, market.energy_price.gas_mfh.growth: D, market.energy_price.power.growth: D, market.energy_price.district_heating.growth: D, components.oil.spot_eur_kwh: C, components.lpg: D, market.bio_fuel_premium: D, components.normal_price_excl_co2: D, base_fees_eur_pa: C}
+legal_state: {as_of: 2026-10-25, status: market, reference: "Marktdaten"}
+values:
+  market:
+    energy_price:                         # EUR/kWh NETTO, ohne CO2-Komponente und ohne getrennt geführtes Netzentgelt (K4, # 01b §3.2.1); alle zehn kanonischen Träger (N-15)
+      gas:   # Erdgas EFH (Hs): p0 6,335 ct, p̄ 5,833 ct
+        start: 0.06335000
+        base_date: 2027-01-01             # start = Jahreswert 2026 (Preisstand 1.1.2027)
+        growth:
+          series: {
+            2027: -0.00083661, 2028: 0.00433229, 2029: 0.00822651, 2030: 0.01115708, 2031: 0.01336060,
+            2032: 0.01501639, 2033: 0.01626000, 2034: 0.01719371, 2035: 0.01789456, 2036: 0.01842051,
+            2037: 0.01881516, 2038: 0.01911124, 2039: 0.01933336, 2040: 0.01949998, 2041: 0.01962496,
+            2042: 0.01971871, 2043: 0.01978902, 2044: 0.01984176, 2045: 0.01988132, 2046: 0.01991099,
+            2047: 0.01993324, 2048: 0.01994993, 2049: 0.01996245, 2050: 0.01997184, 2051: 0.02}
+          fill: locf
+          before: first
+      gas_mfh:   # Erdgas MFH (Hs): p̄ 5,580 ct (D)
+        start: 0.06043000
+        base_date: 2027-01-01             # start = Jahreswert 2026 (Preisstand 1.1.2027)
+        growth:
+          series: {
+            2027: -0.00012532, 2028: 0.00486848, 2029: 0.00863018, 2030: 0.01146070, 2031: 0.01358880,
+            2032: 0.01518781, 2033: 0.01638873, 2034: 0.01729034, 2035: 0.01796708, 2036: 0.01847493,
+            2037: 0.01885598, 2038: 0.01914187, 2039: 0.01935633, 2040: 0.01951721, 2041: 0.01963789,
+            2042: 0.01972840, 2043: 0.01979630, 2044: 0.01984722, 2045: 0.01988541, 2046: 0.01991406,
+            2047: 0.01993554, 2048: 0.01995166, 2049: 0.01996374, 2050: 0.01997281, 2051: 0.02}
+          fill: locf
+          before: first
+      oil:   # Heizöl (Hi): p0 10,034 ct (C), p̄ 6,723 ct
+        start: 0.10034000
+        base_date: 2027-01-01             # start = Jahreswert 2026 (Preisstand 1.1.2027)
+        growth:
+          series: {
+            2027: -0.09546188, 2028: -0.06226772, 2029: -0.03830965, 2030: -0.02117573, 2031: -0.00900066,
+            2032: -0.00038813, 2033: 0.00568515, 2034: 0.00995838, 2035: 0.01296044, 2036: 0.01506719,
+            2037: 0.01654452, 2038: 0.01757994, 2039: 0.01830535, 2040: 0.01881345, 2041: 0.01916927,
+            2042: 0.01941842, 2043: 0.01959286, 2044: 0.01971498, 2045: 0.01980048, 2046: 0.01986033,
+            2047: 0.01990223, 2048: 0.01993156, 2049: 0.01995209, 2050: 0.01996646, 2051: 0.02}
+          fill: locf
+          before: first
+      lpg:   # Flüssiggas (Hi, D): p0 7,291 ct, p̄ 6,134 ct
+        start: 0.07290829
+        base_date: 2027-01-01             # start = Jahreswert 2026 (Preisstand 1.1.2027)
+        growth:
+          series: {
+            2027: -0.03149948, 2028: -0.01632881, 2029: -0.00556816, 2030: 0.00203425, 2031: 0.00739049,
+            2032: 0.01115689, 2033: 0.01380174, 2034: 0.01565725, 2035: 0.01695813, 2036: 0.01786974,
+            2037: 0.01850835, 2038: 0.01895562, 2039: 0.01926882, 2040: 0.01948812, 2041: 0.01964166,
+            2042: 0.01974915, 2043: 0.01982440, 2044: 0.01987707, 2045: 0.01991395, 2046: 0.01993976,
+            2047: 0.01995783, 2048: 0.01997048, 2049: 0.01997934, 2050: 0.01998554, 2051: 0.02}
+          fill: locf
+          before: first
+      power:   # Haushaltsstrom: p̄ 30,252 ct
+        start: 0.31513000
+        base_date: 2027-01-01             # start = Jahreswert 2026 (Preisstand 1.1.2027)
+        growth:
+          series: {
+            2027: 0.00963932, 2028: 0.01221958, 2029: 0.01415911, 2030: 0.01561619, 2031: 0.01671037,
+            2032: 0.01753178, 2033: 0.01814828, 2034: 0.01861089, 2035: 0.01895799, 2036: 0.01921839,
+            2037: 0.01941374, 2038: 0.01956027, 2039: 0.01967019, 2040: 0.01975263, 2041: 0.01981447,
+            2042: 0.01986085, 2043: 0.01989563, 2044: 0.01992172, 2045: 0.01994129, 2046: 0.01995597,
+            2047: 0.01996698, 2048: 0.01997523, 2049: 0.01998142, 2050: 0.01998607, 2051: 0.02}
+          fill: locf
+          before: first
+      power_mfh:   # Allgemeinstrom MFH (D): p0 27,0 ct, p̄ 25,920 ct
+        start: 0.27000000
+        base_date: 2027-01-01             # start = Jahreswert 2026 (Preisstand 1.1.2027)
+        growth:
+          series: {
+            2027: 0.00963932, 2028: 0.01221958, 2029: 0.01415911, 2030: 0.01561619, 2031: 0.01671037,
+            2032: 0.01753178, 2033: 0.01814828, 2034: 0.01861089, 2035: 0.01895799, 2036: 0.01921839,
+            2037: 0.01941374, 2038: 0.01956027, 2039: 0.01967019, 2040: 0.01975263, 2041: 0.01981447,
+            2042: 0.01986085, 2043: 0.01989563, 2044: 0.01992172, 2045: 0.01994129, 2046: 0.01995597,
+            2047: 0.01996698, 2048: 0.01997523, 2049: 0.01998142, 2050: 0.01998607, 2051: 0.02}
+          fill: locf
+          before: first
+      heatpump_power:   # WP-Strom EFH (D): p̄ 21,008 ct
+        start: 0.21849000
+        base_date: 2027-01-01             # start = Jahreswert 2026 (Preisstand 1.1.2027)
+        growth:
+          series: {
+            2027: 0.01003973, 2028: 0.01252064, 2029: 0.01438532, 2030: 0.01578609, 2031: 0.01683793,
+            2032: 0.01762753, 2033: 0.01822013, 2034: 0.01866481, 2035: 0.01899844, 2036: 0.01924874,
+            2037: 0.01943650, 2038: 0.01957735, 2039: 0.01968299, 2040: 0.01976224, 2041: 0.01982167,
+            2042: 0.01986625, 2043: 0.01989969, 2044: 0.01992476, 2045: 0.01994357, 2046: 0.01995768,
+            2047: 0.01996826, 2048: 0.01997619, 2049: 0.01998215, 2050: 0.01998661, 2051: 0.02}
+          fill: locf
+          before: first
+      heatpump_power_mfh:   # WP-Strom MFH (D): p̄ 20,168 ct
+        start: 0.21008000
+        base_date: 2027-01-01             # start = Jahreswert 2026 (Preisstand 1.1.2027)
+        growth:
+          series: {
+            2027: 0.00964733, 2028: 0.01222561, 2029: 0.01416363, 2030: 0.01561959, 2031: 0.01671292,
+            2032: 0.01753370, 2033: 0.01814971, 2034: 0.01861197, 2035: 0.01895880, 2036: 0.01921900,
+            2037: 0.01941419, 2038: 0.01956061, 2039: 0.01967044, 2040: 0.01975282, 2041: 0.01981461,
+            2042: 0.01986096, 2043: 0.01989571, 2044: 0.01992178, 2045: 0.01994134, 2046: 0.01995600,
+            2047: 0.01996700, 2048: 0.01997525, 2049: 0.01998144, 2050: 0.01998608, 2051: 0.02}
+          fill: locf
+          before: first
+      district_heating:   # Fernwärme: p̄ 12,605 ct
+        start: 0.13109000
+        base_date: 2027-01-01             # start = Jahreswert 2026 (Preisstand 1.1.2027)
+        growth:
+          series: {
+            2027: 0.01699431, 2028: 0.01859043, 2029: 0.01986913, 2030: 0.02089324, 2031: 0.02171328,
+            2032: 0.02236978, 2033: 0.02289528, 2034: 0.02331588, 2035: 0.02365248, 2036: 0.02392184,
+            2037: 0.02413738, 2038: 0.02430985, 2039: 0.02444784, 2040: 0.02455825, 2041: 0.02464658,
+            2042: 0.02471726, 2043: 0.02477380, 2044: 0.02481904, 2045: 0.02485523, 2046: 0.02488418,
+            2047: 0.02490734, 2048: 0.02492587, 2049: 0.02494070, 2050: 0.02495256, 2051: 0.025}
+          fill: locf
+          before: first
+      pellets:   # Holzpellets (Hi, C): 8,5 ct / 1,19, p̄ 7,0 ct / 1,19
+        start: 0.07142857
+        base_date: 2027-01-01             # start = Jahreswert 2026 (Preisstand 1.1.2027)
+        growth:
+          series: {
+            2027: -0.05159134, 2028: -0.02166666, 2029: -0.00326053, 2030: 0.00794896, 2031: 0.01473507,
+            2032: 0.01882865, 2033: 0.02129272, 2034: 0.02277402, 2035: 0.02366383, 2036: 0.02419809,
+            2037: 0.02451878, 2038: 0.02471124, 2039: 0.02482673, 2040: 0.02489604, 2041: 0.02493762,
+            2042: 0.02496257, 2043: 0.02497754, 2044: 0.02498653, 2045: 0.02499192, 2046: 0.02499515,
+            2047: 0.02499709, 2048: 0.02499825, 2049: 0.02499895, 2050: 0.02499937, 2051: 0.025}
+          fill: locf
+          before: first
+    energy_network_fee:                   # EUR/kWh netto
+      gas:     {start: 0.0257, base_date: 2027-01-01, growth: 0.03}   # Memo 07 §1.3, §4.0; global.yaml setzt growth: {ref: shared.network_fee_growth_gas} (N-15)
+      gas_mfh: {start: 0.0219, base_date: 2027-01-01, growth: 0.03}
+    bio_fuel_premium: {start: 0.060, base_date: 2027-01-01, growth: 0.02}   # Biomethan-Mehrkosten 6,0 ct netto (Memo 07 §4.0), D
+  components:                             # informativ (Herleitung, Plausibilisierung), EUR/kWh BRUTTO
+    gas:     {total_incl_co2_65: 0.120, co2_component_at_65: 0.0140, network_fee: 0.0306, range: [0.105, 0.155]}
+    gas_mfh: {total_incl_co2_65: 0.112, co2_component_at_65: 0.0140, network_fee: 0.0261, range: [0.098, 0.145]}
+    power:   {total: 0.375, range: [0.32, 0.42]}
+    power_mfh: {total_net: 0.270, range_net: [0.22, 0.33]}   # Allgemeinstrom netto (Memo 03 §2.2, D)
+    heatpump_power: {total: 0.260, range: [0.20, 0.31]}
+    oil:     {total_incl_co2_65: 0.140, co2_component_at_65: 0.0206, spot_eur_kwh: 0.172, range: [0.095, 0.19]}
+    lpg:     {total_incl_co2_65: 0.105, co2_component_at_65: 0.0182, litre_kwh_hi: 6.57, range: [0.085, 0.130]}   # D, Prüfpunkt (keine Primärquelle)
+    district_heating: {total: 0.156, range: [0.125, 0.175], net_spread: [0.08, 0.36]}
+    pellets: {total: 0.085, range: [0.065, 0.105]}
+    normal_price_excl_co2: {gas: 0.100, oil: 0.080, lpg: 0.073, district_heating: 0.150, power: 0.360, heatpump_power: 0.250, pellets: 0.070}
+    company_net: {gas_mfh: 0.094, district_heating: 0.131, power_common: 0.270, heatpump_power: 0.210}
+  base_fees_eur_pa: {gas_efh: 151.26, heatpump_power_efh: 117.65, power_household: 100.84}   # netto; brutto 180/140/120 (Memo 07 §4.0, C)
+  vat_rate: {standard: 0.19, pellets: 0.19, firewood: 0.07}   # Holzpellets 19 % seit 01.01.2024 (Memo 03 §2.1, F-16; vat_rate.pellets nach 01b §7.3); 7 % nur Brenn-/Scheitholz
+uncertainty:
+  # max als 1.4650 notiert (= 1,465): "1.465" folgt dem Tausenderpunkt-Muster des YAML-Lesers (Spec 00 §4.6)
+  market.energy_price.gas: {dist: triangular, min: 0.802, mode: 1.0, max: 1.4650, apply: multiply}   # Niveaufaktor auf den Pfad; aus Spanne 10,5-15,5 ct brutto inkl. CO2 und Netzentgelt (netto 0,0508 / 0,06335 / 0,0928)
+notes: "Deterministischer Default = Erwartungspfad des mr_trend (Rückkehr vom 12-Monats-Mittel zum Normalpreis mit nominalem Trend, Konzept B8, F-08); die MC (processes/energy_prices_mr_2026, p0: base) startet 2027 auf diesem Pfad, E[P | ḡ] = Pfad (1.6.4). Die frühere Fortschreibung {start: p0, growth: ḡ} ist als ausdrückliche Szenarioangabe bzw. im Set stress_2022 möglich. Neuverträge 01.10.2026: Gas 13,8 ct, Strom 38,9 ct (Beobachtung)."

@@ -1,0 +1,29 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag funding/kfw_359_ergaenzungskredit: Werte nach Spec 01 Teil C §3.4
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: funding/kfw_359_ergaenzungskredit
+block: funding
+schema_version: 1
+label: "BEG EM Ergänzungskredit (KfW 359)"
+from: funding/kfw_358_ergaenzungskredit_plus
+source: {document: "KfW-Merkblatt 358/359 09/2026 (gültig ab 24.09.2026); Konditionenanzeiger 22.10.2026", url: "https://www.kfw.de/358-359", publisher: KfW}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-09-24
+valid_to: null
+quality: B
+quality_detail: {loan.variants: A, budget_risk: D}
+legal_state: {as_of: 2026-09-24, status: administrative, reference: "Merkblatt 358/359, Stand 09/2026"}
+values:
+  program_code: "359"
+  eligibility:
+    applicants: [privatperson, weg, unternehmen, kommunales_unternehmen, genossenschaft, gemeinnuetzig, contractor]
+    conditions: {owner_occupied: ~, taxable_income_max_eur: ~}
+  loan:
+    variants:
+      v5_1_5: ~
+      v10_2_10: {term_years: 10, grace_years: 2, fixed_years: 10, rate_pa: 0.0453, effective_rate_pa: 0.0463, rate_date: 2026-10-22}
+      v25_3_10: {term_years: 25, grace_years: 3, fixed_years: 10, rate_pa: 0.0462, effective_rate_pa: 0.0472, rate_date: 2026-10-22}
+      v35_5_10: {term_years: 35, grace_years: 5, fixed_years: 10, rate_pa: 0.0463, effective_rate_pa: 0.0473, rate_date: 2026-10-22}
+  cumulation: {requires: [funding/kfw_458_heizung_privat, funding/kfw_459_heizung_unternehmen, funding/bafa_beg_em_huelle]}

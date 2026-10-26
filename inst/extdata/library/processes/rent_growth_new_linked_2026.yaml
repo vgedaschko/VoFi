@@ -1,0 +1,27 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag processes/rent_growth_new_linked_2026: Werte nach Spec 01 Teil C §2.3
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: processes/rent_growth_new_linked_2026
+block: processes
+schema_version: 1
+label: "Neuvertrags-/Marktmietsteigerung, gekoppelt an die Inflation"
+source:
+  document: "ImmoScout24 WohnBarometer Q2/2026, GREIX Q4/2025, vdp Q4/2025 (Sek.); Memo 04 §1.2 (sigma 2-3 Pp)"
+  url: "https://www.immobilienscout24.de/unternehmen/fileadmin/user_upload/WohnBarometer_Q2_2026_Miete.pdf"
+  publisher: "ImmoScout24; IfW Kiel; vdp"
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+fallback: {u0: 0.0}
+values:
+  type: linked_ar1
+  label: "Mietsteigerung Neuvertrag/Markt p. a."
+  base: inflation
+  a: 0.005                       # Langfristmittel 0,025 (Memo 03: 2,5 %, Spanne 0-5 %)
+  b: 1.0
+  phi: 0.5
+  sigma: 0.02
+  u0: base

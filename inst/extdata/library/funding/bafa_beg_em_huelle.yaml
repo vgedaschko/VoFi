@@ -1,0 +1,43 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag funding/bafa_beg_em_huelle: Werte nach Spec 01 Teil C §3.4
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: funding/bafa_beg_em_huelle
+block: funding
+schema_version: 1
+label: "BEG EM Einzelmaßnahmen Gebäudehülle (BAFA) inkl. iSFP-Bonus"
+source: {document: "BAFA, Richtlinie BEG EM i. d. F. vom 21.07.2026; Infoblatt förderfähige Kosten (Sek.)", url: "https://www.bafa.de/beg-em", publisher: BAFA}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-07-21
+valid_to: null
+quality: C                                   # Sek.; Auslegung iSFP-Bonus offen (Konzept B2)
+quality_detail: {budget_risk: D}
+legal_state: {as_of: 2026-07-21, status: administrative, reference: "Richtlinie BEG EM, BAnz AT 27.08.2026"}
+values:
+  instrument_type: grant
+  provider: BAFA
+  program_code: "beg_em_huelle"
+  application_before_start: true
+  budget_risk: {approval_probability: 0.90}
+  eligibility:
+    applicants: [privatperson, weg, unternehmen, kommunales_unternehmen, genossenschaft, gemeinnuetzig]   # privatperson umfasst privatperson_vermieter (F-02)
+    measure_types: [daemmung_fassade, daemmung_dach_steil, daemmung_dach_flach, daemmung_oberste_geschossdecke, daemmung_kellerdecke, fenster, aussentueren]   # N-01; sommerlicher Wärmeschutz (sonnenschutz) ist in v1 kein Katalogcode (Spec 00 §17.3 Nr. 8 a)
+    conditions: {building_age_min_years: 5, min_investment_eur: 300, energy_efficiency_expert: required}
+  basis:
+    eligible_cost_caps_per_unit_per_calendar_year:
+      - {units_from: 1, units_to: 1, cap_eur: 30000, cap_isfp_eur: 60000}
+      - {units_from: 2, units_to: 6, cap_eur: 15000, cap_isfp_eur: 30000}
+      - {units_from: 7, units_to: .inf, cap_eur: 8000, cap_isfp_eur: 15000}
+    cap_period: calendar_year
+  rate_components:
+    grund: {rate: 0.15}
+    isfp:
+      rate: 0.05
+      condition: "funding.this.isfp"
+      threshold: {single_unit_eur: 30000, multi_unit: cap_without_bonus}   # Bonus erst ab Mindestinvestition
+      mode: excess_over_threshold            # Default (Memo 02); Alternative whole_amount
+  payout: {event: completion_proof, lag_months: 6}
+  rent_law: {grant_counts_as: zuschuss_559a_abs1}
+  cumulation: {exclusive_with: [funding/estg_35c], combinable_with: [funding/kfw_358_ergaenzungskredit_plus, funding/kfw_359_ergaenzungskredit]}
+notes: "Angekündigt Q1/2027 (nicht enthalten): WPB-Bonus +5 Pp für Dämmung aus iSFP. Prüffälle S4-T4: 2030 min(85.988,87; 60.000) -> 0,15 x 60.000 + 0,05 x 30.000 = 10.500,00 EUR (Alternative 12.000,00); 2033: 0,15 x 55.405,82 + 0,05 x 25.405,82 = 9.581,16 EUR (Alternative 11.081,16); Beispiel Memo 02: 40.000 EUR Fassade EFH -> 6.500 EUR."

@@ -1,0 +1,30 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag prices/macro_paths_2026: Werte nach Spec 01 Teil C §3.6
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: prices/macro_paths_2026
+block: market
+schema_version: 1
+label: "Deterministische Makropfade (Inflation, Baupreise, Instandhaltung, Mieten, Bodenwert, Betriebskosten)"
+source: {document: "Destatis PM 364 (VPI 09/2026 +3,3 %); Bundesbank 06/2026; EZB 09/2026; Gemeinschaftsdiagnose Frühjahr 2026; Destatis Baupreise 08/2026 (Memo 03 §5)", url: "https://www.destatis.de/DE/Presse/Pressemitteilungen/2026/10/PD26_364_611.html", publisher: "Destatis; Deutsche Bundesbank; EZB"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: B
+quality_detail: {market.rent_growth_new: C, market.land_value_growth: D, market.operating_cost_growth: D}
+legal_state: {as_of: 2026-10-25, status: market, reference: "Projektionen und Marktdaten"}
+values:
+  market:
+    inflation: {series: {2026: 0.030, 2027: 0.026, 2028: 0.021, 2029: 0.020}, fill: locf, before: first}
+    construction_price_index: {series: {2026: 0.050, 2027: 0.035, 2028: 0.0285, 2029: 0.0275}, fill: locf, before: first}   # langfristig VPI + 0,75 Pp
+    maintenance_index: {series: {2026: 0.055, 2027: 0.040, 2028: 0.031, 2029: 0.030}, fill: locf, before: first}           # langfristig VPI + 1,0 Pp
+    rent_growth: 0.0175                   # Bestand (0,5 / 1,75 / 3,0 %)
+    rent_growth_new: 0.025                # Neuvertrag/Markt (0 / 2,5 / 5,0 %)
+    land_value_growth: 0.015              # D (Memo 07 §4.0)
+    market_value_growth: 0.015            # D
+    operating_cost_growth: {ref: market.inflation, offset: 0.005}   # D
+uncertainty:
+  market.rent_growth: {dist: triangular, min: 0.005, mode: 0.0175, max: 0.030}
+  market.rent_growth_new: {dist: triangular, min: 0.0, mode: 0.025, max: 0.050}
+notes: "Referenzszenarien S1-S5 verwenden eigene Pfade (Memo 07 §4.0, 5.0)."

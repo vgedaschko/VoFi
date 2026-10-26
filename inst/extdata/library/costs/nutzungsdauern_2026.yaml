@@ -1,0 +1,62 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag costs/nutzungsdauern_2026: Werte nach Spec 01 Teil C §3.7
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: costs/nutzungsdauern_2026
+block: costs
+schema_version: 1
+label: "Nutzungsdauern von Bauteilen und Anlagen (Jahre)"
+source: {document: "VDI 2067-1 (über TUM/Immowelt, Sek.), BBSR/BNB Nutzungsdauern 2017 (Original nicht abrufbar), ImmoWertV 2021 Anlage 1 (Memo 03 §9; Konzept F19)", url: "https://www.nachhaltigesbauen.de/", publisher: "VDI; BBSR"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+quality_detail: {hp_air_water: C, hp_brine_water: C, gas_boiler: C, building_total_immowertv: B}
+legal_state: {as_of: 2026-10-25, status: market, reference: "Richtwerte; Abgleich mit Originaltabellen ausstehend"}
+values:
+  hp_air_water: 18
+  hp_brine_water: 20
+  borehole: 50
+  gas_boiler: 18                              # Memo 02: 20 (F19)
+  pellet_boiler: 20
+  district_heating_substation: 25
+  solar_thermal: 20                           # Memo 02
+  etics: 40
+  plaster_paint: 15                           # Memo 02
+  windows: 40                                 # Holz-Alu/Alu 50; Memo 02: 35/45 (F19)
+  windows_wood_alu: 50
+  roof_pitched_covering: 50
+  roof_flat_sealing: 30                       # Memo 02: 25 (F19)
+  insulation_roof_ceiling: 50
+  pv_modules: 25
+  pv_inverter: 12                             # Memo 02: 13 (F19)
+  battery: 12
+  ventilation_central: 20
+  ventilation_decentral: 15
+  heating_distribution: 40                    # Memo 02: Heizkörper 30, Flächenheizung 50 (F19)
+  dhw_storage: 20                             # Memo 02
+  pipes: 40                                   # Memo 02
+  elevator: 25                                # Memo 02
+  bathrooms: 25                               # Memo 02
+  electrical: 40                              # Memo 02
+  building_total_immowertv: 80
+uncertainty:                                  # Overlay-Vorlagen für measures.<id>.useful_life_years
+  hp_air_water: {dist: triangular, min: 15, mode: 18, max: 22}
+  hp_brine_water: {dist: triangular, min: 17, mode: 20, max: 25}
+  borehole: {dist: triangular, min: 40, mode: 50, max: 60}
+  gas_boiler: {dist: triangular, min: 15, mode: 18, max: 25}
+  pellet_boiler: {dist: triangular, min: 15, mode: 20, max: 25}
+  district_heating_substation: {dist: triangular, min: 20, mode: 25, max: 30}
+  etics: {dist: triangular, min: 30, mode: 40, max: 50}
+  windows: {dist: triangular, min: 30, mode: 40, max: 50}
+  roof_pitched_covering: {dist: triangular, min: 40, mode: 50, max: 70}
+  roof_flat_sealing: {dist: triangular, min: 20, mode: 30, max: 35}
+  insulation_roof_ceiling: {dist: triangular, min: 40, mode: 50, max: 60}
+  pv_modules: {dist: triangular, min: 20, mode: 25, max: 30}
+  pv_inverter: {dist: triangular, min: 10, mode: 12, max: 15}
+  battery: {dist: triangular, min: 10, mode: 12, max: 15}
+  ventilation_central: {dist: triangular, min: 15, mode: 20, max: 25}
+  ventilation_decentral: {dist: triangular, min: 12, mode: 15, max: 20}
+  heating_distribution: {dist: triangular, min: 30, mode: 40, max: 50}
+notes: "Memo 04 nennt für die WP PERT(12; 18; 25); Default hier Dreieck nach Memo 03. Prüfwert Dreieck(15; 18; 22): Mittel 18,333, q10 16,449, q90 20,327. Nutzungsdauern werden auf ganze Monate gerundet (Spec 00 §3.9)."

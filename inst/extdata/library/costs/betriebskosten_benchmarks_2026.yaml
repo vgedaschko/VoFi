@@ -1,0 +1,29 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag costs/betriebskosten_benchmarks_2026: Werte nach Spec 01 Teil C §3.7
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: costs/betriebskosten_benchmarks_2026
+block: costs
+schema_version: 1
+label: "Betriebskosten-Benchmarks und nicht umlagefähige Kosten"
+source: {document: "Deutscher Mieterbund, Betriebskostenspiegel (Abrechnungsjahr 2024); GdW Daten und Trends 2025/26 (Memo 03 §8.3)", url: "https://mieterbund.de/aktuelles/meldungen/mieterbund-veroeffentlicht-aktuellen-betriebskostenspiegel-fuer-deutschland/", publisher: "DMB; GdW"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: C
+quality_detail: {opex_nonrecoverable_share: D, maintenance_selfuser_share_of_construction_cost_pa: D, vacancy_operating_cost_eur_m2_month: D}
+legal_state: {as_of: 2026-10-25, status: market, reference: "Benchmarks"}
+values:
+  operating_cost_total_eur_m2_month: 2.67          # DMB 2024; alle Arten bis 3,68
+  heating_dhw_eur_m2_month: {mean: 1.32, min: 0.46, max: 2.18}
+  cold_gdw_eur_m2_month: 1.90
+  warm_gdw_eur_m2_month: 1.64
+  space_heating_cost_mfh_2025_eur_m2_pa: {heatpump: 8.80, pellets: 9.36, oil: 12.97, gas: 13.92, district_heating: 16.02}   # Techem (C)
+  opex_nonrecoverable_share: 0.01                   # Anteil Nettokaltmiete (0,5-2,5 %)
+  maintenance_selfuser_share_of_construction_cost_pa: 0.012   # (0,8-1,8 %)
+  vacancy_operating_cost_eur_m2_month: 2.50         # Memo 07 S1 (Leerstands-BK)
+  belwertv_min_management_cost_share: 0.15
+uncertainty:
+  opex_nonrecoverable_share: {dist: triangular, min: 0.005, mode: 0.01, max: 0.025}
+  maintenance_selfuser_share_of_construction_cost_pa: {dist: triangular, min: 0.008, mode: 0.012, max: 0.018}

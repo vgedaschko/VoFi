@@ -1,0 +1,44 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag valuation/immowertv_anlage1_2_2026: Werte nach Spec 01 Teil C §3.8
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: valuation/immowertv_anlage1_2_2026
+block: valuation
+schema_version: 1
+label: "ImmoWertV 2021 Anlage 1 (Gesamtnutzungsdauer) und Anlage 2 (Restnutzungsdauer bei Modernisierung)"
+source: {document: "ImmoWertV 2021 Anlagen 1 und 2 (Text am Stichtag nicht abrufbar, HTTP 503; Memo 02 §7.1, Memo 03 §9)", url: "https://www.gesetze-im-internet.de/immowertv_2022/", publisher: BMJ}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2022-01-01
+valid_to: null
+quality: B
+quality_detail: {rnd_coefficients.p1: D, rnd_coefficients.p2: D, rnd_coefficients.p3: D, rnd_coefficients.p4: D, rnd_coefficients.p5: D, rnd_coefficients.p6: D, rnd_coefficients.p7: D, rnd_coefficients.p9: D, rnd_coefficients.p10: D, rnd_coefficients.p11: D, rnd_coefficients.p13: D, rnd_coefficients.p14: D, rnd_coefficients.p15: D, rnd_coefficients.p16: D, rnd_coefficients.p17: D}
+legal_state: {as_of: 2022-01-01, status: in_force, reference: "ImmoWertV vom 14.07.2021, Anlagen 1-2"}
+values:
+  gnd_years: {efh: 80, zfh: 80, mfh: 80}
+  modernisation_points_max: {roof_insulation: 4, windows_doors: 2, pipes: 2, heating: 2, facade_insulation: 4, bathrooms: 2, interior: 2, floor_plan: 2}   # Summe 20
+  rnd_formula: "RND = a * Alter^2 / GND - b * Alter + c * GND, falls Alter/GND >= rel_age_min; sonst RND = GND - Alter"
+  rnd_coefficients:                           # Punkte -> a, b, c, rel_age_min; Zeilen p0, p8, p12, p18-p20 aus Memo 02 (B), übrige aus Fachkenntnis (D, am Text prüfen)
+    p0:  {a: 1.2500, b: 2.6250, c: 1.5250, rel_age_min: 0.60}
+    p1:  {a: 1.2500, b: 2.6250, c: 1.5250, rel_age_min: 0.60}
+    p2:  {a: 1.0767, b: 2.2757, c: 1.3878, rel_age_min: 0.55}
+    p3:  {a: 0.9033, b: 1.9263, c: 1.2505, rel_age_min: 0.55}
+    p4:  {a: 0.7300, b: 1.5770, c: 1.1133, rel_age_min: 0.40}
+    p5:  {a: 0.6725, b: 1.4578, c: 1.0850, rel_age_min: 0.35}
+    p6:  {a: 0.6150, b: 1.3385, c: 1.0567, rel_age_min: 0.30}
+    p7:  {a: 0.5575, b: 1.2193, c: 1.0283, rel_age_min: 0.25}
+    p8:  {a: 0.5000, b: 1.1000, c: 1.0000, rel_age_min: 0.20}
+    p9:  {a: 0.4660, b: 1.0270, c: 0.9906, rel_age_min: 0.19}
+    p10: {a: 0.4320, b: 0.9540, c: 0.9811, rel_age_min: 0.18}
+    p11: {a: 0.3980, b: 0.8810, c: 0.9717, rel_age_min: 0.17}
+    p12: {a: 0.3640, b: 0.8080, c: 0.9622, rel_age_min: 0.16}
+    p13: {a: 0.3300, b: 0.7350, c: 0.9528, rel_age_min: 0.15}
+    p14: {a: 0.3040, b: 0.6760, c: 0.9506, rel_age_min: 0.14}
+    p15: {a: 0.2780, b: 0.6170, c: 0.9485, rel_age_min: 0.13}
+    p16: {a: 0.2520, b: 0.5580, c: 0.9463, rel_age_min: 0.12}
+    p17: {a: 0.2260, b: 0.4990, c: 0.9442, rel_age_min: 0.11}
+    p18: {a: 0.2000, b: 0.4400, c: 0.9420, rel_age_min: 0.10}
+    p19: {a: 0.2000, b: 0.4400, c: 0.9420, rel_age_min: 0.10}
+    p20: {a: 0.2000, b: 0.4400, c: 0.9420, rel_age_min: 0.10}
+  core_renovation_rnd_max_share_of_gnd: 0.90
+notes: "Prüfwerte (Memo 02 §7.1): Baujahr 1970, Stichtag 2026 (Alter 56), GND 80: 0 Punkte -> RND 24,0; 8 -> 38,0; 12 -> 46,0 (45,9968); 18 -> 58,56. Rechenbeispiel 7: RE 60.338 EUR, BW 200.000, LZ 3 %, RND 50 -> KF 25,7298, EW ca. 1.598.100 EUR."

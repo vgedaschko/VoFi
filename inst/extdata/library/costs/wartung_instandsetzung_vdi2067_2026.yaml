@@ -1,0 +1,21 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag costs/wartung_instandsetzung_vdi2067_2026: Werte nach Spec 01 Teil C §3.7
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: costs/wartung_instandsetzung_vdi2067_2026
+block: costs
+schema_version: 1
+label: "Instandsetzung und Wartung in % der Investition p. a. (VDI-2067-Größenordnung)"
+source: {document: "VDI 2067-1:2012 (Größenordnung, Originaltabelle nicht eingesehen) (Memo 03 §9)", url: "https://www.vdi.de/richtlinien", publisher: VDI}
+as_of: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+legal_state: {as_of: 2026-10-25, status: market, reference: "vor Freigabe gegen VDI 2067-1 prüfen"}
+values:
+  heat_pump: {repair: 0.010, service: 0.015}
+  gas_boiler: {repair: 0.010, service: 0.020}
+  pellet_boiler: {repair: 0.020, service: 0.030}
+  ventilation: {repair: 0.015, service: 0.020}
+  pv_system: {total: 0.012}                   # Memo 07 S3: 1,5 %
+  district_heating_substation: {repair: 0.010, service: 0.010}

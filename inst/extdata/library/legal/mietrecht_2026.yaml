@@ -1,0 +1,82 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag legal/mietrecht_2026: Werte nach Spec 01 Teil C §3.5
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: legal/mietrecht_2026
+block: legal
+topic: mietrecht
+schema_version: 1
+label: "Mietrecht BGB, Stand GModG (in Kraft seit 29.07.2026)"
+source: {document: "BGB §§ 536, 555b, 556d-556g, 557a, 557b, 558, 559-559f i. d. F. des Gesetzes vom 23.07.2026 (BGBl. 2026 I Nr. 226)", url: "https://www.gesetze-im-internet.de/bgb/", publisher: BMJ}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-07-29
+valid_to: null
+quality: A
+quality_detail: {interpretation: D, s558.funding_deduction_duration_grant_years: D, s558.funding_deduction_duration_loan: D}   # Auslegungs-Defaults von Nutzerfeldern (01b §1.3): Freigabe-Ausnahme Spec 00 §4.10 (R-116)
+legal_state: {as_of: 2026-07-29, status: in_force, reference: "BGB, zuletzt geändert durch Art. 6 GModG-Änderungsgesetz (BGBl. 2026 I Nr. 226)"}
+values:
+  s558:
+    waiting_months: 15                    # Miete seit 15 Monaten unverändert (ohne §§ 559-560)
+    request_min_months_after_last: 12
+    effective_month_offset: 3             # ab Beginn des dritten Kalendermonats nach Zugang (§ 558b)
+    cap_share: 0.20                       # in 3 Jahren
+    cap_share_tight_market: 0.15          # project.municipality.kappung_15_area
+    cap_window_months: 36
+    ovm_lookback_years: 6
+    excludes_increases: [bgb_559, bgb_559c, bgb_559e]   # Codes bgb_procedure (N-06); § 560 (Betriebskosten) nicht abgebildet, das Modell führt Nettokaltmieten
+    funding_deduction_grant_share_pa: 0.08          # § 558 Abs. 5: 8 % des Zuschusses p. a.
+    funding_deduction_duration_grant_years: 12      # D, strittig (Konzept B1)
+    funding_deduction_duration_loan: fixed_period   # D: Dauer der Zinsbindung
+  s559:
+    rate_pa: 0.08
+    cap_window_years: 6
+    cap_eur_m2_month: 3.00
+    cap_low_rent_eur_m2_month: 2.00
+    low_rent_threshold_eur_m2_month: 7.00
+    heating_cap_eur_m2_month: 0.50        # Heizungsanteil (§ 555b Nr. 1, 1a) innerhalb der Gesamtkappe
+    effective_month_offset: 3
+    delay_if_defective_notice_months: 6   # § 559b Abs. 2 (auch bei > 10 % Kostenabweichung)
+    cost_deviation_threshold: 0.10
+    hardship_exclusion_not_for: [bgb_555b_1, bgb_555b_1a]
+  s559a:
+    grants_reduce_costs: true             # Zuschüsse inkl. Tilgungszuschuss (Praxis)
+    repayment_grant_as_grant: true
+    interest_reduction: "(i_markt - i_foerder) x Ursprungsbetrag p. a."
+    market_rate_reference: first_mortgage_at_completion
+  s559c:
+    cost_limit_per_unit_eur: 10000
+    flat_maintenance_share: 0.30
+    interest_reduction_applicable: false  # § 559a Abs. 2 nicht anwendbar; Zuschüsse abziehen (Lesart prüfen)
+    lookback_years: 5
+    lock_years: 5
+  s559e:
+    rate_pa: 0.10
+    flat_maintenance_share: 0.15
+    flat_not_for_section43_heating: true  # Pauschale nicht für neue Gas-/Öl-/Flüssiggasheizung nach § 43 GModG
+    cap_eur_m2_month: 0.50
+    cap_window_years: 6
+    requires_third_party_funds: true      # ohne in Anspruch genommene Drittmittel: § 559
+    requires_measure: bgb_555b_1a
+  # § 559f (JAZ-Schwelle) als eigener Eintrag legal/mietrecht_559f_2026 (Qualität C, Freigabe ausstehend; 01b 7.4)
+  s557a: {excludes: [bgb_558, bgb_559, bgb_559b], min_step_months: 12, mietpreisbremse_per_step: true}   # bgb_559c zählt als bgb_559 (N-06, 01b §5.2)
+  s557b:
+    index: vpi
+    min_months_unchanged: 12
+    excludes: [bgb_558]
+    s559_only_if_not_attributable: true
+    heating_1a_allowed: true
+    effective_month_offset: 2
+  s556d:
+    cap_share_over_ovm: 0.10
+    ordinance_until: 2029-12-31
+    newbuild_first_use_after: 2014-10-01
+    first_letting_after_comprehensive_modernisation_exempt: true
+  s536_1a: {exclusion_months: 3, scope: [bgb_555b_1]}
+  interpretation:                         # Auslegungs-Defaults (vorsichtigere Lesart, Konzept F13/F14/B1); gelesen als Defaults von unit_groups.<g>.rent_law (01b §1.3)
+    third_party_allocation: full          # -> drittmittel_attribution: full | proportional (F14)
+    s559e_order: flat_before_funds        # -> flat_559e_order: 0,10 x (0,85 K - D) (F13); Alternative funds_before_flat
+    s559f_order: halve_then_funds         # -> hp_reduction_order (B1); Alternative funds_then_halve
+    heating_cap_order: heating_first      # Teilkappung Heizungsanteil vor Gesamtkappe (F14; in 01b fest)
+    s559e_flat_for_section43: false       # -> section43_flat: keine 15-%-Pauschale bei § 43-Heizung (B1)
+notes: "Prüfpunkte (Konzept §10.2): § 559f Wortlaut, Grenzfall und Ausnahmen; Reichweite der 15-%-Pauschale bei § 43-Heizungen; Dauer der Kürzung nach § 558 Abs. 5; BGH-Urteile zu Erhaltungsanteil und § 558/§ 559. Rechtsstände vor dem 29.07.2026 sind in v1 nicht hinterlegt."

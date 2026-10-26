@@ -1,0 +1,42 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag processes/co2_price_corridor_2026: Werte nach Spec 01 Teil C §2.5
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: processes/co2_price_corridor_2026
+block: processes
+schema_version: 1
+label: "CO2-Preis Gebäude (BEHG bis 2027, ab 2028 EU-ETS 2): komonotoner Korridor niedrig/mittel/hoch"
+source:
+  document: "Memo 03 §3.4 (Korridore; hoch = UBA/Prognos Rahmendaten THG-Projektionen 2026); Diskretisierung K = 20 (Spec 01 Teil C §1.6.6)"
+  url: "https://www.umweltbundesamt.de/system/files/medien/11850/publikationen/2026-04/2026_Rahmendatenpapier.pdf"
+  publisher: "UBA/Prognos; eigene Ableitung"
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+values:
+  type: scenario_mix
+  label: "CO2-Preis (EUR/t, nominal, netto)"
+  scenarios:
+    q01: {prob: 0.05, years: &co2y [2026, 2027, 2028, 2030, 2032, 2035, 2040, 2045, 2050, 2060, 2070], values: [65.00, 57.50, 49.33, 60.92, 68.44, 88.11, 117.50, 142.75, 168.00, 204.79, 249.63]}
+    q02: {prob: 0.05, years: *co2y, values: [65.00, 59.33, 52.50, 65.25, 74.62, 97.71, 130.31, 159.40, 188.49, 229.77, 280.09]}
+    q03: {prob: 0.05, years: *co2y, values: [65.00, 60.59, 54.68, 68.23, 78.87, 104.32, 139.13, 170.87, 202.60, 246.97, 301.05]}
+    q04: {prob: 0.05, years: *co2y, values: [65.00, 61.61, 56.46, 70.65, 82.33, 109.69, 146.30, 180.19, 214.07, 260.95, 318.10]}
+    q05: {prob: 0.05, years: *co2y, values: [65.00, 62.50, 57.99, 72.75, 85.32, 114.33, 152.50, 188.25, 223.99, 273.04, 332.83]}
+    q06: {prob: 0.05, years: *co2y, values: [65.00, 63.29, 59.36, 74.62, 88.00, 118.48, 158.04, 195.45, 232.85, 283.84, 346.00]}
+    q07: {prob: 0.05, years: *co2y, values: [65.00, 64.01, 60.63, 76.39, 90.44, 122.27, 163.10, 202.02, 240.94, 293.70, 358.02]}
+    q08: {prob: 0.05, years: *co2y, values: [65.00, 64.68, 61.93, 78.23, 92.88, 125.78, 167.78, 208.11, 248.43, 302.83, 369.15]}
+    q09: {prob: 0.05, years: *co2y, values: [65.00, 65.32, 63.28, 80.14, 95.41, 129.05, 172.21, 213.93, 255.65, 311.64, 379.89]}
+    q10: {prob: 0.05, years: *co2y, values: [65.00, 65.97, 64.69, 82.13, 98.06, 132.22, 176.78, 219.98, 263.18, 320.82, 391.08]}
+    q11: {prob: 0.05, years: *co2y, values: [65.00, 66.65, 66.17, 84.23, 100.84, 135.53, 181.58, 226.33, 271.08, 330.45, 402.81]}
+    q12: {prob: 0.05, years: *co2y, values: [65.00, 67.38, 67.73, 86.43, 103.77, 139.02, 186.63, 233.02, 279.41, 340.60, 415.19]}
+    q13: {prob: 0.05, years: *co2y, values: [65.00, 68.14, 69.38, 88.77, 106.88, 142.72, 191.99, 240.11, 288.24, 351.36, 428.31]}
+    q14: {prob: 0.05, years: *co2y, values: [65.00, 68.96, 71.15, 91.27, 110.20, 146.67, 197.72, 247.70, 297.68, 362.88, 442.34]}
+    q15: {prob: 0.05, years: *co2y, values: [65.00, 69.84, 73.06, 93.98, 113.79, 150.95, 203.91, 255.90, 307.89, 375.31, 457.50]}
+    q16: {prob: 0.05, years: *co2y, values: [65.00, 70.81, 75.16, 96.94, 117.73, 155.63, 210.70, 264.88, 319.07, 388.94, 474.12]}
+    q17: {prob: 0.05, years: *co2y, values: [65.00, 71.90, 77.50, 100.25, 122.13, 160.87, 218.29, 274.93, 331.58, 404.19, 492.70]}
+    q18: {prob: 0.05, years: *co2y, values: [65.00, 73.15, 80.21, 104.08, 127.22, 166.93, 227.07, 286.56, 346.04, 421.82, 514.20]}
+    q19: {prob: 0.05, years: *co2y, values: [65.00, 74.70, 83.54, 108.80, 133.48, 174.38, 237.88, 300.86, 363.84, 443.52, 540.65]}
+    q20: {prob: 0.05, years: *co2y, values: [65.00, 76.94, 88.39, 115.65, 142.58, 185.21, 253.57, 321.63, 389.69, 475.03, 579.06]}
+notes: "Erwartungspfad (Stützjahre) 65,00; 66,66; 66,66; 84,99; 101,65; 134,99; 181,65; 226,64; 271,64; 331,12; 403,64 (exakt dreieckig: 85,00 in 2030, 181,67 in 2040). Merkmal co2_price.scenario = Quantilindex 1-20 für bedingte Auswertungen."

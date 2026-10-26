@@ -1,0 +1,27 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag processes/mortgage_spread_ar1_2026: Werte nach Spec 01 Teil C §2.2
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+# Hinweis: Alternative mit zwei Faktoren (Kopplung K12)
+id: processes/mortgage_spread_ar1_2026
+block: processes
+schema_version: 1
+label: "Spread Bauzins (> 10 J.) über Bund 10 J.: AR(1)"
+source:
+  document: "Bundesbank SUD119 minus BBSIS 10 J., Monatswerte 2003-08/2026: Mittel 1,21 Pp, sd 0,40, seit 2015 1,43, 08/2026 0,67 (Memo 03 §4.2)"
+  url: "https://api.statistiken.bundesbank.de/rest/data/"
+  publisher: "Deutsche Bundesbank"
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+fallback: {x0: 0.007}
+values:
+  type: ar1
+  label: "Bauzins-Spread"
+  mu: 0.010                      # Spanne 0,006-0,015; Wohnungsunternehmen 0,006-0,009
+  phi: 0.7
+  sigma: 0.002
+  x0: base
+notes: "Langfristmittel Bauzins = 0,028 + 0,010 = 0,038 (Standardprozess: theta 0,0375)."

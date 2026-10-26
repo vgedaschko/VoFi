@@ -1,0 +1,20 @@
+# Parameterbibliothek vofi (WS-L); Bibliotheksstand in inst/extdata/library/VERSION
+# Eintrag processes/param_correlations_2026: Werte nach Spec 01 Teil C §2.6
+# (docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md); Eintragsschema Teil C §3.1,
+# Spec 00 §4.9. Jede inhaltliche Änderung erhöht den Bibliotheksstand (R-80).
+id: processes/param_correlations_2026
+block: processes
+schema_version: 1
+label: "Rangkorrelationen statischer Größen (Defaults)"
+source:
+  document: "Memo 04 §3.1 (Kosten-Verzug 0,5; Prebound-Rebound 0,3; Inflationsmittel-Zinsniveau 0,5); Konzept B9 (verwandte Kostenrisiken 0,7)"
+  url: "docs/recherche/04_monte_carlo.md"
+  publisher: "eigene Ableitung"
+as_of: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+values:
+  - [delay_construction, cost_construction, 0.5]
+  - [prebound, rebound, 0.3]
+  - [inflation.mu, mortgage_rate.theta, 0.5]      # nur wirksam, wenn theta als Verteilung gesetzt ist
