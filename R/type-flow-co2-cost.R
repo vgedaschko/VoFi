@@ -1,18 +1,41 @@
 # Zahlungstyp co2_cost: Aufteilung der CO2-Kosten eines Energiesegments nach dem CO2KostAufG
 # (WS-E, Spec 01 Teil B Abschnitt 3.7). Stufenmodell (10 Stufen) über die spezifische Emission
-# aller Segmente, ab 2028 § 5a für Heizungen nach § 43 GModG (50 % CO2-Kosten und Gasnetzentgelt,
+# aller Segmente je Abrechnungsjahr (Kalenderjahr, Teiljahre hochgerechnet), ab 2028 § 5a für
+# Heizungen nach § 43 GModG (50 % CO2-Kosten und Gasnetzentgelt,
 # ab 2029 50 % der Bio-Mehrkosten bis 30 % Bioanteil), Kürzung nach § 9, Übergang bei Havarie,
 # Härtefall § 5d, Neubau § 5b. Die Logik steht in R/rules-co2kostaufg.R; die Größen des Segments
 # liest der Typ aus der Komponente energy_cost (aux). Ein inaktives Thema co2kostaufg ergibt
 # keinen Vermieteranteil (Vermerk in meta$notes).
 
-#' Spezifische Emission (kg CO2/(m²·a)) über eine Liste von Segment-Hilfsgrößen
+#' Summen je Abrechnungsjahr (Kalenderjahr des Periodenbeginns), in jede Periode des Jahres
+#' zurückgeschrieben (n x (T+1); Spalte 1 = 0)
 #' @noRd
-co2_specific <- function(ctx, auxes, field, area) {
+co2_year_sum <- function(grid, x) {
+  yr <- grid$year
+  j <- seq_along(yr)
+  s <- outer(yr, yr, "==") * outer(j >= 2L, j >= 2L, "&")
+  x %*% s
+}
+
+#' Spezifische Emission (kg CO2/(m²·a)) je Abrechnungsjahr (Teil B 3.7.2)
+#'
+#' Das Stufenmodell gilt je Abrechnungszeitraum (Kalenderjahr): spez = Σ der co2_kg aller Segmente
+#' in den Perioden des Jahres / (Fläche · Betriebsmonate des Jahres / 12). Betriebsmonate sind die
+#' Monate, in denen ein Energiezustand gilt (`aux$operating` von energy_cost, ohne Angabe
+#' delta); Teiljahre (Fertigstellung, Stichtag) werden so auf ein Jahr hochgerechnet. Das
+#' Ergebnis gilt für alle Perioden des Jahres und hängt damit nicht vom Raster ab (F10). Perioden,
+#' die ein Kalenderjahr überschreiten, bilden das Abrechnungsjahr ihres Beginns.
+#' @param auxes Liste der Segment-Hilfsgrößen.
+#' @param field `co2_kg` bzw. `cf_co2_kg`.
+#' @param area n-Vektor der Bezugsfläche.
+#' @param operating n x (T+1) Betriebsjahresanteil je Periode.
+#' @noRd
+co2_specific <- function(ctx, auxes, field, area, operating) {
   kg <- ctx$zeros()
   for (a in auxes) if (!is.null(a[[field]])) kg <- kg + a[[field]]
-  den <- matrix(rep_len(area, ctx$n), ctx$n, ctx$grid$T + 1L) * ctx$by_period(ctx$grid$delta)
-  out <- kg / pmax(den, 1e-300)
+  den <- matrix(rep_len(area, ctx$n), ctx$n, ctx$grid$T + 1L) *
+    co2_year_sum(ctx$grid, operating)
+  out <- co2_year_sum(ctx$grid, kg) / pmax(den, 1e-300)
   out[den <= 0] <- 0
   out
 }
@@ -37,7 +60,8 @@ co2_build <- function(spec, ctx) {
   area <- rep_len(ctx$param(spec, "living_area_m2"), n)
   all_ids <- unique(c(eid, rp_ids(set("all_energy_components"))))
   auxes <- lapply(all_ids, function(id) ctx$component(id)$aux)
-  spez <- co2_specific(ctx, auxes, "co2_kg", area)
+  op <- e$operating %||% ctx$by_period(g$delta)
+  spez <- co2_specific(ctx, auxes, "co2_kg", area, op)
   stage <- ctx$rule("co2_stage_share")(spez, pc)
   s43 <- isTRUE(set("section43"))
   nb5 <- isTRUE(set("newbuild_5b"))
@@ -91,7 +115,7 @@ co2_build <- function(spec, ctx) {
     pre_ids <- rp_ids(set("pre_energy_components"))
     pre_ids <- if (length(pre_ids) == 0L) eid else unique(c(eid, pre_ids))
     pre_aux <- lapply(pre_ids, function(id) ctx$component(id)$aux)
-    spez_cf <- co2_specific(ctx, pre_aux, "cf_co2_kg", area)
+    spez_cf <- co2_specific(ctx, pre_aux, "cf_co2_kg", area, ctx$by_period(g$delta))
     s_cf <- (a5 * s5_co2 + (1 - a5) * ctx$rule("co2_stage_share")(spez_cf, pc)) * (1 - red)
     aux$cf_specific_kg_m2 <- spez_cf
     aux$cf_landlord_share <- s_cf

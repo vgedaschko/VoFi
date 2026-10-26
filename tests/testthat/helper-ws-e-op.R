@@ -34,6 +34,7 @@ eop_lp_mietrecht <- function() {
                  newbuild_first_use_after = as.Date("2014-10-01"),
                  first_letting_after_comprehensive_modernisation_exempt = TRUE),
     s536_1a = list(exclusion_months = 3, scope = "bgb_555b_1"),
+    s556e = list(relet_levy_procedures = c("bgb_559", "bgb_559c")),
     interpretation = list(third_party_allocation = "full", s559e_order = "flat_before_funds",
                           s559f_order = "halve_then_funds", heating_cap_order = "heating_first",
                           s559e_flat_for_section43 = FALSE)
@@ -53,7 +54,9 @@ eop_lp_mietrecht_ii <- function() {
     s557a = list(excludes = c("bgb_558", "bgb_559", "bgb_559b", "bgb_559e")),
     s557b = list(damping = list(threshold_pa = 0.03, excess_share_ignored = 0.5, symmetric = TRUE,
                                 only_in_ordinance_areas = TRUE)),
-    s536_1a = list(scope = c("bgb_555b_1", "bgb_555b_1a"))
+    s536_1a = list(scope = c("bgb_555b_1", "bgb_555b_1a")),
+    # Regelkonstante § 556e Abs. 2 je Rechtsstand (Änderungsantrag an Teil C 3.5, EOP-09)
+    s556e = list(relet_levy_procedures = c("bgb_559", "bgb_559c", "bgb_559e"))
   ))
 }
 
@@ -249,4 +252,15 @@ eop_cy <- function(res, id, key, years, sim = 1L) {
 eop_aux_y <- function(res, id, field, years, sim = 1L) {
   v <- res$flows[[id]]$aux[[field]]
   vapply(years, function(y) eop_year(v, res$grid, y, sim), double(1))
+}
+
+#' Ausdruck auswerten und alle Meldungen (vofi_message) einsammeln
+#' @return Liste `value`, `messages` (Texte).
+eop_messages <- function(expr) {
+  msgs <- character(0)
+  value <- withCallingHandlers(expr, message = function(m) {
+    msgs <<- c(msgs, conditionMessage(m))
+    invokeRestart("muffleMessage")
+  })
+  list(value = value, messages = msgs)
 }

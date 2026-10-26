@@ -4,8 +4,9 @@
 # Basismiete B und Umlagen L_k je Maßnahme; Zeilen rent, rent_loss und levy_<k>. §§ 558, 559-559f,
 # Staffel-/Indexmiete, Mietpreisbremse und Bindung stehen als Rechtsregeln in R/rules-mietrecht.R.
 # Gemeinsame Helfer dieses Teils (auch für energy_cost, pv und die Fördertypen von WS-E2):
-# act() (Aktivierungsfaktor, 0.8), rp_vacancy_share() (Leerstandsanteil aus der Domäne, 3.6.2) und
-# die Monatshelfer rp_*.
+# act() (Aktivierungsfaktor, 0.8), rp_vacancy_share() (Leerstandsanteil aus der Domäne, 3.6.2),
+# rp_signal()/rp_meta_notes() (laufbezogene Meldungen I/W mit Anteil der Läufe, 1.14) und die
+# Monatshelfer rp_*.
 
 # nolint start: object_name_linter. P wie im Regelkatalog (Teil B 5.1)
 
@@ -125,6 +126,50 @@ rp_period_mean <- function(ctx, x_m) {
   out <- s / mon
   out[, 1L] <- 0
   out
+}
+
+# ---------------------------------------------------------------------------------------------
+# Laufbezogene Meldungen (Teil B 1.14, 3.6.5)
+# ---------------------------------------------------------------------------------------------
+
+#' Laufbezogene Meldung eines Typs (I bzw. W mit Anteil der betroffenen Läufe)
+#'
+#' Meldet die Bedingung je Bau einmal über `ctx$inform()` bzw. `ctx$warn()` mit dem Platzhalter
+#' `share` (Anteil der Läufe des Chunks) und gibt den Eintrag für `meta$messages` zurück. Die
+#' Prüfung aggregiert ausdrücklich über alle Läufe (Spec 00 § 2.8 Nr. 3); die Zeilen hängen nicht
+#' von ihr ab.
+#' @param ctx Laufkontext.
+#' @param key Label-Schlüssel der Meldung.
+#' @param hit logischer n-Vektor der betroffenen Läufe (`NA` = nicht betroffen).
+#' @param level `"inform"` (I) oder `"warn"` (W).
+#' @param ... weitere Platzhalter.
+#' @return `list(key, level, share)` oder `NULL`, wenn kein Lauf betroffen ist.
+#' @noRd
+rp_signal <- function(ctx, key, hit, level = c("inform", "warn"), ...) {
+  level <- utl_match_arg(level, c("inform", "warn"), "level")
+  hit <- rep_len(as.logical(hit), ctx$n)
+  hit[is.na(hit)] <- FALSE
+  if (!any(hit)) return(NULL)
+  share <- mean(hit)
+  if (identical(level, "warn")) ctx$warn(key, share = share, ...) else
+    ctx$inform(key, share = share, ...)
+  list(key = key, level = level, share = share)
+}
+
+#' Vermerke und Meldungen für `meta` (Texte, Schlüssel, Meldungsliste)
+#' @param notes Schlüssel reiner Vermerke.
+#' @param messages Liste der Einträge aus `rp_signal()` (`NULL`-Einträge werden entfernt).
+#' @param ... Platzhalter der Texte.
+#' @noRd
+rp_meta_notes <- function(notes, messages = list(), ...) {
+  messages <- Filter(Negate(is.null), messages)
+  keys <- unique(c(notes, vapply(messages, function(x) x$key, "")))
+  shares <- stats::setNames(vapply(messages, function(x) x$share, 0),
+                            vapply(messages, function(x) x$key, ""))
+  texts <- vapply(keys, function(k) {
+    lbl(k, ..., share = if (k %in% names(shares)) shares[[k]] else 1)
+  }, "")
+  list(notes = texts, note_keys = keys, messages = unname(messages))
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -437,7 +482,6 @@ rp_inputs <- function(spec, ctx) {
   notes <- character(0)
   P <- ctx$rule("mr_params")(ctx$legal("mietrecht"), ctx$legal("mietrecht_559f"))
   if (!isTRUE(P$active)) notes <- c(notes, "types.flow.rent_path.msg.topic_inactive")
-  if (!isTRUE(P$active_559f)) notes <- c(notes, "types.flow.rent_path.msg.topic_559f_inactive")
   set <- function(nm) ctx$setting(spec, nm)
   par <- function(nm, shape = "scalar") ctx$param(spec, nm, shape)
   path_or <- function(nm, default) {
@@ -490,9 +534,7 @@ rp_inputs <- function(spec, ctx) {
   turnover <- path_or("turnover_rate_pa", 0)
   turnover_m <- rp_period_months(mo, turnover)
   fluct <- !is.null(mkt_m)
-  if (is.null(mkt_m) && any(par("turnover_rate_pa", "path") %||% 0 > 0)) {
-    notes <- c(notes, "types.flow.rent_path.msg.turnover_without_market")
-  }
+  turnover_no_market <- if (is.null(mkt_m)) rowSums(turnover > 0) > 0 else rep(FALSE, n)
   # Phasen (deterministisch)
   phase <- rep("p558", big_m)
   staffel <- NULL
@@ -562,6 +604,7 @@ rp_inputs <- function(spec, ctx) {
   last558 <- set("last_558_increase_date") %||% grid_add_months(g$valuation_date, -12L)
   list(
     grid = g, n = n, mo = mo, M = big_m, P = P, notes = notes, gid = gid, regime = regime,
+    turnover_no_market = turnover_no_market,
     policy = policy, ovm_policy = ovm_policy, area = area, r0 = r0, mi_rs = mi_rs,
     mi_re = mi_re,
     g_m = g_m, mi_gf = mi_gf, applies_to = set("growth_applies_to") %||% "total",
@@ -635,6 +678,32 @@ rp_hp_carrier <- function(ctx, state) {
       grepl("^heatpump_power", c)
   }, unique(carriers))
   if (length(hp) == 1L) hp else NULL
+}
+
+#' Klassen der Wärmeträger eines Zustands (Teil B 3.2.2)
+#'
+#' Träger aus `carrier_shares` mit Anteil > 0 (kanonische Form, Default `{<heating_carrier>: 1}`)
+#' bzw. `heating_carrier`; je Träger die Klasse aus `energy.carriers.<c>.class`. Ein Zustand ohne
+#' eigene Trägerangabe hat keine neue Heizung (leeres Ergebnis).
+#' @param sp Pfadpräfix des Zustands (`energy.after`, `energy.stages.<s>`).
+#' @return Zeichenvektor der Klassen (ohne fehlende).
+#' @noRd
+rp_state_heating_classes <- function(ctx, sp) {
+  st <- rp_raw(ctx, sp) %||% list()
+  shares <- st[["carrier_shares"]]
+  carriers <- character(0)
+  if (is.list(shares) && length(shares) > 0L) {
+    for (cr in names(shares)) {
+      v <- mr_num(shares[[cr]])
+      if (is.null(v) || isTRUE(v[1L] > 0)) carriers <- c(carriers, cr)
+    }
+  }
+  hc <- rp_code(st[["heating_carrier"]])
+  if (!is.null(hc)) carriers <- c(carriers, hc)
+  cls <- vapply(unique(carriers), function(cr) {
+    rp_code(rp_raw(ctx, paste0("energy.carriers.", cr, ".class"))) %||% NA_character_
+  }, "")
+  unname(cls[!is.na(cls)])
 }
 
 #' Daten einer mietrechtlich relevanten Maßnahme k für die Gruppe (Teil B 1.9.1-1.9.4, 1.10)
@@ -760,6 +829,7 @@ rp_measure <- function(spec, ctx, inp, k, levy_rows, cost_ids, grant_ids, fundin
   hp_flag <- rl[["heat_pump"]]
   heat_pump <- if (is.null(hp_flag)) !is.null(rp_hp_carrier(ctx, hp_state)) else rp_lgl(hp_flag)
   hv <- rep(0, n)
+  jaz_plan_missing <- FALSE
   if (heat_pump && isTRUE(P$active_559f)) {
     jp <- NA_real_
     vt <- NA_real_
@@ -767,6 +837,7 @@ rp_measure <- function(spec, ctx, inp, k, levy_rows, cost_ids, grant_ids, fundin
       sp <- rp_state_path(hp_state)
       jp <- mr_num(rp_raw(ctx, paste0(sp, ".jaz_plan")))
       if (is.null(jp)) {
+        jaz_plan_missing <- TRUE
         jp <- if (is.null(rp_raw(ctx, paste0(sp, ".jaz")))) NA_real_ else
           ctx$value_base(paste0(sp, ".jaz"))[1L]
       }
@@ -789,15 +860,15 @@ rp_measure <- function(spec, ctx, inp, k, levy_rows, cost_ids, grant_ids, fundin
       if (!is.null(raw43)) {
         s43h <- rp_lgl(raw43)
       } else {
-        hcar <- rp_code(rp_raw(ctx, paste0(sp, ".heating_carrier")))
-        cls <- if (is.null(hcar)) NULL else
-          rp_code(rp_raw(ctx, paste0("energy.carriers.", hcar, ".class")))
-        if (!is.null(cls) && !is.null(comp)) {
+        # Wärmeträger des Zustands: carrier_shares (kanonisch, 3.2.2) bzw. heating_carrier
+        cls <- rp_state_heating_classes(ctx, sp)
+        if (length(cls) > 0L && !is.null(comp)) {
           pc <- ctx$rule("co2_params")(ctx$legal("co2kostaufg"), ctx$legal("bio_treppe"))
           inst <- rp_as_date(rp_raw(ctx, paste0(sp, ".installation_date")), g) %||% comp
           existing <- !((rp_code(ctx$project[["project_type"]]) %||% "") %in%
                           c("neubau", "erwerb_neubau"))
-          s43h <- isTRUE(ctx$rule("co2_section43")(cls, inst, existing, pc))
+          s43h <- any(ctx$rule("co2_section43")(cls, rep(inst, length(cls)),
+                                                rep(existing, length(cls)), pc))
         }
       }
     }
@@ -819,7 +890,10 @@ rp_measure <- function(spec, ctx, inp, k, levy_rows, cost_ids, grant_ids, fundin
   } else {
     rep(proc_set, n)
   }
-  fallback_559e <- proc == "bgb_559e" & !dm
+  # Rückfall auf § 559 (I): § 559e verlangt, bzw. bei auto grundsätzlich förderfähig, aber ohne
+  # in Anspruch genommene Drittmittel (Förderung fällt aus, Konzept 3.5)
+  fallback_559e <- (proc == "bgb_559e" |
+                      (identical(proc_set, "auto") & kind == "bgb_555b_1a" & fundable)) & !dm
   proc[fallback_559e] <- "bgb_559"
   hs <- rep_len(rp_num(ctx, paste0(pre, "rent_law.heating_part_share"),
                        if (identical(kind, "bgb_555b_1a")) 1 else 0), n)
@@ -861,7 +935,9 @@ rp_measure <- function(spec, ctx, inp, k, levy_rows, cost_ids, grant_ids, fundin
     fallback_559e = fallback_559e,
     landlord = rp_lgl(rl[["landlord_responsible"]], !identical(kind, "bgb_555b_6")),
     c559 = cost * lam, uses_559c = any(proc == "bgb_559c"), kz = kz, uplift = uplift,
-    comprehensive = rp_lgl(rl[["comprehensive_modernization"]], FALSE)
+    comprehensive = rp_lgl(rl[["comprehensive_modernization"]], FALSE),
+    heat_pump = heat_pump, jaz_plan_missing = jaz_plan_missing,
+    hp_state_missing = heat_pump && is.null(hp_state) && isTRUE(P$active_559f)
   )
 }
 
@@ -958,9 +1034,11 @@ rp_simulate <- function(ctx, inp, meas, unit, vcap) {
   n_t <- g$T + 1L
   aux_k <- lapply(seq_len(nk), function(i) {
     list(computed = matrix(0, n, n_t), capped = matrix(0, n, n_t), charged = matrix(0, n, n_t),
-         procedure = matrix(0, n, n_t), binding = rep(FALSE, n), proc = rep("none", n))
+         procedure = matrix(0, n, n_t), binding = rep(FALSE, n), proc = rep("none", n),
+         limit_559c = rep(FALSE, n), locked = rep(FALSE, n), not_allowed = rep(FALSE, n))
   })
   levy_idx <- which(vapply(meas, function(x) isTRUE(x$levy), logical(1)))
+  staffel_absorb <- rep(FALSE, n)
   rule_allowed <- ctx$rule("mr_levy_allowed")
   rule_cap_t <- ctx$rule("mr_levy_cap_total")
   rule_cap_h <- ctx$rule("mr_levy_cap_heating")
@@ -981,9 +1059,14 @@ rp_simulate <- function(ctx, inp, meas, unit, vcap) {
       m_last_idx[] <- m - inp$index_min
     }
     # (a) Staffel
+    # Bekannte Einschränkung (Spec-Befund, Änderungsantrag zu 1.8.2 (a)): Die Staffelstufe setzt
+    # die Gesamtmiete; eine während der Staffel zulässige Umlage (§ 559e) wird dabei aufgezehrt.
     if (ph == "staffel" && !is.null(inp$staffel)) {
       sidx <- match(m, inp$staffel$months)
-      if (!is.na(sidx)) b <- inp$staffel$values[, sidx] - lsum
+      if (!is.na(sidx)) {
+        staffel_absorb <- staffel_absorb | lsum > 1e-12
+        b <- inp$staffel$values[, sidx] - lsum
+      }
     }
     # (b) Index
     if (ph == "index" && mo$moy[m] == inp$index_month) {
@@ -1022,13 +1105,18 @@ rp_simulate <- function(ctx, inp, meas, unit, vcap) {
         proc <- x$proc
         if (isTRUE(x$uses_559c)) {
           ck <- x$c559 * unit$lam_rel / unit$n_we + prior_559c
-          proc[proc == "bgb_559c" & ck > limit_559c] <- "bgb_559"
+          over <- proc == "bgb_559c" & ck > limit_559c
+          aux_k[[kk]]$limit_559c <- aux_k[[kk]]$limit_559c | (ev & over)
+          proc[over] <- "bgb_559"
         }
         allowed <- rule_allowed(x$kind, inp$regime, ph, x$landlord, proc, P)
         locked <- (m - last559c) < block_559c & x$kind != "bgb_555b_6"
         uu <- x$u_by$bgb_559
         uu[proc == "bgb_559c"] <- x$u_by$bgb_559c[proc == "bgb_559c"]
         uu[proc == "bgb_559e"] <- x$u_by$bgb_559e[proc == "bgb_559e"]
+        live <- ev & m < inp$mi_re & x$a > 0.5
+        aux_k[[kk]]$not_allowed <- aux_k[[kk]]$not_allowed | (live & !allowed & isTRUE(P$active))
+        aux_k[[kk]]$locked <- aux_k[[kk]]$locked | (live & allowed & locked)
         on <- ev & allowed & !locked & m < inp$mi_re
         on_k[, kk] <- on
         u[, kk] <- ifelse(on, x$lambda * uu / (12 * inp$area), 0)
@@ -1086,7 +1174,8 @@ rp_simulate <- function(ctx, inp, meas, unit, vcap) {
     }
     # (g) Fluktuation und Wiedervermietung
     if (inp$fluct) {
-      fm <- inp$turnover_m[, m] / 12
+      # nur in Monaten mit Mietvertrag (act), wie (f): vor rent_start keine Wiedervermietung
+      fm <- inp$turnover_m[, m] / 12 * inp$act[, m]
       t_cur <- b + lsum
       z <- rep(0, n)
       cd <- rep(FALSE, n)
@@ -1110,7 +1199,7 @@ rp_simulate <- function(ctx, inp, meas, unit, vcap) {
     b_m[, m] <- b
     for (kk in seq_len(nk)) l_m[[kk]][, m] <- lev[, kk]
   }
-  list(B = b_m, L = l_m, aux = aux_k, kz_m = kz_m)
+  list(B = b_m, L = l_m, aux = aux_k, kz_m = kz_m, staffel_absorb = staffel_absorb)
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -1165,12 +1254,12 @@ rp_voluntary_cap <- function(spec, ctx, inp, meas) {
   g <- inp$grid
   if (!identical(inp$cap_mode, "warm_rent_neutral")) {
     v <- ctx$param(spec, "voluntary_cap_per_m2")
-    return(list(vcap = if (is.null(v)) rep(Inf, n) else rep_len(v, n), notes = character(0)))
+    return(list(vcap = if (is.null(v)) rep(Inf, n) else rep_len(v, n), no_saving = rep(FALSE, n)))
   }
   tid <- ctx$setting(spec, "tenant_cost_component")
   levy_meas <- Filter(function(x) isTRUE(x$levy), meas)
   if (is.null(tid) || length(levy_meas) == 0L) {
-    return(list(vcap = rep(0, n), notes = "types.flow.rent_path.msg.warm_neutral_no_saving"))
+    return(list(vcap = rep(0, n), no_saving = rep(TRUE, n)))
   }
   me_min <- min(vapply(levy_meas, function(x) as.double(x$me_base), double(1)))
   starts <- c(0, g$month_end[-(g$T + 1L)]) + 1
@@ -1178,11 +1267,10 @@ rp_voluntary_cap <- function(spec, ctx, inp, meas) {
   fl <- ctx$component_base(tid)
   sav <- fl$aux$saving_eur_m2_month
   if (length(cand) == 0L || is.null(sav)) {
-    return(list(vcap = rep(0, n), notes = "types.flow.rent_path.msg.warm_neutral_no_saving"))
+    return(list(vcap = rep(0, n), no_saving = rep(TRUE, n)))
   }
-  v <- pmax(0, sav[, cand[1L]])
-  notes <- if (all(v <= 0)) "types.flow.rent_path.msg.warm_neutral_no_saving" else character(0)
-  list(vcap = rep_len(v, n), notes = notes)
+  v <- rep_len(pmax(0, sav[, cand[1L]]), n)
+  list(vcap = v, no_saving = v <= 0)
 }
 
 #' Mietpfad bauen (build() des Typs rent_path)
@@ -1214,17 +1302,12 @@ rp_build <- function(spec, ctx) {
     inp$ovm_m <- lvl * idx
     inp[["ovm_unmod_m"]] <- lvl_un * idx
   }
-  has_funds <- vapply(meas, function(x) any(x$grants + x$tz + x$zint > 0), logical(1))
-  if (!inp$ovm_policy && any(has_funds)) {
-    inp$notes <- c(inp$notes, "types.flow.rent_path.msg.kuerzung_only_ovm")
-  }
   # Belegung (1.8.4)
   works <- lapply(meas, function(x) x$works)
   vr <- inp$turnover_m * matrix(inp$relet, n, big_m) / 12
   core <- rp_vac_core(inp$mo, n, inp$vs_m, vr, inp$lease_up, inp$mi_rs, inp$mi_re, works)
   inp$act <- core$act
   vc <- rp_voluntary_cap(spec, ctx, inp, meas)
-  inp$notes <- c(inp$notes, vc$notes)
   units <- rp_units(spec, ctx, inp)
   sims <- lapply(units, function(u) rp_simulate(ctx, inp, meas, u, vc$vcap))
   occ <- (1 - inp$vs_m) * (1 - vr) * core$wm * core$wv * (1 - core$lu) * (1 - inp$extra_m)
@@ -1285,10 +1368,12 @@ rp_build <- function(spec, ctx) {
   vcm[, 1L] <- 0
   aux$voluntary_cap_level <- vcm
   aux$area_m2 <- ctx$by_sim(inp$area)
-  notes <- unique(c(inp$notes, rp_measure_notes(meas)))
+  mn <- rp_meta_notes(rp_notes(inp, meas), rp_messages(ctx, inp, meas, sims, vc),
+                      group = inp$gid)
   meta <- list(
-    notes = vapply(notes, function(k) lbl(k, group = inp$gid), ""),
-    note_keys = notes,
+    notes = mn$notes,
+    note_keys = mn$note_keys,
+    messages = mn$messages,
     levy = lapply(stats::setNames(meas, ids), function(x) {
       pr <- sims[[1L]]$aux[[match(x$id, ids)]]$proc
       list(procedure_share = vapply(c("none", "bgb_559", "bgb_559c", "bgb_559e"),
@@ -1300,14 +1385,68 @@ rp_build <- function(spec, ctx) {
   vofi_flows(rows, aux = aux, meta = meta)
 }
 
-#' Hinweise aus den Maßnahmen (Rückfall § 559e -> § 559)
+#' Vermerke des Mietpfads ohne Laufbezug (Themen inaktiv; Teil B 0.9, 1.14)
+#'
+#' `topic_559f_inactive` nur, wenn eine Umlage einer Wärmepumpenmaßnahme betroffen ist.
 #' @noRd
-rp_measure_notes <- function(meas) {
-  out <- character(0)
-  if (any(vapply(meas, function(x) any(x$fallback_559e) && isTRUE(x$levy), logical(1)))) {
-    out <- c(out, "types.flow.rent_path.msg.fallback_559")
+rp_notes <- function(inp, meas) {
+  hp <- any(vapply(meas, function(x) isTRUE(x$levy) && isTRUE(x$heat_pump), logical(1)))
+  c(inp$notes,
+    if (hp && !isTRUE(inp$P$active_559f)) "types.flow.rent_path.msg.topic_559f_inactive")
+}
+
+#' Laufbezogene Meldungen des Mietpfads (Teil B 1.9.2, 1.10, 1.14)
+#' @param sims Ergebnisse von `rp_simulate()` je Einheit.
+#' @param vc Ergebnis von `rp_voluntary_cap()`.
+#' @return Liste der Einträge aus `rp_signal()`.
+#' @noRd
+rp_messages <- function(ctx, inp, meas, sims, vc) {
+  n <- inp$n
+  gid <- inp$gid
+  pre <- "types.flow.rent_path.msg."
+  sig <- function(code, hit, level) rp_signal(ctx, paste0(pre, code), hit, level, group = gid)
+  none <- rep(FALSE, n)
+  levy_k <- which(vapply(meas, function(x) isTRUE(x$levy), logical(1)))
+  ev_any <- function(fld) {
+    out <- none
+    for (kk in levy_k) {
+      for (s in sims) out <- out | s$aux[[kk]][[fld]]
+    }
+    out
   }
-  out
+  per_k <- function(fun) {
+    out <- none
+    for (kk in levy_k) out <- out | rep_len(fun(meas[[kk]]), n)
+    out
+  }
+  after_end <- per_k(function(x) {
+    is.finite(x$me) & (x$me > inp$M | x$me >= inp$mi_re) & x$a > 0.5
+  })
+  above <- none
+  if (inp$ovm_policy && isTRUE(inp$P$active) && !is.null(inp[["ovm_m"]])) {
+    m1 <- pmin(pmax(inp$mi_rs, 1), inp$M)
+    above <- inp$r0 > 1.2 * inp[["ovm_m"]][cbind(seq_len(n), m1)]
+  }
+  funds <- none
+  if (!inp$ovm_policy) {
+    for (x in meas) funds <- funds | (x$grants + x$tz + x$zint) > ctx$tol$zero_abs
+  }
+  absorb <- none
+  for (s in sims) absorb <- absorb | s$staffel_absorb
+  list(
+    sig("limit_559c", ev_any("limit_559c"), "warn"),
+    sig("blocked_559c", ev_any("locked"), "warn"),
+    sig("levy_not_allowed", ev_any("not_allowed"), "inform"),
+    sig("levy_after_end", after_end, "inform"),
+    sig("fallback_559", per_k(function(x) x$fallback_559e & x$a > 0.5), "inform"),
+    sig("hp_state_missing", per_k(function(x) isTRUE(x$hp_state_missing)), "warn"),
+    sig("jaz_plan_missing", per_k(function(x) isTRUE(x$jaz_plan_missing)), "inform"),
+    sig("rent_above_ovm", above, "inform"),
+    sig("turnover_without_market", inp$turnover_no_market, "inform"),
+    sig("kuerzung_only_ovm", funds, "inform"),
+    sig("warm_neutral_no_saving", vc$no_saving, "warn"),
+    sig("staffel_absorbs_levy", absorb, "inform")
+  )
 }
 
 #' @noRd

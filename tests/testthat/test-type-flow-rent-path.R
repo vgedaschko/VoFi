@@ -7,6 +7,9 @@ expect_eur <- function(actual, expected, tol = 0.006) {
                                      "soll:", paste(expected, collapse = " ")))
 }
 
+# Meldungen (I) der Typen nur dort ausgeben, wo ein Test sie mit expect_message() prüft
+withr::local_options(vofi.verbose = FALSE)
+
 test_that("Vertragstests rent_path (Prüfkit 5.6)", {
   expect_type_contract("rent_path", "flow")
 })
@@ -158,12 +161,17 @@ test_that("RP-6: Fluktuation mit und ohne Mietpreisbremse", {
 test_that("RP-8: Staffelmiete, keine Umlage nach § 559 während der Staffel", {
   meas <- list(k = list(modernization_kind = "bgb_555b_1", cost_eur = 20000,
                         completion_date = "2027-10-01", ohnehin_share = 0))
-  res <- eop_rp(unit_group = "g", living_area_m2 = 100, n_units = 1L, rent_eur_m2_month = 8,
-                rent_regime = "staffel",
-                staffel_steps = list(schedule = list("2028-01-01" = 8.30, "2029-07-01" = 8.60)),
-                rent_law_measures = list("k"), levy_rows = list("k"), .measures = meas)
+  withr::local_options(vofi.verbose = TRUE)
+  expect_message(
+    res <- eop_rp(unit_group = "g", living_area_m2 = 100, n_units = 1L, rent_eur_m2_month = 8,
+                  rent_regime = "staffel",
+                  staffel_steps = list(schedule = list("2028-01-01" = 8.30, "2029-07-01" = 8.60)),
+                  rent_law_measures = list("k"), levy_rows = list("k"), .measures = meas),
+    "nicht zulässig", class = "vofi_message"
+  )
   expect_eur(eop_years(res, "rent", 2027:2029), c(9600, 9960, 10140))
   expect_eur(eop_years(res, "levy_k", 2027:2031), rep(0, 5))
+  expect_true("types.flow.rent_path.msg.levy_not_allowed" %in% res$flows$meta$note_keys)
 })
 
 test_that("RP-9: Indexmiete, Dämpfung mit Mietrecht II", {
@@ -417,9 +425,12 @@ test_that("RP-14: warmmietenneutrale Obergrenze aus dem Basisfall der Mieterkost
                .base_deps = list(e_tenant = tenant), .grid = g)
   expect_eur(eop_years(mc, "levy_k", 2028), 12159.42)
   # ohne Komponente: Obergrenze 0 mit Hinweis
-  none <- eop_rp(unit_group = "g", living_area_m2 = 1000, n_units = 10L, rent_eur_m2_month = 6,
-                 rent_law_measures = list("k"), levy_rows = list("k"),
-                 voluntary_cap_mode = "warm_rent_neutral", .measures = meas, .grid = g)
+  expect_warning(
+    none <- eop_rp(unit_group = "g", living_area_m2 = 1000, n_units = 10L, rent_eur_m2_month = 6,
+                   rent_law_measures = list("k"), levy_rows = list("k"),
+                   voluntary_cap_mode = "warm_rent_neutral", .measures = meas, .grid = g),
+    "Obergrenze 0", class = "vofi_warning_engine"
+  )
   expect_eur(eop_years(none, "levy_k", 2028), 0)
   expect_true("types.flow.rent_path.msg.warm_neutral_no_saving" %in% none$flows$meta$note_keys)
 })
@@ -512,4 +523,298 @@ test_that("Rasterinvarianz (F10) mit Umlage und Steigerung", {
                    eop_year(eop_row(m$flows, key), m$grid, y), tolerance = 1e-9)
     }
   }
+})
+
+# ---------------------------------------------------------------------------------------------
+# Regressionstests aus dem Review (EOP-03, EOP-04, EOP-06, EOP-08, EOP-10)
+# ---------------------------------------------------------------------------------------------
+
+#' Monatsraster ab 2027-01-01 (72 Perioden zu einem Monat): aux$rent_level[, m + 1] = T_m
+rp_monthly_grid <- function(months = 72L) {
+  vofi_time_grid(as.Date("2027-01-01"), NULL, periods_months = rep(1L, months))
+}
+rp_t <- function(res) res$flows$aux$rent_level[1, -1L]
+
+test_that("EOP-03: Neubau mit Marktmiete, Fluktuation erst ab Mietbeginn", {
+  run <- function(turnover) {
+    eop_rp(unit_group = "g", living_area_m2 = 100, n_units = 1L, rent_eur_m2_month = 12,
+           rent_start = "2029-01-01", increase_policy = "fixed_growth", rent_growth = 0,
+           market_rent_eur_m2_month = 10, market_rent_growth = 0, turnover_rate_pa = turnover)
+  }
+  res <- run(0.12)
+  # vor dem ersten Mietvertrag bleibt die Erstvermietungsmiete unverändert
+  expect_equal(res$flows$aux$base_level[1, 2:3], c(12, 12))
+  # ab Januar 2029: T_k = 10 + 2 * 0,99^k (Fluktuation 1 % je Monat zur Marktmiete)
+  expect_eur(eop_years(res, "rent", 2029), 100 * sum(10 + 2 * 0.99^(1:12)))
+  expect_eur(eop_years(res, "rent", 2027:2028), c(0, 0))
+  expect_eur(eop_years(run(0), "rent", 2029), 14400)
+})
+
+test_that("EOP-04: § 43-Heizung auch aus carrier_shares (keine 15-%-Pauschale in § 559e)", {
+  g <- make_grid(T = 6L)
+  run <- function(after) {
+    meas <- list(h = list(modernization_kind = "bgb_555b_1a", cost_eur = 100000,
+                          ohnehin_cost_eur = 30000, completion_date = "2027-10-01"))
+    energy <- list(carriers = list(gas = list(class = "gas")),
+                   before = list(heating_carrier = "gas"),
+                   after = c(list(measure = "h"), after))
+    eop_rp(unit_group = "g", living_area_m2 = 1000, n_units = 10L, rent_eur_m2_month = 7,
+           increase_policy = "fixed_growth", rent_growth = 0, rent_law_measures = list("h"),
+           levy_rows = list("h"), grant_components = list("f_g"), after = list("f_g"),
+           .measures = meas, .energy = energy, .project = list(project_type = "bestand"),
+           .deps = list(f_g = eop_grant_flows(1L, g, "h", 20000)), .grid = g)$flows$aux
+  }
+  # § 559e mit s43: B = K − IH − G = 100.000 − 30.000 − 20.000; U = 0,10 · B
+  expect_eur(run(list(heating_carrier = "gas"))$levy_h_computed[1, 3], 5000)
+  expect_eur(run(list(carrier_shares = list(gas = 1)))$levy_h_computed[1, 3], 5000)
+  # Hybrid mit fossilem Anteil: § 43 (Vorrang der vorsichtigen Lesart, Nutzer setzt section43)
+  hyb <- run(list(carrier_shares = list(gas = 0.2, heatpump_power = 0.8)))
+  expect_eur(hyb$levy_h_computed[1, 3], 5000)
+  # ausdrücklich section43: false -> 15-%-Pauschale: 0,10 · (0,85 · K − G)
+  expect_eur(run(list(carrier_shares = list(gas = 1), section43 = FALSE))$levy_h_computed[1, 3],
+             6500)
+})
+
+test_that("EOP-10: levy_history im Kappungsfenster (L-8 auf Typebene, Fenster 72 Monate)", {
+  run <- function(date, value = 1.5, procedure = "bgb_559", kind = "bgb_555b_1") {
+    meas <- list(k = list(modernization_kind = kind, cost_eur = 21000, ohnehin_share = 0,
+                          completion_date = "2027-03-01",
+                          rent_law = list(levy_effective_date = "2027-03-01")))
+    ug <- list(g = list(living_area_m2 = 70,
+                        levy_history = list(h1 = list(effective_date = date, eur_m2_month = value,
+                                                      procedure = procedure))))
+    eop_rp(unit_group = "g", living_area_m2 = 70, n_units = 1L, rent_eur_m2_month = 7.5,
+           increase_policy = "fixed_growth", rent_growth = 0, rent_law_measures = list("k"),
+           levy_rows = list("k"), .measures = meas, .unit_groups = ug)
+  }
+  # L-8: Vorumlagen 1,50 in sechs Jahren, T = 7,50 (Kappe 3,00): neue Umlage 2,00 -> 1,50
+  in_win <- run("2021-04-01")
+  expect_eur(eop_years(in_win, "levy_k", 2027:2028), c(1.5 * 70 * 10, 1.5 * 70 * 12))
+  expect_eur(in_win$flows$aux$levy_k_computed[1, 2], 1680)
+  expect_eur(in_win$flows$aux$levy_k_capped[1, 2], 1260)
+  # Vorumlage vor dem Fenster (Monat −69 < m − 71): zählt nicht
+  out_win <- run("2021-03-01")
+  expect_eur(eop_years(out_win, "levy_k", 2027:2028), c(2 * 70 * 10, 2 * 70 * 12))
+})
+
+test_that("EOP-10: Sperrfrist § 559c Abs. 4 mit W, Ausnahme § 555b Nr. 6", {
+  meas <- function(kind) {
+    list(k = list(modernization_kind = kind, cost_eur = 21000, ohnehin_share = 0,
+                  completion_date = "2027-03-01",
+                  rent_law = list(levy_effective_date = "2027-03-01")))
+  }
+  ug <- list(g = list(living_area_m2 = 70,
+                      levy_history = list(h1 = list(effective_date = "2025-01-01",
+                                                    eur_m2_month = 1, procedure = "bgb_559c"))))
+  args <- list(unit_group = "g", living_area_m2 = 70, n_units = 1L, rent_eur_m2_month = 7.5,
+               increase_policy = "fixed_growth", rent_growth = 0, rent_law_measures = list("k"),
+               levy_rows = list("k"), .unit_groups = ug)
+  expect_warning(locked <- do.call(eop_rp, c(args, list(.measures = meas("bgb_555b_1")))),
+                 "Sperrfrist", class = "vofi_warning_engine")
+  expect_eur(eop_years(locked, "levy_k", 2027:2029), c(0, 0, 0))
+  expect_true("types.flow.rent_path.msg.blocked_559c" %in% locked$flows$meta$note_keys)
+  # § 555b Nr. 6 ist von der Sperre ausgenommen; Kappungsraum 3,00 − 1,00 (Historie)
+  free <- do.call(eop_rp, c(args, list(.measures = meas("bgb_555b_6"))))
+  expect_eur(eop_years(free, "levy_k", 2027:2028), c(2 * 70 * 10, 2 * 70 * 12))
+})
+
+test_that("EOP-10: increase_policy max, interval und capped (1.8.2 (f))", {
+  gm <- rp_monthly_grid()
+  run <- function(policy, ...) {
+    rp_t(eop_rp(unit_group = "g", living_area_m2 = 100, n_units = 1L, rent_eur_m2_month = 7,
+                ovm_eur_m2_month = 7, rent_growth = 0.03, rent_36m_ago_eur_m2_month = 7,
+                last_558_increase_date = "2026-01-01", increase_policy = policy, ...,
+                .grid = gm))
+  }
+  ovm <- function(m) 7 * 1.03^(m / 12)
+  path <- function(starts, values) {
+    out <- rep(7, 72L)
+    for (i in seq_along(starts)) out[starts[i]:72] <- values[i]
+    out
+  }
+  # max: Wartefrist 15 Monate ab der letzten Erhöhung (Monat −11), jeweils auf die OVM
+  st <- c(4, 19, 34, 49, 64)
+  expect_eur(run("max"), path(st, ovm(st)), tol = 1e-9)
+  # interval 36 Monate: erste Erhöhung in Monat 25, dann 61
+  expect_eur(run("interval", interval_months = 36L), path(c(25, 61), ovm(c(25, 61))),
+             tol = 1e-9)
+  # capped: höchstens 5 % in 36 Monaten (Basis T vor 36 Monaten)
+  cap <- run("capped", voluntary_558_cap_share = 0.05)
+  expect_eur(cap, path(c(4, 19, 34, 49, 64),
+                       c(ovm(4), ovm(19), 7 * 1.05, ovm(4) * 1.05, ovm(19) * 1.05)), tol = 1e-9)
+})
+
+test_that("EOP-10: Bindung (bound_social) und Kappung nach Bindungsende", {
+  gm <- rp_monthly_grid()
+  run <- function(pbk) {
+    rp_t(eop_rp(unit_group = "g", living_area_m2 = 100, n_units = 1L, rent_eur_m2_month = 5,
+                rent_regime = "bound_social", binding_end = "2029-01-01",
+                bound_increase_pa = 0.02, ovm_eur_m2_month = 8, rent_growth = 0,
+                rent_36m_ago_eur_m2_month = 5, post_binding_kappung = pbk, .grid = gm))
+  }
+  bound <- c(rep(5, 12), rep(5.1, 12))
+  # erste Erhöhung nach Bindungsende ohne Kappungsgrenze
+  expect_eur(run(FALSE), c(bound, rep(8, 48)), tol = 1e-9)
+  # mit Kappung: 6,00 (Basis 5,00), 6,12 (Basis 5,10 ab Monat 49), 7,20 (Basis 6,00 ab Monat 64)
+  expect_eur(run(TRUE), c(bound, rep(6, 24), rep(6.12, 15), rep(7.2, 9)), tol = 1e-9)
+})
+
+test_that("EOP-10: Indexmiete nach der Staffel (after_staffel_regime)", {
+  res <- eop_rp(unit_group = "g", living_area_m2 = 100, n_units = 1L, rent_eur_m2_month = 8,
+                rent_regime = "staffel", after_staffel_regime = "index",
+                staffel_steps = list(schedule = list("2028-01-01" = 8.30)),
+                index_rate = list(series = list("2027" = 0.028, "2028" = 0.022)))
+  expect_eur(eop_years(res, "rent", 2027:2030),
+             c(9600, 9960, 8.30 * 1.022 * 1200, 8.30 * 1.022^2 * 1200))
+})
+
+test_that("EOP-10: Kürzung § 558 Abs. 5 aus Förderkredit (fixed_years) und Zinsverbilligung", {
+  gm <- rp_monthly_grid()
+  meas <- list(k = list(modernization_kind = "bgb_555b_1", cost_eur = 50000,
+                        completion_date = "2027-01-01"))
+  fund <- list(f1 = list(instrument_type = "loan", measures = list("k"),
+                         rent_law = list(reference_rate_pa = 0.04)))
+  fin <- list(f_f1_loan = list(amount_eur = 40000, approved = 1, rate_pa = 0.01,
+                               start = "2027-01-01", fixed_years = 2))
+  run <- function(...) {
+    rp_t(eop_rp(unit_group = "g", living_area_m2 = 100, n_units = 1L, rent_eur_m2_month = 7,
+                ovm_eur_m2_month = 9, rent_growth = 0, rent_36m_ago_eur_m2_month = 7,
+                last_558_increase_date = "2025-01-01", rent_law_measures = list("k"),
+                funding_ids = list("f1"), ..., .measures = meas, .funding = fund,
+                .financing = fin, .grid = gm))
+  }
+  # Kürzung 40.000 · (4 % − 1 %) / (12 · 100) = 1,00 EUR/m² über die Zinsbindung (24 Monate)
+  expect_eur(run(), c(rep(7.4, 24), rep(8.4, 15), rep(8.88, 21), rep(9, 12)), tol = 1e-9)
+  # kuerzung_loan_years = 1: Kürzung nur 12 Monate
+  expect_eur(run(kuerzung_loan_years = 1), c(rep(7.4, 15), rep(8.4, 21), rep(8.88, 15),
+                                             rep(9, 21)), tol = 1e-9)
+  # Zinsverbilligung (interest_subsidy) mindert die Umlage nach § 559a Abs. 2
+  sub <- list(f2 = list(instrument_type = "interest_subsidy", measures = list("k"),
+                        approved = 1,
+                        interest_subsidy = list(subsidized_amount_eur = 50000,
+                                                rate_reduction_pa = 0.02,
+                                                start_event = "2027-01-01", years = 2)))
+  ml <- list(k = list(modernization_kind = "bgb_555b_1", cost_eur = 21000, ohnehin_share = 0,
+                      completion_date = "2027-03-01",
+                      rent_law = list(levy_effective_date = "2027-03-01")))
+  lv <- eop_rp(unit_group = "g", living_area_m2 = 70, n_units = 1L, rent_eur_m2_month = 7.5,
+               increase_policy = "fixed_growth", rent_growth = 0, rent_law_measures = list("k"),
+               levy_rows = list("k"), funding_ids = list("f2"), .measures = ml, .funding = sub)
+  expect_eur(lv$flows$aux$levy_k_computed[1, 2], 0.08 * 21000 - 1000)
+  expect_eur(eop_years(lv, "levy_k", 2028), 680)
+})
+
+test_that("EOP-10: umfassende Modernisierung und § 556e Abs. 2 bei der Wiedervermietung", {
+  g <- vofi_time_grid(as.Date("2027-01-01"), 3L, construction_months = 12L,
+                      construction_step_months = 1L)
+  run <- function(meas, ...) {
+    eop_rp(unit_group = "g", living_area_m2 = 100, n_units = 1L, rent_eur_m2_month = 8,
+           increase_policy = "fixed_growth", rent_growth = 0, ovm_eur_m2_month = 9,
+           market_rent_eur_m2_month = 11, market_rent_growth = 0, turnover_rate_pa = 0.12,
+           brake_area = TRUE, brake_until = "2029-12-31", first_use_after_2014_10_01 = FALSE,
+           rent_law_measures = list("k"), ..., .measures = meas, .grid = g)
+  }
+  # § 556f S. 2: nach umfassender Modernisierung keine Mietpreisbremse (wie RP-6 ohne Bremse)
+  comp <- run(list(k = list(modernization_kind = "bgb_555b_1", completion_date = "2027-01-01",
+                            rent_law = list(comprehensive_modernization = TRUE))))
+  expect_equal(comp$flows$aux$rent_level[1, 13], 8.340845, tolerance = 1e-6)
+  expect_eur(eop_years(comp, "rent", 2027), 9825.63)
+  # § 556e Abs. 2: Umlage 1,00 EUR/m² (§ 559) erhöht die zulässige Neuvertragsmiete
+  lev <- run(list(k = list(modernization_kind = "bgb_555b_1", cost_eur = 15000,
+                           ohnehin_share = 0, completion_date = "2027-01-01",
+                           rent_law = list(levy_effective_date = "2027-01-01"))),
+             levy_rows = list("k"))
+  ref <- function(with_z) {
+    b <- 8
+    l <- 0
+    out <- matrix(0, 12, 2)
+    for (m in 1:12) {
+      if (m == 1) l <- 1
+      rn <- min(11, max(9.9, b + l, 9.9 + l * with_z))
+      b <- 0.99 * b + 0.01 * rn
+      l <- 0.99 * l
+      out[m, ] <- c(b, l)
+    }
+    100 * colSums(out)
+  }
+  expect_eur(c(eop_years(lev, "rent", 2027), eop_years(lev, "levy_k", 2027)), ref(1), tol = 1e-6)
+  expect_true(eop_years(lev, "rent", 2027) > ref(0)[1] + 1)
+})
+
+test_that("EOP-06: Meldungen I/W des Mietpfads mit Anteil der Läufe", {
+  withr::local_options(vofi.verbose = TRUE)
+  base <- list(unit_group = "g", living_area_m2 = 70, n_units = 1L, rent_eur_m2_month = 7.5,
+               increase_policy = "fixed_growth", rent_growth = 0)
+  lm <- function(date, extra = list()) {
+    list(k = list(modernization_kind = "bgb_555b_1", cost_eur = 21000, ohnehin_share = 0,
+                  completion_date = "2027-03-01",
+                  rent_law = c(list(levy_effective_date = date), extra)))
+  }
+  # Wirksamkeit nach dem Mietende: Umlage entfällt (I)
+  expect_message(
+    end <- do.call(eop_rp, c(base, list(rent_end = "2028-06-01", rent_law_measures = list("k"),
+                                        levy_rows = list("k"), .measures = lm("2028-07-01")))),
+    "Mietende", class = "vofi_message"
+  )
+  expect_eur(eop_years(end, "levy_k", 2027:2029), c(0, 0, 0))
+  m_end <- Filter(function(x) grepl("levy_after_end", x$key), end$flows$meta$messages)
+  expect_identical(m_end[[1L]]$level, "inform")
+  expect_equal(m_end[[1L]]$share, 1)
+  # Miete > 1,2 · OVM zu Beginn (I)
+  expect_message(
+    eop_rp(unit_group = "g", living_area_m2 = 70, n_units = 1L, rent_eur_m2_month = 10,
+           ovm_eur_m2_month = 8, rent_growth = 0),
+    "120 %", class = "vofi_message"
+  )
+  # heat_pump ohne hp_state bei aktivem § 559f: W, Halbierung angewendet
+  legal <- eop_legal(mietrecht_559f = eop_lp_559f())
+  expect_warning(
+    hp <- do.call(eop_rp, c(base, list(rent_law_measures = list("k"), levy_rows = list("k"),
+                                       .measures = lm("2027-03-01", list(heat_pump = TRUE)),
+                                       .legal = legal))),
+    "hp_state", class = "vofi_warning_engine"
+  )
+  expect_eur(hp$flows$aux$levy_k_computed[1, 2], 0.5 * 1680)
+  # topic_559f_inactive nur bei einer Wärmepumpenmaßnahme
+  plain <- do.call(eop_rp, c(base, list(rent_law_measures = list("k"), levy_rows = list("k"),
+                                        .measures = lm("2027-03-01"))))
+  expect_false("types.flow.rent_path.msg.topic_559f_inactive" %in% plain$flows$meta$note_keys)
+  hp_off <- do.call(eop_rp, c(base, list(rent_law_measures = list("k"), levy_rows = list("k"),
+                                         .measures = lm("2027-03-01", list(heat_pump = TRUE)))))
+  expect_true("types.flow.rent_path.msg.topic_559f_inactive" %in% hp_off$flows$meta$note_keys)
+  # Anteil der Läufe: Fluktuation ohne Marktmiete nur in einem von zwei Läufen
+  g <- make_grid(T = 6L)
+  dr <- fake_draws(2L, g, static = list("components.u_g_rent.turnover_rate_pa" = c(0, 0.1)))
+  expect_message(
+    tr <- do.call(eop_rp, c(base, list(turnover_rate_pa = 0.1, .n = 2L, .draws = dr,
+                                       .grid = g))),
+    "Fluktuation ohne Marktmiete", class = "vofi_message"
+  )
+  m_tr <- Filter(function(x) grepl("turnover_without_market", x$key), tr$flows$meta$messages)
+  expect_equal(m_tr[[1L]]$share, 0.5)
+})
+
+test_that("EOP-08: Staffelstufe zehrt eine § 559e-Umlage auf (bekannte Einschränkung, I)", {
+  withr::local_options(vofi.verbose = TRUE)
+  g <- make_grid(T = 6L)
+  meas <- list(k = list(modernization_kind = "bgb_555b_1a", cost_eur = 20000, ohnehin_share = 0,
+                        completion_date = "2027-10-01",
+                        rent_law = list(levy_effective_date = "2027-10-01")))
+  out <- eop_messages(
+    eop_rp(unit_group = "g", living_area_m2 = 100, n_units = 1L, rent_eur_m2_month = 8,
+           rent_regime = "staffel",
+           staffel_steps = list(schedule = list("2028-01-01" = 8.30, "2029-07-01" = 8.60)),
+           rent_law_measures = list("k"), levy_rows = list("k"), grant_components = list("f_g"),
+           after = list("f_g"), .measures = meas,
+           .deps = list(f_g = eop_grant_flows(1L, g, "k", 5000)), .grid = g)
+  )
+  res <- out$value
+  expect_true(any(grepl("Staffelstufe", out$messages)))
+  # Staffel ohne § 558-Prüfung: Kürzung nach § 558 Abs. 5 nicht abgebildet (I, 1.10)
+  expect_true(any(grepl("Vergleichsmieten-Modi", out$messages)))
+  # Spec 1.8.2 (a): B <- Staffelwert − Σ L; Gesamtmiete 2028 = Staffel 8,30 (Umlage 0,50 aufgezehrt)
+  expect_eur(eop_years(res, "levy_k", 2027:2028), c(150, 600))
+  expect_eur(eop_years(res, "rent", 2028), 9360)
+  expect_eur(eop_years(res, "rent", 2028) + eop_years(res, "levy_k", 2028), 9960)
+  expect_true("types.flow.rent_path.msg.staffel_absorbs_levy" %in% res$flows$meta$note_keys)
 })

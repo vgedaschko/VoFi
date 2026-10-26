@@ -37,6 +37,15 @@ test_that("mr_params: Rechtsparameter aus der Nutzlast", {
   expect_equal(c(p_cur$limit_559c_per_unit, p_ii$limit_559c_per_unit), c(10000, 20000))
   expect_false("bgb_559e" %in% p_cur$relet_levy_procedures)
   expect_true("bgb_559e" %in% p_ii$relet_levy_procedures)
+  # Regelkonstante je Rechtsstand nur über s556e.relet_levy_procedures (EOP-09); ohne den
+  # Schlüssel gilt das geltende Recht, auch wenn s557a.excludes § 559e enthält
+  lp_no_key <- eop_lp_mietrecht_ii()
+  lp_no_key$s556e <- NULL
+  expect_identical(mr_params(lp_no_key, NULL)$relet_levy_procedures, c("bgb_559", "bgb_559c"))
+  lp_other <- eop_lp_mietrecht()
+  lp_other$s556e <- NULL
+  lp_other$s557a$excludes <- c(lp_other$s557a$excludes, "bgb_559e")
+  expect_false("bgb_559e" %in% mr_params(lp_other, NULL)$relet_levy_procedures)
   inactive <- mr_params(NULL, NULL)
   expect_false(isTRUE(inactive$active))
   expect_equal(mr_levy_annual("bgb_559", 1e5, 0, 0, 0, 0, "full", 0, "halve_then_funds",
@@ -116,9 +125,13 @@ test_that("L-6: § 559c über der Wertgrenze fällt auf § 559 zurück; Mietrech
                                                      levy_effective_date = "2027-01-01"))),
            .legal = legal)
   }
-  cur <- case(eop_legal())
+  # W „Wertgrenze überschritten“ mit dem Anteil der Läufe (1.9.2, 1.14)
+  expect_warning(cur <- case(eop_legal()), "Wertgrenze", class = "vofi_warning_engine")
   expect_near(eop_years(cur, "levy_k", 2027:2028), c(1440, 1440))
   expect_equal(cur$flows$aux$levy_k_procedure[1, 2], 1)
+  msg <- Filter(function(x) grepl("limit_559c", x$key), cur$flows$meta$messages)
+  expect_length(msg, 1L)
+  expect_identical(c(msg[[1L]]$level, msg[[1L]]$share), c("warn", "1"))
   ii <- case(eop_legal(mietrecht = eop_lp_mietrecht_ii()))
   expect_near(eop_years(ii, "levy_k", 2027:2028), c(1008, 1008))
   expect_near(eop_row(ii$flows, "levy_k")[1, 2] / 12, 84.00)

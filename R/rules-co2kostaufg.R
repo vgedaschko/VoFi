@@ -93,8 +93,8 @@ co2_stage_share <- function(specific_kg_m2_pa, PC) {
 #' Neue Heizung nach § 43 GModG (Bio-Treppe, § 5a, keine 15-%-Pauschale; Teil B 3.7.4)
 #'
 #' `TRUE`, wenn die Trägerklasse zu den Heizungsarten der Bio-Treppe gehört, der Einbau am oder nach
-#' dem Stichtag der Regelung liegt und das Gebäude ein Bestandsgebäude ist. Ist die Bio-Treppe
-#' inaktiv, gilt der Stichtag des § 5a CO2KostAufG mit den Klassen Gas, Öl und Flüssiggas.
+#' dem Stichtag der Regelung liegt und das Gebäude ein Bestandsgebäude ist. Ist das Thema
+#' `bio_treppe` inaktiv, sind die `bio_*`-Parameter `NULL` und das Ergebnis `FALSE` (3.7.4).
 #' @param carrier_class Code `carrier_class`.
 #' @param installation_date Einbaudatum (Date).
 #' @param existing_building Bestandsgebäude (lgl).
@@ -106,11 +106,7 @@ co2_section43 <- function(carrier_class, installation_date, existing_building, P
   if (n == 0L) return(logical(0))
   classes <- PC$bio_heating_classes
   after <- PC$bio_installed_after
-  if (is.null(after)) {
-    classes <- c("gas", "oil", "lpg")
-    after <- PC$s5a_installed_after
-  }
-  if (is.null(after)) return(rep(FALSE, n))
+  if (is.null(after) || length(classes) == 0L) return(rep(FALSE, n))
   cls <- rep_len(as.character(carrier_class), n)
   d <- rep_len(as.Date(installation_date), n)
   ex <- rep_len(as.logical(existing_building), n)
@@ -125,9 +121,12 @@ co2_section43 <- function(carrier_class, installation_date, existing_building, P
 #' Termine des § 5a CO2KostAufG (Vermieteranteil 50 % an CO2-Kosten, Gasnetzentgelt,
 #' Bio-Mehrkosten; Teil B 3.7.4)
 #'
-#' `NA`, wenn weder § 43 noch § 5b gilt, bei Härtefall § 5d oder ohne `s5a`. Beim Einbau wegen
-#' Havarie höchstens `s5a_breakdown_months` vor dem Beginn des § 5a verschieben sich alle Termine
-#' um `s5a_suspension_months` Monate.
+#' `NA`, wenn weder § 43 noch § 5b gilt, bei Härtefall § 5d oder ohne `s5a`. Übergang bei Havarie
+#' (3.7.4, 3.2.2): Liegt der Einbau wegen irreparablen Ausfalls im Fenster
+#' [`s5a_co2_from` − `s5a_breakdown_months`, `s5a_co2_from`), verschiebt sich jeder Termin x mit
+#' `installation_date >= x − s5a_breakdown_months` um `s5a_suspension_months` Monate („analog“ je
+#' eigenem Termin); ein Einbau ab `s5a_co2_from` ist wirkungslos. Mit den Werten 2026 betrifft
+#' das CO2-Kosten und Netzentgelt (2028 → 2029), nicht die Bio-Mehrkosten (ab 2029).
 #' @param section43_or_5b § 43-Heizung oder Neubau nach § 5b (lgl).
 #' @param installation_date Einbaudatum (Date).
 #' @param emergency_replacement Einbau nach irreparablem Ausfall (lgl).
@@ -152,11 +151,12 @@ co2_s5a_dates <- function(section43_or_5b, installation_date, emergency_replacem
   applies <- s43 & !hs
   bd <- PC$s5a_breakdown_months %||% 0
   sus <- PC$s5a_suspension_months %||% 0
-  start_bd <- grid_add_months(PC$s5a_co2_from, -bd)
-  shift <- ifelse(em & !is.na(d) & d >= start_bd, sus, 0)
+  eligible <- em & !is.na(d) & d >= grid_add_months(PC$s5a_co2_from, -bd) &
+    d < PC$s5a_co2_from
   mk <- function(base) {
     if (is.null(base)) return(na_dates)
-    out <- grid_add_months(rep(base, n), shift)
+    own <- eligible & d >= grid_add_months(base, -bd)
+    out <- grid_add_months(rep(base, n), ifelse(own, sus, 0))
     out[!applies] <- NA
     out
   }

@@ -93,4 +93,5 @@ rows:
   quantity: "Endenergie"
   emission: "Treibhausgasemissionen"
 msg:
-  negative_rest_price: "Gesamtpreis kleiner als Netzentgelt und CO2-Kosten: Restpreis auf 0 gesetzt."
+  negative_rest_price: "Gesamtpreis des Trägers {carrier} kleiner als Netzentgelt und CO2-Kosten des ersten Rasterjahres in {share:pct} der Läufe: Restpreis auf 0 gesetzt."
+  negative_rest_price_error: "Gesamtpreis des Trägers {carrier} (price_includes = all) kleiner als Netzentgelt und CO2-Kosten des ersten Rasterjahres: Preisangabe prüfen."

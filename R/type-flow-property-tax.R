@@ -25,8 +25,11 @@ pt_build <- function(spec, ctx) {
     mi_ac <- if (!is.null(ac)) {
       rp_mi(g, ac$date) + rp_shift(rep_len(ac$shift, n))
     } else {
-      # Nachfeststellung zum 1. Januar nach der (verschobenen) Fertigstellung
-      first <- mi_occ + 1
+      # Nachfeststellung zum 1. Januar nach der Fertigstellung (Fertigstellung des Rasters mit
+      # laufspezifischem Bauzeitverzug project.construction_delay_months, Token completion),
+      # unabhängig vom Bezug (Bestand mit Bauphase: Mieter bleiben, occupancy_from = Stichtag)
+      delay <- rp_num(ctx, "project.construction_delay_months", rep(0, n))
+      first <- rp_mi(g, g$completion_date) + rp_shift(rep_len(delay, n)) + 1
       moy <- (utl_month(g$valuation_date) - 1 + first - 1) %% 12 + 1
       first + (1 - moy) %% 12
     }

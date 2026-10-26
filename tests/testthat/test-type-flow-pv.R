@@ -142,3 +142,41 @@ test_that("Batch-Invarianz mit Aktivierung und Verschiebung der Maßnahme", {
   expect_equal(sum(ge[2, ]), 0)
   expect_true(ge[3, 2] < ge[1, 2])
 })
+
+test_that("EOP-02: Eigenverbrauch monatlich begrenzt, Zustandswechsel und F10 (annual = mixed)", {
+  run <- function(grid) {
+    e <- list(type = "energy_cost", state = "after", carrier = "heatpump_power",
+              carrier_class = "power_hp", quantity_kwh_pa = list(expr = "8000"),
+              price_eur_kwh = 0.25, owner_share = 1)
+    pv_case(kwp = 10, specific_yield_kwh_kwp = 1000, self_consumption_share = 0.5,
+            self_consumption_components = list("e_after_hp_cost"), opex_eur_pa = 0,
+            feed_in_tariff_eur_kwh = 0.08, commissioning_date = "2027-01-01",
+            after = list("e_after_hp_cost"), perspective = "selbstnutzer",
+            deps = list(e_after_hp_cost = e),
+            energy = list(after = list(start_event = "2027-10-01")), grid = grid)
+  }
+  ra <- run(make_grid("annual", T = 4L))
+  rm <- run(make_grid("mixed", T = 4L))
+  # Bezug erst ab Oktober: Eigenverbrauch Okt.–Dez. 3 · 416,67 kWh zu 0,25 · 1,19 EUR/kWh
+  for (r in list(ra, rm)) {
+    expect_near(eop_cy(r, "e_pv", "self_consumption", 2027:2028), c(1250, 5000) * 0.2975, 1e-9)
+    expect_near(eop_cy(r, "e_pv", "feed_in", 2027:2028), c(8750, 5000) * 0.08, 1e-9)
+    expect_near(eop_cy(r, "e_pv", "feed_in_kwh", 2027), 8750, 1e-9)
+  }
+  ya <- vapply(c("feed_in", "self_consumption", "internal_sale", "opex"), function(k) {
+    eop_cy(ra, "e_pv", k, 2027:2030)
+  }, double(4))
+  ym <- vapply(c("feed_in", "self_consumption", "internal_sale", "opex"), function(k) {
+    eop_cy(rm, "e_pv", k, 2027:2030)
+  }, double(4))
+  expect_equal(ya, ym, tolerance = 1e-9)
+  # Bewertungspreis je Periode: Wert des Eigenverbrauchs / Menge
+  expect_near(ra$flows$e_pv$aux$unit_price_self[1, 2], 0.2975, 1e-12)
+  # Vergütungsende unterjährig: Einspeisung je Monat mit Satz bzw. Anschlusspreis
+  g <- make_grid(T = 6L)
+  end <- pv_case(kwp = 10, specific_yield_kwh_kwp = 1200, self_consumption_share = 0,
+                 opex_eur_pa = 0, feed_in_tariff_eur_kwh = 0.08, post_tariff_price_eur_kwh = 0.02,
+                 tariff_years = 1L, commissioning_date = "2027-07-01", grid = g)
+  expect_near(eop_cy(end, "e_pv", "feed_in", 2027:2028),
+              c(6000 * 0.08, 6000 * 0.08 + 6000 * 0.02), 1e-9)
+})

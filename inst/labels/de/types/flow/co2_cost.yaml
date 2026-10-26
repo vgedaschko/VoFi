@@ -1,6 +1,6 @@
 # Labels des Zahlungstyps co2_cost (WS-E, Spec 01 Teil B Abschnitt 3.7).
 label: "CO2-Kosten nach CO2KostAufG"
-description: "Aufteilung der CO2-Kosten eines Energiesegments zwischen Vermieter und Mietern nach dem Stufenmodell, ab 2028 nach § 5a CO2KostAufG für Heizungen nach § 43 GModG einschließlich Gasnetzentgelt und Bio-Mehrkosten."
+description: "Aufteilung der CO2-Kosten eines Energiesegments zwischen Vermieter und Mietern nach dem Stufenmodell (spezifische Emission je Abrechnungsjahr, Teiljahre hochgerechnet), ab 2028 nach § 5a CO2KostAufG für Heizungen nach § 43 GModG einschließlich Gasnetzentgelt und Bio-Mehrkosten."
 params:
   energy_component:
     label: "Energiesegment"

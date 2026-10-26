@@ -97,13 +97,21 @@ test_that("E-6: Gesamtpreis mit Netzentgelt und CO2-Kosten (price_includes = all
   per_kwh <- a$unit_price_gross[1, 2:3] + a$co2_gross[1, 2:3] / a$kwh[1, 2:3]
   expect_near(per_kwh, c(0.125000, 0.127154), 1e-6)
   expect_length(res$flows$e$meta$notes, 0L)
-  neg <- eop_chain(list(e = list(
-    type = "energy_cost", state = "before", carrier = "gas", carrier_class = "gas",
-    quantity_kwh_pa = list(expr = "10000"), price_eur_kwh = 0.02, price_includes = "all",
-    network_fee_eur_kwh = 0.0257
-  )))
+  # 3.6.5: negativer Restpreis bei deterministischem Wert ist E, sonst W mit Anteil der Läufe
+  neg_comp <- function(price) {
+    list(e = list(type = "energy_cost", state = "before", carrier = "gas", carrier_class = "gas",
+                  quantity_kwh_pa = list(expr = "10000"), price_eur_kwh = price,
+                  price_includes = "all", network_fee_eur_kwh = 0.0257))
+  }
+  expect_error(eop_chain(neg_comp(0.02)), "Preisangabe", class = "vofi_error_input")
+  g <- make_grid(T = 6L)
+  dr <- fake_draws(4L, g, static = list("components.e.price_eur_kwh" = c(0.02, 0.05, 0.01, 0.06)))
+  expect_warning(neg <- eop_chain(neg_comp(0.06), .grid = g, .n = 4L, .draws = dr),
+                 "50,00 %", class = "vofi_warning_engine")
   expect_true("types.flow.energy_cost.msg.negative_rest_price" %in% neg$flows$e$meta$note_keys)
-  expect_equal(neg$flows$e$aux$unit_price_gross[1, 2], 0.0257 * 1.19)
+  expect_equal(neg$flows$e$meta$messages[[1L]]$share, 0.5)
+  expect_equal(neg$flows$e$aux$unit_price_gross[c(1, 3), 2], rep(0.0257 * 1.19, 2))
+  expect_equal(neg$flows$e$aux$unit_price_gross[2, 2], 0.05 * 1.19)
 })
 
 test_that("E-7 (F10): Jahressummen auf Raster mixed gleich annual", {

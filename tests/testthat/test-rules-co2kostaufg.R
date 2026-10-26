@@ -38,7 +38,14 @@ test_that("C-8: Übergang bei Havarie und Härtefall § 5d", {
                      c(TRUE, FALSE, TRUE, TRUE), c(FALSE, FALSE, FALSE, TRUE), pc)
   expect_equal(d$co2_from, as.Date(c("2029-01-01", "2028-01-01", "2028-01-01", NA)))
   expect_equal(d$network_from, as.Date(c("2029-01-01", "2028-01-01", "2028-01-01", NA)))
-  expect_equal(d$bio_from, as.Date(c("2030-01-01", "2029-01-01", "2029-01-01", NA)))
+  # bio_from „analog“ je eigenem Termin: Einbau 2027-06-01 liegt vor 2029-01-01 − 12 Monate
+  expect_equal(d$bio_from, as.Date(c("2029-01-01", "2029-01-01", "2029-01-01", NA)))
+  # Einbau ab dem Beginn des § 5a: Havarie wirkungslos (3.2.2), keine Verschiebung (EOP-05)
+  late <- co2_s5a_dates(TRUE, as.Date(c("2028-06-01", "2027-12-01", "2027-01-01")), TRUE, FALSE,
+                        pc)
+  expect_equal(late$co2_from, as.Date(c("2028-01-01", "2029-01-01", "2029-01-01")))
+  expect_equal(late$network_from, as.Date(c("2028-01-01", "2029-01-01", "2029-01-01")))
+  expect_equal(late$bio_from, as.Date(rep("2029-01-01", 3L)))
   off <- co2_s5a_dates(FALSE, as.Date("2027-06-01"), FALSE, FALSE, pc)
   expect_true(is.na(off$co2_from))
   expect_true(all(is.na(co2_s5a_dates(TRUE, as.Date("2027-06-01"), FALSE, FALSE,
@@ -50,8 +57,9 @@ test_that("§ 43 GModG: neue Heizung nach dem Stichtag im Bestand", {
   expect_identical(co2_section43(c("gas", "gas", "power", "oil"), d, TRUE, pc),
                    c(TRUE, FALSE, FALSE, TRUE))
   expect_identical(co2_section43("gas", as.Date("2027-10-01"), FALSE, pc), FALSE)
+  # Thema bio_treppe inaktiv: bio_*-Parameter NULL, daher FALSE (3.7.4, EOP-05)
   no_bio <- co2_params(eop_lp_co2(), NULL)
-  expect_identical(co2_section43("gas", as.Date("2027-10-01"), TRUE, no_bio), TRUE)
+  expect_identical(co2_section43("gas", as.Date("2027-10-01"), TRUE, no_bio), FALSE)
 })
 
 test_that("Bio-Treppe: Stufen 2029 bis 2040 und Reformcode stufe_2045", {

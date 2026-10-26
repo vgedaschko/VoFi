@@ -95,9 +95,10 @@ mr_params <- function(lp, lp_559f) {
   staffel_excl <- mr_chr(mr_get(lp, "s557a.excludes"))
   relet <- mr_chr(mr_get(lp, "s556e.relet_levy_procedures"))
   if (length(relet) == 0L && !is.null(lp)) {
-    # Regelkonstante (§ 556e Abs. 2): §§ 559, 559c; mit Mietrecht II zusätzlich § 559e. Die
-    # Reformnutzlast schließt § 559e während der Staffelmiete aus; daran wird sie erkannt.
-    relet <- c("bgb_559", "bgb_559c", if ("bgb_559e" %in% staffel_excl) "bgb_559e")
+    # Regelkonstante des geltenden Rechts (§ 556e Abs. 2: §§ 559, 559c, Teil B 1.12); die Reform
+    # Mietrecht II (zusätzlich § 559e) setzt den Schlüssel s556e.relet_levy_procedures in ihrer
+    # Nutzlast (Änderungsantrag an Teil C 3.5).
+    relet <- c("bgb_559", "bgb_559c")
   }
   damping <- mr_get(lp, "s557b.damping")
   if (!is.null(damping) && !is.list(damping)) damping <- NULL

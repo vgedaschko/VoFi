@@ -1,7 +1,8 @@
 # Zahlungstyp pv: Photovoltaikanlage (WS-E, Spec 00 Abschnitt 7.10, R-84; Spec 01 Teil B
 # Abschnitt 3.9). Ertrag mit Alterung ab Inbetriebnahme (Monatsgewichte, Aktivierung der Maßnahme),
-# Eigenverbrauch bis zum Bezug des Eigenverbrauchsträgers, Einspeisung mit fester Vergütung über
-# tariff_years und Anschlusspreis, Verrechnung an Mieter, Betriebskosten. Erlöszeilen ohne USt
+# Eigenverbrauch bis zum Bezug des Eigenverbrauchsträgers (Begrenzung je Monat, Monatsrechnung
+# 0.4), Einspeisung mit fester Vergütung über tariff_years und Anschlusspreis, Verrechnung an
+# Mieter, Betriebskosten. Erlöszeilen ohne USt
 # (Kleinunternehmer, § 19 UStG), Betriebskosten mit 19 %. Steuerbefreiung § 3 Nr. 72 EStG über
 # tax_exempt (auto: kwp <= 30 je Einheit und <= 100). Das Begünstigungsattribut der Investition
 # (Nullsteuersatz § 12 Abs. 3 Nr. 1 UStG) wertet pv_investment_vat_rate() aus.
@@ -65,6 +66,28 @@ pv_feed_in_tariff <- function(ctx, spec, mode, kwp, kwp_base) {
   pv_tariff_mix(ctx$by_sim(kwp), le10, s10 %||% zero, s40 %||% zero)
 }
 
+#' Monatsverteilung des Periodenbezugs eines Eigenverbrauchssegments (n x M)
+#'
+#' Anteil des Monats m am Bezug der Periode p(m): w_s(m) / Σ_{m' ∈ p(m)} w_s(m') mit den
+#' Monatsgewichten des Zustands des Segments (`meta$state`, `meta$construction_delay_months` von
+#' energy_cost; 3.4); ohne Zustandsangabe gleichmäßig über die Monate der Periode. Innerhalb einer
+#' Periode sind Menge und Preis des Segments konstant, die Verteilung ist deshalb exakt.
+#' @param fl `vofi_flows` des Segments.
+#' @noRd
+pv_segment_months <- function(ctx, fl) {
+  st <- fl$meta$state
+  big_m <- rp_months(ctx$grid)$M
+  w <- if (is.null(st)) {
+    matrix(1, ctx$n, big_m)
+  } else {
+    en_state_months(ctx, st, fl$meta$construction_delay_months %||% rep(0, ctx$n))
+  }
+  den <- ctx$to_months(ctx$to_periods(w), "repeat")
+  out <- w / pmax(den, 1e-300)
+  out[den <= 0] <- 0
+  out
+}
+
 #' @noRd
 pv_build <- function(spec, ctx) {
   g <- ctx$grid
@@ -88,37 +111,53 @@ pv_build <- function(spec, ctx) {
   start <- matrix(rp_mi(g, com) + sc, n, big_m)
   ty <- as.double(set("tariff_years") %||% 20L)
   w_pv <- (mm >= start) * matrix(a, n, big_m)
-  w_t <- w_pv * (mm < start + 12 * ty)
+  in_t <- (mm < start + 12 * ty) * 1
   om <- ctx$to_periods(w_pv) / 12
-  om_t <- ctx$to_periods(w_t) / 12
-  r_t <- ifelse(om > 0, om_t / pmax(om, 1e-300), 0)
   kwp <- rep_len(par("kwp"), n)
   kwp_base <- ctx$param_base(spec, "kwp")
   yld <- par("specific_yield_kwh_kwp", "path") %||% (ctx$zeros() + 950)
   dpa <- rep_len(par("degradation_pa") %||% 0, n)
   age <- pmax(g$year - utl_year(com), 0)
-  e_kwh <- kwp * yld * (1 - matrix(dpa, n, g$T + 1L))^ctx$by_period(age) * om
+  # Monatsrechnung (Teil B 0.4): Ertrag, Bezug und Eigenverbrauchsgrenze je Monat, damit ein
+  # unterjähriger Beginn des Bezugs (Zustandswechsel) rasterunabhängig wirkt (F10)
+  e_pa <- kwp * yld * (1 - matrix(dpa, n, g$T + 1L))^ctx$by_period(age)
+  e_m <- ctx$to_months(e_pa, "repeat") * w_pv / 12
+  e_kwh <- ctx$to_periods(e_m)
   sc_ids <- rp_ids(set("self_consumption_components"))
-  dm <- ctx$zeros() + Inf
-  work <- ctx$zeros()
+  d_m <- matrix(Inf, n, big_m)
+  w_m <- matrix(0, n, big_m)
   kwh <- ctx$zeros()
+  work <- ctx$zeros()
   if (length(sc_ids) > 0L) {
+    d_m[] <- 0
     for (id in sc_ids) {
-      ax <- ctx$component(id)$aux
-      kwh <- kwh + (ax$kwh %||% ctx$zeros())
-      work <- work + (ax$work_gross %||% ctx$zeros())
+      fl <- ctx$component(id)
+      ax <- fl$aux
+      sm <- pv_segment_months(ctx, fl)
+      kwh_s <- ax$kwh %||% ctx$zeros()
+      work_s <- ax$work_gross %||% ctx$zeros()
+      kwh <- kwh + kwh_s
+      work <- work + work_s
+      d_m <- d_m + ctx$to_months(kwh_s, "repeat") * sm
+      w_m <- w_m + ctx$to_months(work_s, "repeat") * sm
     }
-    dm <- kwh
   }
-  p_s <- ifelse(kwh > 0, work / pmax(kwh, 1e-300), 0)
+  p_m <- ifelse(is.finite(d_m) & d_m > 0, w_m / pmax(d_m, 1e-300), 0)
   share <- par("self_consumption_share", "path") %||% ctx$zeros()
   mode <- rp_code(set("feed_in_mode")) %||% "partial"
   if (identical(mode, "full")) share <- ctx$zeros()
-  s_kwh <- pmin(e_kwh * share, dm)
+  s_m <- pmin(e_m * ctx$to_months(share, "repeat"), d_m)
+  f_m <- e_m - s_m
+  s_kwh <- ctx$to_periods(s_m)
   f_kwh <- e_kwh - s_kwh
+  self_val <- ctx$to_periods(s_m * p_m)
+  p_avg <- ifelse(kwh > 0, work / pmax(kwh, 1e-300), 0)
+  p_s <- ifelse(s_kwh > 0, self_val / pmax(s_kwh, 1e-300), p_avg)
   tariff <- pv_feed_in_tariff(ctx, spec, mode, kwp, kwp_base)
   post <- par("post_tariff_price_eur_kwh", "path") %||% ctx$zeros()
   internal <- par("internal_price_eur_kwh", "path") %||% ctx$zeros()
+  feed_val <- ctx$to_periods(f_m * (ctx$to_months(tariff, "repeat") * in_t +
+                                      ctx$to_months(post, "repeat") * (1 - in_t)))
   o_raw <- par("owner_share")
   selbst <- identical(ctx$perspective, "selbstnutzer")
   o <- ctx$by_sim(rep_len(o_raw %||% (if (selbst) 1 else 0), n))
@@ -141,11 +180,11 @@ pv_build <- function(spec, ctx) {
   tc_cost <- if (selbst || exempt) "expense_nondeductible" else "expense_deductible"
   mid <- meas
   rows <- list(
-    vofi_row("feed_in", f_kwh * (tariff * r_t + post * (1 - r_t)), section = "project",
+    vofi_row("feed_in", feed_val, section = "project",
              category = "energy_income",
              tax_category = if (exempt) "income_tax_exempt" else "income_other_taxable",
              vat_rate = 0, measure_id = mid),
-    vofi_row("self_consumption", o * s_kwh * p_s, section = "project",
+    vofi_row("self_consumption", o * self_val, section = "project",
              category = "energy_saving", tax_category = "imputed_benefit", vat_rate = 0,
              measure_id = mid),
     vofi_row("internal_sale", (1 - o) * s_kwh * internal, section = "project",

@@ -4,7 +4,9 @@
 # jeweils mit USt; Kostenträger Eigentümer (o), Vermieter im Leerstand (v), Mieter (Rest, Merkzeile
 # in tenant_costs). Merkzeilen: Endenergie (kWh) und Treibhausgasbilanz (t CO2-Äq.).
 # Gültigkeitsfenster und Aktivierung der Zustände über en_state_weights() (3.4); Mengen mit
-# Monatsgewichten, Preise je Kalenderjahr: grid_invariant = TRUE.
+# Monatsgewichten, Preise je Kalenderjahr: grid_invariant = TRUE. Zusätzlich zu 3.6.4 liefert aux
+# den Betriebsanteil `operating` (Monate mit gültigem Zustand / 12, Bezug des Stufenmodells in
+# co2_cost) und meta Zustand und Bauzeitverzug (Monatsverteilung des Bezugs in pv).
 
 # ---------------------------------------------------------------------------------------------
 # Zustände (Teil B 3.4)
@@ -58,14 +60,28 @@ en_states <- function(ctx) {
 #' @return n x M Monatsgewichte.
 #' @noRd
 en_state_months <- function(ctx, state, construction_delay_months = rep(0, ctx$n)) {
+  states <- en_states(ctx)
+  if (!(state %in% names(states))) return(matrix(1, ctx$n, rp_months(ctx$grid)$M))
+  big_a <- en_state_activations(ctx, states, construction_delay_months)
+  j <- match(state, names(states))
+  w <- big_a[[j]]
+  later <- seq_along(states)[seq_along(states) > j]
+  for (l in later) w <- w * (1 - big_a[[l]])
+  w
+}
+
+#' Aktivierungsmasken A_j(i, m) der Zustände (Teil B 3.4)
+#' @param states Ausgabe von `en_states()`.
+#' @inheritParams en_state_months
+#' @return Liste je Zustand: n x M (0/1).
+#' @noRd
+en_state_activations <- function(ctx, states, construction_delay_months = rep(0, ctx$n)) {
   n <- ctx$n
   mo <- rp_months(ctx$grid)
   big_m <- mo$M
-  states <- en_states(ctx)
-  if (!(state %in% names(states))) return(matrix(1, n, big_m))
   mm <- matrix(as.double(mo$m), n, big_m, byrow = TRUE)
   cdm <- rp_shift(rep_len(construction_delay_months, n))
-  big_a <- lapply(states, function(st) {
+  lapply(states, function(st) {
     if (identical(st$id, "before")) return(matrix(1, n, big_m))
     sh <- if (!is.null(st$measure)) rp_measure_shift(ctx, st$measure) else if (st$token) cdm else
       rep(0, n)
@@ -73,11 +89,23 @@ en_state_months <- function(ctx, state, construction_delay_months = rep(0, ctx$n
     a <- if (is.null(st$measure)) rep(1, n) else act(ctx, st$measure)
     matrix(a, n, big_m) * (mm >= matrix(start, n, big_m))
   })
-  j <- match(state, names(states))
-  w <- big_a[[j]]
-  later <- seq_along(states)[seq_along(states) > j]
-  for (l in later) w <- w * (1 - big_a[[l]])
-  w
+}
+
+#' Betriebsmonate des Energieblocks: 1, solange irgendein Zustand gilt (Teil B 3.4)
+#'
+#' Σ_j w_j(i, m) = 1 − Π_j (1 − A_j(i, m)); ohne Energieblock gilt 1 ab dem Stichtag. Bezugsgröße
+#' der spezifischen Emission des Stufenmodells in Teiljahren (co2_cost, 3.7.2).
+#' @inheritParams en_state_months
+#' @return n x M (0/1).
+#' @noRd
+en_operating_months <- function(ctx, construction_delay_months = rep(0, ctx$n)) {
+  states <- en_states(ctx)
+  big_m <- rp_months(ctx$grid)$M
+  if (length(states) == 0L) return(matrix(1, ctx$n, big_m))
+  big_a <- en_state_activations(ctx, states, construction_delay_months)
+  off <- matrix(1, ctx$n, big_m)
+  for (a in big_a) off <- off * (1 - a)
+  1 - off
 }
 
 #' Jahresanteil ω je Periode eines Zustands (Teil B 3.4): Σ_{m∈t} w(m) / 12
@@ -117,7 +145,7 @@ en_build <- function(spec, ctx) {
   n <- ctx$n
   par <- function(nm, shape = "scalar") ctx$param(spec, nm, shape)
   path0 <- function(nm) par(nm, "path") %||% ctx$zeros()
-  notes <- character(0)
+  messages <- list()
   state <- ctx$setting(spec, "state") %||% "before"
   cdm <- rep_len(par("construction_delay_months") %||% 0, n)
   omega <- en_state_weights(ctx, state, cdm)
@@ -141,7 +169,14 @@ en_build <- function(spec, ctx) {
   c_net <- if (identical(ctx$setting(spec, "price_includes"), "all")) {
     j2 <- min(2L, g$T + 1L)
     rest <- price - nf[, j2] - co2u[, j2]
-    if (any(rest < 0)) notes <- c(notes, "types.flow.energy_cost.msg.negative_rest_price")
+    neg <- rowSums(rest < 0) > 0
+    # 3.6.5: E bei deterministischem Wert, sonst W mit dem Anteil der Läufe
+    if (identical(ctx$mode, "deterministic") && any(neg)) {
+      ctx$abort("types.flow.energy_cost.msg.negative_rest_price_error",
+                carrier = ctx$setting(spec, "carrier") %||% "", .class = "vofi_error_input")
+    }
+    messages[[1L]] <- rp_signal(ctx, "types.flow.energy_cost.msg.negative_rest_price", neg,
+                                "warn", carrier = ctx$setting(spec, "carrier") %||% "")
     pmax(rest, 0) * pidx
   } else {
     price * pidx
@@ -180,7 +215,8 @@ en_build <- function(spec, ctx) {
               co2_gross = seg$co2_gross, fees_gross = seg$fees_gross,
               unit_price_gross = (c_net + nf + bio) * (1 + vat), beta = beta,
               owner_share = ctx$by_sim(o), vacancy = v, cost_share_owner_landlord = f,
-              weight = omega)
+              weight = omega,
+              operating = ctx$to_periods(en_operating_months(ctx, cdm)) / 12)
   if (isTRUE(ctx$setting(spec, "counterfactual_pre"))) {
     cf <- en_segment(ctx, inp, ctx$by_period(g$delta))
     aux$cf_kwh <- cf$kwh
@@ -191,8 +227,10 @@ en_build <- function(spec, ctx) {
     aux$cf_bio_gross <- cf$bio_gross
     aux$cf_co2_gross <- cf$co2_gross
   }
+  mn <- rp_meta_notes(character(0), messages, carrier = ctx$setting(spec, "carrier") %||% "")
   vofi_flows(rows, aux = aux,
-             meta = list(notes = vapply(notes, function(k) lbl(k), ""), note_keys = notes))
+             meta = list(notes = mn$notes, note_keys = mn$note_keys, messages = mn$messages,
+                         state = state, construction_delay_months = cdm))
 }
 
 #' @noRd

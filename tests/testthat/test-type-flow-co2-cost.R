@@ -177,3 +177,58 @@ test_that("Batch-Invarianz mit laufspezifischem CO2-Preis", {
   }
   expect_batch_invariance(fun, n = 4L, grid = g, draws = dr)
 })
+
+#' Jahressummen aller Flusszeilen einer Komponente je Kalenderjahr
+co2_year_rows <- function(res, id, years) {
+  fl <- res$flows[[id]]
+  keys <- vapply(fl$rows, function(r) r$key, "")
+  out <- t(vapply(fl$rows, function(r) {
+    vapply(years, function(y) eop_year(r$values, res$grid, y), double(1))
+  }, double(length(years))))
+  dimnames(out) <- list(keys, as.character(years))
+  out
+}
+
+test_that("EOP-01: Stufenmodell je Abrechnungsjahr, Zustandswechsel und F10 (annual = mixed)", {
+  bestand <- function(grid) {
+    e <- list(type = "energy_cost", state = "before", carrier = "gas", carrier_class = "gas",
+              quantity_kwh_pa = list(expr = "280000"), price_eur_kwh = 0.06,
+              emission_factor_kg_kwh = 0.181, co2_price_eur_t = 60)
+    c2 <- list(type = "co2_cost", energy_component = "e_before_gas_cost", living_area_m2 = 1600,
+               carrier_class = "gas", after = list("e_before_gas_cost"))
+    eop_chain(list(e_before_gas_cost = e, e_before_gas_co2 = c2), .grid = grid,
+              .energy = list(before = list(), after = list(start_event = "2027-10-01")))
+  }
+  ra <- bestand(make_grid("annual", T = 4L))
+  rm <- bestand(make_grid("mixed", T = 4L))
+  # 2027: Gas Jan.–Sep. bei 12 Betriebsmonaten: 280.000 · 0,75 · 0,181 / 1.600 = 23,76 -> 30 %
+  co2g <- 280000 * 0.75 * 0.181 / 1000 * 60 * 1.19
+  expect_near(eop_cy(ra, "e_before_gas_co2", "co2_landlord", 2027), -0.30 * co2g, 1e-9)
+  expect_near(eop_cy(rm, "e_before_gas_co2", "co2_landlord", 2027), -0.30 * co2g, 1e-9)
+  j27 <- which(rm$grid$year == 2027 & seq_along(rm$grid$year) >= 2L)
+  expect_equal(rm$flows$e_before_gas_co2$aux$specific_kg_m2[1, j27],
+               rep(280000 * 0.75 * 0.181 / 1600, length(j27)))
+  expect_equal(co2_year_rows(ra, "e_before_gas_co2", 2027:2030),
+               co2_year_rows(rm, "e_before_gas_co2", 2027:2030), tolerance = 1e-9)
+  # Neubau: Gasheizung ab Fertigstellung 2027-10-01, Teiljahr auf 12 Monate hochgerechnet
+  neubau <- function(grid) {
+    e <- list(type = "energy_cost", state = "after", carrier = "gas", carrier_class = "gas",
+              quantity_kwh_pa = list(expr = "200000"), price_eur_kwh = 0.06,
+              emission_factor_kg_kwh = 0.181, co2_price_eur_t = 60)
+    c2 <- list(type = "co2_cost", energy_component = "e_after_gas_cost", living_area_m2 = 1000,
+               carrier_class = "gas", after = list("e_after_gas_cost"))
+    eop_chain(list(e_after_gas_cost = e, e_after_gas_co2 = c2), .grid = grid,
+              .energy = list(after = list(start_event = "2027-10-01")))
+  }
+  na <- neubau(make_grid("annual", T = 4L))
+  nm <- neubau(make_grid("mixed", T = 4L))
+  # spez 2027 = 9.050 kg / (1.000 m² · 3/12) = 36,2 -> Stufe 50 %
+  expect_near(na$flows$e_after_gas_co2$aux$specific_kg_m2[1, 2], 36.2, 1e-9)
+  expect_near(na$flows$e_after_gas_co2$aux$stage_share[1, 2], 0.50, 1e-12)
+  expect_near(eop_cy(na, "e_after_gas_co2", "co2_landlord", 2027:2028),
+              -0.5 * 60 * 1.19 * c(9.05, 36.2), 1e-9)
+  expect_equal(co2_year_rows(na, "e_after_gas_co2", 2027:2030),
+               co2_year_rows(nm, "e_after_gas_co2", 2027:2030), tolerance = 1e-9)
+  # Betriebsanteil aus energy_cost: 3 Monate im Jahr 2027
+  expect_near(na$flows$e_after_gas_cost$aux$operating[1, 2], 0.25, 1e-12)
+})

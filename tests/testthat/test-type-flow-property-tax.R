@@ -67,3 +67,19 @@ test_that("Nachfeststellung zum 1. Januar nach dem Bezug", {
                 after_completion_from = "2028-07-01", owner_occupied = TRUE, with_rent = FALSE)
   expect_near(eop_cy(ex, "u_g_property_tax", "cost", 2027:2029), -c(1000, 2000, 3000), 1e-9)
 })
+
+test_that("EOP-07: Bestand mit Bauphase, Nachfeststellung nach der Fertigstellung", {
+  g <- vofi_time_grid(as.Date("2027-01-01"), 6L, construction_months = 12L)
+  run <- function(delay = 0) {
+    pt <- list(type = "property_tax", amount_eur_pa = 1000, amount_after_completion_eur_pa = 2000,
+               growth = 0, occupancy_from = "2027-01-01", owner_occupied = TRUE)
+    eop_chain(list(u_g_property_tax = pt), .grid = g,
+              .project = list(construction_delay_months = delay))
+  }
+  # Fertigstellung 2028-01-01 (Mieter bleiben): neuer Betrag ab dem 1. Januar danach (2029)
+  expect_near(eop_cy(run(), "u_g_property_tax", "cost", 2027:2030),
+              -c(1000, 1000, 2000, 2000), 1e-9)
+  # Bauzeitverzug 13 Monate: Fertigstellung 2029-02-01, neuer Betrag ab 2030
+  expect_near(eop_cy(run(13), "u_g_property_tax", "cost", 2027:2030),
+              -c(1000, 1000, 1000, 2000), 1e-9)
+})
