@@ -112,20 +112,20 @@ maintenance_spread:
   years_min: 2
   years_max: 5
   private_only: true
-  note: "Gleichmäßige Verteilung auf 2 bis 5 Jahre; bei Veräußerung Restbetrag im Veräußerungsjahr."
+  note: "Gleichmäßige Verteilung auf 2 bis 5 Jahre; bei Veräußerung Restbetrag im Veräußerungsjahr (§ 82b Abs. 2 EStDV). tax_flat setzt offene Raten am Horizont im letzten Veranlagungsjahr ab (unabhängig von § 23)."
 
 acquisition_related:
   source: "§ 6 Abs. 1 Nr. 1a EStG; BMF-Schreiben vom 26.01.2026 (IV C 1 - S 2253/00082/001/064) Rn. 54 ff."
   share: 0.15                            # netto (ohne USt) bezogen auf die Anschaffungskosten des Gebäudes
   years: 3
   excluded_measure_types: [neubau, erweiterung, aufstockung, erwerb_grundstueck, erwerb_objekt]
-  note: "Instandsetzungs- und Modernisierungsaufwand innerhalb von 3 Jahren nach Anschaffung über 15 % der Gebäude-AK wird zu Herstellungskosten."
+  note: "Instandsetzungs- und Modernisierungsaufwand innerhalb von 3 Jahren nach Anschaffung über 15 % der Gebäude-AK wird zu Herstellungskosten. tax_flat: Maßnahmen mit Einordnung auto an Gebäuden außerhalb des Prüfzeitraums gelten als Erhaltungsaufwand (Ergebnis der Regel); ausgenommene Maßnahmentypen und eigene Anlagen bleiben Herstellungskosten."
 
 # --- Veräußerung, Verluste (Memo 06 §3.1.5, §3.1.6, §7.11) ---
 private_sale:
   source: "§ 23 Abs. 1 S. 1 Nr. 1 EStG"
   holding_years: 10
-  note: "Gewinn = Erlös - (AK/HK - kumulierte AfA); außerhalb der Frist steuerfrei."
+  note: "Gewinn = Erlös - (AK/HK - kumulierte AfA); außerhalb der Frist steuerfrei. Die Frist beginnt mit der Anschaffung des Grundstücks; ein innerhalb der Frist errichtetes Gebäude wird einbezogen (§ 23 Abs. 1 S. 1 Nr. 1 S. 2 EStG)."
 loss_offset:
   source: "§ 10d EStG"
   carryforward_base_eur: 1000000

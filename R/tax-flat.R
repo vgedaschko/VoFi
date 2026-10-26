@@ -11,16 +11,23 @@
 #       - Sollzinsen (Summe exo_soll, exo_fees, endo_soll) und Disagio
 #       [+ Habenzinsen (endo_haben) nur im Modus "ergebnis", Default fuer Unternehmen]
 # Bemessungsgrundlage der AfA je asset_id = capex_depreciable + acquisition_ancillary - Zuschuesse
-# (subsidy_investment, subsidy_repayment_grant; ueber measure_id der Anlage zugeordnet).
+# (subsidy_investment, subsidy_repayment_grant; ueber measure_id der Anlage zugeordnet); vor der
+# Inbetriebnahme wird ein Zuschussueberhang vorgetragen. AfA-Methode je Anlage aus dem Register
+# (afa_method) mit Vorrang vor den Modulparametern. Massnahmen mit Einordnung auto an Gebaeuden:
+# im Pruefzeitraum nach der 15-%-Pruefung (6 Abs. 1 Nr. 1a EStG), sonst Erhaltungsaufwand.
+# Massnahmen mit steuerfreien Erloesen (PV, 3 Nr. 72 EStG): alle Erloese der Anlage steuerfrei,
+# Kosten nicht abziehbar (3c).
 # Steuer je Veranlagungsjahr (Kalenderjahr des Periodenbeginns) mit Satz s_t (Zeitreihe):
 # Verlustmodus sofort (Erstattung, optional gedeckelt durch other_income_eur_pa) bzw. vortrag
 # (projektinterner Verlustvortrag ohne Mindestbesteuerung); lag 0 (Zahlung in der Periode) bzw.
 # lag 1 (Veranlagung: Zahlung in der ersten Periode des Folgejahres); private Habenzinsen getrennt
 # mit Abgeltungssatz (sofort, ohne Verrechnung mit V+V). Am Horizont (tax_finalize): offene
-# Steuer, Steuer auf den Restwert (privat 23 EStG innerhalb der Frist, Unternehmen stets),
-# optional Wert des verbleibenden Verlustvortrags. Keine Zirkularitaet: die Steuer in t nutzt
-# nur Groessen bis t (Zinsen auf Bestaende t-1, Spec 00 10.1 Nr. 3); vektorisiert ueber n,
-# Verzweigungen nur auf Termine und Konfiguration (2.8 Nr. 2).
+# Steuer, Restraten nach 82b EStDV und nicht realisierter Zuschussueberhang im letzten
+# Veranlagungsjahr, Steuer auf den Restwert (privat 23 EStG innerhalb der Frist ab Anschaffung
+# des Grundstuecks, Unternehmen stets), optional Wert des verbleibenden Verlustvortrags. Das
+# Modulobjekt bleibt unveraendert (kein Zustand ueber Laeufe). Keine Zirkularitaet: die Steuer
+# in t nutzt nur Groessen bis t (Zinsen auf Bestaende t-1, Spec 00 10.1 Nr. 3); vektorisiert
+# ueber n, Verzweigungen nur auf Termine und Konfiguration (2.8 Nr. 2).
 # Parameter (Saetze, AfA-Regeln mit Gueltigkeit, Quellen): inst/params/steuern_DE.yaml.
 
 # ---------------------------------------------------------------------------------------------
@@ -112,8 +119,7 @@ tax_flat_constructor <- function(params, spec) {
   cfg <- tax_flat_config(params, info, legal)
   vofi_inform("types.tax.flat.msg.disclaimer")
   tax_flat_build_checks(cfg, info)
-  new_tax_module("flat", params = params, cfg = cfg, info = info, uses_inputs = TRUE,
-                 once = new.env(parent = emptyenv()))
+  new_tax_module("flat", params = params, cfg = cfg, info = info, uses_inputs = TRUE)
 }
 
 #' Szenariogrößen, die das Modul liest (Regime, Projektart, Restwert, Register)
@@ -384,17 +390,22 @@ tax_flat_build_checks <- function(cfg, info) {
   assets <- info$registers$assets %||% list()
   for (a in assets) {
     if (!inherits(a, "vofi_asset")) next
+    am <- tax_flat_afa_method(a, cfg)
+    tax_flat_check_afa_method(a, am)
+    if (identical(a$asset_type, "grund_boden")) next
     ac <- tax_flat_asset_setup(a$asset_id, a, cfg, NULL)
-    if (identical(cfg$dep_method, "degressiv") && identical(a$asset_type, "gebaeude_wohnen") &&
-          !identical(ac$method, "degressiv")) {
+    deg_wanted <- identical(am$method, "degressiv") &&
+      (am$explicit || identical(a$asset_type, "gebaeude_wohnen"))
+    if (deg_wanted && !identical(ac$method, "degressiv")) {
       vofi_warn("types.tax.flat.msg.degressive_ineligible", asset = a$asset_id,
                 .class = "vofi_warning_plausibility")
     }
-    if (cfg$special_7b && identical(a$asset_type, "gebaeude_wohnen")) {
+    if (am$s7b && (am$explicit || identical(a$asset_type, "gebaeude_wohnen"))) {
       tax_flat_check_7b(a, ac)
     }
   }
   tax_flat_check_acquisition(cfg, info)
+  tax_flat_check_auto(cfg, info)
   rv_taxed <- !identical(cfg$rv_method, "zero") && !identical(cfg$rv_mode, "nein") &&
     (cfg$company || identical(cfg$rv_mode, "ja"))
   existing <- info$project_type %in% (vocab("project_type")$existing_building %||% character(0))
@@ -456,6 +467,79 @@ tax_flat_check_acquisition <- function(cfg, info) {
   invisible(NULL)
 }
 
+#' Hinweis: Maßnahmen mit Einordnung `auto` außerhalb des Prüfzeitraums (Spec 01a 4.6.3)
+#'
+#' `auto` heißt: das Steuermodul entscheidet über die 15-%-Grenze (§ 6 Abs. 1 Nr. 1a EStG,
+#' Memo 06 7.5). Außerhalb des Prüfzeitraums (keine Anschaffung im Register bzw. Fertigstellung
+#' nach Ablauf der drei Jahre) ist das Ergebnis der Regel „nicht anschaffungsnah“; die Maßnahme
+#' wird als Erhaltungsaufwand abgezogen. Erweiterungen (Erwerb, Neubau, Erweiterung,
+#' Aufstockung) und Maßnahmen an eigenen Anlagen (z. B. PV) bleiben Herstellungskosten. Der
+#' Hinweis nennt die Maßnahmen, damit Herstellungskosten (z. B. erstmaliger Einbau) ausdrücklich
+#' mit `classification: herstellung` angegeben werden können.
+#' @noRd
+tax_flat_check_auto <- function(cfg, info) {
+  reg <- tax_flat_registers(info$registers$assets, info$registers$measures)
+  hits <- character(0)
+  for (m in reg$measures) {
+    if (!identical(m$classification, "auto") || m$measure_type %in% cfg$acq_excluded) next
+    a <- if (is.null(m$asset_id)) NULL else reg$assets[[m$asset_id]]
+    if (!is.null(a) && !(a$asset_type %in% tax_flat_building_types())) next
+    to <- if (is.null(a$acquisition_date)) NULL else
+      grid_add_months(a$acquisition_date, cfg$acq_months)
+    cd <- m$completion_date
+    if (is.null(to) || (!is.null(cd) && cd > to)) hits <- c(hits, m$measure_id)
+  }
+  if (length(hits) > 0L) {
+    vofi_inform("types.tax.flat.msg.auto_maintenance", measures = utl_collapse(unique(hits)))
+  }
+  invisible(NULL)
+}
+
+#' Gebäudearten (anschaffungsnahe HK, Einordnung `auto`, § 23-Frist)
+#' @noRd
+tax_flat_building_types <- function() c("gebaeude_wohnen", "gebaeude_nichtwohnen")
+
+#' AfA-Methode einer Anlage aus dem Register (`afa_method`, Spec 00 7.2, Memo 06 7.4)
+#'
+#' Gesetztes `afa_method` hat Vorrang vor den Modulparametern `depreciation_method` und
+#' `special_7b`. Codes (Kombination mit `+`): `linear` (§ 7 Abs. 4), `degressiv_5a` bzw.
+#' `degressiv` (§ 7 Abs. 5a, nur im Fenster des Baubeginns), `override` (linear über die
+#' Nutzungsdauer laut Gutachten, `useful_life_override`), `auto` (Regel des Moduls), Zusatz
+#' `sonder_7b` (§ 7b), z. B. `degressiv_5a+sonder_7b`. Ohne Zusatz `sonder_7b` keine Sonder-AfA.
+#' @return `list(method = "auto" | "linear" | "degressiv", s7b, override, explicit, unknown)`.
+#' @noRd
+tax_flat_afa_method <- function(a, cfg) {
+  am <- if (is.null(a)) NULL else a$afa_method
+  out <- list(method = cfg$dep_method, s7b = isTRUE(cfg$special_7b), override = FALSE,
+              explicit = FALSE, unknown = character(0))
+  if (!utl_is_string(am) || !nzchar(trimws(am))) return(out)
+  tok <- tolower(trimws(strsplit(am, "+", fixed = TRUE)[[1L]]))
+  tok <- tok[nzchar(tok)]
+  codes <- c(linear = "linear", degressiv_5a = "degressiv", degressiv = "degressiv",
+             override = "linear", auto = "auto")
+  meth <- tok[tok %in% names(codes)]
+  out$explicit <- TRUE
+  out$method <- if (length(meth) > 0L) unname(codes[meth[1L]]) else cfg$dep_method
+  out$override <- "override" %in% tok
+  out$s7b <- "sonder_7b" %in% tok
+  out$unknown <- setdiff(tok, c(names(codes), "sonder_7b"))
+  out
+}
+
+#' Prüfung des Registerfelds `afa_method` (unbekannte Codes, Override ohne Nutzungsdauer)
+#' @noRd
+tax_flat_check_afa_method <- function(a, am) {
+  if (length(am$unknown) > 0L) {
+    vofi_warn("types.tax.flat.msg.afa_method_unknown", asset = a$asset_id,
+              value = utl_collapse(am$unknown), .class = "vofi_warning_plausibility")
+  }
+  if (am$override && is.null(a$useful_life_override)) {
+    vofi_warn("types.tax.flat.msg.afa_override_missing", asset = a$asset_id,
+              .class = "vofi_warning_plausibility")
+  }
+  invisible(NULL)
+}
+
 # ---------------------------------------------------------------------------------------------
 # Anlagen: AfA-Methode, Sätze, Inbetriebnahme (Memo 06 3.1.2, 7.4)
 # ---------------------------------------------------------------------------------------------
@@ -468,10 +552,12 @@ tax_flat_check_acquisition <- function(cfg, info) {
 #' @param t0 Stichtag (`Date`) oder `NULL`.
 #' @return Liste `id`, `type`, `land`, `ism` (Monatserster der Inbetriebnahme oder NA), `method`
 #'   (`linear`, `degressiv`, `none`), `rate_lin`, `rate_deg`, `s7b`, `s7b_years`, `area`,
-#'   `acq_from`, `acq_to`, `y0` (Jahr der Inbetriebnahme bzw. NA).
+#'   `acq_from`, `acq_to`, `y0` (Jahr der Inbetriebnahme bzw. NA). Methode und § 7b nach
+#'   `afa_method` des Registers, sonst nach den Modulparametern (`tax_flat_afa_method()`).
 #' @noRd
 tax_flat_asset_setup <- function(id, a, cfg, t0) {
   dep <- cfg$dep
+  am <- tax_flat_afa_method(a, cfg)
   type <- if (is.null(a)) "gebaeude_wohnen" else a$asset_type
   isd <- if (is.null(a)) as.Date(NA) else a$in_service_date
   ism <- if (is.na(isd)) as.Date(NA) else as.Date(format(isd, "%Y-%m-01"))
@@ -514,11 +600,11 @@ tax_flat_asset_setup <- function(id, a, cfg, t0) {
   if (identical(type, "gebaeude_wohnen")) {
     csd <- if (is.null(a)) NULL else a$construction_start_date
     deg_ok <- !is.null(csd) && csd >= dep$deg_from && csd <= dep$deg_to
-    if (deg_ok && cfg$dep_method %in% c("auto", "degressiv")) {
+    if (deg_ok && am$method %in% c("auto", "degressiv")) {
       out$method <- "degressiv"
       out$rate_deg <- dep$deg_rate
     }
-    if (cfg$special_7b && !is.null(a)) {
+    if (am$s7b && !is.null(a)) {
       new_building <- !is.na(y0) && y0 >= 2023L &&
         (is.null(a$original_completion_year) || a$original_completion_year >= 2023L)
       std_ok <- is.null(a$efficiency_standard) ||
@@ -627,16 +713,25 @@ tax_flat_prepare <- function(state, inputs, n) {
 }
 
 #' Deterministische Hilfsgrößen der Zuordnung (Register, Maßnahmenklassen, § 3c)
+#'
+#' Steuerfreie Maßnahme (PV, § 3 Nr. 72 EStG): Zeilen `income_tax_exempt` und keine Mieten bzw.
+#' sonstigen Erlöse außerhalb der Energieerlöse. Die Befreiung umfasst alle Einnahmen aus dem
+#' Betrieb der Anlage, also auch die Lieferung an Mieter (Zeile `internal_sale`, Kategorie
+#' `energy_income`, im Ledger als `income_other_taxable` geführt); Kosten sind nicht abziehbar
+#' (§ 3c EStG).
 #' @noRd
 tax_flat_key_context <- function(keys, reg, cfg) {
   nk <- if (is.null(keys)) 0L else nrow(keys)
   tc <- if (nk > 0L) keys$tax_category else character(0)
   mid <- if (nk > 0L) keys$measure_id else character(0)
-  # Maßnahmen mit nur steuerfreien Erlösen (PV § 3 Nr. 72 EStG): Kosten nicht abziehbar (§ 3c)
+  cat_k <- if (nk > 0L) keys$category else character(0)
+  cat_k[is.na(cat_k)] <- ""
   ex_m <- unique(mid[!is.na(mid) & tc == "income_tax_exempt"])
-  tx_m <- unique(mid[!is.na(mid) & tc %in% c("income_rental", "income_other_taxable")])
+  tx_m <- unique(mid[!is.na(mid) & (tc == "income_rental" |
+                                      (tc == "income_other_taxable" & cat_k != "energy_income"))])
   list(keys = keys, nk = nk, tc = tc, mid = mid, reg = reg, exempt = setdiff(ex_m, tx_m),
        expensable = unique(mid[!is.na(mid) & tc == "capex_expensable"]),
+       depreciable = unique(mid[!is.na(mid) & tc == "capex_depreciable"]),
        excluded = cfg$acq_excluded)
 }
 
@@ -710,9 +805,12 @@ tax_flat_map_row <- function(acc, cx, i, cfg) {
     }
     return(FALSE)
   }
+  exempt_tc <- c("expense_deductible", "capex_expensable", "capex_depreciable",
+                 "acquisition_ancillary", "subsidy_investment", "subsidy_repayment_grant")
   if (!is.na(m) && m %in% cx$exempt &&
-        tc %in% c("expense_deductible", "capex_expensable", "capex_depreciable",
-                  "subsidy_investment", "subsidy_repayment_grant")) {
+        (tc %in% exempt_tc ||
+           (identical(tc, "income_other_taxable") &&
+              identical(keys$category[i], "energy_income")))) {
     return(FALSE)
   }
   switch(tc,
@@ -739,9 +837,7 @@ tax_flat_map_row <- function(acc, cx, i, cfg) {
 #' @noRd
 tax_flat_map_expensable <- function(acc, cx, i, key, share, cfg) {
   a <- tax_flat_asset_of(cx, i)
-  k <- tax_flat_extra(cx$keys, i, "spread_years")
-  k <- if (utl_is_whole(k)) as.integer(round(k)) else cfg$spread_default
-  k <- if (cfg$spread_allowed) min(max(k, 1L), 5L) else 1L
+  k <- tax_flat_row_spread(cx, i, cfg)
   if (tax_flat_has_window(cx, a) && identical(cfg$acq_mode, "umgliederung")) {
     tax_flat_add_term(acc, "acqE", key, share, asset = a, k = k)
   } else {
@@ -754,7 +850,28 @@ tax_flat_map_expensable <- function(acc, cx, i, key, share, cfg) {
   invisible(NULL)
 }
 
+#' Verteilung nach § 82b EStDV einer Zeile (Zeilenfeld `spread_years`, sonst Default; nur privat)
+#' @noRd
+tax_flat_row_spread <- function(cx, i, cfg) {
+  k <- tax_flat_extra(cx$keys, i, "spread_years")
+  k <- if (utl_is_whole(k)) as.integer(round(k)) else cfg$spread_default
+  if (cfg$spread_allowed) min(max(k, 1L), 5L) else 1L
+}
+
+#' Entscheidet das Modul über die Einordnung der Maßnahme (`auto` an einem Gebäude, keine
+#' Erweiterung bzw. kein Erwerb)?
+#' @noRd
+tax_flat_is_auto <- function(cx, m, a) {
+  at <- if (is.na(a)) NULL else cx$reg$assets[[a]]$asset_type
+  identical(tax_flat_measure_field(cx, m, "classification"), "auto") &&
+    !(tax_flat_measure_field(cx, m, "measure_type") %in% cx$excluded) &&
+    (at %||% "gebaeude_wohnen") %in% tax_flat_building_types()
+}
+
 #' Herstellungs- und Anschaffungskosten zuordnen (Bemessung, Boden, Prüfzeitraum)
+#'
+#' Maßnahmen mit Einordnung `auto` an Gebäuden: im Prüfzeitraum anschaffungsnaher HK Term
+#' `acqA` (15-%-Prüfung), außerhalb Term `autoE` (Erhaltungsaufwand mit Verteilung).
 #' @noRd
 tax_flat_map_depreciable <- function(acc, cx, i, key, share, cfg) {
   tc <- cx$tc[i]
@@ -767,10 +884,9 @@ tax_flat_map_depreciable <- function(acc, cx, i, key, share, cfg) {
   mt <- tax_flat_measure_field(cx, m, "measure_type")
   is_acq <- mt %in% c("erwerb_objekt", "erwerb_grundstueck")
   win <- tax_flat_has_window(cx, a)
-  auto <- identical(tc, "capex_depreciable") && win && !is_acq &&
-    identical(tax_flat_measure_field(cx, m, "classification"), "auto")
-  if (auto) {
-    tax_flat_add_term(acc, "acqA", key, share, asset = a)
+  if (identical(tc, "capex_depreciable") && tax_flat_is_auto(cx, m, a)) {
+    if (win) tax_flat_add_term(acc, "acqA", key, share, asset = a)
+    tax_flat_add_term(acc, "autoE", key, share, asset = a, k = tax_flat_row_spread(cx, i, cfg))
   } else {
     tax_flat_add_term(acc, "dep", key, -share, asset = a)
   }
@@ -788,16 +904,18 @@ tax_flat_map_depreciable <- function(acc, cx, i, key, share, cfg) {
 #' `einnahme`: Einnahme im Zuflussjahr. `minderung`: Zuschuss zu Erhaltungsaufwand als Einnahme
 #' im Zuflussjahr (wirkt wie die Minderung des Aufwands), zu Herstellungskosten als Minderung der
 #' Bemessungsgrundlage der Anlage; Maßnahmen mit Einordnung `auto` im Prüfzeitraum nach dem
-#' Stand der 15-%-Prüfung; ohne zuordenbare Anlage Einnahme. Zuschüsse zu steuerfreien
-#' Tätigkeiten (§ 3c) bleiben außer Ansatz.
+#' Stand der 15-%-Prüfung, außerhalb als Einnahme (Erhaltung); ohne zuordenbare Anlage Einnahme.
+#' Zuschüsse zu steuerfreien Tätigkeiten (§ 3c) bleiben außer Ansatz.
 #' @noRd
 tax_flat_map_subsidy <- function(acc, cx, key, a, m, cfg) {
   if (!is.na(m) && m %in% cx$exempt) return(invisible(NULL))
   if (identical(cfg$subsidy, "einnahme")) return(tax_flat_add_term(acc, "sub_inc", key, 1))
   cls <- tax_flat_measure_field(cx, m, "classification")
-  erh <- (!is.na(m) && m %in% cx$expensable) || identical(cls, "erhaltung")
+  # Einordnung der Maßnahme laut Register; ohne Registereintrag nach den Kostenzeilen
+  erh <- identical(cls, "erhaltung") ||
+    (is.na(cls) && !is.na(m) && m %in% cx$expensable && !(m %in% cx$depreciable))
   if (erh || is.na(a)) return(tax_flat_add_term(acc, "sub_inc", key, 1))
-  if (identical(cls, "auto") && tax_flat_has_window(cx, a)) {
+  if (tax_flat_is_auto(cx, m, a)) {
     return(tax_flat_add_term(acc, "subauto", key, 1, asset = a))
   }
   tax_flat_add_term(acc, "sub", key, 1, asset = a)
@@ -822,7 +940,8 @@ tax_init.tax_flat <- function(module, params, assets, measures, n_sim) {
   z <- numeric(n)
   list(cfg = tax_flat_cfg_for(module, params), reg = tax_flat_registers(assets, measures),
        map = NULL, n = n, vz = NA_integer_, ytd_e = z, ytd_tax = z, assessed = z, due = z,
-       loss = z, land = z, spread = list(), ast = list(), acq = list(), deferred = list(),
+       loss = z, loss_y0 = z, land = z, spread = list(), ast = list(), acq = list(),
+       deferred = list(),
        has_rv = FALSE, t0_date = NULL, closed = FALSE, t_last = NA_integer_)
 }
 
@@ -842,6 +961,7 @@ tax_step.tax_flat <- function(module, t, inputs, interest, state, params) {
     state$vz <- y
     state$ytd_e <- z
     state$ytd_tax <- z
+    state$loss_y0 <- state$loss
   }
   pay <- z
   if (cfg$lag == 1L) {
@@ -873,12 +993,13 @@ tax_step.tax_flat <- function(module, t, inputs, interest, state, params) {
   afa_tot <- z
   sb_tot <- z
   bv_tot <- z
+  auto_terms <- as.character(names(sm$sums))
+  auto_terms <- auto_terms[startsWith(auto_terms, "autoE|")]
   for (a in names(state$ast)) {
     st <- state$ast[[a]]
     ac <- st$cfg
     add <- g(paste0("dep|", a))
     red <- g(paste0("sub|", a))
-    auto_a <- g(paste0("acqA|", a))
     sauto <- g(paste0("subauto|", a))
     if (!is.null(state$acq[[a]])) {
       r <- tax_flat_acquisition(state$acq[[a]], ac, sm$sums, a, inputs, y, cfg)
@@ -895,13 +1016,18 @@ tax_step.tax_flat <- function(module, t, inputs, interest, state, params) {
       exc <- rep(TRUE, n)
       inwin <- FALSE
     }
-    if (!inwin) add <- add - auto_a
-    # Zuschuss zu einer Maßnahme mit Einordnung auto: Minderung, solange sie als HK gilt
+    # Maßnahmen mit Einordnung auto: im Prüfzeitraum nach der 15-%-Prüfung (Zuschuss mindert,
+    # solange sie als HK gelten), sonst Erhaltungsaufwand mit Verteilung (Zuschuss als Einnahme)
     if (inwin) {
       red <- red + sauto * exc
       inc_sub <- inc_sub + sauto * !exc
     } else {
-      red <- red + sauto
+      inc_sub <- inc_sub + sauto
+      for (nm in auto_terms[startsWith(auto_terms, paste0("autoE|", a, "|"))]) {
+        r <- tax_flat_spread(state$spread, sm$sums[[nm]], state$map$terms[[nm]]$k, y)
+        mnt <- mnt + r$now
+        state$spread <- r$queue
+      }
     }
     r <- tax_flat_depreciate(st, ac, add, red, inputs, months, y, last, cfg)
     state$ast[[a]] <- r$st
@@ -959,7 +1085,13 @@ tax_step.tax_flat <- function(module, t, inputs, interest, state, params) {
   list(payment = pay, state = state, report = report)
 }
 
-#' tax_flat: offene Steuer am Horizont (Spec 00 10.5, Memo 06 7.11)
+#' tax_flat: Steuer am Horizont (Spec 00 10.5, Memo 06 7.11)
+#'
+#' `payment_T` = offene Steuer (lag 1) + Steuerwirkung des letzten Veranlagungsjahres aus den
+#' Restraten nach § 82b EStDV (Werbungskosten im Jahr der Veräußerung, § 82b Abs. 2 EStDV, bzw.
+#' in den Folgejahren; vereinfachend unabgezinst am Horizont) und dem nicht realisierten
+#' Zuschussüberhang (Anlage am Horizont nicht in Betrieb), mit Verlustmodus und Satz der letzten
+#' Periode + Steuer auf den Restwert (getrennt vom V+V-Ergebnis) - Wert des Verlustvortrags.
 #' @exportS3Method tax_finalize tax_flat
 #' @noRd
 tax_finalize.tax_flat <- function(module, T, state, terminal_inputs, params) { # nolint
@@ -970,28 +1102,40 @@ tax_finalize.tax_flat <- function(module, T, state, terminal_inputs, params) { #
     return(list(payment_T = z, report = list()))
   }
   open <- if (cfg$lag == 1L) state$due + state$assessed else z
-  loss <- if (isTRUE(state$closed)) state$loss else
-    tax_flat_loss_after(state$ytd_e, state$loss, cfg$loss_cap)
   s <- tax_flat_rate_at(cfg$rate, as.integer(T), state$vz %||% 0L) # nolint
+  pending <- z
+  for (q in state$spread) pending <- pending + q
+  for (a in names(state$acq)) for (q in state$acq[[a]]$queue) pending <- pending + q
+  bv <- z
+  over <- z
+  for (a in names(state$ast)) {
+    b <- state$ast[[a]]$bv
+    bv <- bv + b * (b > 0)
+    over <- over - b * (b < 0)
+  }
+  # letztes Veranlagungsjahr: Ergebnis bis T plus Restraten und Zuschussüberhang
+  e_t <- pending + over
+  l0 <- state$loss_y0 %||% z
+  ytd <- state$ytd_e
+  term_tax <- tax_flat_tax(ytd + e_t, l0, cfg$loss_cap, s) - tax_flat_tax(ytd, l0, cfg$loss_cap, s)
+  loss <- tax_flat_loss_after(ytd + e_t, l0, cfg$loss_cap)
   gain <- z
   gain_tax <- z
-  if (tax_flat_rv_taxed(cfg, state, terminal_inputs)) {
+  rvt <- tax_flat_rv_taxed(cfg, state, terminal_inputs)
+  if (rvt$taxed) {
     rv <- as.double(terminal_inputs$residual_value %||% 0)
-    bv <- z
-    for (a in names(state$ast)) bv <- bv + state$ast[[a]]$bv
-    pending <- z
-    for (q in state$spread) pending <- pending + q
-    for (a in names(state$acq)) for (q in state$acq[[a]]$queue) pending <- pending + q
-    gain <- rv - bv - state$land - cfg$ebv + pending
+    gain <- rv - bv - state$land - cfg$ebv
     r <- tax_flat_gain_tax(gain, loss, cfg, s)
     gain_tax <- r$tax
     loss <- r$loss
   }
   loss_value <- if (identical(cfg$remaining_loss, "satz")) s * loss else z
-  tax_flat_finalize_warnings(module, state, cfg)
-  list(payment_T = open + gain_tax - loss_value,
-       report = list(terminal_open_tax = open, terminal_gain = gain,
-                     terminal_gain_tax = gain_tax, terminal_loss_value = loss_value))
+  exceeded <- tax_flat_finalize_warnings(state, cfg, rvt, n)
+  list(payment_T = open + term_tax + gain_tax - loss_value,
+       report = list(terminal_open_tax = open, terminal_maintenance = pending,
+                     terminal_subsidy = over, terminal_income_tax = term_tax,
+                     terminal_gain = gain, terminal_gain_tax = gain_tax,
+                     terminal_loss_value = loss_value, acq_exceeded = exceeded))
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -1123,7 +1267,9 @@ tax_flat_acquisition <- function(acq, ac, sums, a, inputs, y, cfg) {
 #'
 #' Zugänge (`add`) und Zuschussminderungen (`red`) wirken ab der Periode ihrer Buchung auf
 #' Bemessungsgrundlage und Restbuchwert (nachträgliche HK wie zu Jahresbeginn, R 7.4 Abs. 9
-#' EStR); übersteigt eine Minderung den Restbuchwert, ist der Überhang Einnahme (`excess`).
+#' EStR). Vor der Inbetriebnahme wird ein negativer Saldo aus Zugängen und Zuschüssen vorgetragen
+#' (spätere HK der Bauphase nehmen ihn auf, R 21.5 EStR); ab der Inbetriebnahme ist der Überhang
+#' eines Zuschusses über den Restbuchwert Einnahme (`excess`), am Horizont in `tax_finalize()`.
 #' Linear: Satz x Bemessungsgrundlage x Monate/12, höchstens der Restbuchwert; degressiv: Satz x
 #' Restbuchwert x Monate/12; nach dem Wechsel (`degressive_switch_year`) bzw. nach Ablauf des
 #' § 7b-Zeitraums Satz nach Abs. 4 x Restwert (fester Jahresbetrag). § 7b: 5 % der Basis
@@ -1136,10 +1282,14 @@ tax_flat_depreciate <- function(st, ac, add, red, inputs, months, y, last, cfg) 
   delta <- add - red
   st$base <- st$base + delta
   st$bv <- st$bv + delta
-  excess <- -st$bv
-  excess <- excess * (excess > 0)
-  st$bv <- st$bv + excess
-  st$base <- st$base * (st$base > 0)
+  excess <- 0 * st$bv
+  # in Betrieb bis zum Periodenende (Termin deterministisch)
+  if (is.na(ac$ism) || inputs$date_end > ac$ism) {
+    excess <- -st$bv
+    excess <- excess * (excess > 0)
+    st$bv <- st$bv + excess
+    st$base <- st$base * (st$base > 0)
+  }
   if (st$reset) st$lin <- st$lin + ac$rate_lin * delta
   mi <- tax_flat_months_in(ac$ism, inputs$date_end, months)
   afa <- 0 * st$bv
@@ -1215,32 +1365,53 @@ tax_flat_loss_after <- function(e, loss, cap) {
 #' Wird der Restwert am Horizont besteuert? (Memo 06 6.2, 7.11; deterministisch)
 #'
 #' Nur mit Restwertzeilen und Restwertmethode != zero; `ja`/`nein` ausdrücklich; `auto`:
-#' Unternehmen stets, privat innerhalb der Frist des § 23 EStG (Beginn `holding_start`, sonst
-#' frühestes Anschaffungsdatum im Register, sonst früheste Inbetriebnahme eines Gebäudes, sonst
-#' Stichtag).
+#' Unternehmen stets, privat innerhalb der Frist des § 23 EStG (`tax_flat_holding_start()`).
+#' @return `list(taxed, start, assumed)`; `assumed`: Beginn der Frist nur angenommen.
 #' @noRd
 tax_flat_rv_taxed <- function(cfg, state, terminal_inputs) {
+  no <- list(taxed = FALSE, start = NULL, assumed = FALSE)
   if (!isTRUE(state$has_rv) || identical(cfg$rv_method, "zero") ||
         identical(cfg$rv_mode, "nein")) {
-    return(FALSE)
+    return(no)
   }
-  if (identical(cfg$rv_mode, "ja") || cfg$company) return(TRUE)
-  start <- cfg$holding_start
-  assets <- state$reg$assets
-  if (is.null(start)) {
-    acq <- Filter(Negate(is.null), lapply(assets, function(a) a$acquisition_date))
-    if (length(acq) > 0L) start <- do.call(min, unname(acq))
-  }
-  if (is.null(start)) {
-    bld <- Filter(function(a) a$asset_type %in% c("gebaeude_wohnen", "gebaeude_nichtwohnen"),
-                  assets)
-    isd <- lapply(bld, function(a) a$in_service_date)
-    if (length(isd) > 0L) start <- do.call(min, unname(isd))
-  }
-  if (is.null(start)) start <- state$t0_date
+  if (identical(cfg$rv_mode, "ja") || cfg$company) return(list(taxed = TRUE, start = NULL,
+                                                               assumed = FALSE))
+  hs <- tax_flat_holding_start(cfg, state)
   end <- terminal_inputs$horizon_date
-  if (is.null(start) || is.null(end)) return(FALSE)
-  end < grid_add_months(start, 12L * cfg$holding_years)
+  if (is.null(hs$start) || is.null(end)) return(no)
+  list(taxed = end < grid_add_months(hs$start, 12L * cfg$holding_years), start = hs$start,
+       assumed = hs$assumed)
+}
+
+#' Beginn der Frist des § 23 EStG (Anschaffung des Grundstücks; § 23 Abs. 1 S. 1 Nr. 1 S. 2:
+#' ein in der Frist errichtetes Gebäude wird einbezogen, die Frist beginnt nicht neu)
+#'
+#' Reihenfolge: `holding_start`; frühestes Anschaffungsdatum im Register (`acquisition_date`);
+#' mit Erwerbsmaßnahme im Register (`erwerb_grundstueck`, `erwerb_objekt`) die früheste
+#' Inbetriebnahme des Grundstücks (`grund_boden`, vom Expander mit dem Erwerbsdatum angelegt).
+#' Rückfall (angenommen): frühestes Datum von Grundstück und Gebäuden im Register, sonst Stichtag.
+#' @return `list(start = Date | NULL, assumed = lgl)`.
+#' @noRd
+tax_flat_holding_start <- function(cfg, state) {
+  if (!is.null(cfg$holding_start)) return(list(start = cfg$holding_start, assumed = FALSE))
+  assets <- state$reg$assets
+  first <- function(xs) {
+    xs <- Filter(Negate(is.null), unname(xs))
+    if (length(xs) == 0L) NULL else do.call(min, xs)
+  }
+  acq <- first(lapply(assets, function(a) a$acquisition_date))
+  if (!is.null(acq)) return(list(start = acq, assumed = FALSE))
+  isd <- function(types) {
+    first(lapply(Filter(function(a) a$asset_type %in% types, assets),
+                 function(a) a$in_service_date))
+  }
+  land <- isd("grund_boden")
+  bought <- any(vapply(state$reg$measures, function(m) {
+    m$measure_type %in% c("erwerb_grundstueck", "erwerb_objekt")
+  }, logical(1)))
+  if (bought && !is.null(land)) return(list(start = land, assumed = FALSE))
+  any_date <- first(list(land, isd(tax_flat_building_types())))
+  list(start = any_date %||% state$t0_date, assumed = TRUE)
 }
 
 #' Steuer auf den Gewinn am Horizont (Verlustvortrag vorrangig)
@@ -1261,18 +1432,27 @@ tax_flat_gain_tax <- function(gain, loss, cfg, s) {
   list(tax = tax, loss = loss)
 }
 
-#' Zusammengefasste Warnungen eines Modells (je Modell höchstens einmal)
+#' Warnungen am Horizont und Merkzeile der 15-%-Prüfung (ohne Zustand im Modulobjekt)
+#'
+#' Je Aufruf von `tax_finalize()` (d. h. je Rechenblock eines Laufs; ein deterministischer
+#' Lauf hat einen Block) höchstens eine Warnung je Art; der Anteil bezieht sich auf die Läufe
+#' des Blocks. Den Anteil über alle Läufe liefert die Merkzeile `tax_report_acq_exceeded`
+#' (Spalte T+1, 1 = Grenze überschritten). Eine Zusammenfassung über alle Blöcke durch die
+#' Engine (Markierungen, 9.8) setzt einen Änderungsantrag an den Steuer-Hook voraus.
+#' @return n-Vektor 0/1: 15-%-Grenze in mindestens einem Prüfzeitraum überschritten.
 #' @noRd
-tax_flat_finalize_warnings <- function(module, state, cfg) {
-  once <- module$once
-  if (!is.environment(once) || isTRUE(once$acq)) return(invisible(NULL))
-  flags <- lapply(state$acq, function(q) q$flag)
-  if (length(flags) == 0L) return(invisible(NULL))
-  hit <- Reduce(`|`, flags)
+tax_flat_finalize_warnings <- function(state, cfg, rvt, n) {
+  if (isTRUE(rvt$taxed) && isTRUE(rvt$assumed)) {
+    vofi_warn("types.tax.flat.msg.holding_start_assumed", date = format(rvt$start),
+              .class = "vofi_warning_plausibility")
+  }
+  exceeded <- numeric(n)
+  if (length(state$acq) == 0L) return(exceeded)
+  exceeded <- exceeded + Reduce(`|`, lapply(state$acq, function(q) q$exc))
+  hit <- Reduce(`|`, lapply(state$acq, function(q) q$flag))
   if (identical(cfg$acq_mode, "pruefung") && any(hit)) {
-    once$acq <- TRUE
     vofi_warn("types.tax.flat.msg.acq_exceeded", share = mean(hit), limit = cfg$acq_share,
               .class = "vofi_warning_plausibility")
   }
-  invisible(NULL)
+  exceeded
 }

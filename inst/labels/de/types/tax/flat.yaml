@@ -32,7 +32,7 @@ params:
     help: "Nur Unternehmen ohne erweiterte Kürzung, z. B. 4,5 für 450 %; mindestens der gesetzliche Mindesthebesatz (2,8 ab 2027). Ohne Angabe erweiterte Kürzung (keine Gewerbesteuer)."
   depreciation_method:
     label: "AfA-Methode Wohngebäude"
-    help: "auto (degressiv nach § 7 Abs. 5a, wenn der Baubeginn im Fenster 10/2023–09/2029 liegt, sonst linear), linear (§ 7 Abs. 4) oder degressiv."
+    help: "auto (degressiv nach § 7 Abs. 5a, wenn der Baubeginn im Fenster 10/2023–09/2029 liegt, sonst linear), linear (§ 7 Abs. 4) oder degressiv. Das Feld afa_method einer Anlage im Anlagenregister (linear, degressiv_5a, override, Zusatz +sonder_7b) hat Vorrang."
   degressive_switch_year:
     label: "Wechsel zur linearen AfA nach Jahren"
     help: "Optional: nach so vielen Jahren degressiver AfA Wechsel zur linearen AfA (Restwert x Satz nach § 7 Abs. 4)."
@@ -41,7 +41,7 @@ params:
     help: "Optional: abweichender Satz (z. B. aus einer Restnutzungsdauer); sonst 3 % / 2 % / 2,5 % nach Fertigstellung."
   special_7b:
     label: "Sonderabschreibung § 7b"
-    help: "5 % p. a. im Fertigstellungsjahr und den drei Folgejahren für neue Mietwohnungen (Effizienzhaus 40 mit QNG, Bauantrag 2023–09/2029, Baukosten bis 5.200 EUR/m², Basis höchstens 4.000 EUR/m²); Rückgängigmachung nicht abgebildet."
+    help: "5 % p. a. im Fertigstellungsjahr und den drei Folgejahren für neue Mietwohnungen (Effizienzhaus 40 mit QNG, Bauantrag 2023–09/2029, Baukosten bis 5.200 EUR/m², Basis höchstens 4.000 EUR/m²); Rückgängigmachung nicht abgebildet. Gilt für alle Wohngebäude ohne eigenes afa_method im Anlagenregister."
   spread_years:
     label: "Verteilung Erhaltungsaufwand (Jahre)"
     help: "Default der Verteilung nach § 82b EStDV für Erhaltungsaufwand ohne eigene Angabe (1 = sofort, 2–5 Jahre); nur Privatvermögen."
@@ -50,7 +50,7 @@ params:
     help: "minderung (R 21.5 EStR: Minderung der AfA-Bemessungsgrundlage bzw. des Erhaltungsaufwands) oder einnahme (steuerpflichtige Einnahme im Zuflussjahr)."
   acquisition_related:
     label: "Anschaffungsnahe Herstellungskosten"
-    help: "pruefung (Prüfung der 15-%-Grenze mit Warnung; nur Maßnahmen mit Einordnung auto werden umgegliedert) oder umgliederung (auch Erhaltungsaufwand wird bei Überschreitung zu Herstellungskosten)."
+    help: "pruefung (Prüfung der 15-%-Grenze mit Warnung; nur Maßnahmen mit Einordnung auto werden umgegliedert) oder umgliederung (auch Erhaltungsaufwand wird bei Überschreitung zu Herstellungskosten). Maßnahmen mit Einordnung auto an Gebäuden außerhalb des Prüfzeitraums (drei Jahre nach Anschaffung) gelten als Erhaltungsaufwand; Erweiterungen und eigene Anlagen (z. B. PV) bleiben Herstellungskosten."
   acquisition_vat_rate:
     label: "USt-Satz der 15-%-Prüfung"
     help: "Satz, mit dem die Bruttokosten für die Prüfung der anschaffungsnahen HK in Nettobeträge umgerechnet werden."
@@ -62,10 +62,10 @@ params:
     help: "Steuerlicher Restbuchwert des vorhandenen Gebäudes und Bodens am Horizont (Bestandsprojekte), mindert den Gewinn bei Besteuerung des Restwerts."
   holding_start:
     label: "Beginn der Haltefrist"
-    help: "Optional: Beginn der Frist des § 23 EStG; sonst Anschaffung laut Anlagenregister, sonst Fertigstellung."
+    help: "Optional: Beginn der Frist des § 23 EStG (Anschaffung des Grundstücks; ein darauf errichtetes Gebäude wird einbezogen). Sonst Anschaffungsdatum im Anlagenregister bzw. Erwerb des Grundstücks laut Erwerbsmaßnahme; ohne Erwerb im Projekt angenommen: frühestes Datum von Grundstück und Gebäude im Register bzw. Stichtag (Warnung, wenn der Restwert dadurch besteuert wird)."
   remaining_loss:
     label: "Verbleibender Verlustvortrag am Horizont"
-    help: "verfall (Wert 0, konservativ) oder satz (Steuersatz x Vortrag als Forderung)."
+    help: "verfall (Wert 0, konservativ) oder satz (Steuersatz x Vortrag als Forderung). Restraten nach § 82b EStDV werden unabhängig davon im letzten Veranlagungsjahr abgezogen."
 report:
   income: "Steuer: Einnahmen"
   expenses: "Steuer: abziehbare Aufwendungen"
@@ -84,9 +84,13 @@ report:
   acq_test_costs: "Steuer: Aufwand netto im Prüfzeitraum (15 %)"
   acq_test_limit: "Steuer: Grenze anschaffungsnahe HK (15 % der AK)"
   terminal_open_tax: "Steuer: am Horizont offene Steuer"
+  terminal_maintenance: "Steuer: Restraten Erhaltungsaufwand § 82b am Horizont"
+  terminal_subsidy: "Steuer: Zuschussüberhang am Horizont (Anlage nicht in Betrieb)"
+  terminal_income_tax: "Steuer: Steuerwirkung der Restraten und des Zuschussüberhangs"
   terminal_gain: "Steuer: Gewinn aus dem Restwert"
   terminal_gain_tax: "Steuer auf den Restwert"
   terminal_loss_value: "Steuer: Wert des Verlustvortrags"
+  acq_exceeded: "Steuer: 15-%-Grenze anschaffungsnahe HK überschritten (1 = ja)"
 msg:
   disclaimer: "Steuermodul flat: vereinfachte Näherung – keine Steuerberatung; das Ergebnis vor Steuern bleibt das Primärergebnis."
   blocked: "Das Pauschalsteuer-Modul flat ist für Selbstnutzer und steuerbefreite Rechtsträger gesperrt (Perspektive {perspective}, Steuerregime {regime}): Beim Selbstnutzer ist das Objekt ertragsteuerlich neutral, bei befreiten Genossenschaften und gemeinnützigen Unternehmen fällt keine Ertragsteuer an; das Modul würde fiktive Erstattungen bzw. Steuerlasten erzeugen. Steuermodul none verwenden."
@@ -104,5 +108,9 @@ msg:
   s7b_unchecked: "Steuermodul flat: Anlage '{asset}': Voraussetzung der Sonder-AfA § 7b nicht prüfbar ('{what}' fehlt); als erfüllt angenommen."
   s7b_conditions: "Steuermodul flat: Anlage '{asset}': Sonder-AfA § 7b setzt QNG-Siegel und entgeltliche Vermietung über zehn Jahre voraus; Rückgängigmachung ist nicht abgebildet."
   acq_hint: "Steuermodul flat: Erhaltungsmaßnahmen innerhalb von drei Jahren nach Anschaffung ({measures}); übersteigen sie netto {share:pct} der Gebäude-Anschaffungskosten, sind sie anschaffungsnahe Herstellungskosten (Merkzeilen der Prüfung; acquisition_related: umgliederung gliedert automatisch um)."
-  acq_exceeded: "Steuermodul flat: die Grenze der anschaffungsnahen Herstellungskosten ({limit:pct} der Gebäude-AK) ist in {share:pct} der Läufe überschritten; als Erhaltung eingeordneter Aufwand wurde dennoch sofort abgezogen (acquisition_related: umgliederung)."
+  acq_exceeded: "Steuermodul flat: die Grenze der anschaffungsnahen Herstellungskosten ({limit:pct} der Gebäude-AK) ist in {share:pct} der Läufe (des Rechenblocks; über alle Läufe: Merkzeile tax_report_acq_exceeded) überschritten; als Erhaltung eingeordneter Aufwand wurde dennoch sofort abgezogen (acquisition_related: umgliederung)."
+  auto_maintenance: "Steuermodul flat: Maßnahmen mit Einordnung auto außerhalb des Prüfzeitraums anschaffungsnaher Herstellungskosten ({measures}) werden als Erhaltungsaufwand abgezogen (Ergebnis der 15-%-Regel); Herstellungskosten (z. B. erstmaliger Einbau einer Anlage) mit classification: herstellung angeben."
+  afa_method_unknown: "Steuermodul flat: Anlage '{asset}': unbekannter Code im Feld afa_method ({value}); erlaubt sind linear, degressiv_5a, override, auto und der Zusatz +sonder_7b."
+  afa_override_missing: "Steuermodul flat: Anlage '{asset}': afa_method override ohne useful_life_override; AfA nach dem gesetzlichen Satz."
+  holding_start_assumed: "Steuermodul flat: Beginn der Frist des § 23 EStG nicht bekannt (kein Erwerb im Projekt, holding_start fehlt); angenommen {date}. Der Restwert wird als privates Veräußerungsgeschäft besteuert; wurde das Grundstück früher angeschafft, holding_start angeben."
   existing_book_value: "Steuermodul flat: der Restwert eines Bestandsprojekts wird besteuert, der Restbuchwert des Bestands fehlt (existing_book_value_eur); der Gewinn ist überschätzt."

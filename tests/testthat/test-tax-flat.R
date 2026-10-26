@@ -80,8 +80,8 @@ test_that("Steuersatz: Nutzereingabe, Default privat 44,31 %, Unternehmen KSt-Pf
   g <- make_grid("annual", T = 8L)
   r <- wsx_run(list(rate = 0.42, lag = 0L), list(), g)
   expect_identical(r$module$cfg$rate, list(kind = "const", value = 0.42, default = FALSE))
-  cap <- e2_capture(reg_get("tax", "flat")$constructor(list(),
-                                                      reg_test_spec(g, "kleinvermieter")))
+  ctor <- reg_get("tax", "flat")$constructor
+  cap <- e2_capture(ctor(list(), reg_test_spec(g, "kleinvermieter")))
   expect_true(all(c("types.tax.flat.msg.disclaimer", "types.tax.flat.msg.rate_default") %in%
                     cap$messages))
   m <- cap$value
@@ -117,8 +117,8 @@ test_that("Abgeltungssatz: 26,375 %, mit Kirchensteuer nach § 32d, ausdrücklic
                0.25 / 1.02 * 1.135, tolerance = 1e-12)
   expect_equal(cfg(list(rate = 0.4, capital_rate = 0.2))$capital_rate, 0.2)
   expect_identical(cfg(list(rate = 0.4))$deposit, "abgeltung")
-  expect_identical(wsx_run(list(rate = 0.4), list(), g, perspective = "wu_privat")$module$cfg$deposit,
-                   "ergebnis")
+  co <- wsx_run(list(rate = 0.4), list(), g, perspective = "wu_privat")
+  expect_identical(co$module$cfg$deposit, "ergebnis")
   expect_identical(cfg(list(rate = 0.4, deposit_interest = "keine"))$deposit, "keine")
 })
 
@@ -192,8 +192,10 @@ test_that("Validierung: flat mit Abgeltungsteuer auf dem Konto ist Doppelbesteue
 
 test_that("Lineare AfA: Satz nach Fertigstellung, pro rata ab Monat der Inbetriebnahme", {
   g <- make_grid("annual", T = 6L)
-  inv <- function(a) list(wsx_row("inv__cost", "capex_depreciable", z7(-300000),
-                                  category = "capex", asset_id = a))
+  inv <- function(a) {
+    list(wsx_row("inv__cost", "capex_depreciable", z7(-300000), category = "capex",
+                 asset_id = a))
+  }
   a <- vofi_asset("b1", "gebaeude_wohnen", as.Date("2027-04-15"))
   r <- wsx_run(list(rate = 0.4, lag = 0L), inv("b1"), g, assets = list(a))
   expect_equal(r$report$depreciation[1L, ], -c(0, 6750, rep(9000, 5)))
@@ -315,7 +317,8 @@ test_that("§ 7b: Baukostenobergrenze 5.200 und Basis 4.000 EUR/m² je Lauf, Pr�
     warning = function(cnd) {
       w <<- c(w, cnd$key)
       invokeRestart("muffleWarning")
-    })
+    }
+  )
   expect_identical(unique(w), "types.tax.flat.msg.s7b_unchecked")
   expect_length(w, 3L)
   expect_equal(-ru$report$special_depreciation[, 2L], c(25000, 30000, 15000))
@@ -363,17 +366,42 @@ test_that("Erhaltungsaufwand: sofort, Verteilung § 82b (privat), Unternehmen so
   r3 <- wsx_run(list(rate = 0.4, lag = 0L, spread_years = 3L), rows, g)
   expect_equal(r3$report$maintenance[1L, ], -c(0, 10000, 20000, 20000, 20000, 10000, 0))
   # Unternehmen: § 82b nur im Privatvermögen
-  cap <- e2_capture(reg_get("tax", "flat")$constructor(list(rate = 0.3, spread_years = 3L),
-                                                      reg_test_spec(g, "wu_privat")))
+  ctor <- reg_get("tax", "flat")$constructor
+  cap <- e2_capture(ctor(list(rate = 0.3, spread_years = 3L), reg_test_spec(g, "wu_privat")))
   expect_true("types.tax.flat.msg.spread_private_only" %in% cap$messages)
   rc <- wsx_run(list(rate = 0.3, lag = 0L, spread_years = 3L), rows, g, perspective = "wu_privat")
   expect_equal(rc$report$maintenance[1L, ], -c(0, 50000, 30000, 0, 0, 0, 0))
-  # offene Raten am Horizont: Abzug nur bei Veräußerung (Restwertbesteuerung)
+  # offene Raten am Horizont (§ 82b Abs. 2 EStDV): Abzug im letzten Veranlagungsjahr,
+  # unabhängig von Restwert und § 23 (sofort: Erstattung 0,4 x 40.000)
   late <- list(wsx_row("m__cost", "capex_expensable", z7(0, 0, 0, 0, 0, 0, -50000),
                        category = "capex", extra = list(spread_years = 5L)))
   rl <- wsx_run(list(rate = 0.4, lag = 0L), late, g)
   expect_equal(sum(rl$report$maintenance), -10000)
-  expect_equal(rl$fin$payment_T, 0)
+  expect_equal(rl$fin$payment_T, -16000)
+  expect_equal(rl$fin$report$terminal_maintenance, -40000)
+  expect_equal(rl$fin$report$terminal_income_tax, -16000)
+  expect_equal(sum(rl$report$maintenance) + rl$fin$report$terminal_maintenance, -50000)
+  # mit Mieten im letzten Jahr: Verrechnung im Veranlagungsjahr; vortrag ohne Erstattung,
+  # Rest als Vortrag (Wert nur mit remaining_loss = satz)
+  rent <- c(late, list(wsx_row("z__rent", "income_rental", z7(0, 0, 0, 0, 0, 0, 30000),
+                               category = "rent")))
+  rv <- wsx_run(list(rate = 0.4, lag = 0L, loss_mode = "vortrag"), rent, g)
+  expect_equal(rv$pay[1L, 7L], 0.4 * 20000)
+  expect_equal(rv$fin$payment_T, -0.4 * 20000)
+  expect_equal(wsx_run(list(rate = 0.4, lag = 0L, loss_mode = "vortrag"), late,
+                       g)$fin$payment_T, 0)
+  rs <- wsx_run(list(rate = 0.4, lag = 0L, loss_mode = "vortrag", remaining_loss = "satz"), late,
+                g)
+  expect_equal(rs$fin$payment_T, -0.4 * 50000)
+  # lag 1: offene Steuer des letzten Jahres und Wirkung der Restraten zusammen in payment_T
+  r1 <- wsx_run(list(rate = 0.4, lag = 1L), rent, g)
+  expect_equal(r1$fin$payment_T, 0.4 * (30000 - 10000) - 0.4 * 40000)
+  # privat innerhalb der Frist: Restraten nicht im § 23-Gewinn (getrennt vom V+V-Ergebnis)
+  rg <- c(late, list(wsx_row("rv__value", "disposal_proceeds", z7(0, 0, 0, 0, 0, 0, 100000),
+                             category = "residual_value")))
+  rr <- wsx_run(list(rate = 0.4, lag = 0L, holding_start = "2026-06-01"), rg, g, rv = 100000)
+  expect_equal(rr$fin$report$terminal_gain, 100000)
+  expect_equal(rr$fin$payment_T, 0.4 * 100000 - 0.4 * 40000)
 })
 
 test_that("Zuschüsse: Minderung der Bemessungsgrundlage bzw. Einnahme (R 21.5 EStR)", {
@@ -445,12 +473,47 @@ test_that("Anschaffungsnahe HK: 15-%-Grenze netto je Lauf, Umgliederung der Maß
   expect_true(all(r$report$reclassification[2L, ] == 0))
   expect_equal(-r$report$depreciation[2L, ], c(0, rep(6400, 6)))
   expect_equal(r$state$land, c(100000, 100000))
-  # nach dem Prüfzeitraum (> 3 Jahre): Maßnahme auto wie Zeile (Herstellungskosten)
+  # nach dem Prüfzeitraum (> 3 Jahre): Maßnahme auto ist Erhaltungsaufwand (Ergebnis der
+  # 15-%-Regel, Spec 01a 4.6.3), mit Verteilung nach § 82b
   late <- rows
   late[[4L]]$values <- z7(0, 0, 0, 0, -59500)
   rl <- wsx_run(list(rate = 0.4, lag = 0L), late, g, assets = list(b1, land), measures = ms)
-  expect_true(all(rl$report$maintenance == 0))
-  expect_equal(-rl$report$depreciation[1L, 6L], 0.02 * (320000 + 59500))
+  expect_equal(rl$report$maintenance[1L, ], z7(0, 0, 0, 0, -59500))
+  expect_true(all(rl$report$reclassification == 0))
+  expect_equal(-rl$report$depreciation[1L, 6L], 0.02 * 320000)
+  r2 <- wsx_run(list(rate = 0.4, lag = 0L, spread_years = 2L), late, g, assets = list(b1, land),
+                measures = ms)
+  expect_equal(r2$report$maintenance[1L, ], z7(0, 0, 0, 0, -29750, -29750))
+  # Hinweis beim Bau nennt die Maßnahme (Fertigstellung nach Ablauf des Prüfzeitraums)
+  ml <- list(ms[[1L]], vofi_measure("san", "daemmung_fassade", classification = "auto",
+                                    asset_id = "b1", completion_date = as.Date("2031-01-01")))
+  spec <- reg_test_spec(g, "kleinvermieter")
+  spec$registers <- list(assets = list(b1, land), measures = ml)
+  cap <- e2_capture(reg_get("tax", "flat")$constructor(list(rate = 0.4), spec))
+  expect_true("types.tax.flat.msg.auto_maintenance" %in% cap$messages)
+  # Erweiterung (Aufstockung) und eigene Anlage (PV) mit Einordnung auto: Herstellungskosten
+  pv <- vofi_asset("b1_pv", "pv_anlage", as.Date("2027-01-01"))
+  mx <- list(vofi_measure("auf", "aufstockung", classification = "auto", asset_id = "b1"),
+             vofi_measure("pvm", "pv", classification = "auto", asset_id = "b1_pv"))
+  rx <- list(wsx_row("auf__cost", "capex_depreciable", z7(0, 0, 0, 0, -100000),
+                     category = "capex", asset_id = "b1", measure_id = "auf"),
+             wsx_row("pvm__cost", "capex_depreciable", z7(0, 0, 0, 0, -20000),
+                     category = "capex", asset_id = "b1_pv", measure_id = "pvm"))
+  ra <- wsx_run(list(rate = 0.4, lag = 0L), rx, g, assets = list(b1, pv), measures = mx)
+  expect_true(all(ra$report$maintenance == 0))
+  expect_equal(-ra$report$depreciation[1L, 6L], 0.02 * 100000 + 20000 / 20)
+  # ohne Anschaffung im Register (lange gehaltenes Gebäude): auto stets Erhaltung, Zuschuss
+  # als Einnahme
+  held <- vofi_asset("b1", "gebaeude_wohnen", as.Date("1990-01-01"),
+                     original_completion_year = 1960L)
+  rh <- wsx_run(list(rate = 0.4, lag = 0L),
+                list(late[[4L]], wsx_row("g__grant", "subsidy_investment", z7(0, 0, 0, 0, 0, 10000),
+                                         category = "grant", measure_id = "san",
+                                         section = "grants")),
+                g, assets = list(held), measures = ms)
+  expect_equal(rh$report$maintenance[1L, ], z7(0, 0, 0, 0, -59500))
+  expect_equal(rh$report$income[1L, ], z7(0, 0, 0, 0, 0, 10000))
+  expect_true(all(rh$report$depreciation == 0))
 })
 
 test_that("Anschaffungsnahe HK: Erhaltung mit Prüfung (Warnung) bzw. Umgliederung mit Raten", {
@@ -467,18 +530,27 @@ test_that("Anschaffungsnahe HK: Erhaltung mit Prüfung (Warnung) bzw. Umgliederu
     wsx_row("dach__cost", "capex_expensable", z7(0, -23800, -47600), category = "capex",
             asset_id = "b1", measure_id = "dach", extra = list(spread_years = 2L))
   )
-  # Prüfung: Hinweis beim Bau, Warnung im Lauf (einmal je Modell), keine Umgliederung
+  # Prüfung: Hinweis beim Bau, Warnung im Lauf (je tax_finalize, ohne Zustand im Modulobjekt),
+  # Merkzeile acq_exceeded je Lauf, keine Umgliederung
   w <- character(0)
   r <- withCallingHandlers(
     wsx_run(list(rate = 0.4, lag = 0L), rows, g, assets = list(b1), measures = ms),
     warning = function(cnd) {
       w <<- c(w, cnd$key)
       invokeRestart("muffleWarning")
-    })
+    }
+  )
   expect_true(all(c("types.tax.flat.msg.acq_hint", "types.tax.flat.msg.acq_exceeded") %in% w))
   expect_equal(r$report$maintenance[1L, ], -c(0, 11900, 35700, 23800, 0, 0, 0))
   expect_true(all(r$report$reclassification == 0))
-  expect_warning(tax_flat_finalize_warnings(r$module, r$state, r$module$cfg), NA)
+  expect_equal(r$fin$report$acq_exceeded, 1)
+  expect_null(r$module$once)
+  m0 <- r$module
+  expect_warning(f2 <- tax_finalize(r$module, g$T, r$state, list(residual_value = 0),
+                                    r$module$params),
+                 class = "vofi_warning_plausibility")
+  expect_identical(f2$payment_T, r$fin$payment_T)
+  expect_identical(r$module, m0)
   # Umgliederung: vorläufige Abzüge (11.900 + 11.900) zurück, offene Raten aktiviert
   ru <- wsx_run(list(rate = 0.4, lag = 0L, acquisition_related = "umgliederung"), rows, g,
                 assets = list(b1), measures = ms)
@@ -586,7 +658,8 @@ test_that("§ 3c: Kosten einer Maßnahme mit nur steuerfreien Erlösen (PV) nich
     wsx_row("pv__opex", "expense_deductible", c(0, -500, -500), category = "operating_cost",
             measure_id = "pv"),
     wsx_row("pvc__cost", "capex_depreciable", c(-20000, 0, 0), category = "capex",
-            measure_id = "pv", asset_id = "b1_pv"))
+            measure_id = "pv", asset_id = "b1_pv")
+  )
   r <- wsx_run(list(rate = 0.4, lag = 0L), rows, g, assets = list(pv))
   expect_true(all(r$pay == 0) && all(r$report$taxable_income == 0))
   # steuerpflichtige PV (internal_sale): Kosten abziehbar, AfA 20 Jahre
@@ -601,7 +674,8 @@ test_that("Restwert am Horizont: Unternehmen stets, privat innerhalb der Frist d
     wsx_row("inv__cost", "capex_depreciable", z7(-100000), category = "capex", asset_id = "geb"),
     wsx_row("land__cost", "capex_land", z7(-50000), category = "land"),
     wsx_row("rv__value", "disposal_proceeds", z7(0, 0, 0, 0, 0, 0, 200000),
-            category = "residual_value"))
+            category = "residual_value")
+  )
   p <- list(rate = 0.3, lag = 0L, building_rate = 0.1)
   rc <- wsx_run(p, rows, g, rv = 200000, perspective = "wu_privat")
   expect_equal(rc$fin$report$terminal_gain, 200000 - 40000 - 50000)
@@ -609,9 +683,13 @@ test_that("Restwert am Horizont: Unternehmen stets, privat innerhalb der Frist d
   # Restwert unter Buchwert: Erstattung bei Unternehmen (sofort), privat kein Verlust
   rl <- wsx_run(p, rows, g, rv = 60000, perspective = "wu_privat")
   expect_equal(rl$fin$payment_T, -0.3 * 30000)
-  expect_equal(wsx_run(p, rows, g, rv = 60000)$fin$payment_T, 0)
-  # privat: Frist ab Stichtag (6 Jahre) -> steuerpflichtig; ab 2015 -> steuerfrei
-  expect_equal(wsx_run(p, rows, g, rv = 200000)$fin$payment_T, 33000)
+  expect_warning(rp <- wsx_run(p, rows, g, rv = 60000), class = "vofi_warning_plausibility")
+  expect_equal(rp$fin$payment_T, 0)
+  # privat ohne Erwerb und Register: Frist ab Stichtag angenommen (6 Jahre) -> steuerpflichtig,
+  # mit Warnung; ab 2015 -> steuerfrei
+  e <- expect_warning(rs <- wsx_run(p, rows, g, rv = 200000), class = "vofi_warning_plausibility")
+  expect_identical(e$key, "types.tax.flat.msg.holding_start_assumed")
+  expect_equal(rs$fin$payment_T, 33000)
   expect_equal(wsx_run(c(p, holding_start = "2015-01-01"), rows, g, rv = 200000)$fin$payment_T,
                0)
   old <- vofi_asset("geb", "gebaeude_wohnen", as.Date("1990-01-01"))
@@ -638,6 +716,47 @@ test_that("Restwert am Horizont: Unternehmen stets, privat innerhalb der Frist d
   # ohne Restwertzeile (z. B. Unterlassungsalternative) keine Besteuerung
   expect_equal(wsx_run(c(p, existing_book_value_eur = 10000), rows[1:2], g, rv = 0,
                        perspective = "wu_privat")$fin$payment_T, 0)
+})
+
+test_that("§ 23: Frist ab Anschaffung des Grundstücks, Gebäude wird einbezogen (Neubau)", {
+  bld <- vofi_asset("b1_building", "gebaeude_wohnen", as.Date("2028-01-01"),
+                    construction_start_date = as.Date("2027-03-01"),
+                    original_completion_year = 2028L)
+  land <- vofi_asset("b1_land", "grund_boden", as.Date("2027-01-01"), land_share = 1)
+  ms <- list(vofi_measure("grund", "erwerb_grundstueck", classification = "herstellung",
+                          asset_id = "b1_land"),
+             vofi_measure("neubau", "neubau", classification = "herstellung",
+                          asset_id = "b1_building"))
+  run <- function(n_t, measures = ms) {
+    v <- function(t, x) replace(rep(0, n_t), t + 1L, x)
+    rows <- list(wsx_row("m__cost", "capex_depreciable", v(1L, -1000000), category = "capex",
+                         asset_id = "b1_building", measure_id = "neubau"),
+                 wsx_row("l__price", "capex_land", v(0L, -300000), category = "land",
+                         asset_id = "b1_land", measure_id = "grund"),
+                 wsx_row("rv__value", "disposal_proceeds", v(n_t - 1L, 1600000),
+                         category = "residual_value"))
+    wsx_run(list(rate = 0.42, lag = 0L), rows, make_grid("annual", T = n_t - 1L),
+            assets = list(bld, land), measures = measures, rv = 1600000)
+  }
+  # Grundstück 01.01.2027, Gebäude 2028, Horizont 01.01.2037: Frist abgelaufen -> steuerfrei
+  r <- run(11L)
+  expect_equal(r$fin$report$terminal_gain_tax, 0)
+  expect_equal(r$fin$payment_T, 0)
+  expect_identical(tax_flat_holding_start(r$module$cfg, r$state),
+                   list(start = as.Date("2027-01-01"), assumed = FALSE))
+  # kürzerer Horizont: innerhalb der Frist -> steuerpflichtig, ohne Warnung (Erwerb bekannt)
+  expect_warning(r9 <- run(10L), NA)
+  expect_equal(r9$fin$report$terminal_gain,
+               1600000 - r9$state$ast$b1_building$bv - 300000)
+  expect_gt(r9$fin$report$terminal_gain_tax, 0)
+  # ohne Erwerbsmaßnahme: frühestes Registerdatum angenommen (Grundstück 2027, nicht die
+  # Fertigstellung 2028); Warnung nur, wenn der Restwert dadurch besteuert wird
+  rn <- run(11L, measures = list())
+  expect_equal(rn$fin$payment_T, 0)
+  expect_identical(tax_flat_holding_start(rn$module$cfg, rn$state),
+                   list(start = as.Date("2027-01-01"), assumed = TRUE))
+  e <- expect_warning(run(10L, measures = list()), class = "vofi_warning_plausibility")
+  expect_identical(e$key, "types.tax.flat.msg.holding_start_assumed")
 })
 
 test_that("Vokabular tax_category: jede Kategorie zugeordnet, tax_credit ignoriert (10.8, 10.9)", {
@@ -683,7 +802,8 @@ test_that("Verschiebung der steuerlichen Erfassung (tax_period, approval_date)",
     wsx_row("b__x", "income_other_taxable", c(0, 2000, 0, 0, 0), category = "other_income",
             extra = list(approval_date = as.Date("2029-06-01"))),
     wsx_row("c__x", "income_other_taxable", c(0, 0, 0, 0, 4000), category = "other_income",
-            extra = list(tax_period = 2L)))
+            extra = list(tax_period = 2L))
+  )
   r <- wsx_run(list(rate = 0.5, lag = 0L), rows, g)
   # a: erfasst in t = 3; b: in der Periode des Bewilligungsdatums (2029, t = 3); c: tax_period
   # vor der Zahlung -> erfasst bei Zahlung (keine Rückwirkung)
@@ -788,9 +908,9 @@ test_that("10.10 Nr. 3: Standardmodell, Endwert mit Kalkulationszins i(1 - s)", 
   expect_true(all(res$checks$ok))
   expect_gt(res$ledger$values$tax[1L, 2L], 0)
   # mit Verlustvortrag und lag 1 weicht der Endwert ab (Steuerstundung)
-  res_v <- vofi_run(wsx_build(wsx_scenario(params = list(rate = s, lag = 1L, building_rate = 1 / 3,
-                                                        deposit_interest = "ergebnis",
-                                                        loss_mode = "vortrag"), i = i)))
+  pv <- list(rate = s, lag = 1L, building_rate = 1 / 3, deposit_interest = "ergebnis",
+             loss_mode = "vortrag")
+  res_v <- vofi_run(wsx_build(wsx_scenario(params = pv, i = i)))
   expect_false(isTRUE(all.equal(res_v$kpis$terminal_value, res$kpis$terminal_value)))
   expect_true(all(res_v$checks$ok))
 })
@@ -872,7 +992,8 @@ test_that("Ende-zu-Ende: Kauf + Sanierung, anschaffungsnahe HK über das Registe
         kauf = list(measure_type = "erwerb_objekt", date = "2027-01-01",
                     purchase_price_eur = 400000, land_share = 0.25, grest_rate = 0.05),
         keller = list(measure_type = "daemmung_kellerdecke", date = "2028-01-01",
-                      cost_eur = cost, price_index = 0)),
+                      cost_eur = cost, price_index = 0)
+      ),
       tax = list(module = "flat", params = list(rate = 0.42, lag = 0L))
     )
   }
@@ -889,6 +1010,155 @@ test_that("Ende-zu-Ende: Kauf + Sanierung, anschaffungsnahe HK über das Registe
   expect_equal(bv_hi - bv_lo, 80000 - 0.02 * 80000)
 })
 
+test_that("Ende-zu-Ende: Warnung 15-%-Grenze in jedem Lauf, Modell bleibt unverändert", {
+  x <- e2_scenario(
+    project_type = "erwerb_sanierung", perspective = "kleinvermieter", horizon_years = 4L,
+    building = list(building_type = "MFH", construction_year = 1975L, n_units = 12L,
+                    living_area_m2 = 900, maintenance = list(basis = "none")),
+    measures = list(
+      kauf = list(measure_type = "erwerb_objekt", date = "2027-01-01",
+                  purchase_price_eur = 400000, land_share = 0.25, grest_rate = 0.05),
+      keller = list(measure_type = "daemmung_kellerdecke", date = "2028-01-01",
+                    classification = "erhaltung", cost_eur = 80000, price_index = 0)
+    ),
+    tax = list(module = "flat", params = list(rate = 0.42, lag = 0L))
+  )
+  m <- wsx_build(e2_resolve(x))
+  m0 <- m
+  keys <- function() {
+    cap <- e2_capture(vofi_run(m))
+    cap$warnings
+  }
+  expect_true("types.tax.flat.msg.acq_exceeded" %in% keys())
+  expect_true("types.tax.flat.msg.acq_exceeded" %in% keys())
+  expect_identical(m, m0)
+  res <- suppressWarnings(vofi_run(m))
+  expect_equal(res$ledger$values$tax_report_acq_exceeded[1L, ], c(0, 0, 0, 0, 1))
+  expect_equal(res$ledger$values$tax_report_maintenance[1L, 2L], -80000)
+})
+
+test_that("Ende-zu-Ende: PV steuerfrei (§ 3 Nr. 72), keine AfA und Kosten (§ 3c)", {
+  mk <- function(exempt) {
+    e2_scenario(
+      project_type = "neubau", perspective = "kleinvermieter", horizon_years = 5L,
+      building = list(building_type = "MFH", construction_year = 2028L,
+                      first_occupancy_year = 2028L, n_units = 12L, living_area_m2 = 900,
+                      maintenance = list(basis = "none")),
+      grid = list(construction_months = 12L),
+      measures = list(
+        neubau = list(measure_type = "neubau", date = "2027-06-01",
+                      completion_date = "2028-01-01", cost_eur = 1000000, price_index = 0),
+        pv = list(measure_type = "pv", date = "2027-12-01", completion_date = "2027-12-01",
+                  cost_eur = 20000, price_index = 0)
+      ),
+      energy = list(pv = list(kwp = 20, measure = "pv", specific_yield_kwh_kwp = 950,
+                              self_consumption_share = 0, feed_in_tariff_eur_kwh = 0.08,
+                              tax_exempt = exempt)),
+      components = list(miete = list(type = "custom_series", category = "rent",
+                                     values = c(0, 0, rep(60000, 4)))),
+      tax = list(module = "flat", params = list(rate = 0.42, lag = 0L))
+    )
+  }
+  res <- suppressMessages(e2_run(e2_resolve(mk("auto"))))
+  rows <- res$ledger$rows
+  expect_identical(rows$tax_category[rows$key == "e_pv__internal_sale"], "income_other_taxable")
+  afa <- -res$ledger$values$tax_report_depreciation[1L, ]
+  # nur das Gebäude (degressiv 5 %), keine AfA auf b1_pv
+  expect_equal(afa, c(0, 0, 50000 * 0.95^(0:3)))
+  e <- res$ledger$values$tax_report_taxable_income[1L, ]
+  expect_equal(e[3:6], 60000 - afa[3:6])
+  # steuerpflichtige PV: Einspeisung Einnahme, Kosten und AfA (20 Jahre) abziehbar
+  rt <- suppressMessages(e2_run(e2_resolve(mk("no"))))
+  afa_t <- -rt$ledger$values$tax_report_depreciation[1L, ]
+  expect_equal(afa_t[4:6] - c(50000 * 0.95^(1:3)), rep(1000, 3))
+  feed <- rt$ledger$values$e_pv__feed_in[1L, ]
+  expect_equal(rt$ledger$values$tax_report_income[1L, 4L], 60000 + feed[4L])
+})
+
+test_that("Zuschuss vor Abschluss der HK: Überhang vor Inbetriebnahme vorgetragen (R 21.5)", {
+  g <- make_grid("annual", T = 6L)
+  a <- vofi_asset("b1", "gebaeude_wohnen", as.Date("2029-01-01"))
+  ms <- list(vofi_measure("m1", "neubau", classification = "herstellung", asset_id = "b1"))
+  rows <- list(wsx_row("m1__cost", "capex_depreciable", z7(0, -100000, -300000),
+                       category = "capex", asset_id = "b1", measure_id = "m1"),
+               wsx_row("g1__grant", "subsidy_investment", z7(0, 150000), category = "grant",
+                       measure_id = "m1", section = "grants"))
+  r <- wsx_run(list(rate = 0.4, lag = 0L), rows, g, assets = list(a), measures = ms)
+  expect_true(all(r$report$income == 0))
+  expect_equal(r$report$book_value[1L, 2:4], c(-50000, 250000, 250000 - 7500))
+  expect_equal(-r$report$depreciation[1L, ], c(0, 0, 0, rep(7500, 4)))
+  expect_true(all(r$pay[1L, 1:3] == 0))
+  # Anlage am Horizont nicht in Betrieb: Überhang am Horizont als Einnahme
+  late_a <- vofi_asset("b1", "gebaeude_wohnen", as.Date("2040-01-01"))
+  rh <- wsx_run(list(rate = 0.4, lag = 0L), rows[2L], g, assets = list(late_a), measures = ms)
+  expect_true(all(rh$report$income == 0))
+  expect_equal(rh$fin$report$terminal_subsidy, 150000)
+  expect_equal(rh$fin$payment_T, 0.4 * 150000)
+  # in Betrieb: Überhang über den Restbuchwert sofort Einnahme (wie bisher)
+  early_a <- vofi_asset("b1", "gebaeude_wohnen", as.Date("2027-01-01"))
+  ri <- wsx_run(list(rate = 0.4, lag = 0L), rows, g, assets = list(early_a), measures = ms)
+  expect_equal(ri$report$income[1L, 2L], 50000)
+})
+
+test_that("AfA-Methode je Anlage aus dem Register (afa_method) mit Vorrang vor den Parametern", {
+  g <- make_grid("annual", T = 6L)
+  rows <- list(wsx_row("inv__cost", "capex_depreciable", z7(-400000), category = "capex",
+                       asset_id = "b1"))
+  mk <- function(am, ...) {
+    vofi_asset("b1", "gebaeude_wohnen", as.Date("2027-01-01"),
+               construction_start_date = as.Date("2024-05-01"),
+               building_application_date = as.Date("2023-06-01"),
+               efficiency_standard = "eh40", living_area_m2 = 100, afa_method = am, ...)
+  }
+  afa <- function(r) -r$report$depreciation[1L, 2:3]
+  sb <- function(r) -r$report$special_depreciation[1L, 2:3]
+  # linear trotz Fenster des Baubeginns (Default auto wäre degressiv)
+  rl <- wsx_run(list(rate = 0.4, lag = 0L), rows, g, assets = list(mk("linear")))
+  expect_equal(afa(rl), c(12000, 12000))
+  # degressiv mit § 7b ohne Modulparameter special_7b
+  rd <- wsx_run(list(rate = 0.4, lag = 0L), rows, g, assets = list(mk("degressiv_5a+sonder_7b")))
+  expect_equal(afa(rd), c(20000, 18000))
+  expect_equal(sb(rd), c(20000, 20000))
+  # linear ohne Zusatz: keine Sonder-AfA, auch wenn special_7b gesetzt ist
+  rn <- wsx_run(list(rate = 0.4, lag = 0L, special_7b = TRUE), rows, g,
+                assets = list(mk("linear")))
+  expect_true(all(rn$report$special_depreciation == 0))
+  # override: Nutzungsdauer laut Gutachten
+  ro <- wsx_run(list(rate = 0.4, lag = 0L), rows, g,
+                assets = list(mk("override", useful_life_override = 40)))
+  expect_equal(afa(ro), c(10000, 10000))
+  # unbekannter Code bzw. override ohne Nutzungsdauer: Warnung
+  expect_warning(wsx_run(list(rate = 0.4, lag = 0L), rows, g, assets = list(mk("sonder"))),
+                 class = "vofi_warning_plausibility")
+  expect_warning(wsx_run(list(rate = 0.4, lag = 0L), rows, g, assets = list(mk("override"))),
+                 class = "vofi_warning_plausibility")
+  # degressiv außerhalb des Fensters: Warnung, linear
+  ab <- vofi_asset("b1", "gebaeude_wohnen", as.Date("2027-01-01"),
+                   construction_start_date = as.Date("2023-01-01"), afa_method = "degressiv_5a")
+  expect_warning(rb <- wsx_run(list(rate = 0.4, lag = 0L), rows, g, assets = list(ab)),
+                 class = "vofi_warning_plausibility")
+  expect_equal(afa(rb), c(12000, 12000))
+  expect_identical(tax_flat_afa_method(ab, rb$module$cfg)$method, "degressiv")
+})
+
+test_that("Zuschuss zu einer Maßnahme mit Ersatzzeilen: Einordnung laut Register", {
+  g <- make_grid("annual", T = 4L)
+  a <- vofi_asset("b1", "gebaeude_wohnen", as.Date("2027-01-01"))
+  ms <- list(vofi_measure("lu", "lueftung_zentral", classification = "herstellung",
+                          asset_id = "b1"))
+  rows <- list(
+    wsx_row("lu__cost", "capex_depreciable", c(-100000, 0, 0, 0, 0), category = "capex",
+            asset_id = "b1", measure_id = "lu"),
+    wsx_row("lu_repl__cost", "capex_expensable", c(0, 0, 0, 0, -1000), category = "replacement",
+            asset_id = "b1", measure_id = "lu"),
+    wsx_row("g__grant", "subsidy_investment", c(0, 20000, 0, 0, 0), category = "grant",
+            measure_id = "lu", section = "grants")
+  )
+  r <- wsx_run(list(rate = 0.4, lag = 0L), rows, g, assets = list(a), measures = ms)
+  expect_equal(r$report$income[1L, ], rep(0, 5))
+  expect_equal(r$report$book_value[1L, 2L], 100000 - 20000 - 0.03 * 80000)
+})
+
 test_that("Leistung: Modul je Periode vektorisiert (MC 2.000 x 30 Perioden)", {
   skip_on_cran()
   g <- make_grid("annual", T = 30L)
@@ -900,7 +1170,8 @@ test_that("Leistung: Modul je Periode vektorisiert (MC 2.000 x 30 Perioden)", {
             category = "capex", asset_id = "b1"),
     wsx_row("z__rent", "income_rental", c(0, rep(60000, n_t - 1L)), category = "rent"),
     wsx_row("m__cost", "capex_expensable", c(0, 0, -20000, rep(0, n_t - 3L)), category = "capex",
-            extra = list(spread_years = 4L)))
+            extra = list(spread_years = 4L))
+  )
   a <- vofi_asset("b1", "gebaeude_wohnen", as.Date("2027-01-01"),
                   construction_start_date = as.Date("2026-01-01"))
   tm <- system.time(r <- wsx_run(list(rate = 0.42, loss_mode = "vortrag"), rows, g, n = n,
