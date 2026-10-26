@@ -52,7 +52,11 @@ mock_context <- function(grid, spec, draws = NULL, components = list(),
     if (shape == "scalar") {
       if (is.matrix(v)) stop("zeitabh\u00e4ngig")
       as.double(rep_len(v, n))
-    } else if (is.matrix(v)) v else grid_by_sim(grid, v, n)
+    } else if (is.matrix(v)) {
+      v
+    } else {
+      grid_by_sim(grid, v, n)
+    }
   }
   coll <- function(s) {
     if (!is.null(path_get(spec, paste0("financing.", s$id)))) "financing" else "components"
@@ -127,7 +131,8 @@ test_that("Pr\u00fcfraster und Pr\u00fcfspezifikation", {
   expect_identical(sp$accounts$surplus_order, c("od_repay", "dep_invest"))
   expect_identical(sp$registers$assets[[1]]$asset_id, "b1")
   expect_identical(sp$registers$measures[[1]]$measure_id, "m1")
-  sp2 <- reg_test_spec(ga, perspective = "selbstnutzer", project = list(project_type = "heizungstausch"))
+  sp2 <- reg_test_spec(ga, perspective = "selbstnutzer",
+                       project = list(project_type = "heizungstausch"))
   expect_identical(sp2$project$tax_regime, "selbstnutzer")
   expect_identical(sp2$project$project_type, "heizungstausch")
 })
@@ -353,8 +358,9 @@ test_that("Verteilung: D1-D3", {
     params = list(min = vofi_param("number"), max = vofi_param("number")),
     quantile = function(u, par) par$min + u * (par$max - par$min),
     point = function(par, which = c("mode", "median", "mean")) (par$min + par$max) / 2,
-    moments = function(par) list(mean = (par$min + par$max) / 2,
-                                 var = (par$max - par$min)^2 / 12),
+    moments = function(par) {
+      list(mean = (par$min + par$max) / 2, var = (par$max - par$min)^2 / 12)
+    },
     validate = function(par) if (par$max < par$min) "max < min" else character(0),
     example = list(min = 1, max = 3)
   )

@@ -422,7 +422,9 @@ utl_calendar_rates <- function(grid, g, before, yrs, path = NULL) {
       out[, k] <- g[, j]
     } else if (!is.null(before) && ncol(before) > 0L && !all(is.na(byears))) {
       col <- match(y, byears)
-      if (is.na(col)) col <- if (y < min(byears, na.rm = TRUE)) which.min(byears) else which.max(byears)
+      if (is.na(col)) {
+        col <- if (y < min(byears, na.rm = TRUE)) which.min(byears) else which.max(byears)
+      }
       out[, k] <- before[, col]
     } else {
       out[, k] <- g[, 1L]

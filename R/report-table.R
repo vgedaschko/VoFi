@@ -18,8 +18,8 @@
 #' @return Objekt der Klasse `vofi_table`.
 #' @family Berichten
 #' @export
-vofi_table <- function(x, sim = 1L, layout = c("grob", "transposed"), detail = c("standard", "full"),
-                       periods = NULL, variant = NULL) {
+vofi_table <- function(x, sim = 1L, layout = c("grob", "transposed"),
+                       detail = c("standard", "full"), periods = NULL, variant = NULL) {
   vofi_abort("core.not_implemented", fun = "vofi_table",
              .class = "vofi_error_not_implemented")
 }

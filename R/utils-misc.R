@@ -7,7 +7,7 @@
 #' @param x,y beliebige Objekte.
 #' @return `x` oder `y`.
 #' @noRd
-`%||%` <- function(x, y) if (is.null(x)) y else x
+`%||%` <- function(x, y) if (is.null(x)) y else x # nolint: object_name_linter.
 
 #' YAML-Handler für paketinterne Kataloge
 #'

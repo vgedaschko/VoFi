@@ -165,7 +165,11 @@ utl_format_placeholder <- function(x, fmt = "") {
     pct = fmt_pct(x),
     eur = fmt_eur(x),
     date = fmt_date(x),
-    raw = if (is.list(x)) vapply(x, function(e) paste(format(e), collapse = " "), "") else format(x),
+    raw = if (is.list(x)) {
+      vapply(x, function(e) paste(format(e), collapse = " "), "")
+    } else {
+      format(x)
+    },
     {
       if (inherits(x, "Date")) {
         fmt_date(x)

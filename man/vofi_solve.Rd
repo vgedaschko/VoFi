@@ -29,7 +29,7 @@ vofi_solve(
 
 \item{target}{Zielwert oder \code{"threshold:<name>"}.}
 
-\item{interval}{Suchintervall (Default aus der Overlay-Verteilung bzw. Basis × \link{0,5; 1,5}).}
+\item{interval}{Suchintervall (Default aus der Overlay-Verteilung bzw. 0,5- bis 1,5-faches des Basiswerts).}
 
 \item{tol}{Toleranz.}
 

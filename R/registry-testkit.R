@@ -584,7 +584,9 @@ reg_check_flow <- function(def, n) {
           reg_same_run(batch, reg_row_values(single$flows), i)
         }, logical(1)))
       })
-      out[[length(out) + 1L]] <- if (is.data.frame(ok)) ok else {
+      out[[length(out) + 1L]] <- if (is.data.frame(ok)) {
+        ok
+      } else {
         reg_finding("F7", ok, if (ok) "" else msg("core.testkit.batch", name = def$name,
                                                      grid = gname))
       }
@@ -744,7 +746,9 @@ reg_check_instrument <- function(def, n) {
             }, logical(1)))
         }, logical(1)))
       })
-      out[[length(out) + 1L]] <- if (is.data.frame(ok)) ok else {
+      out[[length(out) + 1L]] <- if (is.data.frame(ok)) {
+        ok
+      } else {
         reg_finding("F7", ok, if (ok) "" else msg("core.testkit.batch", name = def$name,
                                                      grid = gname))
       }
@@ -806,8 +810,9 @@ reg_check_action <- function(def, n) {
       k %in% def$rows ||
         ("loan_*_prepay" %in% def$rows && grepl("^loan_[a-z0-9_]+_prepay$", k))
     }, logical(1)))
-    flows_ok <- all(vapply(r$flows, function(v) is.numeric(v) && length(v) == nn &&
-                             all(is.finite(v)), logical(1)))
+    flows_ok <- all(vapply(r$flows, function(v) {
+      is.numeric(v) && length(v) == nn && all(is.finite(v))
+    }, logical(1)))
     acc1 <- r$acc
     a1 <- length(used) == nn && all(used >= -tol) && all(used <= res$amount + tol) &&
       keys_ok && flows_ok && all(acc1$G >= -tol) && all(acc1$KK >= -tol) &&
@@ -1079,8 +1084,9 @@ reg_check_rule <- function(def, n) {
     same <- TRUE
     if (!identical(def$returns, "params")) {
       for (i in seq_len(nmax)) {
-        args_i <- lapply(vary(ex, nmax), function(a) if (is.numeric(a) && length(a) == nmax)
-          a[i] else a)
+        args_i <- lapply(vary(ex, nmax), function(a) {
+          if (is.numeric(a) && length(a) == nmax) a[i] else a
+        })
         single <- do.call(def$fun, args_i)
         same <- same && reg_same_run(list(v = batch), list(v = single), i)
       }
@@ -1260,7 +1266,7 @@ reg_core_inputs <- function(runs, grid) {
 #' @return Liste (core).
 #' @noRd
 reg_example_core <- function(n = 7L, T = 6L, runs = seq_len(n)) { # nolint: object_name_linter.
-  grid <- vofi_time_grid(as.Date("2027-01-01"), as.integer(T))
+  grid <- vofi_time_grid(as.Date("2027-01-01"), as.integer(T)) # nolint. T wie Spec 00 5.6
   inp <- reg_core_inputs(as.double(runs), grid)
   n <- inp$n
   n_t <- grid$T + 1L
@@ -1343,7 +1349,8 @@ reg_assemble_core <- function(inp, grid, rates, p) {
   eng <- list(
     equity_call = list("equity", "equity_call", b$equity_call),
     shortfall = list("equity", "shortfall", z),
-    od_draw = list("overdraft", "draw", b$od_draw), od_repay = list("overdraft", "repay", b$od_repay),
+    od_draw = list("overdraft", "draw", b$od_draw),
+    od_repay = list("overdraft", "repay", b$od_repay),
     od_interest = list("overdraft", "interest", b$od_interest),
     odp_draw = list("overdraft", "draw", b$odp_draw),
     odp_repay = list("overdraft", "repay", b$odp_repay),

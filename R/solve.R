@@ -17,7 +17,8 @@
 #' @param param Pfad des variierten Parameters.
 #' @param kpi Kennzahl (`NULL` = Primärkennzahl).
 #' @param target Zielwert oder `"threshold:<name>"`.
-#' @param interval Suchintervall (Default aus der Overlay-Verteilung bzw. Basis × [0,5; 1,5]).
+#' @param interval Suchintervall (Default aus der Overlay-Verteilung bzw. 0,5- bis 1,5-faches
+#'   des Basiswerts).
 #' @param tol Toleranz.
 #' @param variant Variante (Default `"base"`).
 #' @param reference Referenzvariante für Vergleichskennzahlen.

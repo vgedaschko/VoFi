@@ -72,7 +72,8 @@ test_that("lbl_load: doppelte Schl\u00fcssel und fehlendes Verzeichnis sind Fehl
   expect_error(lbl_load(dir), class = "vofi_error_label")
   expect_error(lbl_load(file.path(dir, "fehlt")), class = "vofi_error_label")
   dir2 <- withr::local_tempdir()
-  writeLines(c('k: "M\u00e4rz"', 'liste: [a, b]', 'n: ~', 'yes: "Ja"'), file.path(dir2, "u.yaml"),
+  writeLines(c("k: \"M\u00e4rz\"", "liste: [a, b]", "n: ~", "yes: \"Ja\""),
+             file.path(dir2, "u.yaml"),
              useBytes = TRUE)
   lbl_load(dir2)
   expect_identical(lbl("u.k"), "M\u00e4rz")

@@ -39,8 +39,8 @@ vofi_read_scenario <- function(path, format = c("auto", "yaml", "excel"), stocha
 #' @return `invisible(path)`.
 #' @family Einlesen
 #' @export
-vofi_write_scenario <- function(scenario, path, format = c("auto", "yaml", "excel"), resolved = FALSE,
-                                variant = "base", overwrite = FALSE) {
+vofi_write_scenario <- function(scenario, path, format = c("auto", "yaml", "excel"),
+                                resolved = FALSE, variant = "base", overwrite = FALSE) {
   vofi_abort("core.not_implemented", fun = "vofi_write_scenario",
              .class = "vofi_error_not_implemented")
 }

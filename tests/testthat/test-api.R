@@ -1,6 +1,7 @@
 # Exportierte API (Integrator; Spec 00 Abschnitt 14): Namen und exakte Signaturen. Eigentümer
 # ersetzen nur Rümpfe; eine Signaturänderung ist eine MAJOR-Vertragsänderung (Abschnitt 1.4).
 
+# nolint start: line_length_linter, quotes_linter. Signaturen wörtlich aus Spec 00 Abschnitt 14.
 api_signatures <- list(
   vofi_read_scenario = 'function(path, format = c("auto", "yaml", "excel"), stochastic = NULL, library_paths = vofi_library_paths())',
   vofi_write_scenario = 'function(scenario, path, format = c("auto", "yaml", "excel"), resolved = FALSE, variant = "base", overwrite = FALSE)',
@@ -49,6 +50,7 @@ api_signatures <- list(
   tax_step = 'function(module, t, inputs, interest, state, params)',
   tax_finalize = 'function(module, T, state, terminal_inputs, params)'
 )
+# nolint end
 
 signature_of <- function(f) {
   txt <- deparse(args(f), width.cutoff = 500L)

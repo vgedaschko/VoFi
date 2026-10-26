@@ -19,8 +19,9 @@
 #' @return `invisible(path)`.
 #' @family Berichten
 #' @export
-vofi_report <- function(x, path, format = c("html", "docx"), mode = c("auto", "expert", "household"),
-                        template = NULL, title = NULL, open = interactive()) {
+vofi_report <- function(x, path, format = c("html", "docx"),
+                        mode = c("auto", "expert", "household"), template = NULL, title = NULL,
+                        open = interactive()) {
   vofi_abort("core.not_implemented", fun = "vofi_report",
              .class = "vofi_error_not_implemented")
 }

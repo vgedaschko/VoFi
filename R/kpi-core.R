@@ -17,7 +17,8 @@
 #' @return Data Frame der Kennzahlen.
 #' @family Analysieren
 #' @export
-vofi_kpis <- function(x, which = NULL, rv = c("both", "with", "without"), per = c("total", "unit", "m2")) {
+vofi_kpis <- function(x, which = NULL, rv = c("both", "with", "without"),
+                      per = c("total", "unit", "m2")) {
   vofi_abort("core.not_implemented", fun = "vofi_kpis",
              .class = "vofi_error_not_implemented")
 }
@@ -43,9 +44,9 @@ vofi_kpis <- function(x, which = NULL, rv = c("both", "with", "without"), per = 
 #' @return `invisible(def)`.
 #' @family Erweitern
 #' @export
-vofi_register_kpi <- function(name, compute, label = NULL, unit = "EUR", shape = c("scalar", "series"),
-                              rv_variant = FALSE, higher_is_better = TRUE, mc_default = FALSE,
-                              perspectives = NULL, requires = character(), overwrite = FALSE) {
+vofi_register_kpi <- function(name, compute, label = NULL, unit = "EUR",
+                              shape = c("scalar", "series"), rv_variant = FALSE,
+                              higher_is_better = TRUE, mc_default = FALSE, perspectives = NULL, requires = character(), overwrite = FALSE) {
   vofi_abort("core.not_implemented", fun = "vofi_register_kpi",
              .class = "vofi_error_not_implemented")
 }

@@ -8,8 +8,8 @@ make_grid <- function(type = c("annual", "mixed", "oracle_e"), T = 6L, # nolint
                       valuation_date = as.Date("2027-01-01")) {
   type <- match.arg(type)
   switch(type,
-    annual = vofi_time_grid(valuation_date, as.integer(T)),
-    mixed = vofi_time_grid(valuation_date, as.integer(T), construction_months = 9L,
+    annual = vofi_time_grid(valuation_date, as.integer(T)), # nolint
+    mixed = vofi_time_grid(valuation_date, as.integer(T), construction_months = 9L, # nolint
                            construction_step_months = 1L, operation_alignment = "calendar"),
     oracle_e = vofi_time_grid(valuation_date, NULL, construction_months = 12L,
                               periods_months = c(3L, 3L, 3L, 3L, 12L, 12L, 12L))
@@ -79,7 +79,7 @@ fake_draws <- function(n, grid, static = list(), paths = list(), mode = "mc") {
 #' Zeile prüfen: Klasse, Dimension n x (T+1), double, endlich
 expect_vofi_row <- function(row, n, T) { # nolint
   testthat::expect_s3_class(row, "vofi_row")
-  testthat::expect_identical(dim(row$values), c(as.integer(n), as.integer(T) + 1L))
+  testthat::expect_identical(dim(row$values), c(as.integer(n), as.integer(T) + 1L)) # nolint
   testthat::expect_true(is.double(row$values))
   testthat::expect_true(all(is.finite(row$values)))
   invisible(row)

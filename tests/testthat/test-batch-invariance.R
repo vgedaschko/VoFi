@@ -104,7 +104,7 @@ test_that("3. Chunk-Invarianz und Parallelisierung", {
   expect_identical(p$kpis, a$kpis)
 })
 
-test_that("4. Reproduzierbarkeit, RNG-Hygiene, zusätzlicher Overlay-Parameter", {
+test_that("4. Reproduzierbarkeit, RNG-Hygiene, zus\u00e4tzlicher Overlay-Parameter", {
   skip_if_stub("vofi_scenario", "vofi_build", "vofi_mc")
   withr::local_seed(99)
   before <- .Random.seed
@@ -131,7 +131,7 @@ test_that("5. CRN: zwei identische Varianten ergeben Differenz exakt 0", {
   expect_true(all(cmp$differences$delta_vs_reference == 0))
 })
 
-test_that("6. Rasterinvarianz der Kredite (Jahresannuität, Bauphase monatlich)", {
+test_that("6. Rasterinvarianz der Kredite (Jahresannuit\u00e4t, Bauphase monatlich)", {
   skip_if_stub("vofi_scenario", "vofi_build", "vofi_run")
   mk <- function(grid) {
     sc <- batch_scenario()
@@ -157,7 +157,7 @@ test_that("6. Rasterinvarianz der Kredite (Jahresannuität, Bauphase monatlich)"
   expect_equal(ends_m, ends_a, tolerance = 1e-9)
 })
 
-test_that("7. Kanonische Ordnung im Sampler; Mindestblockgröße", {
+test_that("7. Kanonische Ordnung im Sampler; Mindestblockgr\u00f6\u00dfe", {
   skip_if_stub("vofi_scenario", "vofi_build", "vofi_mc")
   a <- vofi_mc(batch_model(correlate = TRUE), n_sim = 7L, block_size = 7L, seed = 2L,
                store = "kpi")
@@ -184,7 +184,7 @@ test_that("8. Instrument-Cache: gleiches Ergebnis wie erzwungene Neuberechnung",
   expect_identical(a$kpis$terminal_value, b$kpis$terminal_value)
 })
 
-test_that("9. Präfix-Stabilität der Blöcke (R-73)", {
+test_that("9. Pr\u00e4fix-Stabilit\u00e4t der Bl\u00f6cke (R-73)", {
   skip_if_stub("vofi_scenario", "vofi_build", "vofi_mc")
   model <- batch_model(block_size = 200L, n_sim = 1000L)
   expect_error(vofi_mc(model, n_sim = 1100L, block_size = 200L, seed = 4L),
@@ -196,7 +196,7 @@ test_that("9. Präfix-Stabilität der Blöcke (R-73)", {
   expect_identical(big$kpis[seq_len(1000L), cols], small$kpis[, cols])
 })
 
-test_that("10. Feste Kreditbeträge bei amount_eur: auto (R-69)", {
+test_that("10. Feste Kreditbetr\u00e4ge bei amount_eur: auto (R-69)", {
   skip_if_stub("vofi_scenario", "vofi_build", "vofi_run", "vofi_mc")
   sc <- batch_scenario()
   sc$financing$bank$amount_eur <- "auto"
@@ -211,5 +211,6 @@ test_that("10. Feste Kreditbeträge bei amount_eur: auto (R-69)", {
 
 test_that("11. Entscheidungsknoten: Kompositum = getrennte Rechnung (R-71)", {
   skip_if_stub("vofi_scenario", "vofi_build", "vofi_mc", "vofi_compare")
-  skip("benötigt Förder-Expander mit fallback_variant (WS-E2); Integrator ergänzt den Test nach Welle 3")
+  skip(paste("ben\u00f6tigt F\u00f6rder-Expander mit fallback_variant (WS-E2);",
+             "Integrator erg\u00e4nzt den Test nach Welle 3"))
 })

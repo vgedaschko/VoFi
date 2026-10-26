@@ -180,7 +180,9 @@ example_result <- function() {
     irr_cf_project = k$irr_cf_project
   )
   kpi_na <- as.data.frame(lapply(kpis, function(v) NA_character_), stringsAsFactors = FALSE)
-  for (nm in c("roe_classic_ex_rv", "roe_mirr_ex_rv", "roe_irr_ex_rv")) kpi_na[[nm]] <- "equity_lost"
+  for (nm in c("roe_classic_ex_rv", "roe_mirr_ex_rv", "roe_irr_ex_rv")) {
+    kpi_na[[nm]] <- "equity_lost"
+  }
   for (nm in c("payback_time_ex_rv", "payback_year_ex_rv")) kpi_na[[nm]] <- "no_payback"
   kpi_na$withdrawal_equivalent_ex_rv <- "not_computed"
   flags <- data.frame(reserve_used = FALSE, shortfall = FALSE, shortfall_sum = 0,

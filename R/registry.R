@@ -162,7 +162,9 @@ reg_static_findings <- function(def) {
   kind <- def$kind
   name <- def$name
   # C1 Namensmuster, Art, Version
-  if (!(kind %in% reg_kinds())) add("C1", "core.registry.kind_invalid", kind = kind, suggestion = "")
+  if (!(kind %in% reg_kinds())) {
+    add("C1", "core.registry.kind_invalid", kind = kind, suggestion = "")
+  }
   name_ok <- if (identical(kind, "rule")) {
     utl_is_string(name) && grepl("^[a-z][a-z0-9_]*@[0-9]{4}-[0-9]{2}-[0-9]{2}$", name) &&
       !grepl("__", name, fixed = TRUE)

@@ -92,7 +92,9 @@ vofi_row <- function(key, values, section, category, tax_category = NULL, cash =
   if (section == "memo" && isTRUE(cash)) {
     vofi_abort("core.contract.row_memo_cash", row = key, .class = "vofi_error_contract")
   }
-  kind <- if (missing(kind)) cat_row$kind else {
+  kind <- if (missing(kind)) {
+    cat_row$kind
+  } else {
     tryCatch(utl_match_arg(kind, c("flow", "stock", "memo"), "kind"),
              vofi_error_input = function(e) {
                vofi_abort("core.contract.row_kind", row = key,
@@ -574,13 +576,14 @@ new_ledger_rows <- function(key, section, category, tax_category = NULL, cash = 
 #' @param n,T Läufe und letzter Periodenindex (Default: aus den Matrizen).
 #' @return Objekt der Klasse `vofi_ledger`.
 #' @noRd
-new_vofi_ledger <- function(rows, values, n = NULL, T = NULL) { # nolint: object_name_linter. T wie Spec.
+new_vofi_ledger <- function(rows, values, n = NULL, T = NULL) { # nolint. T wie Spec 00 7.4
+  big_t <- T # nolint. T wie Spec 00 7.4
   if (length(values) > 0L) {
     n <- n %||% nrow(values[[1L]])
-    T <- T %||% (ncol(values[[1L]]) - 1L)
+    big_t <- big_t %||% (ncol(values[[1L]]) - 1L)
   }
   x <- structure(list(rows = rows, values = values, n = as.integer(n %||% 1L),
-                      T = as.integer(T %||% 0L)), class = "vofi_ledger")
+                      T = as.integer(big_t %||% 0L)), class = "vofi_ledger")
   validate_vofi_ledger(x)
 }
 
@@ -652,7 +655,7 @@ validate_vofi_draws <- function(x, T = NULL) { # nolint: object_name_linter. T w
   for (k in names(x$decision)) if (length(x$decision[[k]]) != n) bad(paste0("decision:", k))
   for (k in names(x$paths)) {
     p <- x$paths[[k]]
-    if (!is.matrix(p) || nrow(p) != n || (!is.null(T) && ncol(p) != T + 1L)) {
+    if (!is.matrix(p) || nrow(p) != n || (!is.null(T) && ncol(p) != T + 1L)) { # nolint
       bad(paste0("paths:", k))
     }
   }
