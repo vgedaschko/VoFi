@@ -1,79 +1,105 @@
-# Labels des Kredittyps bullet_loan (WS-F, Spec 00 Abschnitte 8.1-8.6). Phase-0-Minimalfassung.
+# Labels des Kredittyps bullet_loan (WS-F, Spec 00 Abschnitte 8.1-8.7; Spec 01 Teil A Abschnitt 5).
+# errors/msg: nur Laufzeitmeldungen; Validierungsbefunde stehen unter validation.financing.*
+# in validation.yaml (WS-B, Spec 00 2.10, R-104).
 label: "Endfälliges Darlehen"
-description: "Darlehen mit laufenden Zinsen und Tilgung in einer Summe am Laufzeitende."
+description: "Darlehen ohne laufende Tilgung; Zinsen monatlich (Monatsuhr), Schlusstilgung des Bestands bei Fälligkeit, Zinsbindung mit Anschlusszins."
 params:
   amount_eur:
     label: "Nennbetrag"
-    help: "Zusagebetrag in EUR, fest in allen Läufen (auto/topup nach Spec 00 8.7)."
+    help: "Zusagebetrag in EUR, fest in allen Läufen (Basisfallwert, R-69); auto bzw. topup nach Spec 00 8.7; bei Bestandsdarlehen die Restschuld zum Stichtag."
   approved:
     label: "Bewilligt"
-    help: "0/1; Auszahlungen x approved je Lauf."
+    help: "0/1 je Lauf; Auszahlungen x approved (Förderkredite: Zusage x Aktivierung der Maßnahmen). Bei Bestandsdarlehen ohne Wirkung."
   existing:
     label: "Bestandsdarlehen"
-    help: "Restschuld zum Stichtag ohne Auszahlung."
+    help: "Restschuld zum Stichtag ohne Auszahlung (Merkzeile übernommene Restschuld); term_years = Restlaufzeit, fixed_years = Restzinsbindung."
   rank:
     label: "Rang der Grundschuld"
-    help: "Nur Anzeige."
+    help: "Nur Anzeige (keine Rechenwirkung in v1)."
   start:
     label: "Auszahlungstermin"
-    help: "Termin der ersten Auszahlung; Default Bewertungsstichtag."
+    help: "Termin der ersten Auszahlung (Periodenende); Default Bewertungsstichtag; Beginn der Zinsbindung."
   draw_schedule:
     label: "Auszahlungsplan"
-    help: "Teilauszahlungen als Anteile (unit: share) oder Beträge (unit: eur)."
+    help: "Teilauszahlungen als Anteile (unit: share, Summe 1) oder Beträge (unit: eur, Summe = Zusage)."
   rate_pa:
     label: "Sollzins p. a."
-    help: "Nominaler Sollzins der ersten Zinsbindung."
+    help: "Nominaler Sollzins der ersten Zinsbindung; Monatszins = Sollzins / 12. Ein Pfad ist nur bei topup zulässig (maßgeblich ist der Wert der letzten Bauphasenperiode)."
   payments_per_year:
     label: "Zahlungen je Jahr"
-    help: "1, 4 oder 12."
+    help: "Vertragsfrequenz: 1, 4 oder 12."
   term_years:
     label: "Laufzeit in Jahren"
-    help: "Ab Ende der letzten Auszahlung inklusive tilgungsfreier Zeit."
+    help: "Ab Ende der letzten Auszahlung bis zur Schlusstilgung (Vielfaches von 1/12); Pflicht."
   grace_years:
     label: "Tilgungsfreie Jahre"
-    help: "Tilgungsfreie Anlaufzeit."
+    help: "Ohne Wirkung auf die Zahlungen (keine laufende Tilgung); muss kürzer als die Laufzeit sein."
   fixed_years:
     label: "Zinsbindung in Jahren"
     help: "Ab Auszahlungstermin; danach Anschlusszins."
   followup_rate_pa:
     label: "Anschlusszins"
-    help: "Default {ref: market.mortgage_rate}."
+    help: "Wert oder Pfad; Default {ref: market.mortgage_rate}. Maßgeblich ist der Wert der Periode, in der der Anpassungsmonat endet."
   followup_spread_pa:
     label: "Aufschlag auf den Anschlusszins"
     help: "Dezimalzahl p. a."
   followup_fixed_years:
     label: "Weitere Zinsbindungen"
-    help: "Länge der Anschlussbindungen in Jahren."
+    help: "Länge der Anschlussbindungen in Jahren; ohne Angabe eine Anschlussbindung bis zur Fälligkeit."
   refi_rule:
     label: "Regel nach Zinsanpassung"
-    help: "keep_term, keep_tilg_rate oder keep_payment."
+    help: "Ohne Wirkung: eine Zinsanpassung ändert nur den Zins."
   payout_rate:
     label: "Auszahlungskurs"
-    help: "Disagio = 1 - Auszahlungskurs."
+    help: "Anteil des Nennbetrags, der ausgezahlt wird; Disagio = 1 - Auszahlungskurs."
   fees:
     label: "Gebühren"
-    help: "processing_fee_share, commitment_fee_rate_month, commitment_free_months, commitment_date."
+    help: "processing_fee_share (Bearbeitungsgebühr, Anteil der Zusage, mit der ersten Auszahlung), commitment_fee_rate_month (Bereitstellungsprovision je Monat auf den nicht abgerufenen Betrag), commitment_free_months, commitment_date (Default start)."
+    fields:
+      processing_fee_share:
+        label: "Bearbeitungsgebühr"
+      commitment_fee_rate_month:
+        label: "Bereitstellungsprovision je Monat"
+      commitment_free_months:
+        label: "Bereitstellungsfreie Monate"
+      commitment_date:
+        label: "Zusagedatum"
   repayment_grant:
     label: "Tilgungszuschuss"
-    help: "share oder amount_eur, date bzw. year, effect, approved, cut_share."
+    help: "share (Anteil der Zusage, bezogen auf den abgerufenen Betrag) oder amount_eur; date bzw. year; effect shorten_term oder reduce_installment; approved; cut_share (Kürzung)."
+    fields:
+      share:
+        label: "Anteil der Zusage"
+      amount_eur:
+        label: "Betrag"
+      date:
+        label: "Gutschrifttermin"
+      year:
+        label: "Gutschriftjahr"
+      effect:
+        label: "Wirkung"
+      approved:
+        label: "Gewährt"
+      cut_share:
+        label: "Kürzung"
   planned_prepayments:
     label: "Geplante Sondertilgungen"
-    help: "Zahlungsplan der Sondertilgungen."
+    help: "Zahlungsplan der Sondertilgungen (EUR); begrenzt durch prepay_cap_share_pa."
   prepay_allowed:
     label: "Sondertilgung durch Überschüsse erlaubt"
-    help: "Für die Ausgleichsaktion loan_prepay."
+    help: "Für die Ausgleichsaktion loan_prepay (KfW: nein)."
   prepay_cap_share_pa:
     label: "Sondertilgung je Vertragsjahr höchstens"
-    help: "Anteil der Zusage."
+    help: "Anteil der Zusage für geplante und regelbasierte Sondertilgungen zusammen."
   auto_buffer_share:
     label: "Puffer bei auto/topup"
-    help: "Anteil."
+    help: "Zuschlag auf den Finanzierungsbedarf (Anteil)."
   auto_round_eur:
     label: "Rundung bei auto"
-    help: "Vielfaches in EUR."
+    help: "Aufrunden auf ein Vielfaches in EUR."
   round_payments:
     label: "Raten auf Cent runden"
-    help: "Bankpraxis; Standard aus."
+    help: "Bankpraxis bei Festlegung und Anpassung der Rate; Standard aus."
 rows:
   draw: "Aufnahme"
   repay: "Tilgung"
@@ -86,9 +112,16 @@ rows:
   assumed: "Übernommene Restschuld (zahlungsunwirksam)"
   balance: "Bestand"
 errors:
-  start_outside: "Kredit '{id}': der Auszahlungstermin {date} liegt außerhalb des Horizonts."
   ppy: "Kredit '{id}': payments_per_year muss 1, 4 oder 12 sein (erhalten: {value})."
-  term_missing: "Kredit '{id}': die Laufzeit term_years fehlt (bei Annuitätendarlehen alternativ initial_repayment_pa)."
-  term_nonpositive: "Kredit '{id}': die Laufzeit term_years muss größer als 0 sein (erhalten: {value})."
-  grace_too_long: "Kredit '{id}': die tilgungsfreie Zeit ({value} Jahre) muss kürzer als die Laufzeit ({term} Jahre) sein."
-  tau_installment: "Kredit '{id}': initial_repayment_pa und installment_eur schließen sich aus (Spec 00, 8.6)."
+  term_missing: "Kredit '{id}': die Laufzeit term_years fehlt (bei Annuitätendarlehen alternativ initial_repayment_pa oder installment_eur)."
+  term_nonpositive: "Kredit '{id}': die Laufzeit term_years muss größer als 0 sein (erhalten: {value:raw})."
+  start_before: "Kredit '{id}': der Auszahlungstermin {date:date} liegt vor dem Bewertungsstichtag."
+  refi_rule_invalid: "Kredit '{id}': refi_rule '{rule}' ist für diese Tilgungsart nicht zulässig (Ratentilgung: keep_term oder keep_payment)."
+  tau_missing: "Kredit '{id}': keep_tilg_rate braucht initial_repayment_pa oder followup_repayment_pa."
+  keep_term_needs_term: "Kredit '{id}': keep_term braucht eine endliche Laufzeit term_years (mit vertraglicher Rate ohne Laufzeit nur keep_payment oder keep_tilg_rate)."
+  auto_shape: "Kredit '{id}': ctx$auto() liefert für {what} eine unzulässige Form ({actual}); erwartet draws als n x (T+1)- bzw. 1 x (T+1)-Matrix oder Vektor der Länge T+1 und commitment der Länge 1 oder n (Spec 00 8.7)."
+msg:
+  inactive: "Kredit '{id}': keine Auszahlung im Horizont; der Kredit entfällt."
+  auto_zero: "Kredit '{id}': amount_eur auto ergibt 0 (kein Finanzierungsbedarf in der Bauphase des Basisfalls)."
+  grant_capped: "Kredit '{id}': der Tilgungszuschuss übersteigt den Bestand und wird begrenzt (Anteil der Läufe {share:pct})."
+  neg_amort_run: "Kredit '{id}': keep_payment mit Rate kleiner gleich Zins nach der Zinsanpassung (Anteil der Läufe {share:pct}); markiert als negative_amortization."
