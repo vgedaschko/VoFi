@@ -1,0 +1,3 @@
+# Labels der Vergleichskennzahl delta_vs_reference (WS-G, Spec 00 Abschnitte 9.6 Nr. 4, 12.6).
+label: "Endwertdifferenz gegenüber der Referenz"
+description: "Vergleichsregel ΔEW der Variante − ΔEW der Referenzvariante, jede gegen ihre eigene Unterlassungsalternative mit ihren eigenen Nachschüssen (R-27, R-66); nur im Vergleich (vofi_compare()) berechenbar, im Einzellauf nicht berechnet."
