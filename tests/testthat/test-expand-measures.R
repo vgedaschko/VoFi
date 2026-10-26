@@ -217,3 +217,49 @@ test_that("Anlagenregister: ausdrückliche asset_id gemeinsam nutzbar, andere Ar
                     class = "vofi_error_validation")
   expect_identical(e$key, "expand.measures.asset_type_conflict")
 })
+
+test_that("m_maintenance ohne auflösbare Bezugsfläche: Komponente mit I, Bezugsfehler im Bau", {
+  x <- e2_scenario(building = list(building_type = "MFH", n_units = 4L,
+                                   construction_year = 1970L))
+  r <- e2_resolve_full(x)
+  expect_true("expand.measures.maintenance_area_missing" %in% r$messages)
+  expect_true(any(grepl("building.living_area_m2", r$texts, fixed = TRUE)))
+  mt <- r$value$components$m_maintenance
+  expect_identical(mt$type, "maintenance")
+  expect_identical(mt$area_m2, node_ref("building.maintenance.area_m2"))
+  e <- expect_error(e2_capture(vofi_build(r$value)), class = "vofi_error")
+  expect_identical(e$key, "engine.ref_missing")
+  # mit Fläche bzw. basis none: keine Meldung
+  ok <- e2_resolve_full(e2_scenario(building = list(building_type = "MFH", n_units = 4L,
+                                                    construction_year = 1970L,
+                                                    living_area_m2 = 300)))
+  expect_false("expand.measures.maintenance_area_missing" %in% ok$messages)
+  none <- e2_resolve_full(e2_scenario(building = list(building_type = "MFH", n_units = 4L,
+                                                      construction_year = 1970L,
+                                                      maintenance = list(basis = "none"))))
+  expect_false("m_maintenance" %in% names(none$value$components))
+  expect_false("expand.measures.maintenance_area_missing" %in% none$messages)
+})
+
+test_that("Herkunft der Klassifikation aus dem Bibliotheksindex der Auflösung (Teil A 4.5.3)", {
+  spec <- e2_resolve(e2_scenario(building = e2_bld(),
+                                 measures = list(wp = list(
+                                   measure_type = "heizung_waermepumpe_luft", year = 2027,
+                                   cost_eur = 100000, classification = "herstellung"
+                                 ))))
+  reg <- Filter(function(m) identical(m$measure_id, "wp"), spec$registers$measures)[[1L]]
+  expect_identical(reg$classification_source, "user")
+  # bctx-Index statt der Standardwurzeln: ein überschattender Katalog wirkt
+  fake <- list(entries = list("costs/massnahmentypen_2026" = list(
+    values = list(types = list(fenster = list(classification_existing = "herstellung")))
+  )))
+  bctx <- scn_bctx(list(), NULL, index = fake)
+  expect_identical(exp_lib_index(bctx), fake)
+  expect_identical(exp_m_catalog_types(bctx)$fenster$classification_existing, "herstellung")
+  mm <- list(measure_type = "fenster", classification = "herstellung")
+  expect_identical(exp_m_class_source(list(project = list(project_type = "sanierung_eh")), mm,
+                                      bctx), "default")
+  mm$classification <- "erhaltung"
+  expect_identical(exp_m_class_source(list(project = list(project_type = "sanierung_eh")), mm,
+                                      bctx), "user")
+})

@@ -133,7 +133,8 @@ test_that("Expandertest (R-92): numerische Domänenblätter über Schicht 8 änd
                    funding = list(kfw459 = list(from = "funding/kfw_459_heizung_unternehmen",
                                                 measures = list("wp"),
                                                 application_date = "2027-01-15",
-                                                approval_timing = "before_start")),
+                                                approval_timing = "before_start",
+                                                eligible_shares = list(wp = 1))),
                    residual_value = list(method = "income_value"),
                    variants = list(v = list(set = list(
                      "measures.wp.cost_eur" = 170000,
@@ -143,7 +144,21 @@ test_that("Expandertest (R-92): numerische Domänenblätter über Schicht 8 änd
                      "energy.before.efficiency" = 0.9,
                      "building.property_tax.amount_eur_pa" = 3500,
                      "building.land_value_eur" = 350000,
-                     "funding.kfw459.payout_delay_months" = 6
+                     "funding.kfw459.payout_delay_months" = 6,
+                     # weitere numerische Blätter (Preise, Faktoren, Verschiebung, Anteile)
+                     "energy.carriers.gas_mfh.emission_factor_kg_kwh" = 0.2,
+                     "energy.carriers.gas_mfh.price_eur_kwh" = 0.15,
+                     "building.consumption_kwh.gas_mfh" = 100000,
+                     "building.living_area_m2" = 850,
+                     "building.maintenance.rate_eur_m2_pa" = 12,
+                     "measures.wp.delay_months" = 3,
+                     "measures.wp.useful_life_years" = 22,
+                     "measures.wp.cost_factor" = 1.1,
+                     "unit_groups.g.vacancy_rate" = 0.05,
+                     "unit_groups.g.living_area_m2" = 850,
+                     "residual_value.income_value.cap_rate" = 0.04,
+                     "funding.kfw459.rate_components.grund.rate" = 0.25,
+                     "funding.kfw459.eligible_shares.wp" = 0.9
                    ))))
   set.seed(42)
   s0 <- .Random.seed
@@ -158,6 +173,11 @@ test_that("Expandertest (R-92): numerische Domänenblätter über Schicht 8 änd
     expect_identical(var$components[[id]], base$components[[id]], info = id)
   }
   expect_identical(var$financing, base$financing)
+  expect_identical(base$components$f_kfw459_grant$eligible_shares,
+                   list(wp = node_ref("funding.kfw459.eligible_shares.wp")))
+  # die Änderungen wirken über die Bezüge im Lauf: Satz 0,25 auf min(0,9 · K, 151.000)
+  expect_equal(sum(e2_row(e2_run(var), "f_kfw459_grant__grant_wp")), 0.25 * 151000)
+  expect_equal(sum(e2_row(e2_run(base), "f_kfw459_grant__grant_wp")), 0.30 * 151000)
 })
 
 test_that("Ende zu Ende S3 V2: Zuschuss, Umlage, PV, Mieterkosten, Saldo (Teil C S3)", {

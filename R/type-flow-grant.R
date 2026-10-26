@@ -1,9 +1,11 @@
 # Zahlungstyp grant: Investitionszuschuss eines Foerderinstruments (WS-E2, Spec 01 Teil B 4.5).
 # Bemessung auf den realisierten Kosten der Massnahmen (capex-Zeilen der Abhaengigkeiten,
-# inkl. Preisindex, Verschiebung und Aktivierungsfaktor), Deckel je Gruppe (eine Gruppe bzw. je
-# Kalenderjahr der Fertigstellung), Bonus ueber einer Schwelle, Hoechstsatz, Zusage je Lauf und
-# Auszahlung zum Datumstermin nach R-98 (ctx$shift_period). Vektorisiert ueber die Laeufe; die
-# Schleifen laufen nur ueber Massnahmen und Deckelgruppen.
+# inkl. Preisindex, Verschiebung und Aktivierungsfaktor) mal foerderfaehigem Anteil (Parameter
+# eligible_shares des Expanders, KG-Filter, sonst funding.<f>.eligible_shares), Deckel je Gruppe
+# (eine Gruppe bzw. je Kalenderjahr der Fertigstellung), Bonus ueber einer Schwelle, Hoechstsatz,
+# Zusage je Lauf und Auszahlung zum Datumstermin nach R-98 (ctx$shift_period; Termine vor dem
+# Stichtag bzw. nach dem Horizont werden nicht gebucht, je mit eigenem Hinweis). Vektorisiert
+# ueber die Laeufe; die Schleifen laufen nur ueber Massnahmen und Deckelgruppen.
 
 #' Zahlenwert eines Domänenblatts je Lauf (n-Vektor) oder `default`, falls der Pfad fehlt
 #' @param ctx Laufkontext.
@@ -75,20 +77,67 @@ fund_measure_completion <- function(ctx, cost_ids, m) {
   NULL
 }
 
+#' Periode eines verschobenen Termins je Lauf mit Kennung „vor dem Stichtag“ (R-98)
+#'
+#' Wie `ctx$shift_period()`; zusätzlich `before` = Termin vor dem Stichtag (bereits ausgezahlt,
+#' gehört nicht in das Modell, Teil B 4.5 Randfälle), im Unterschied zu `NA` nach dem Horizont.
+#' @param date Bezugstermin (Länge 1).
+#' @param months n-Vektor der Verschiebung in Monaten.
+#' @return Liste `p` (integer n-Vektor, `NA` außerhalb des Rasters), `before` (lgl n-Vektor).
+#' @noRd
+fund_shift_period <- function(ctx, date, months) {
+  d <- utl_as_date(date, "date")
+  m <- typ_round_months(rep_len(as.double(months), ctx$n))
+  p <- ctx$shift_period(d, m)
+  dd <- grid_add_months(rep(d, ctx$n), m)
+  before <- is.na(p) & as.numeric(dd) < as.numeric(ctx$grid$date_end[1L])
+  list(p = p, before = before)
+}
+
+#' Hinweis „Auszahlung vor dem Stichtag, nicht gebucht“ (Teil B 4.5, 4.8)
+#' @param lost lgl n-Vektor der Läufe mit nicht gebuchtem Betrag vor dem Stichtag.
+#' @noRd
+fund_inform_before <- function(ctx, spec, type, lost) {
+  if (any(lost)) {
+    ctx$inform(paste0("types.flow.", type, ".msg.before_valuation"), id = spec[["id"]] %||% "?",
+               share = mean(lost))
+  }
+  invisible(NULL)
+}
+
 #' Auszahlungsperiode je Lauf nach Ereignis und Verzug (Teil B 4.5, R-98)
-#' @return integer n-Vektor (NA = nach dem Horizont).
+#' @return Liste `p` (integer n-Vektor; NA = vor dem Stichtag bzw. nach dem Horizont), `before`.
 #' @noRd
 grant_payout_period <- function(ctx, spec, m, cost_ids, event, lag, delay) {
   if (identical(event, "commitment")) {
     ad <- ctx$setting(spec, "application_date") %||% ctx$grid$valuation_date
-    return(ctx$shift_period(utl_as_date(ad, "application_date"), lag + typ_round_months(delay)))
+    return(fund_shift_period(ctx, utl_as_date(ad, "application_date"),
+                             lag + typ_round_months(delay)))
   }
   cd <- fund_measure_completion(ctx, cost_ids, m)
   if (is.null(cd)) {
     ctx$abort("types.flow.grant.msg.no_completion", id = spec[["id"]] %||% "?", measure = m)
   }
   s_m <- if (!is.null(ctx$spec$measures[[m]])) rp_measure_shift(ctx, m) else rep(0, ctx$n)
-  ctx$shift_period(cd, lag + s_m + typ_round_months(delay))
+  fund_shift_period(ctx, cd, lag + s_m + typ_round_months(delay))
+}
+
+#' Förderfähiger Anteil e_m je Lauf (Teil B 4.4, 4.5)
+#'
+#' Parameter `eligible_shares.<m>` (vom Expander gesetzt: Bezug auf
+#' `funding.<f>.eligible_shares.<m>` bzw. 0 bei Ausschluss durch den KG-Filter), sonst der
+#' Domänenpfad `funding.<funding_id>.eligible_shares.<m>` (Domänenlesezugriff), sonst 1.
+#' @param domain Domänenpfad lesen (`grant`: ja; `tax_credit_35c`: nein).
+#' @return n-Vektor.
+#' @noRd
+fund_type_share <- function(ctx, spec, m, domain = TRUE) {
+  if (!is.null(spec[["eligible_shares"]][[m]])) {
+    return(rep_len(as.double(ctx$param(spec, paste0("eligible_shares.", m))), ctx$n))
+  }
+  fid <- spec[["funding_id"]]
+  ones <- rep(1, ctx$n)
+  if (!domain || !utl_is_string(fid)) return(ones)
+  fund_dom_num(ctx, paste0("funding.", fid, ".eligible_shares.", m), ones)
 }
 
 #' Zahlungskomponente grant bauen (Teil B 4.5)
@@ -101,10 +150,7 @@ grant_build <- function(spec, ctx) {
   fid <- spec[["funding_id"]]
   ones <- rep(1, n)
   a <- lapply(stats::setNames(ms, ms), function(m) act(ctx, m))
-  share <- lapply(stats::setNames(ms, ms), function(m) {
-    if (!utl_is_string(fid)) return(ones)
-    fund_dom_num(ctx, paste0("funding.", fid, ".eligible_shares.", m), ones)
-  })
+  share <- lapply(stats::setNames(ms, ms), function(m) fund_type_share(ctx, spec, m))
   k_raw <- lapply(stats::setNames(ms, ms), function(m) fund_measure_cost(ctx, cost_ids, m))
   fixed_cost <- ctx$param(spec, "eligible_cost_eur")
   ke <- if (is.null(fixed_cost)) {
@@ -176,9 +222,13 @@ grant_build <- function(spec, ctx) {
   aux <- list(eligible_cost = ctx$zeros(), capped_cost = ctx$zeros(), grant_gross = ctx$zeros())
   rows <- list()
   lost <- rep(FALSE, n)
+  lost_before <- rep(FALSE, n)
   for (m in ms) {
-    p <- grant_payout_period(ctx, spec, m, cost_ids, event, lag, delay)
-    lost <- lost | (is.na(p) & abs(g_m[[m]]) > 0)
+    pp <- grant_payout_period(ctx, spec, m, cost_ids, event, lag, delay)
+    p <- pp$p
+    hit <- is.na(p) & abs(g_m[[m]] * approved) > 0
+    lost <- lost | (hit & !pp$before)
+    lost_before <- lost_before | (hit & pp$before)
     rows[[length(rows) + 1L]] <- vofi_row(
       paste0("grant_", m), typ_book(ctx$zeros(), p, g_m[[m]] * approved), section = "grants",
       category = "grant", tax_category = "subsidy_investment", measure_id = m, vat_rate = 0,
@@ -189,6 +239,7 @@ grant_build <- function(spec, ctx) {
     aux$grant_gross <- typ_book(aux$grant_gross, p, g_m[[m]])
   }
   typ_inform_after_horizon(ctx, spec, "grant", lost)
+  fund_inform_before(ctx, spec, "grant", lost_before)
   aux$rate_effective <- typ_safe_div(aux$grant_gross, aux$capped_cost)
   vofi_flows(rows, aux = aux,
              meta = list(measure_id = spec[["measure_id"]] %||% ms[1L], funding_id = fid,
@@ -220,7 +271,16 @@ grant_validate <- function(spec, scenario) {
                                                  scenario, "cost_components",
                                                  components = utl_collapse(miss))
   }
-  out
+  c(out, fund_share_findings("grant", spec, scenario, ms))
+}
+
+#' Prüfung des Parameters `eligible_shares`: Schlüssel müssen geförderte Maßnahmen sein (E)
+#' @noRd
+fund_share_findings <- function(type, spec, scenario, ms) {
+  extra <- setdiff(names(spec[["eligible_shares"]] %||% list()), ms)
+  if (length(extra) == 0L) return(list())
+  list(fund_type_finding(type, "error", "share_measure_unknown", spec, scenario,
+                         "eligible_shares", measures = utl_collapse(extra)))
 }
 
 #' @noRd
@@ -232,6 +292,8 @@ typedef_grant <- function() {
       measures = p("ids", default = list()),
       cost_components = p("ids", default = list()),
       eligible_cost_eur = p("value", min = 0, unit = "EUR", shapes = "scalar"),
+      eligible_shares = p("map", fields = list("*" = p("value", min = 0, max = 1,
+                                                       shapes = "scalar"))),
       rate = p("value", required = TRUE, min = 0, max = 1, shapes = "scalar"),
       rate_cap = p("value", default = 1, min = 0, max = 1, shapes = "scalar"),
       bonus_rate = p("value", default = 0, min = 0, max = 1, shapes = "scalar"),

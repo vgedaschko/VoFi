@@ -62,11 +62,31 @@ test_that("rv_value: Komponentenzeitwert (indexed), Bestandswert, Methode ohne b
   rv <- spec$components$rv_value
   expect_false(rv$component$indexed)
   expect_identical(rv$existing_value_eur, node_ref("building.existing_value_eur"))
-  # ohne building: Profilmethode (income_value) ohne Komponente; user_value zulässig
+  # ohne building: Profilmethode (income_value) ohne Komponente (Teil A 3.1, 6.1); user_value
+  # zulässig
   nb <- e2_scenario(perspective = "wu_privat", project_type = "neubau")
   nb$residual_value <- NULL
-  sn <- e2_resolve(nb)
+  rn <- e2_resolve_full(nb)
+  sn <- rn$value
+  expect_identical(sn$residual_value$method, "income_value")
+  expect_identical(exp_rv_default_method(sn), "income_value")
   expect_false("rv_value" %in% names(sn$components))
+  expect_false(any(startsWith(c(rn$messages, rn$warnings), "expand.residual")))
+  # ausdrücklich gesetzte Methode, die building braucht: E (Teil A 6.2 Nr. 5)
+  cv <- e2_scenario(perspective = "wu_privat", project_type = "neubau",
+                    residual_value = list(method = "component"))
+  e <- expect_error(e2_resolve(cv), class = "vofi_error_validation")
+  expect_identical(e$key, "expand.residual.method_needs_building")
+  # zero ohne building: kein Restwert, keine Meldung
+  rz <- e2_resolve_full(e2_scenario())
+  expect_false("rv_value" %in% names(rz$value$components))
+  expect_false(any(startsWith(c(rz$messages, rz$warnings), "expand.residual")))
+  # Sacheinlage (nur Bestandswert): market_growth mit building.existing_value_eur
+  se <- e2_scenario(building = list(existing_value_eur = 400000),
+                    residual_value = list(method = "market_growth"))
+  ss <- e2_resolve(se)
+  expect_identical(ss$components$rv_value$existing_value_eur,
+                   node_ref("building.existing_value_eur"))
   uv <- e2_scenario(perspective = "wu_privat", project_type = "neubau",
                     residual_value = list(method = "user_value",
                                           user_value = list(value_eur = 123456)))

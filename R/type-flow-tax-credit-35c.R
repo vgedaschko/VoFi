@@ -20,16 +20,21 @@ tax_credit_35c_build <- function(spec, ctx) {
   }
   cost_ids <- as.character(unlist(spec[["cost_components"]], use.names = FALSE))
   a <- lapply(stats::setNames(ms, ms), function(m) act(ctx, m))
-  k_m <- lapply(stats::setNames(ms, ms), function(m) fund_measure_cost(ctx, cost_ids, m))
+  a_max <- Reduce(pmax, a)
+  # Aufwendungen K_m = e_m · realisierte Kosten (e_m: Parameter eligible_shares, sonst 1)
+  k_m <- lapply(stats::setNames(ms, ms), function(m) {
+    fund_type_share(ctx, spec, m, domain = FALSE) * fund_measure_cost(ctx, cost_ids, m)
+  })
   k_raw <- Reduce(`+`, k_m)
   fixed_cost <- ctx$param(spec, "eligible_cost_eur")
-  k_tot <- if (is.null(fixed_cost)) k_raw else fixed_cost * Reduce(pmax, a)
+  k_tot <- if (is.null(fixed_cost)) k_raw else fixed_cost * a_max
   w <- lapply(ms, function(m) {
     if (length(ms) == 1L) ones else
       ifelse(k_raw > 0, k_m[[m]] / (k_raw + (k_raw == 0)), 1 / length(ms))
   })
   names(w) <- ms
-  # Abschluss je Lauf (spätester Termin der Maßnahmen mit Verschiebung) und ohne Verschiebung
+  # Abschluss je Lauf: spätester Termin der aktiven Maßnahmen (a_m > 0) mit Verschiebung; sind
+  # alle inaktiv, der späteste Termin aller Maßnahmen (Beträge dann 0). Ohne Verschiebung: dc0.
   comp0 <- lapply(ms, function(m) fund_measure_completion(ctx, cost_ids, m))
   if (any(vapply(comp0, is.null, logical(1)))) {
     ctx$abort("types.flow.tax_credit_35c.msg.no_completion", id = spec[["id"]] %||% "?")
@@ -39,7 +44,10 @@ tax_credit_35c_build <- function(spec, ctx) {
     s <- if (!is.null(ctx$spec$measures[[ms[j]]])) rp_measure_shift(ctx, ms[j]) else rep(0, n)
     as.numeric(grid_add_months(rep(comp0[[j]], n), s))
   })
-  dc <- as.Date(Reduce(pmax, shifted), origin = "1970-01-01")
+  masked <- lapply(seq_along(ms), function(j) ifelse(a[[j]] > 0, shifted[[j]], -Inf))
+  dc_num <- Reduce(pmax, masked)
+  dc_num <- ifelse(is.finite(dc_num), dc_num, Reduce(pmax, shifted))
+  dc <- as.Date(dc_num, origin = "1970-01-01")
   y0 <- utl_year(dc)
   y00 <- utl_year(dc0)
   before <- ctx$setting(spec, "completion_before")
@@ -64,9 +72,11 @@ tax_credit_35c_build <- function(spec, ctx) {
               capped_by_tax = ctx$zeros())
   capped_any <- rep(FALSE, n)
   lost <- rep(FALSE, n)
+  lost_before <- rep(FALSE, n)
   for (i in 1:3) {
     cap_i <- typ_safe_div(shares[[i]] * cap_total, total_share)
-    x <- pmin(shares[[i]] * k_tot, cap_i) + if (i == 1L) ea_share * ea_cost else 0
+    # Energieberatung nur, wenn mindestens eine Maßnahme aktiv ist (a_m = 0: als fehlte m)
+    x <- pmin(shares[[i]] * k_tot, cap_i) + if (i == 1L) ea_share * ea_cost * a_max else 0
     x <- pmax(x, 0)
     tranche <- x
     capped <- rep(FALSE, n)
@@ -79,8 +89,10 @@ tax_credit_35c_build <- function(spec, ctx) {
     x <- pmin(x, rem)
     rem <- rem - x
     x <- x * ok * approved
-    p <- ctx$shift_period(tc35c_jan1(y00 + i), 12 * (y0 - y00) + typ_round_months(delay))
-    lost <- lost | (is.na(p) & x > 0)
+    pp <- fund_shift_period(ctx, tc35c_jan1(y00 + i), 12 * (y0 - y00) + typ_round_months(delay))
+    p <- pp$p
+    lost <- lost | (is.na(p) & x > 0 & !pp$before)
+    lost_before <- lost_before | (is.na(p) & x > 0 & pp$before)
     for (m in ms) out[[m]] <- typ_book(out[[m]], p, x * w[[m]])
     aux[[paste0("tranche_", i)]] <- typ_book(aux[[paste0("tranche_", i)]], p,
                                              tranche * ok * approved)
@@ -89,7 +101,8 @@ tax_credit_35c_build <- function(spec, ctx) {
     capped_any <- capped_any | capped_now
   }
   typ_inform_after_horizon(ctx, spec, "tax_credit_35c", lost)
-  late <- ok == 0 & approved > 0
+  fund_inform_before(ctx, spec, "tax_credit_35c", lost_before)
+  late <- ok == 0 & approved > 0 & a_max > 0
   if (any(late)) {
     ctx$warn("types.flow.tax_credit_35c.msg.completion_late", id = spec[["id"]] %||% "?",
              date = before, share = mean(late), .class = "vofi_warning_plausibility")
@@ -115,12 +128,15 @@ tax_credit_35c_build <- function(spec, ctx) {
 #' sofern Baujahr bekannt), fehlende Einkommensteuer bei Deckelung (W).
 #' @noRd
 tax_credit_35c_validate <- function(spec, scenario) {
-  out <- list()
+  # Befunde in einer lokalen Umgebung sammeln (keine Zuweisung nach aussen, Spec 00 2.7 Nr. 3)
+  acc <- new.env(parent = emptyenv())
+  acc$out <- list()
   add <- function(severity, code, field = NULL, ...) {
-    out[[length(out) + 1L]] <<- fund_type_finding("tax_credit_35c", severity, code, spec,
-                                                  scenario, field, ...)
+    acc$out[[length(acc$out) + 1L]] <- fund_type_finding("tax_credit_35c", severity, code, spec,
+                                                         scenario, field, ...)
   }
-  if (length(fund_type_measures(spec)) == 0L) add("error", "no_measures", "measures")
+  ms <- fund_type_measures(spec)
+  if (length(ms) == 0L) add("error", "no_measures", "measures")
   persp <- scenario[["project"]][["perspective"]]
   groups <- scenario[["unit_groups"]] %||% list()
   rented <- vapply(groups, function(g) !isTRUE(exp_lgl(g[["owner_occupied"]])), logical(1))
@@ -138,7 +154,7 @@ tax_credit_35c_validate <- function(spec, scenario) {
         identical(spec[["income_tax_cap_eur_pa"]][["kind"]], "ref")) {
     add("warning", "income_tax_missing", "income_tax_cap_eur_pa")
   }
-  out
+  c(acc$out, fund_share_findings("tax_credit_35c", spec, scenario, ms))
 }
 
 #' @noRd
@@ -150,6 +166,8 @@ typedef_tax_credit_35c <- function() {
       measures = p("ids", default = list()),
       cost_components = p("ids", default = list()),
       eligible_cost_eur = p("value", min = 0, unit = "EUR", shapes = "scalar"),
+      eligible_shares = p("map", fields = list("*" = p("value", min = 0, max = 1,
+                                                       shapes = "scalar"))),
       share_y1 = p("share", default = 0.07),
       share_y2 = p("share", default = 0.07),
       share_y3 = p("share", default = 0.06),

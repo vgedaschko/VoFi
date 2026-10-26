@@ -11,6 +11,9 @@ params:
   eligible_cost_eur:
     label: "Feste Aufwendungen"
     help: "Ersetzt die Ableitung aus den Maßnahmenkosten."
+  eligible_shares:
+    label: "Begünstigte Anteile je Maßnahme"
+    help: "Anteil der Maßnahmenkosten, der als Aufwendung zählt (Bezug auf funding.<f>.eligible_shares.<m>; 0, wenn die Kostengruppe nicht in basis.eligible_cost_kg liegt); ohne Angabe 1."
   share_y1:
     label: "Anteil im Jahr der Fertigstellung"
     help: "Erste Tranche (Gesetz: 7 %)."
@@ -55,6 +58,8 @@ msg:
   completion_late: "Komponente '{id}': Abschluss nicht vor dem {date:date} in {share:pct} der Läufe; keine Steuerermäßigung."
   capped_by_tax: "Komponente '{id}': Steuerermäßigung durch die erwartete Einkommensteuer gedeckelt ({share:pct} der Läufe); nicht nutzbare Beträge verfallen."
   after_horizon: "Komponente '{id}': Erstattung nach dem Horizont, nicht gebucht ({share:pct} der Läufe)."
+  before_valuation: "Komponente '{id}': Erstattungstermin vor dem Stichtag, nicht gebucht ({share:pct} der Läufe); eine bereits erstattete Steuerermäßigung gehört nicht in das Modell."
+  share_measure_unknown: "Komponente '{id}': eligible_shares nennt Maßnahmen, die nicht begünstigt sind ({measures})."
   not_owner_occupied: "Komponente '{id}': § 35c EStG verlangt selbstgenutztes Wohneigentum (Perspektive {perspective})."
   building_too_young: "Komponente '{id}': das Gebäude ist bei Beginn erst {age} Jahre alt (§ 35c verlangt mindestens 10 Jahre)."
   income_tax_missing: "Komponente '{id}': household.expected_income_tax_eur_pa fehlt; die Deckelung durch die Einkommensteuer ist nicht prüfbar."

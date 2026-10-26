@@ -11,12 +11,64 @@
 # Degression (Teil B 4.3.3)
 # ---------------------------------------------------------------------------------------------
 
+#' Liegt das Ziel einer Degression in einem durch `~` entfernten Baustein? (Teil B 4.3.3, X-02)
+#'
+#' Ein Baustein gilt als entfernt, wenn das Ziel unter `rate_components.<id>` bzw.
+#' `repayment_grant.bonuses.<id>` liegt und dieser Baustein in der Nutzlast fehlt.
+#' @param target Zielpfad ohne Index (z. B. `rate_components.klimageschwindigkeit.rate`).
+#' @noRd
+fund_degression_removed <- function(fs, target) {
+  parts <- strsplit(target, ".", fixed = TRUE)[[1L]]
+  if (length(parts) >= 2L && identical(parts[1L], "rate_components")) {
+    return(is.null(fs[["rate_components"]][[parts[2L]]]))
+  }
+  if (length(parts) >= 3L && identical(parts[1L], "repayment_grant") &&
+        identical(parts[2L], "bonuses")) {
+    return(is.null(fs[["repayment_grant"]][["bonuses"]][[parts[3L]]]))
+  }
+  FALSE
+}
+
+#' Element `i` einer Sequenz der Nutzlast lesen bzw. ersetzen (Teil B 4.3.3)
+#'
+#' Sequenzen liegen nach der Normalisierung als Liste von Maps (z. B. Staffeltabellen,
+#' `rate_cap.exceptions`), als Zahlenreihe (`{kind: series_t, values}`, z. B.
+#' `schedule_by_taxable_income.rates`) oder als atomarer Vektor vor.
+#' @param tab Sequenz.
+#' @param i Index (1-basiert).
+#' @param value neuer Wert bzw. `NULL` (nur lesen).
+#' @return beim Lesen das Element (oder `NULL`), beim Ersetzen die geänderte Sequenz.
+#' @noRd
+fund_seq_element <- function(tab, i, value = NULL) {
+  if (is.list(tab) && identical(tab[["kind"]], "series_t")) {
+    vals <- tab[["values"]]
+    if (i < 1L || i > length(vals)) return(NULL)
+    if (is.null(value)) return(if (is.list(vals)) vals[[i]] else vals[i])
+    if (is.list(vals)) vals[[i]] <- value else vals[i] <- value
+    tab[["values"]] <- vals
+    return(tab)
+  }
+  if (is.list(tab) && is.null(tab[["kind"]])) {
+    if (i < 1L || i > length(tab)) return(NULL)
+    if (is.null(value)) return(tab[[i]])
+    tab[[i]] <- value
+    return(tab)
+  }
+  if (is.atomic(tab) && !is.null(tab) && i >= 1L && i <= length(tab)) {
+    if (is.null(value)) return(tab[i])
+    tab[i] <- value
+    return(tab)
+  }
+  NULL
+}
+
 #' Degressionseinträge eines Instruments auswerten
 #'
 #' Ziele auf Map-Blätter werden als Ausdrucks-Umhüllung zurückgegeben (`leaf`: Pfad relativ zum
-#' Instrument -> Funktion Text -> Text), Ziele auf Sequenzelemente (`pfad[i].feld`) als
-#' geänderte Kopie der Nutzlast (`fs`). Ein Ziel in einem durch `~` entfernten Satzbaustein entfällt
-#' mit Hinweis; ein sonst fehlendes Ziel ist ein Fehler.
+#' Instrument -> Funktion Text -> Text), Ziele auf Sequenzelemente (`pfad[i].feld` bzw. `pfad[i]`,
+#' auch Zahlenreihen wie `schedule_by_taxable_income.rates[3]`) als geänderte Kopie der
+#' Nutzlast (`fs`); alle Bausteine lesen Sequenzwerte aus dieser Kopie. Ein Ziel in einem durch `~`
+#' entfernten Baustein entfällt mit Hinweis; ein sonst fehlendes Ziel ist ein Fehler.
 #' @return Liste `fs` (Nutzlast mit angewandten Tabellenwerten), `leaf`.
 #' @noRd
 fund_degression <- function(x, f, fs, bctx) {
@@ -25,6 +77,13 @@ fund_degression <- function(x, f, fs, bctx) {
   if (length(entries) == 0L) return(list(fs = fs, leaf = leaf))
   ad <- fund_application_date(x, fs)
   rule <- exp_rule(bctx, "fund_degression")
+  missing_target <- function(target, path) {
+    if (fund_degression_removed(fs, path)) {
+      bctx$inform("expand.funding.degression_target_removed", funding = f, target = target)
+    } else {
+      bctx$abort("expand.funding.degression_target", funding = f, target = target)
+    }
+  }
   for (e in entries) {
     target <- exp_code(e[["target"]])
     if (is.null(target)) next
@@ -39,26 +98,21 @@ fund_degression <- function(x, f, fs, bctx) {
       i <- as.integer(m[3L])
       field <- m[4L]
       tab <- path_get(fs, seq_path)
-      el <- if (is.list(tab) && i >= 1L && i <= length(tab)) tab[[i]] else NULL
+      el <- fund_seq_element(tab, i)
       v0 <- if (is.null(el)) NULL else if (nzchar(field)) exp_num(path_get(el, field)) else
         exp_num(el)
       if (is.null(v0)) {
-        bctx$abort("expand.funding.degression_target", funding = f, target = target)
+        missing_target(target, seq_path)
+        next
       }
       v <- rule(v0[1L], ad, start, step, every, fl)
       if (nzchar(field)) el <- path_set(el, field, v) else el <- v
-      tab[[i]] <- el
-      fs <- path_set(fs, seq_path, tab)
+      fs <- path_set(fs, seq_path, fund_seq_element(tab, i, el))
       next
     }
     if (is.null(path_get(fs, target))) {
-      parts <- strsplit(target, ".", fixed = TRUE)[[1L]]
-      if (length(parts) >= 2L && identical(parts[1L], "rate_components") &&
-            is.null(fs[["rate_components"]][[parts[2L]]])) {
-        bctx$inform("expand.funding.degression_target_removed", funding = f, target = target)
-        next
-      }
-      bctx$abort("expand.funding.degression_target", funding = f, target = target)
+      missing_target(target, target)
+      next
     }
     delta <- rule(0, ad, start, step, every, NULL)[1L]
     leaf[[target]] <- local({
@@ -68,7 +122,7 @@ fund_degression <- function(x, f, fs, bctx) {
       function(text) {
         if (d == 0) return(text)
         raw <- paste0(text, " + ", exp_fmt(d))
-        if (is.null(flo)) return(raw)
+        if (is.null(flo)) return(paste0("(", raw, ")"))
         paste0(if (s < 0) "pmax(" else "pmin(", raw, ", ", exp_fmt(flo), ")")
       }
     })
@@ -82,6 +136,73 @@ fund_leaf <- function(f, rel, deg) {
   txt <- paste0("funding.", f, ".", rel)
   fn <- deg$leaf[[rel]]
   if (is.function(fn)) fn(txt) else txt
+}
+
+#' Knoten eines Nutzlastblatts mit Degression (Bezug bzw. Ausdruck)
+#' @noRd
+fund_leaf_node <- function(f, rel, deg) exp_text_node(fund_leaf(f, rel, deg))
+
+# ---------------------------------------------------------------------------------------------
+# Förderfähige Anteile (Teil B 4.2, 4.4)
+# ---------------------------------------------------------------------------------------------
+
+#' Liegt eine Kostengruppe in den förderfähigen Kostengruppen? (DIN 276; 330 gehört zu 300)
+#' @param kg Kostengruppe der Maßnahme.
+#' @param kgs förderfähige Kostengruppen (`basis.eligible_cost_kg`).
+#' @noRd
+fund_kg_eligible <- function(kg, kgs) {
+  kg %in% kgs || (kg %/% 100L) * 100L %in% kgs
+}
+
+#' Förderfähige Anteile e_m der Maßnahmen eines Instruments (Teil B 4.2, 4.4)
+#'
+#' Je Maßnahme der Pfad `funding.<f>.eligible_shares.<m>`, falls gesetzt; sonst `"0"`, wenn der
+#' KG-Filter `basis.eligible_cost_kg` die Kostengruppe `measures.<m>.kg` ausschließt (I
+#' `expand.funding.kg_not_eligible`); sonst `NULL` (Anteil 1). Kostengruppe (Ganzzahl) und
+#' Filterliste (Sequenz) sind deterministisch (Spec 00 4.12 Nr. 5 (a), (b)).
+#' @param inform Hinweis für ausgeschlossene Maßnahmen ausgeben.
+#' @return benannte Liste je Maßnahme: Pfadtext, `"0"` oder `NULL`.
+#' @noRd
+fund_shares <- function(x, f, fs, ms, bctx, inform = TRUE) {
+  kgs <- exp_num(fs[["basis"]][["eligible_cost_kg"]])
+  out <- stats::setNames(vector("list", length(ms)), ms)
+  for (m in ms) {
+    p <- paste0("funding.", f, ".eligible_shares.", m)
+    if (exp_has(x, p)) {
+      out[m] <- list(p)
+      next
+    }
+    kg <- exp_int(x$measures[[m]][["kg"]])
+    if (length(kgs) > 0L && !is.null(kg) && !fund_kg_eligible(kg, kgs)) {
+      if (inform) {
+        bctx$inform("expand.funding.kg_not_eligible", funding = f, measure = m, kg = kg,
+                    kgs = utl_collapse(kgs))
+      }
+      out[m] <- list("0")
+    }
+  }
+  out
+}
+
+#' Anteile als Parameter `eligible_shares` der Typen grant und tax_credit_35c (oder `NULL`)
+#' @param shares Ergebnis von `fund_shares()`.
+#' @noRd
+fund_share_param <- function(shares) {
+  out <- list()
+  for (m in names(shares)) {
+    s <- shares[[m]]
+    if (is.null(s)) next
+    out[[m]] <- if (identical(s, "0")) node_const(0) else node_ref(s)
+  }
+  if (length(out) == 0L) NULL else out
+}
+
+#' Basisfallwert des Anteils e_m (für die Kumulierungsprüfung, Basisfall)
+#' @noRd
+fund_share_base <- function(x, s, bctx) {
+  if (is.null(s)) return(1)
+  if (identical(s, "0")) return(0)
+  exp_base(bctx, x, s) %||% 1
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -202,9 +323,13 @@ fund_meta <- function(x, f, fs, ms, bctx, type) {
 # ---------------------------------------------------------------------------------------------
 
 #' Satz, Bonus und Höchstsatz eines Zuschussinstruments
+#'
+#' Sequenzwerte (Einkommensstaffel, `rate_cap.exceptions`) stammen aus der Nutzlast mit
+#' angewandter Degression (`deg$fs`), Map-Blätter sind Bezüge mit Degressionsausdruck.
 #' @return Liste `rate` (Knoten), `bonus_rate`, `bonus_threshold`, `bonus_mode`, `rate_cap`.
 #' @noRd
 fund_grant_rates <- function(x, f, fs, deg, n_units, cap_without_bonus, bctx) {
+  fs <- deg$fs %||% fs
   fail <- function(key, ...) bctx$abort(key, ..., funding = f)
   parts <- character(0)
   bonus <- character(0)
@@ -215,7 +340,7 @@ fund_grant_rates <- function(x, f, fs, deg, n_units, cap_without_bonus, bctx) {
     if (is.null(rc)) next
     cond <- rc[["condition"]]
     if (!is.null(cond) &&
-          !fund_eval_condition(cond, fund_lookup(x, f, fs, rc), on_error = fail)) {
+          !fund_eval_condition(cond, fund_lookup(x, f, fs, rc, fail = fail), on_error = fail)) {
       next
     }
     rel <- paste0("rate_components.", id)
@@ -235,11 +360,11 @@ fund_grant_rates <- function(x, f, fs, deg, n_units, cap_without_bonus, bctx) {
       bonus <- c(bonus, txt)
       th <- rc[["threshold"]]
       if (n_units <= 1L && !is.null(th[["single_unit_eur"]])) {
-        threshold <- node_ref(paste0("funding.", f, ".", rel, ".threshold.single_unit_eur"))
+        threshold <- fund_leaf_node(f, paste0(rel, ".threshold.single_unit_eur"), deg)
       } else if (identical(exp_code(th[["multi_unit"]]), "cap_without_bonus")) {
         threshold <- if (is.null(cap_without_bonus)) NULL else node_const(cap_without_bonus)
       } else if (!is.null(exp_num(th[["multi_unit"]]))) {
-        threshold <- node_ref(paste0("funding.", f, ".", rel, ".threshold.multi_unit"))
+        threshold <- fund_leaf_node(f, paste0(rel, ".threshold.multi_unit"), deg)
       }
       mode <- exp_code(rc[["mode"]]) %||% mode
     } else {
@@ -250,14 +375,15 @@ fund_grant_rates <- function(x, f, fs, deg, n_units, cap_without_bonus, bctx) {
   rcap <- fs[["rate_cap"]] %||% list()
   for (exc in rcap[["exceptions"]] %||% list()) {
     cond <- exc[["condition"]]
-    ok <- is.null(cond) || fund_eval_condition(cond, fund_lookup(x, f, fs), on_error = fail)
+    ok <- is.null(cond) ||
+      fund_eval_condition(cond, fund_lookup(x, f, fs, fail = fail), on_error = fail)
     if (ok && !is.null(exp_num(exc[["cap"]]))) {
       rate_cap <- node_const(exp_num(exc[["cap"]])[1L])
       break
     }
   }
   if (is.null(rate_cap) && exp_has(x, paste0("funding.", f, ".rate_cap.default"))) {
-    rate_cap <- exp_text_node(fund_leaf(f, "rate_cap.default", deg))
+    rate_cap <- fund_leaf_node(f, "rate_cap.default", deg)
   }
   list(rate = exp_sum_node(parts),
        bonus_rate = if (length(bonus) > 0L) exp_sum_node(bonus) else NULL,
@@ -285,6 +411,8 @@ fund_build_grant <- function(x, f, fs, bctx) {
   if (exp_has(x, paste0(p, "eligible_cost_eur"))) {
     cmp$eligible_cost_eur <- node_ref(paste0(p, "eligible_cost_eur"))
   }
+  sh <- fund_share_param(fund_shares(x, f, fs, ms, bctx))
+  if (!is.null(sh)) cmp$eligible_shares <- sh
   cmp$rate <- rates$rate
   if (!is.null(rates$rate_cap)) cmp$rate_cap <- rates$rate_cap
   if (!is.null(rates$bonus_rate)) {
@@ -351,6 +479,7 @@ fund_activation_max <- function(x, ms) {
 #' @param amount_text Ausdruck des Zusagebetrags.
 #' @noRd
 fund_repayment_grant <- function(x, f, fs, deg, n_units, amount_text, bctx) {
+  fs <- deg$fs %||% fs
   rg <- fs[["repayment_grant"]]
   if (!is.list(rg) || length(rg) == 0L) return(NULL)
   p <- paste0("funding.", f, ".repayment_grant.")
@@ -359,12 +488,13 @@ fund_repayment_grant <- function(x, f, fs, deg, n_units, amount_text, bctx) {
   if (exp_has(x, paste0(p, "base_rates.", cls))) {
     parts <- fund_leaf(f, paste0("repayment_grant.base_rates.", cls), deg)
   }
+  on_err <- function(key, ...) bctx$abort(key, ..., funding = f)
   for (id in names(rg[["bonuses"]] %||% list())) {
     b <- rg[["bonuses"]][[id]]
     if (is.null(b) || is.null(b[["rate"]])) next
     cond <- b[["condition"]]
-    on_err <- function(key, ...) bctx$abort(key, ..., funding = f)
-    ok <- is.null(cond) || fund_eval_condition(cond, fund_lookup(x, f, fs), on_error = on_err)
+    ok <- is.null(cond) ||
+      fund_eval_condition(cond, fund_lookup(x, f, fs, fail = on_err), on_error = on_err)
     if (ok) parts <- c(parts, fund_leaf(f, paste0("repayment_grant.bonuses.", id, ".rate"), deg))
   }
   if (length(parts) == 0L) parts <- "0"
@@ -379,8 +509,10 @@ fund_repayment_grant <- function(x, f, fs, deg, n_units, amount_text, bctx) {
                                                     deg), " * ", n_units, ")")
   }
   num <- paste0("(", t, ") * ", basis)
-  cs_share <- paste0("funding.", f, ".construction_supervision.repayment_grant_share")
-  if (!is.null(cs) && exp_has(x, cs_share)) num <- paste0(num, " + ", cs_share, " * ", cs)
+  cs_rel <- "construction_supervision.repayment_grant_share"
+  if (!is.null(cs) && exp_has(x, paste0("funding.", f, ".", cs_rel))) {
+    num <- paste0(num, " + ", fund_leaf(f, cs_rel, deg), " * ", cs)
+  }
   out <- list(share = node_expr(paste0("(", num, ") / (", amount_text, ")")))
   ms <- exp_chr(fs[["measures"]])
   comps <- Filter(Negate(is.null), lapply(ms, function(m) exp_measure_completion(x, m, bctx)))
@@ -417,14 +549,17 @@ fund_build_loan <- function(x, f, fs, bctx) {
   amount_text <- if (exp_has(x, paste0(p, "amount_eur"))) {
     paste0(p, "amount_eur")
   } else {
-    eligible <- vapply(ms, function(m) {
+    # Teil B 4.6: Σ_m e_m · measures.m.cost_eur; KG-Filter (e_m = 0) lässt den Term weg
+    shares <- fund_shares(x, f, fs, ms, bctx)
+    eligible <- unlist(lapply(ms, function(m) {
       cost <- paste0("measures.", m, ".cost_eur")
-      sh <- paste0(p, "eligible_shares.", m)
-      if (exp_has(x, sh)) paste0(sh, " * ", cost) else cost
-    }, character(1))
-    base <- paste0("(", paste(eligible, collapse = " + "), ")")
-    msh <- paste0(p, "loan.max_share_of_eligible_costs")
-    if (exp_has(x, msh)) base <- paste0(base, " * ", msh)
+      sh <- shares[[m]]
+      if (is.null(sh)) cost else if (identical(sh, "0")) NULL else paste0(sh, " * ", cost)
+    }), use.names = FALSE)
+    base <- if (length(eligible) == 0L) "0" else
+      paste0("(", paste(eligible, collapse = " + "), ")")
+    msh <- "loan.max_share_of_eligible_costs"
+    if (exp_has(x, paste0(p, msh))) base <- paste0(base, " * ", fund_leaf(f, msh, deg))
     cap <- fund_loan_cap(x, f, fs, deg, n_units)
     txt <- if (is.null(cap)) base else paste0("pmin(", base, ", ", cap, ")")
     cs <- fund_construction_support(x, f, deg, n_units)
@@ -439,8 +574,10 @@ fund_build_loan <- function(x, f, fs, bctx) {
   dr <- fund_loan_draws(x, ms, bctx)
   if (!is.null(dr$start)) cmp$start <- dr$start
   if (!is.null(dr$schedule)) cmp$draw_schedule <- dr$schedule
-  vp <- paste0(p, "loan.variants.", v, ".")
-  if (exp_has(x, paste0(vp, "rate_pa"))) cmp$rate_pa <- node_ref(paste0(vp, "rate_pa"))
+  vp <- paste0("loan.variants.", v, ".")
+  if (exp_has(x, paste0(p, vp, "rate_pa"))) {
+    cmp$rate_pa <- fund_leaf_node(f, paste0(vp, "rate_pa"), deg)
+  }
   for (fld in c("term_years", "grace_years", "fixed_years")) {
     val <- exp_num(vv[[fld]])
     if (!is.null(val)) cmp[[fld]] <- val[1L]
@@ -450,7 +587,7 @@ fund_build_loan <- function(x, f, fs, bctx) {
   fees <- list()
   for (fld in c("processing_fee_share", "commitment_fee_rate_month")) {
     if (exp_has(x, paste0(p, "loan.fees.", fld))) {
-      fees[[fld]] <- node_ref(paste0(p, "loan.fees.", fld))
+      fees[[fld]] <- fund_leaf_node(f, paste0("loan.fees.", fld), deg)
     }
   }
   cfm <- exp_int(ln[["fees"]][["commitment_free_months"]])
@@ -476,10 +613,12 @@ fund_build_loan <- function(x, f, fs, bctx) {
 #' @noRd
 fund_build_subsidy <- function(x, f, fs, bctx) {
   ms <- exp_chr(fs[["measures"]])
+  deg <- fund_degression(x, f, fs, bctx)
   is <- fs[["interest_subsidy"]] %||% list()
   p <- paste0("funding.", f, ".")
+  wrap <- function(t) if (exp_is_path(t)) t else paste0("(", t, ")")
   base <- if (exp_has(x, paste0(p, "interest_subsidy.subsidized_amount_eur"))) {
-    paste0(p, "interest_subsidy.subsidized_amount_eur")
+    wrap(fund_leaf(f, "interest_subsidy.subsidized_amount_eur", deg))
   } else if (exp_has(x, paste0(p, "amount_eur"))) {
     paste0(p, "amount_eur")
   } else {
@@ -488,7 +627,7 @@ fund_build_subsidy <- function(x, f, fs, bctx) {
   if (!exp_has(x, paste0(p, "interest_subsidy.rate_reduction_pa"))) {
     bctx$abort("expand.funding.subsidy_amount_missing", funding = f)
   }
-  parts <- c(base, paste0(p, "interest_subsidy.rate_reduction_pa"),
+  parts <- c(base, wrap(fund_leaf(f, "interest_subsidy.rate_reduction_pa", deg)),
              if (exp_has(x, paste0(p, "approved"))) paste0(p, "approved"))
   act <- fund_activation_max(x, ms)
   if (!is.null(act)) parts <- c(parts, if (grepl("[*,]", act)) paste0("(", act, ")") else act)
@@ -522,7 +661,8 @@ fund_build_35c <- function(x, f, fs, bctx) {
     cmp$after <- cost_ids
   }
   p <- paste0("funding.", f, ".")
-  cr <- fs[["credit"]] %||% list()
+  deg <- fund_degression(x, f, fs, bctx)
+  cr <- deg$fs[["credit"]] %||% list()
   pr <- exp_rule(bctx, "fund_35c_params")(cr)
   cmp$share_y1 <- pr$share_y1
   cmp$share_y2 <- pr$share_y2
@@ -534,8 +674,10 @@ fund_build_35c <- function(x, f, fs, bctx) {
             prior_used_eur = "prior_credit_used_eur", approved = "approved",
             payout_delay_months = "payout_delay_months")
   for (prm in names(refs)) {
-    if (exp_has(x, paste0(p, refs[[prm]]))) cmp[[prm]] <- node_ref(paste0(p, refs[[prm]]))
+    if (exp_has(x, paste0(p, refs[[prm]]))) cmp[[prm]] <- fund_leaf_node(f, refs[[prm]], deg)
   }
+  sh <- fund_share_param(fund_shares(x, f, fs, ms, bctx))
+  if (!is.null(sh)) cmp$eligible_shares <- sh
   if (isTRUE(exp_lgl(cr[["capped_by_expected_income_tax"]]))) {
     if (exp_has(x, "household.expected_income_tax_eur_pa")) {
       cmp$income_tax_cap_eur_pa <- node_ref("household.expected_income_tax_eur_pa")
@@ -653,6 +795,10 @@ fund_total_share <- function(x, active, built, bctx) {
       max(exp_base(bctx, x, paste0("measures.", m, ".cost_eur")) %||% 0, 0)
     }, double(1))
     if (sum(k0) <= 0) next
+    # förderfähige Basisfallkosten e_m · K⁰_m (KG-Filter, eligible_shares; Teil B 4.4)
+    shares <- fund_shares(x, f, fund[[f]], ms, bctx, inform = FALSE)
+    ke0 <- k0 * vapply(ms, function(m) fund_share_base(x, shares[[m]], bctx), double(1))
+    w <- if (sum(ke0) > 0) ke0 / sum(ke0) else k0 / sum(k0)
     amount <- NULL
     if (identical(b$comp$type, "grant")) {
       path <- paste0(b$collection, ".", b$id, ".")
@@ -660,7 +806,7 @@ fund_total_share <- function(x, active, built, bctx) {
       if (is.null(amount)) {
         r <- base_of(b$comp$rate, paste0(path, "rate")) %||% 0
         cap <- base_of(b$comp$cost_cap_eur, paste0(path, "cost_cap_eur")) %||% Inf
-        amount <- r * min(sum(k0), cap)
+        amount <- r * min(sum(ke0), cap)
       }
     } else if (!is.null(b$comp$repayment_grant$share)) {
       path <- paste0(b$collection, ".", b$id, ".")
@@ -672,7 +818,7 @@ fund_total_share <- function(x, active, built, bctx) {
     mts <- exp_num(fund[[f]][["cumulation"]][["max_total_share"]])
     for (j in seq_along(ms)) {
       m <- ms[j]
-      tot[[m]] <- (tot[[m]] %||% 0) + amount * k0[j] / sum(k0)
+      tot[[m]] <- (tot[[m]] %||% 0) + amount * w[j]
       if (!is.null(mts)) lim[[m]] <- min(lim[[m]] %||% Inf, mts[1L])
     }
   }

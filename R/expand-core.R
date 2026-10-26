@@ -95,6 +95,16 @@ exp_resolvable <- function(x, path, depth = 0L) {
   TRUE
 }
 
+#' Letztes Ziel einer Bezugskette (der fehlende Pfad bei nicht auflösbaren Bezügen)
+#' @noRd
+exp_ref_end <- function(x, path, depth = 0L) {
+  v <- path_get(x, path)
+  if (is.list(v) && identical(v[["kind"]], "ref") && depth < 10L) {
+    return(exp_ref_end(x, v[["path"]], depth + 1L))
+  }
+  path
+}
+
 #' Enthält `building` Gebäudedaten (nicht nur Werte wie `existing_value_eur`)?
 #'
 #' Teil A 3.1: Ohne Gebäudebezug laufen Instandhaltung und Restwert nicht. Ein Block, der nur
@@ -558,8 +568,11 @@ fund_taxable_income_adj <- function(x, sched = NULL) {
 
 #' Auflöser der Bedingungssymbole eines Instruments (Teil B 4.3.2)
 #' @param comp Satzbaustein (für `min_age_gas_biomass_years`, Staffel) oder `NULL`.
+#' @param fail optional: Funktion(key, ...) für Fehler; fehlt das zu versteuernde Einkommen für
+#'   `taxable_income_adj`, meldet sie `expand.funding.taxable_income_missing` (statt
+#'   `expand.funding.condition_symbol` über `fund_eval_condition()`).
 #' @noRd
-fund_lookup <- function(x, f, fs, comp = NULL) {
+fund_lookup <- function(x, f, fs, comp = NULL, fail = NULL) {
   facts <- fs[["facts"]] %||% list()
   sched <- comp[["schedule_by_taxable_income"]]
   if (is.null(sched)) {
@@ -593,7 +606,11 @@ fund_lookup <- function(x, f, fs, comp = NULL) {
     if (identical(sym, "heating.replaced_fossil_functional")) {
       return(fund_replaced_fossil(x, fs, min_age))
     }
-    if (identical(sym, "taxable_income_adj")) return(fund_taxable_income_adj(x, sched))
+    if (identical(sym, "taxable_income_adj")) {
+      v <- fund_taxable_income_adj(x, sched)
+      if (is.null(v) && is.function(fail)) fail("expand.funding.taxable_income_missing")
+      return(v)
+    }
     if (identical(sym, "application_year")) {
       ad <- fund_application_date(x, fs)
       return(if (is.null(ad)) NULL else utl_year(ad))
@@ -651,14 +668,18 @@ fund_fact <- function(x, fs, key) {
 #'   Maßnahmentypen), `override` (lgl).
 #' @noRd
 fund_check_eligibility <- function(x, f, fs, bctx) {
-  out <- list(eligible = TRUE, reasons = list(), open = list(), errors = list(),
-              override = isTRUE(exp_lgl(fs[["eligibility_override"]])))
+  override <- isTRUE(exp_lgl(fs[["eligibility_override"]]))
+  # Befunde in einer lokalen Umgebung sammeln (keine Zuweisung nach aussen, Spec 00 2.7 Nr. 3)
+  acc <- new.env(parent = emptyenv())
+  acc$reasons <- list()
+  acc$open <- list()
+  errors <- list()
   el <- fs[["eligibility"]] %||% list()
   bad <- function(code, ...) {
-    out$reasons[[length(out$reasons) + 1L]] <<- list(code = code, args = list(...))
+    acc$reasons[[length(acc$reasons) + 1L]] <- list(code = code, args = list(...))
   }
   open <- function(code, ...) {
-    out$open[[length(out$open) + 1L]] <<- list(code = code, args = list(...))
+    acc$open[[length(acc$open) + 1L]] <- list(code = code, args = list(...))
   }
   ms <- exp_chr(fs[["measures"]])
   mt_ok <- exp_chr(el[["measure_types"]])
@@ -666,7 +687,7 @@ fund_check_eligibility <- function(x, f, fs, bctx) {
     for (m in ms) {
       mt <- exp_code(x$measures[[m]][["measure_type"]])
       if (!is.null(mt) && !(mt %in% mt_ok)) {
-        out$errors[[length(out$errors) + 1L]] <- list(measure = m, measure_type = mt)
+        errors[[length(errors) + 1L]] <- list(measure = m, measure_type = mt)
       }
     }
   }
@@ -752,11 +773,9 @@ fund_check_eligibility <- function(x, f, fs, bctx) {
     )
   }
   for (ex in exp_chr(el[["exclusions"]])) open("exclusion", text = ex)
-  if (out$override) {
-    out$reasons <- list()
-  }
-  out$eligible <- length(out$reasons) == 0L
-  out
+  reasons <- if (override) list() else acc$reasons
+  list(eligible = length(reasons) == 0L, reasons = reasons, open = acc$open, errors = errors,
+       override = override)
 }
 
 #' Klassen der Wärmeträger im Zustand nach den Maßnahmen eines Instruments

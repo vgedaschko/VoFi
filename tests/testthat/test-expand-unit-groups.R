@@ -187,3 +187,33 @@ test_that("Neubau: Mietbeginn und Kostenbeginn zum Token completion; id-Länge d
   expect_identical(e$key, "expand.unit_groups.id_too_long")
   expect_equal(e$args$max, 25L)
 })
+
+test_that("1.6 Nr. 8: sammelnde Validierung (Staffel, OVM) und Mieterstrom (W)", {
+  run <- function(ug, ...) e2_resolve_full(e2_scenario(building = e2_ug_bld(),
+                                                       unit_groups = list(g = ug), ...))
+  e <- expect_error(run(e2_ug(rent_regime = "staffel")), class = "vofi_error_validation")
+  expect_identical(e$key, "expand.unit_groups.staffel_steps_missing")
+  e <- expect_error(run(e2_ug(increase_policy = "max")), class = "vofi_error_validation")
+  expect_identical(e$key, "expand.unit_groups.ovm_missing")
+  # mehrere Fehler gemeinsam
+  e <- expect_error(run(e2_ug(rent_regime = "staffel", increase_policy = "interval")),
+                    class = "vofi_error_validation")
+  expect_identical(e$key, "expand.unit_groups.invalid")
+  expect_match(conditionMessage(e), "staffel_steps", fixed = TRUE)
+  expect_match(conditionMessage(e), "ovm_eur_m2_month", fixed = TRUE)
+  # OVM gesetzt: kein Fehler
+  expect_no_error(run(e2_ug(increase_policy = "max", ovm_eur_m2_month = 7)))
+  # Mieterstrom als custom_series mit energy_income: W
+  r <- run(e2_ug(), components = list(ms = list(type = "custom_series", category = "energy_income",
+                                                values = rep(100, 11L))))
+  expect_true("expand.unit_groups.tenant_power" %in% r$warnings)
+})
+
+test_that("1.6 Nr. 1: Gebäude ohne Wohnungsgruppen meldet keine Mietkomponenten (I)", {
+  r <- e2_resolve_full(e2_scenario(building = e2_ug_bld()))
+  expect_true("expand.unit_groups.no_groups" %in% r$messages)
+  expect_false(any(startsWith(names(r$value$components), "u_")))
+  # ohne building läuft der Expander nicht
+  r0 <- e2_resolve_full(e2_scenario())
+  expect_false("expand.unit_groups.no_groups" %in% r0$messages)
+})

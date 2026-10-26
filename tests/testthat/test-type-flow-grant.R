@@ -149,3 +149,35 @@ test_that("grant: Prüfungen ohne Maßnahmen bzw. Kostenkomponente außerhalb vo
   expect_length(grant_validate(list(id = "g", measures = "a", cost_components = "c",
                                     after = "c"), sc), 0L)
 })
+
+test_that("grant: Parameter eligible_shares (KG-Filter des Expanders) vor dem Domänenpfad", {
+  dom <- list(funding = list(f1 = list(eligible_shares = list(a = 0.5))))
+  comps <- list(c_a = e2_capex("a", 100000), c_b = e2_capex("b", 100000),
+                g = e2_grant_comp(c("a", "b"), rate = 0.2, payout_event = "commitment",
+                                  application_date = "2027-01-01",
+                                  eligible_shares = list(b = 0)))
+  out <- e2_type_build(comps, domain = dom)
+  vals <- vapply(out$g$rows, function(r) sum(r$values), double(1))
+  expect_equal(unname(vals), c(10000, 0))
+  expect_equal(sum(out$g$aux$eligible_cost), 50000)
+  sc <- list(components = list())
+  f <- grant_validate(list(id = "g", measures = "a", eligible_shares = list(z = 0)), sc)
+  expect_identical(vapply(f, function(x) x$code, ""), "types.flow.grant.msg.share_measure_unknown")
+  expect_true(lbl_has("types.flow.grant.msg.share_measure_unknown"))
+})
+
+test_that("grant: Auszahlung vor dem Stichtag mit eigenem Hinweis (Teil B 4.5 Randfälle)", {
+  comps <- list(c_a = e2_capex("a", 100000),
+                g = e2_grant_comp("a", rate = 0.3, payout_event = "commitment",
+                                  application_date = "2026-06-01"))
+  r <- e2_capture(e2_type_build(comps))
+  expect_true("types.flow.grant.msg.before_valuation" %in% r$messages)
+  expect_false("types.flow.grant.msg.after_horizon" %in% r$messages)
+  expect_equal(sum(r$value$g$rows[[1L]]$values), 0)
+  # nach dem Horizont weiterhin after_horizon
+  late <- list(c_a = e2_capex("a", 10000, "2032-03-01", "2032-10-01"),
+               g = e2_grant_comp("a", rate = 0.3, payout_lag_months = 6L))
+  r <- e2_capture(e2_type_build(late))
+  expect_true("types.flow.grant.msg.after_horizon" %in% r$messages)
+  expect_false("types.flow.grant.msg.before_valuation" %in% r$messages)
+})

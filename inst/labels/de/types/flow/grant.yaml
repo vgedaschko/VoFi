@@ -11,6 +11,9 @@ params:
   eligible_cost_eur:
     label: "Feste förderfähige Kosten"
     help: "Ersetzt die Ableitung aus den Maßnahmenkosten (mit dem größten Aktivierungsfaktor)."
+  eligible_shares:
+    label: "Förderfähige Anteile je Maßnahme"
+    help: "Anteil der Maßnahmenkosten, der förderfähig ist (Bezug auf funding.<f>.eligible_shares.<m>; 0, wenn die Kostengruppe nicht in basis.eligible_cost_kg liegt); ohne Angabe 1."
   rate:
     label: "Fördersatz"
     help: "Summe der aktiven Satzbausteine (mit Degression und Einkommensstaffel)."
@@ -57,3 +60,5 @@ msg:
   no_completion: "Komponente '{id}': Maßnahme '{measure}' hat keinen Fertigstellungstermin für die Auszahlung."
   cost_not_after: "Komponente '{id}': Kostenkomponenten {components} fehlen in after."
   after_horizon: "Komponente '{id}': Auszahlung nach dem Horizont, nicht gebucht ({share:pct} der Läufe)."
+  before_valuation: "Komponente '{id}': Auszahlungstermin vor dem Stichtag, nicht gebucht ({share:pct} der Läufe); ein bereits ausgezahlter Zuschuss gehört nicht in das Modell."
+  share_measure_unknown: "Komponente '{id}': eligible_shares nennt Maßnahmen, die nicht gefördert werden ({measures})."

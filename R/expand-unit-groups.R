@@ -350,16 +350,79 @@ exp_ug_imputed <- function(x, g, bctx, start) {
   cmp
 }
 
+#' Unterliegt eine Gruppe einer Mietbindung? (Teil B 1.6 Nr. 6; Regime dann bound_social)
+#' @noRd
+exp_ug_bound <- function(x, g, plan) {
+  for (f in names(plan)) {
+    if (!identical(plan[[f]]$type, "rent_binding")) next
+    if (g %in% fund_groups(x, x$funding[[f]])) return(TRUE)
+  }
+  FALSE
+}
+
+#' Sammelnde Validierung der Gruppen (Teil B 1.6 Nr. 8)
+#'
+#' Je vermieteter Gruppe: `staffel` ohne `staffel_steps` (E, außer bei Mietbindung), OVM-Modus
+#' (`max`, `interval`, `capped`) ohne `ovm_eur_m2_month` (E). Alle Fehler werden gesammelt und
+#' gemeinsam gemeldet (ein Fehler: dessen Schlüssel; mehrere: `expand.unit_groups.invalid` mit
+#' allen Texten). Mieterstrom als `custom_series` mit Kategorie `energy_income` bzw. Label
+#' „Mieterstrom“ bei vermieteten Gruppen: W (Konzept C10). Eine fehlende Miete meldet die
+#' Pflichtprüfung des Parameters `rent_eur_m2_month` von `rent_path` (Validierung, Bau), damit
+#' reine Auflösungen ohne Miete gültig bleiben.
+#' @noRd
+exp_ug_validate <- function(x, groups, plan, bctx) {
+  acc <- new.env(parent = emptyenv())
+  acc$errs <- list()
+  add <- function(key, ...) {
+    acc$errs[[length(acc$errs) + 1L]] <- list(key = key, args = list(...))
+  }
+  rented <- groups[!vapply(groups, function(g) exp_group_owner(x, g), logical(1))]
+  for (g in rented) {
+    ug <- x$unit_groups[[g]] %||% list()
+    pre <- paste0("unit_groups.", g, ".")
+    binding <- exp_ug_bound(x, g, plan)
+    regime <- exp_code(ug[["rent_regime"]], "rent_regime") %||% "paragraph_558"
+    if (identical(regime, "staffel") && !binding && is.null(ug[["staffel_steps"]])) {
+      add("expand.unit_groups.staffel_steps_missing", group = g)
+    }
+    policy <- exp_code(ug[["increase_policy"]]) %||% "auto"
+    if (policy %in% c("max", "interval", "capped") &&
+          !exp_has(x, paste0(pre, "ovm_eur_m2_month"))) {
+      add("expand.unit_groups.ovm_missing", group = g, policy = policy)
+    }
+  }
+  errs <- acc$errs
+  if (length(errs) == 1L) {
+    do.call(bctx$abort, c(list(errs[[1L]]$key), errs[[1L]]$args))
+  } else if (length(errs) > 1L) {
+    texts <- vapply(errs, function(e) do.call(bctx$lbl, c(list(e$key), e$args)), character(1))
+    bctx$abort("expand.unit_groups.invalid", n = length(errs), details = utl_collapse(texts, "; "))
+  }
+  if (length(rented) > 0L) {
+    comps <- x$components %||% list()
+    ts <- names(comps)[vapply(comps, function(cp) {
+      identical(cp[["type"]], "custom_series") &&
+        (identical(exp_code(cp[["category"]]), "energy_income") ||
+           grepl("mieterstrom", tolower(paste(cp[["label"]] %||% "", collapse = " ")),
+                 fixed = TRUE))
+    }, logical(1))]
+    if (length(ts) > 0L) bctx$warn("expand.unit_groups.tenant_power", ids = utl_collapse(ts))
+  }
+  invisible(NULL)
+}
+
 #' Expander unit_groups (Teil B 1.6)
 #' @noRd
 unit_groups_expand <- function(block, scenario, bctx) {
   x <- scenario
   comps <- list()
   if (length(block) == 0L) {
-    bctx$inform("expand.unit_groups.no_groups")
+    # Teil B 1.6 Nr. 1: Gebäude ohne Wohnungsgruppen (der Expander läuft mit building)
+    if (exp_building_data(x)) bctx$inform("expand.unit_groups.no_groups")
     return(list(components = comps, financing = list(), assets = list(), measures = list()))
   }
   plan <- fund_plan(x, bctx)
+  exp_ug_validate(x, names(block), plan, bctx)
   tenant_id <- if (exp_energy_tenant(x)) "e_tenant" else NULL
   has_amount <- exp_has(x, "building.property_tax.amount_eur_pa") ||
     exp_has(x, "building.property_tax.assessment_amount_eur")
@@ -400,5 +463,5 @@ unit_groups_expand <- function(block, scenario, bctx) {
 #' @noRd
 typedef_expander_unit_groups <- function() {
   vofi_type(name = "unit_groups", kind = "expander", block = "unit_groups", order = 20L,
-            expand = unit_groups_expand)
+            run_if_blocks = "building", expand = unit_groups_expand)
 }

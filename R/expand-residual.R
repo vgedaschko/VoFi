@@ -3,12 +3,32 @@
 # Bezuege, deterministische Tabellen (rnd_table, points_max) und Codes als Werte; Gebaeudewerte
 # (n_units, living_area_m2, Baujahr, Modernisierungspunkte, Bestandswert) aus building bzw.
 # measures. Methode zero ohne Zeitwertpfade der Massnahmen: Komponente ohne Abhaengigkeiten
-# (Nullzeilen, Tabellenstabilitaet).
+# (Nullzeilen, Tabellenstabilitaet). Ohne Gebaeudedaten (Teil A 3.1, 6.2 Nr. 5): user_value,
+# market_growth und exit_yield ohne Gebaeudebezug; zero ohne Komponente; uebrige Methoden E,
+# ausser die Methode stammt aus den Defaults-Dateien (dann ohne Komponente, Teil A 3.1, 6.1).
 
 #' Methoden, die ohne `building` zulässig sind (Teil A 6.2 Nr. 5)
 #' @noRd
 exp_rv_methods_without_building <- function() {
   c("user_value", "zero", "market_growth", "exit_yield")
+}
+
+#' Restwertmethode der Defaults-Dateien (global.yaml und Profil, je Projektart) oder `NULL`
+#'
+#' Dient der Unterscheidung „Methode aus Profil bzw. global.yaml“ gegenüber „Methode aus
+#' Szenario, Variante, Set oder Override“, solange `bctx` keine Herkunft liefert: Gleicht die
+#' Methode der Spezifikation der Methode der Schichten 1–2 zu Perspektive und Projektart, gilt sie
+#' als Vorgabe (auch wenn der Nutzer dieselbe Methode ausdrücklich setzt).
+#' @noRd
+exp_rv_default_method <- function(x) {
+  defaults <- tryCatch(scn_defaults_stack(x$project$perspective), error = function(e) list())
+  pt <- x$project$project_type
+  out <- NULL
+  for (d in defaults) {
+    out <- exp_code(d$tree$residual_value$method) %||% out
+    if (utl_is_string(pt)) out <- exp_code(d$bpt[[pt]]$residual_value$method) %||% out
+  }
+  out
 }
 
 #' Teilbaum einer Methode als Parameter (Schema des Typs residual_value)
@@ -78,14 +98,21 @@ residual_expand <- function(block, scenario, bctx) {
   rv <- block %||% list()
   method <- exp_code(rv[["method"]]) %||% "zero"
   has_building <- exp_building_data(x)
-  if (!has_building && !(method %in% setdiff(exp_rv_methods_without_building(), "zero"))) {
-    # Teil A 3.1, 6.1: Szenarien ohne building (Gerüst, Orakel) bleiben mit den Profilwerten
-    # gültig; der Expander läuft dann nicht (kein Fehler, siehe Bericht WS-E2). Die Methode
-    # ist von WS-B zu prüfen (Pflichtfelder wie land_value_eur).
+  if (!has_building && identical(method, "zero")) {
+    # Teil A 3.1: ohne Gebäudebezug läuft der Expander nicht; bei zero geht kein Wert verloren
     return(NULL)
   }
+  if (!has_building && !(method %in% exp_rv_methods_without_building())) {
+    # Teil A 6.2 Nr. 5: E, wenn die Methode aus Szenario, Variante, Set oder Override stammt.
+    # Teil A 6.1 und 3.1: Szenarien ohne building (Gerüst, Orakel, Engine-Tests) bleiben mit der
+    # Methode des Profils gültig; der Expander läuft dann nicht (ohne Meldung; Konflikt 6.1/6.2
+    # an den Integrator).
+    if (identical(method, exp_rv_default_method(x))) return(NULL)
+    bctx$abort("expand.residual.method_needs_building", method = method)
+  }
   if (!has_building && identical(method, "market_growth") &&
-        !exp_has(x, "residual_value.market_growth.base_value_eur")) {
+        !exp_has(x, "residual_value.market_growth.base_value_eur") &&
+        !exp_has(x, "building.existing_value_eur") && !exp_has(x, "building.market_value_eur")) {
     bctx$abort("expand.residual.base_value_missing")
   }
   bid <- exp_code(x$building$building_id) %||% "b1"
@@ -111,8 +138,11 @@ residual_expand <- function(block, scenario, bctx) {
     if (!is.null(ie)) det$include_existing <- if (is.logical(ie)) tolower(ie) else exp_code(ie)
     if (length(det) > 0L) cmp$component <- det
   }
+  if (exp_has(x, "building.existing_value_eur")) {
+    cmp$existing_value_eur <- node_ref("building.existing_value_eur")
+  }
   if (has_building) {
-    for (f in c("n_units", "living_area_m2", "existing_value_eur")) {
+    for (f in c("n_units", "living_area_m2")) {
       if (exp_has(x, paste0("building.", f))) cmp[[f]] <- node_ref(paste0("building.", f))
     }
     for (f in c("construction_year", "fictitious_construction_year")) {

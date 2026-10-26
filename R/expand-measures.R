@@ -307,6 +307,9 @@ exp_m_funding_choice <- function(x, m, mm) {
 }
 
 #' Herkunft der Klassifikation (Teil A 4.5.3): user, rule (Projektart) oder default (Katalog)
+#'
+#' Ohne Herkunftszugriff in `bctx` gilt eine Klassifikation, die dem Katalogwert gleicht, als
+#' `default` (auch wenn sie ausdrücklich gesetzt ist; Vertragswunsch an WS-A/Integrator).
 #' @noRd
 exp_m_class_source <- function(x, mm, bctx) {
   cls <- exp_code(mm[["classification"]]) %||% "auto"
@@ -314,33 +317,35 @@ exp_m_class_source <- function(x, mm, bctx) {
   if (pt %in% c("neubau", "erwerb_neubau") && identical(cls, "herstellung")) return("rule")
   if (identical(pt, "erwerb_sanierung") && identical(cls, "auto")) return("rule")
   mt <- exp_code(mm[["measure_type"]]) %||% ""
-  cc <- exp_code(exp_m_catalog_types()[[mt]][["classification_existing"]])
+  cc <- exp_code(exp_m_catalog_types(bctx)[[mt]][["classification_existing"]])
   if (is.null(cc) || identical(cc, "main") || identical(cc, cls)) return("default")
   "user"
 }
 
-#' Zwischenspeicher des Maßnahmenkatalogs (je Datei und Änderungszeit)
+#' Bibliotheksindex des Build-Kontexts (Wurzeln der Auflösung, `ctx$lib_paths`)
+#'
+#' `bctx` bietet keinen eigenen Zugriff auf Index bzw. Wurzeln; gelesen wird der Index, über den
+#' `bctx$lib()` auflöst (Umgebung der Funktion), sonst der Index der Standardwurzeln.
 #' @noRd
-exp_m_catalog_state <- new.env(parent = emptyenv())
+exp_lib_index <- function(bctx) {
+  env <- if (is.function(bctx$lib)) environment(bctx$lib) else NULL
+  idx <- if (is.environment(env)) get0("idx", envir = env, inherits = FALSE) else NULL
+  if (is.list(idx) && is.list(idx$entries)) return(idx)
+  tryCatch(lib_index(vofi_library_paths()), error = function(e) NULL)
+}
 
 #' Typen des Katalogs `costs/massnahmentypen_2026` (nur für die Herkunft der Klassifikation)
 #'
-#' Liest die Datei der spätesten Bibliothekswurzel direkt (zwischengespeichert), damit die
-#' Nutzlast je Auflösung nur einmal über `lib_payload()` entsteht (A-13, `rule:measure_catalog`).
+#' Liest den Eintrag aus dem Bibliotheksindex der Auflösung (Nutzerbibliotheken überschatten, wie
+#' `bctx$lib()`), ohne die Nutzlast erneut zu bilden (A-13: eine Nutzlast je Auflösung über
+#' `rule:measure_catalog`).
 #' @return benannte Liste je Maßnahmentyp (leer, wenn der Eintrag fehlt).
 #' @noRd
-exp_m_catalog_types <- function() {
-  roots <- rev(tryCatch(vofi_library_paths(), error = function(e) character(0)))
-  files <- file.path(roots, "costs", "massnahmentypen_2026.yaml")
-  files <- files[file.exists(files)]
-  if (length(files) == 0L) return(list())
-  key <- paste(files[1L], format(file.mtime(files[1L])))
-  hit <- get0(key, envir = exp_m_catalog_state, inherits = FALSE)
-  if (!is.null(hit)) return(hit)
-  raw <- tryCatch(utl_read_yaml(files[1L]), error = function(e) NULL)
-  types <- if (is.list(raw) && is.list(raw$values)) raw$values$types %||% list() else list()
-  assign(key, types, envir = exp_m_catalog_state)
-  types
+exp_m_catalog_types <- function(bctx) {
+  rec <- tryCatch(lib_get(exp_lib_index(bctx), "costs/massnahmentypen_2026"),
+                  error = function(e) NULL)
+  types <- rec$values$types
+  if (is.list(types)) types else list()
 }
 
 #' Eintrag im Maßnahmenregister (Teil A 4.5.3)
@@ -497,8 +502,14 @@ measures_expand <- function(block, scenario, bctx) {
   }
   mt <- x$building$maintenance
   if (exp_building_data(x) && is.list(mt) && !isFALSE(exp_lgl(mt[["enabled"]])) &&
-        !identical(exp_code(mt[["basis"]]), "none") &&
-        exp_resolvable(x, "building.maintenance.area_m2")) {
+        !identical(exp_code(mt[["basis"]]), "none")) {
+    # Teil A 3.3, 4.5.2: die Komponente entsteht immer; ein fehlendes Bezugsziel der Fläche
+    # meldet der Expander (I) und die Bezugsprüfung bzw. der Bau (E, R-115), statt sie wegzulassen
+    area <- "building.maintenance.area_m2"
+    if (!exp_resolvable(x, area)) {
+      bctx$inform("expand.measures.maintenance_area_missing", path = area,
+                  target = exp_ref_end(x, area))
+    }
     acc <- exp_put(acc, "components", "m_maintenance",
                    exp_m_building_maintenance(x, bctx, names(block), tax_cat, bid), bctx)
   }
