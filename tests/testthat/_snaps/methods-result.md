@@ -82,17 +82,17 @@
         Interner Zinsfuß der Zahlungsfolge           5,56 %
       
       Kennzahlen ohne Restwert
-        Endwert (ohne Restwert)                         -1.495,37 €
-        Endwertdifferenz (ohne Restwert)               -36.273,59 €
+        Endwert (ohne Restwert)                               -1.495,37 €
+        Endwertdifferenz (ohne Restwert)                     -36.273,59 €
         EK-Rentabilität (klassisch) (ohne Restwert)    n. d. (Eigenkapital aufgezehrt)
         VoFi-EK-Rendite (modifiziert) (ohne Restwert)  n. d. (Eigenkapital aufgezehrt)
         Equity-IRR (ohne Restwert)                     n. d. (Eigenkapital aufgezehrt)
         Amortisationsdauer (ohne Restwert)             n. d. (keine Amortisation im Horizont)
         Amortisationsjahr (ohne Restwert)              n. d. (keine Amortisation im Horizont)
-        Minimale Nettoliquidität (ohne Restwert)        -6.491,30 €
-        Maximaler Kontokorrentstand (ohne Restwert)      6.491,30 €
-        Maximaler Finanzierungsbedarf (ohne Restwert)    6.491,30 €
-        Entnahme-Äquivalent (ohne Restwert)            n. d. (nicht berechnet)
+        Minimale Nettoliquidität (ohne Restwert)              -6.491,30 €
+        Maximaler Kontokorrentstand (ohne Restwert)            6.491,30 €
+        Maximaler Finanzierungsbedarf (ohne Restwert)          6.491,30 €
+        Entnahme-Äquivalent (ohne Restwert)            -6.669,52 EUR/Jahr
       
       Kennzahlen unabhängig vom Restwert
         Endwert der Unterlassungsalternative  34.778,22 €

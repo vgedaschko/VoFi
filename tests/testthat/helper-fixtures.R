@@ -49,6 +49,7 @@ oracle_a_values <- function() {
                sum_equity_calls = 0, pv_equity_calls = 0, flag_shortfall = 0,
                flag_limit_breach = 0, flag_reserve_used = 0,
                withdrawal_equivalent = 672.4449798147999,
+               withdrawal_equivalent_ex_rv = -6669.52091243888,
                npv_cf_project = 10195.962880595915, irr_cf_project = 0.05563648698505631)
   )
 }
@@ -142,7 +143,8 @@ example_result <- function() {
     max_financing_need_ex_rv = k$max_financing_need,
     sum_equity_calls = 0, pv_equity_calls = 0, flag_shortfall = 0, flag_limit_breach = 0,
     flag_reserve_used = 0, withdrawal_equivalent = k$withdrawal_equivalent,
-    withdrawal_equivalent_ex_rv = NA_real_, npv_cf_project = k$npv_cf_project,
+    withdrawal_equivalent_ex_rv = k$withdrawal_equivalent_ex_rv,
+    npv_cf_project = k$npv_cf_project,
     irr_cf_project = k$irr_cf_project
   )
   kpi_na <- as.data.frame(lapply(kpis, function(v) NA_character_), stringsAsFactors = FALSE)
@@ -150,7 +152,6 @@ example_result <- function() {
     kpi_na[[nm]] <- "equity_lost"
   }
   for (nm in c("payback_time_ex_rv", "payback_year_ex_rv")) kpi_na[[nm]] <- "no_payback"
-  kpi_na$withdrawal_equivalent_ex_rv <- "not_computed"
   flags <- data.frame(reserve_used = FALSE, shortfall = FALSE, shortfall_sum = 0,
                       first_shortfall_t = NA_integer_, limit_breach = FALSE, limit_cut = FALSE,
                       opp_limit_breach = FALSE, ex_rv_gap = 0, overdraft_threshold = FALSE,

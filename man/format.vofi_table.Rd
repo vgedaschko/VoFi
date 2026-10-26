@@ -8,7 +8,7 @@
   x,
   layout = x$layout,
   digits = x$format$digits \%||\% 2,
-  zero = "<U+2013>",
+  zero = "–",
   ...
 )
 }

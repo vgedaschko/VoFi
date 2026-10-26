@@ -1,25 +1,13 @@
 # Testhelfer von WS-H (Ausgabe: Methoden, Tabellen, Sichten, Grafiken, Excel-Export).
 #
 # Abhängigkeiten zu anderen Paketen (im Bericht an den Integrator genannt):
-# 1. helper-contracts.R (Integrator) führt vofi_table(), vofi_ledger(), vofi_plot(),
-#    vofi_export_excel(), vofi_tenant_view() und vofi_household_view() noch als Stubs; WS-H
-#    liefert alle sechs. vofi_stubs() wird hier um diese Namen verkleinert (verkettbar und
-#    idempotent wie die Hüllen von WS-A, WS-D und WS-D2), bis der Integrator die Liste anpasst.
+# 1. Integration (Stufe II): vofi_table(), vofi_ledger(), vofi_plot(), vofi_export_excel(),
+#    vofi_tenant_view() und vofi_household_view() stehen nicht mehr in vofi_stubs()
+#    (helper-contracts.R); die frühere Hülle um vofi_stubs() ist entfallen.
 # 2. vofi_compare(), vofi_mc() und vofi_sensitivity() (WS-G) sind noch Stubs. Vergleiche,
 #    Simulationen und Sensitivitätsanalysen entstehen deshalb als vertragsgemäße Attrappen
 #    (13.2-13.4): example_mc_result(), example_comparison() (Integrator) sowie wsh_comparison()
 #    (Vergleich aus echten Engine-Läufen) und wsh_sensitivity() (alle drei Methoden).
-
-wsh_delivered <- function() {
-  c("vofi_table", "vofi_ledger", "vofi_plot", "vofi_export_excel", "vofi_tenant_view",
-    "vofi_household_view")
-}
-if (exists("vofi_stubs", mode = "function")) {
-  vofi_stubs <- local({
-    wsh_previous_stubs <- vofi_stubs
-    function() setdiff(wsh_previous_stubs(), wsh_delivered())
-  })
-}
 
 #' Szenario einlesen, bauen und rechnen; Bibliothekswarnungen (Gültigkeit) werden verschluckt
 wsh_run <- function(sc) {

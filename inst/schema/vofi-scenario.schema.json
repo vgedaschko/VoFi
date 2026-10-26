@@ -8072,6 +8072,265 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "measures": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cost_components": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "eligible_cost_eur": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "eligible_shares": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "*": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/$defs/value"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "rate": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "rate_cap": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "bonus_rate": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "bonus_threshold_eur": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "bonus_mode": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "excess_over_threshold",
+                      "whole_amount"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cost_cap_eur": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cap_period": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "total",
+                      "calendar_year"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "amount_eur": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "approved": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "payout_event": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "completion_proof",
+                      "commitment"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "payout_lag_months": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      }
+                    ],
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "payout_delay_months": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "application_date": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "after": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "origin": {
+                "type": "string"
+              },
+              "asset_id": {
+                "type": "string"
+              },
+              "measure_id": {
+                "type": "string"
+              },
+              "funding_id": {
+                "type": "string"
+              },
+              "program": {
+                "type": "string"
+              },
+              "type": {
+                "const": "grant"
+              }
+            },
+            "required": [
+              "type",
+              "rate"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
               "area_m2": {
                 "anyOf": [
                   {
@@ -12950,6 +13209,234 @@
               "type",
               "of",
               "share"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "measures": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cost_components": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "eligible_cost_eur": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "eligible_shares": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "*": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/$defs/value"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "share_y1": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "share_y2": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "share_y3": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "total_share": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "cap_total_eur": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "energy_advice_cost_eur": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "energy_advice_share": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "prior_used_eur": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "income_tax_cap_eur_pa": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "completion_before": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "approved": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "payout_delay_months": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/value"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "after": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "origin": {
+                "type": "string"
+              },
+              "asset_id": {
+                "type": "string"
+              },
+              "measure_id": {
+                "type": "string"
+              },
+              "funding_id": {
+                "type": "string"
+              },
+              "program": {
+                "type": "string"
+              },
+              "type": {
+                "const": "tax_credit_35c"
+              }
+            },
+            "required": [
+              "type"
             ]
           },
           {

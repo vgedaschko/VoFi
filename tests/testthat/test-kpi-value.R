@@ -26,10 +26,10 @@ test_that("Orakel (a): Endwert, Unterlassung, Endwertdifferenz, Amortisation, Ka
   expect_lt(r$kpis$terminal_value_real, r$kpis$terminal_value)
   expect_true(is.na(r$kpi_na$terminal_value_real))
   expect_equal(r$kpis$pv_subsidies, 0)
-  # Struktur wie die Fixture example_result() (Tabellenwerte von Orakel (a))
-  # (die Fixture führt withdrawal_equivalent_ex_rv als nicht berechnet)
+  # Struktur wie die Fixture example_result() (Tabellenwerte von Orakel (a), einschließlich
+  # withdrawal_equivalent_ex_rv aus fixtures/oracles/a_kpis.csv)
   fx <- example_result()
-  for (k in setdiff(intersect(names(fx$kpis), names(r$kpis)), "withdrawal_equivalent_ex_rv")) {
+  for (k in intersect(names(fx$kpis), names(r$kpis))) {
     expect_equal(r$kpis[[k]], fx$kpis[[k]], tolerance = 1e-8, info = k)
     expect_identical(r$kpi_na[[k]], fx$kpi_na[[k]], info = k)
   }
