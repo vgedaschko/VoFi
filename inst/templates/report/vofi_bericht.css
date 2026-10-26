@@ -1,0 +1,169 @@
+/* Stil des VoFi-Berichts (WS-H2; Konzept 5.5: druckfähige Kurzvorlage, Print-CSS).
+   Bildschirm: lesbare Spalte, waagrecht rollbare breite Tabellen.
+   Druck: A4, Seitenumbrüche vor Hauptabschnitten des Fachberichts, keine geteilten Tabellen
+   in der Kurzvorlage. Farben nie als einziges Merkmal (Ampel mit Text). */
+
+:root {
+  --vofi-text: #1f2328;
+  --vofi-muted: #57606a;
+  --vofi-line: #d0d7de;
+  --vofi-head: #f3f5f7;
+  --vofi-accent: #0b5394;
+  --vofi-green: #1a7f37;
+  --vofi-green-bg: #e8f5ec;
+  --vofi-yellow: #8a6100;
+  --vofi-yellow-bg: #fff6d6;
+  --vofi-red: #b42318;
+  --vofi-red-bg: #fdecea;
+  --vofi-info-bg: #eef4fb;
+}
+
+html { font-size: 15px; }
+
+body {
+  font-family: "Source Sans Pro", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color: var(--vofi-text);
+  line-height: 1.45;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem 2rem 3rem 2rem;
+  background: #ffffff;
+  hyphens: auto;
+}
+
+h1, h2, h3 { line-height: 1.2; color: var(--vofi-text); }
+h1 {
+  font-size: 1.4rem;
+  margin-top: 2.2rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 2px solid var(--vofi-accent);
+}
+h2 { font-size: 1.12rem; margin-top: 1.4rem; }
+.header-section-number { color: var(--vofi-accent); margin-right: 0.3rem; }
+.vofi-titel { display: block; font-size: 1.9rem; font-weight: 700; line-height: 1.2; margin: 0.3rem 0 0.4rem 0; }
+
+a { color: var(--vofi-accent); }
+
+/* Kopf */
+.vofi-kopf {
+  border-bottom: 1px solid var(--vofi-line);
+  padding-bottom: 0.6rem;
+  margin-bottom: 1rem;
+}
+.vofi-kopf ul { list-style: none; padding-left: 0; margin: 0.3rem 0 0 0; color: var(--vofi-muted); }
+.vofi-kopf li { margin: 0.1rem 0; }
+.vofi-art {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.8rem;
+  color: var(--vofi-accent);
+  font-weight: 600;
+}
+img.vofi-logo { max-height: 64px; max-width: 240px; float: right; margin-left: 1rem; }
+
+/* Inhaltsverzeichnis */
+#TOC {
+  border: 1px solid var(--vofi-line);
+  background: var(--vofi-head);
+  padding: 0.6rem 1rem;
+  margin: 1rem 0 1.5rem 0;
+}
+#TOC ul { margin: 0.2rem 0; padding-left: 1.2rem; }
+
+/* Tabellen */
+table {
+  border-collapse: collapse;
+  margin: 0.6rem 0 1rem 0;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  width: auto;
+  max-width: 100%;
+}
+table col { width: auto !important; }
+th, td {
+  border-bottom: 1px solid var(--vofi-line);
+  padding: 0.25rem 0.55rem;
+  vertical-align: top;
+}
+thead th {
+  background: var(--vofi-head);
+  border-bottom: 2px solid #adb5bd;
+  font-weight: 600;
+}
+tbody tr:nth-child(even) { background: #fafbfc; }
+caption, .table-caption {
+  caption-side: top;
+  text-align: left;
+  font-weight: 600;
+  padding: 0.2rem 0;
+  color: var(--vofi-text);
+}
+.neg { color: var(--vofi-red); }
+.vofi-wide { overflow-x: auto; margin-bottom: 1rem; }
+.vofi-wide table { font-size: 0.78rem; white-space: nowrap; }
+
+/* Grafiken (HTML5: figure/figcaption; HTML4: div.float/div.figcaption) */
+figure, div.float { margin: 0.8rem 0 1.4rem 0; }
+figure img, div.float img, img.vofi-abb { max-width: 100%; height: auto; }
+figcaption, div.figcaption { font-size: 0.85rem; color: var(--vofi-muted); margin-top: 0.2rem; }
+
+/* Hinweise */
+.vofi-callout {
+  border-left: 4px solid var(--vofi-accent);
+  background: var(--vofi-info-bg);
+  padding: 0.5rem 0.9rem;
+  margin: 0.8rem 0;
+}
+.vofi-callout p { margin: 0.3rem 0; }
+.vofi-callout ul { margin: 0.3rem 0; padding-left: 1.2rem; }
+.vofi-warning { border-left-color: var(--vofi-red); background: var(--vofi-red-bg); }
+.vofi-pretax { border-left-color: var(--vofi-yellow); background: var(--vofi-yellow-bg); font-weight: 600; }
+.vofi-notes { border-left-color: var(--vofi-muted); background: #f6f8fa; }
+.vofi-proposal { border-left-color: var(--vofi-text); background: #ffffff; border: 1px solid var(--vofi-line); border-left-width: 4px; }
+
+/* Ampel */
+.vofi-ampel {
+  border: 1px solid var(--vofi-line);
+  border-left: 10px solid var(--vofi-muted);
+  padding: 0.5rem 1rem;
+  margin: 0.8rem 0 1rem 0;
+}
+.vofi-ampel p:first-child { font-size: 1.15rem; margin: 0.2rem 0 0.4rem 0; }
+.vofi-ampel ul { margin: 0.2rem 0; padding-left: 1.2rem; }
+.vofi-ampel-green { border-left-color: var(--vofi-green); background: var(--vofi-green-bg); }
+.vofi-ampel-yellow { border-left-color: #d4a017; background: var(--vofi-yellow-bg); }
+.vofi-ampel-red { border-left-color: var(--vofi-red); background: var(--vofi-red-bg); }
+.vofi-ampel-green p:first-child strong { color: var(--vofi-green); }
+.vofi-ampel-yellow p:first-child strong { color: var(--vofi-yellow); }
+.vofi-ampel-red p:first-child strong { color: var(--vofi-red); }
+
+/* Glossar */
+dl dt { font-weight: 600; margin-top: 0.6rem; }
+dl dd { margin: 0.1rem 0 0.4rem 1.2rem; }
+
+/* Haushaltsmodus: größere Schrift, ruhigere Tabellen */
+.vofi-modus-household { font-size: 1.04rem; }
+.vofi-modus-household table { font-size: 0.95rem; }
+
+/* Kurzvorlage: kompakt */
+.vofi-art-kurzvorlage { font-size: 0.95rem; }
+.vofi-art-kurzvorlage h1 { margin-top: 1.2rem; font-size: 1.2rem; }
+.vofi-art-kurzvorlage table { font-size: 0.85rem; }
+
+@page { size: A4; margin: 16mm 14mm 18mm 14mm; }
+
+@media print {
+  html { font-size: 10.5pt; }
+  body { max-width: none; padding: 0; }
+  #TOC { display: none; }
+  a { color: inherit; text-decoration: none; }
+  h1, h2 { break-after: avoid; page-break-after: avoid; }
+  table, figure, div.float, .vofi-ampel, .vofi-callout { break-inside: avoid; page-break-inside: avoid; }
+  .vofi-wide { overflow: visible; }
+  .vofi-wide table { white-space: normal; font-size: 7pt; }
+  .vofi-art-bericht #vofi-assumptions, .vofi-art-bericht #vofi-vofi-table { break-before: page; page-break-before: always; }
+  .vofi-art-kurzvorlage { font-size: 9.5pt; }
+  .vofi-art-kurzvorlage h1 { margin-top: 0.8rem; }
+  .vofi-art-kurzvorlage figure img, .vofi-art-kurzvorlage div.float img { max-height: 6.5cm; width: auto; }
+  thead { display: table-header-group; }
+}
