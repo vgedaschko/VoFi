@@ -51,6 +51,24 @@ scn_state <- new.env(parent = emptyenv())
 #' head(attr(spec, "provenance")[, c("path", "layer", "source_type", "entry")])
 #' @export
 vofi_resolve <- function(scenario, variant = "base", overrides = NULL, scenario_set = NULL) {
+  scn_resolve(scenario, variant = variant, overrides = overrides, scenario_set = scenario_set)
+}
+
+#' Variante auflösen (Arbeitsfunktion von vofi_resolve(); Expander wahlweise fehlertolerant)
+#'
+#' `expand = "strict"` ist die Auflösung nach 4.7-4.12 (vofi_resolve()). `"tolerant"` dient
+#' allein der Validierung (Spec 00 4.1: vofi_validate() sammelt alle Befunde): Bricht ein
+#' Expander ab (Validierung im Expander, Spec 01 Teil B 1.6 Nr. 8, Teil A 6.2 Nr. 5), fehlen nur
+#' seine Komponenten, die übrigen Expander laufen weiter, und die Ebenen 2-4 prüfen die Domäne
+#' trotzdem; die Namen der abgebrochenen Expander stehen in `attr(spec, "expand_failed")`.
+#' `"none"` überspringt die Expander.
+#' @inheritParams vofi_resolve
+#' @param expand `"strict"`, `"tolerant"` oder `"none"`.
+#' @return `vofi_spec`.
+#' @noRd
+scn_resolve <- function(scenario, variant = "base", overrides = NULL, scenario_set = NULL,
+                        expand = c("strict", "tolerant", "none")) {
+  expand <- match.arg(expand)
   if (!inherits(scenario, "vofi_scenario")) {
     vofi_abort("io.not_scenario", arg = "scenario", .class = "vofi_error_input")
   }
@@ -113,7 +131,12 @@ vofi_resolve <- function(scenario, variant = "base", overrides = NULL, scenario_
   x$registers <- list(assets = list(), measures = list())
   x <- scn_type_defaults(x, ctx)
   scn_check_quantities(x)
-  x <- scn_run_expanders(x, ctx)
+  failed <- character(0)
+  if (!identical(expand, "none")) {
+    x <- scn_run_expanders(x, ctx, tolerant = identical(expand, "tolerant"))
+    failed <- attr(x, "expand_failed") %||% character(0)
+    attr(x, "expand_failed") <- NULL
+  }
   x <- scn_type_defaults(x, ctx)
   x$variant <- variant
   x$scenario_set <- scenario_set
@@ -126,6 +149,7 @@ vofi_resolve <- function(scenario, variant = "base", overrides = NULL, scenario_
   attr(spec, "defaults_meta") <- scn_defaults_meta(ctx$defaults)
   attr(spec, "library_version") <- lib_version(ctx$lib_paths)
   attr(spec, "notes") <- unique(ctx$notes)
+  if (!identical(expand, "strict")) attr(spec, "expand_failed") <- failed
   src$read_time <- NULL
   attr(spec, "scn_state") <- list(scenario = new_vofi_scenario(sc, source = src,
                                                                provenance = prov5),
@@ -1967,21 +1991,35 @@ scn_type_defaults <- function(x, ctx) {
 #' `list()`), teilaufgelöste Spezifikation und Build-Kontext und liefert `list(components,
 #' financing, assets, measures, notes)`. Erzeugte ids dürfen nicht kollidieren; die Herkunft der
 #' erzeugten Blätter ist `source_type = "expander"`, `entry = "expander:<name>"`.
+#'
+#' Mit `tolerant = TRUE` (nur Validierung, `scn_resolve(expand = "tolerant")`) bleibt ein
+#' abbrechender Expander ohne Ergebnis, die übrigen laufen weiter; sein Name steht im Attribut
+#' `expand_failed` des Ergebnisses.
 #' @noRd
-scn_run_expanders <- function(x, ctx = NULL) {
+scn_run_expanders <- function(x, ctx = NULL, tolerant = FALSE) {
   ex <- reg_list("expander")
   if (nrow(ex) == 0L) return(x)
   defs <- lapply(ex$name, function(nm) reg_get("expander", nm))
   defs <- defs[order(vapply(defs, function(d) as.double(d$order), double(1)),
                      vapply(defs, function(d) d$name, ""), method = "radix")]
-  for (d in defs) {
-    if (!scn_expander_runs(d, x)) next
+  run <- function(d, x) {
     blk <- x[[d$block]] %||% list()
     grid <- scn_grid(x)
     bctx <- scn_bctx(x, grid, roots = ctx$lib_paths, index = ctx$index)
     res <- d$expand(blk, x, bctx)
-    x <- scn_merge_expansion(x, res, d$name, ctx)
+    scn_merge_expansion(x, res, d$name, ctx)
   }
+  failed <- character(0)
+  for (d in defs) {
+    if (!scn_expander_runs(d, x)) next
+    if (!tolerant) {
+      x <- run(d, x)
+      next
+    }
+    r <- tryCatch(run(d, x), error = function(e) e)
+    if (inherits(r, "error")) failed <- c(failed, d$name) else x <- r
+  }
+  if (tolerant) attr(x, "expand_failed") <- failed
   x
 }
 

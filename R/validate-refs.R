@@ -991,6 +991,12 @@ val_cross <- function(x, specs, full = TRUE) {
   get_spec <- function(v) {
     if (!exists(v, envir = cache, inherits = FALSE)) {
       s <- tryCatch(vofi_resolve(x, variant = v), error = function(e) NULL)
+      # Abbruch eines Expanders: Querbezüge auf der Domäne prüfen (val_resolve_fallback())
+      if (is.null(s)) {
+        s <- tryCatch(suppressWarnings(suppressMessages(
+          scn_resolve(x, variant = v, expand = "tolerant")
+        )), error = function(e) NULL)
+      }
       assign(v, s, envir = cache)
     }
     get(v, envir = cache, inherits = FALSE)

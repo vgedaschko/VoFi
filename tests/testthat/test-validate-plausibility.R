@@ -176,10 +176,27 @@ test_that("Positivfall: vollständige Domänenblöcke und Defaults ohne Fehler (
 })
 
 test_that("B4/R-115: Gerüst mit den Defaults ohne building bleibt ohne Befund (Teil A 6.1)", {
-  for (method in c("income_value", "asset_value", "zero", "market_growth", "exit_yield")) {
+  # Methode des Profils (income_value) und zero: ohne Befund (Teil A 6.1, R-115; der Expander
+  # residual läuft ohne building mit der Profilmethode nicht, Teil A 3.1)
+  for (method in c("income_value", "zero")) {
     v <- wsb_validate(vofi_scenario(wsb_skeleton_defaults(method)))
     expect_identical(nrow(v), 0L, info = paste(method, paste(v$code, collapse = ",")))
   }
+  # ausdrücklich gewählte Methode ohne building: asset_value unzulässig, market_growth nur mit
+  # Ausgangswert (Teil A 6.2 Nr. 5, E); je genau ein Fehler mit eigenem Schlüssel
+  for (m in list(c("asset_value", "validation.residual.method_needs_building"),
+                 c("market_growth", "validation.residual.base_value_missing"))) {
+    v <- wsb_validate(vofi_scenario(wsb_skeleton_defaults(m[1L])))
+    expect_identical(v$code, m[2L], info = m[1L])
+    expect_identical(v$severity, "error", info = m[1L])
+  }
+  ok <- wsb_skeleton_defaults("market_growth")
+  ok$residual_value$market_growth$base_value_eur <- 250000
+  expect_identical(nrow(wsb_validate(vofi_scenario(ok))), 0L)
+  # exit_yield ohne building zulässig, ohne Mietkomponente aber W (Tabelle Teil A 6.1)
+  v <- wsb_validate(vofi_scenario(wsb_skeleton_defaults("exit_yield")))
+  expect_identical(v$code, "validation.residual.no_rent")
+  expect_identical(v$severity, "warning")
   # mit building wird der Bezug der gewählten Methode gelesen
   v <- wsb_validate(vofi_scenario(within(wsb_skeleton_defaults("income_value"), {
     building <- list(n_units = 1L)

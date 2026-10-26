@@ -78,7 +78,11 @@ val_scenario <- function(x, variant = NULL) {
     if (inherits(spec, "error")) {
       chain <- val_variant_chain(variants, v)
       blocked <- any(struct$severity == "error" & struct$variant %in% chain)
-      if (!blocked) out[[length(out) + 1L]] <- val_resolve_finding(spec, v)
+      if (!blocked) {
+        fb <- val_resolve_fallback(x, spec, v)
+        out <- c(out, fb$out)
+        if (!is.null(fb$spec)) specs[[v]] <- fb$spec       # Querbezüge (val_cross) auf der Domäne
+      }
       next
     }
     specs[[v]] <- spec
@@ -109,7 +113,7 @@ val_sets_specs <- function(x, struct) {
     if (inherits(spec, "error")) {
       # Regeln, die val_sets_cross() mit der Operation meldet, nicht doppelt aufnehmen
       if (!(identical(spec$key, "validation.scenario_set.growth_form_required"))) {
-        out[[length(out) + 1L]] <- val_resolve_finding(spec, s)
+        out <- c(out, val_resolve_fallback(x, spec, s, variant = "base", scenario_set = s)$out)
       }
       next
     }
@@ -131,17 +135,116 @@ val_variant_chain <- function(variants, v) {
 }
 
 #' Prüfungen einer aufgelösten Spezifikation (Ebenen 2-4)
+#'
+#' Befunde an erzeugten Komponenten, die Doppel- oder Folgebefunde der Domäne sind, entfallen
+#' (`val_drop_generated()`).
 #' @param spec `vofi_spec`.
 #' @param variant Variante.
 #' @param scenario optional: das Szenario (für Ausweich- und Referenzvarianten).
+#' @param partial `TRUE`, wenn die Expander nicht vollständig gelaufen sind
+#'   (`val_resolve_fallback()`).
 #' @return Liste von Befunden.
 #' @noRd
-val_spec <- function(spec, variant = "base", scenario = NULL) {
+val_spec <- function(spec, variant = "base", scenario = NULL, partial = FALSE) {
   vc <- val_context(spec, variant, scenario)
   val_types(vc)
   val_refs(vc)
   val_plausibility(vc)
-  vc$out
+  val_drop_generated(vc$out, spec, all = partial)
+}
+
+#' Domänenbefunde, wenn die Auflösung einer Variante bzw. eines Sets scheitert
+#'
+#' Expander brechen mit einem Fehler ab, wenn ihnen Domänenwerte fehlen oder widersprechen
+#' (Validierung im Expander: Spec 01 Teil B 1.6 Nr. 8, Teil A 6.2 Nr. 5). vofi_validate() prüft
+#' die aufgelöste Spezifikation mit gelaufenen Expandern und sammelt alle Befunde (Spec 00 4.1,
+#' 9.1); deshalb wird die Variante hier mit fehlertoleranten Expandern erneut aufgelöst
+#' (`scn_resolve(expand = "tolerant")`, ohne die Ergebnisse der abgebrochenen Expander) und auf
+#' den Ebenen 2-4 geprüft. Befunde an erzeugten Komponenten entfallen dabei bis auf die
+#' Strukturbefunde, weil die Expansion unvollständig ist.
+#'
+#' Der Abbruch selbst erscheint als Befund (`val_resolve_finding()`), wenn er einen eigenen
+#' Schlüssel `validation.*` hat, kein Validierungsfehler ist (Vertragsverletzung, Programmfehler)
+#' oder die Domänenbefunde keinen Fehler enthalten; sonst ist er Folge eines gemeldeten Fehlers.
+#' Scheitert auch die tolerante Auflösung (Abbruch vor den Expandern), bleibt es beim Befund des
+#' Abbruchs.
+#' @param x `vofi_scenario`.
+#' @param cond Fehlerobjekt der Auflösung.
+#' @param label Variante bzw. Szenario-Set (Spalte `variant`).
+#' @param variant,scenario_set Argumente der Auflösung.
+#' @return Liste `out` (Befunde) und `spec` (Spezifikation der Domäne oder `NULL`).
+#' @noRd
+val_resolve_fallback <- function(x, cond, label, variant = label, scenario_set = NULL) {
+  rf <- val_resolve_finding(cond, label)
+  # erneute Auflösung ohne Wiederholung der Meldungen des ersten Laufs
+  dom <- tryCatch(suppressWarnings(suppressMessages(
+    scn_resolve(x, variant = variant, scenario_set = scenario_set, expand = "tolerant")
+  )), error = function(e) NULL)
+  if (is.null(dom) || length(attr(dom, "expand_failed")) == 0L) {
+    return(list(out = list(rf), spec = NULL))
+  }
+  fd <- val_spec(dom, label, scenario = x, partial = TRUE)
+  df <- val_bind(fd)
+  own <- !identical(rf$code, "validation.resolve_failed")
+  consequence <- inherits(cond, "vofi_error_validation") &&
+    any(df$severity == "error" & !val_on_generated(df$path, val_generated_paths(dom)))
+  list(out = if (own || !consequence) c(fd, list(rf)) else fd, spec = dom)
+}
+
+#' Pfade der erzeugten Komponenten und Bausteine (`origin` beginnt mit `expander`, 4.12)
+#' @noRd
+val_generated_paths <- function(spec) {
+  gen <- character(0)
+  for (coll in c("components", "financing")) {
+    for (id in names(spec[[coll]])) {
+      o <- if (is.list(spec[[coll]][[id]])) spec[[coll]][[id]]$origin else NULL
+      if (utl_is_string(o) && startsWith(o, "expander")) gen <- c(gen, path_join(coll, id))
+    }
+  }
+  gen
+}
+
+#' Liegen die Pfade unter einer erzeugten Komponente? (`gen`: `val_generated_paths()`)
+#' @noRd
+val_on_generated <- function(paths, gen) {
+  if (length(gen) == 0L) return(rep(FALSE, length(paths)))
+  vapply(paths, function(p) any(p == gen | startsWith(p, paste0(gen, "."))), logical(1),
+         USE.NAMES = FALSE)
+}
+
+#' Doppel- und Folgebefunde an erzeugten Komponenten entfernen (4.12)
+#'
+#' Die Expander erzeugen Komponenten aus der Domäne; deren Parameterprüfungen und `validate()`
+#' spiegeln Domänenregeln mit gleichem Schlüssel (z. B. `federal_state_missing` an
+#' `components.m_<m>_acq` neben `project.federal_state`), und Bezugsziele erzeugter Komponenten
+#' sind offen, wenn das Domänenblatt fehlerhaft ist. Ein Befund an einer erzeugten Komponente
+#' entfällt deshalb, wenn die Variante einen Fehler an einem nicht erzeugten Pfad hat oder
+#' derselbe Code an einem nicht erzeugten Pfad mit mindestens gleicher Schwere gemeldet ist; mit
+#' `all = TRUE` (unvollständige Expansion) immer. Strukturbefunde der erzeugten ids bleiben.
+#' Da nur bei einem Domänenfehler oder einem gleichen Domänenbefund entfernt wird, ändert sich
+#' nie, ob der Bericht Fehler enthält.
+#' @param out Liste von Befunden.
+#' @param spec `vofi_spec`.
+#' @param all alle Befunde an erzeugten Komponenten entfernen (außer Strukturbefunden).
+#' @return Liste von Befunden.
+#' @noRd
+val_drop_generated <- function(out, spec, all = FALSE) {
+  gen <- val_generated_paths(spec)
+  if (length(gen) == 0L || length(out) == 0L) return(out)
+  df <- val_bind(out)
+  if (nrow(df) == 0L) return(out)
+  on_gen <- val_on_generated(df$path, gen)
+  structural <- c("validation.generated_id_too_long", "validation.id_duplicate",
+                  "validation.id_invalid", "validation.expander.id_collision")
+  rank <- c(info = 1L, warning = 2L, error = 3L)
+  dom <- df[!on_gen, , drop = FALSE]
+  dom_error <- any(dom$severity == "error")
+  same <- vapply(seq_len(nrow(df)), function(i) {
+    any(dom$code == df$code[i] & rank[dom$severity] >= rank[[df$severity[i]]])
+  }, logical(1))
+  drop <- on_gen & !(df$code %in% structural) & (all | dom_error | same)
+  if (!any(drop)) return(out)
+  list(df[!drop, , drop = FALSE])
 }
 
 #' Prüfkontext einer Spezifikation
@@ -248,13 +351,23 @@ val_finding <- function(severity, code, path, ..., layer = NA_integer_,
 #' Befund zu einem Fehler beim Auflösen einer Variante
 #'
 #' Bedingungen mit eigenem Schlüssel `validation.*` (z. B. `validation.library.ref_not_id`,
-#' 4.9, R-110, oder Meldungen der Ausdrücke `validation.expr.*`) erscheinen unter diesem Code;
-#' alle übrigen Fehler als `validation.resolve_failed` mit dem Meldungstext.
+#' 4.9, R-110, oder Meldungen der Ausdrücke `validation.expr.*`) erscheinen unter diesem Code,
+#' ebenso Abbrüche der Expander `expand.<block>.<code>`, zu denen es den Text
+#' `validation.<block>.<code>` mit denselben Platzhaltern gibt; alle übrigen Fehler als
+#' `validation.resolve_failed` mit dem Meldungstext.
 #' @param cond Fehlerobjekt.
 #' @param variant Variante.
 #' @noRd
 val_resolve_finding <- function(cond, variant) {
   key <- cond$key
+  # Abbruch eines Expanders mit gleichnamiger Validierungsmeldung (expand.<block>.<code> ->
+  # validation.<block>.<code>, z. B. validation.residual.method_needs_building, Teil A 6.2
+  # Nr. 5), sofern der Text der Validierung mit den Argumenten des Abbruchs auskommt
+  if (utl_is_string(key) && startsWith(key, "expand.")) {
+    alt <- sub("^expand[.]", "validation.", key)
+    args <- c(list(primary = alt, fallback = key), cond$args %||% list())
+    if (identical(do.call(scn_key, args), alt)) key <- alt
+  }
   if (utl_is_string(key) && startsWith(key, "validation.") && lbl_has(key)) {
     args <- cond$args %||% list()
     path <- args$path %||% ""
@@ -894,7 +1007,10 @@ val_library_subpath_exists <- function(values, sub) {
     x <- x[[name]]
     if (length(idx) == 3L) {
       i <- as.integer(idx[3L])
-      if (!is.list(x) || i < 1L || i > length(x)) return(FALSE)
+      # Zahlenreihen sind nach der Normalisierung Wertknoten (series_t, $values), z. B.
+      # schedule_by_taxable_income.rates (Teil B 4.3.3); andere Wertknoten sind keine Sequenz
+      if (node_is(x)) x <- x[["values"]]
+      if (!(is.list(x) || is.atomic(x)) || i < 1L || i > length(x)) return(FALSE)
       x <- x[[i]]
     }
   }

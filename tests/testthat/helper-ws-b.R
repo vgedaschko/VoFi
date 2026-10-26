@@ -1682,7 +1682,13 @@ wsb_cases_plaus <- function() {
                    include_existing = "false"))
                  x
                }))
-             })
+             }),
+    # Teil A 6.2 Nr. 5: ohne building nur user_value, zero, market_growth (mit Ausgangswert)
+    # und exit_yield; Abbruch des Expanders residual mit eigenem Schlüssel (val_resolve_finding())
+    wsb_case("Restwert ohne building: Methode", "validation.residual.method_needs_building",
+             make = function() vofi_scenario(wsb_skeleton_defaults("asset_value"))),
+    wsb_case("Restwert ohne building: Ausgangswert", "validation.residual.base_value_missing",
+             make = function() vofi_scenario(wsb_skeleton_defaults("market_growth")))
   )
 }
 
