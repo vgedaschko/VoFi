@@ -1,0 +1,76 @@
+# Tests für R/methods-scenario.R (WS-H): Methoden der Klassen vofi_scenario, vofi_spec und
+# vofi_model (Spec 00 Abschnitte 4.8, 4.13, 13.6).
+
+test_that("print.vofi_scenario und summary.vofi_scenario", {
+  sc <- vofi_read_scenario(vofi_example("skeleton"))
+  out <- capture.output(res <- print(sc))
+  expect_identical(res, sc)
+  expect_match(out[1L], lbl("report.scenario.header"), fixed = TRUE)
+  expect_true(any(grepl("skeleton", out, fixed = TRUE)))
+  expect_true(any(grepl("01.01.2027", out, fixed = TRUE)))
+  expect_true(any(grepl(lbl("vocab.enums.perspective.wu_privat"), out, fixed = TRUE)))
+  s <- summary(sc)
+  expect_s3_class(s, "summary_vofi_scenario")
+  expect_identical(unname(s$components[, 1L]), "z")
+  expect_identical(unname(s$financing[, 1L]), c("ek", "bank"))
+  expect_true("financing" %in% s$counts$block)
+  out2 <- capture.output(print(s))
+  expect_true(any(grepl(lbl("report.scenario.components_header"), out2, fixed = TRUE)))
+  expect_true(any(grepl("bullet_loan", out2, fixed = TRUE)))
+  # Varianten, Szenario-Sets und Overlay
+  sc2 <- sc
+  sc2$variants <- list(a = list(label = "Variante A"))
+  sc2$scenario_sets <- list(vorsichtig = list(generate = "cautious"))
+  out3 <- capture.output(print(sc2))
+  expect_true(any(grepl("base, a", out3, fixed = TRUE)))
+  expect_true(any(grepl("vorsichtig", out3, fixed = TRUE)))
+})
+
+test_that("print.vofi_spec und as.data.frame.vofi_spec (Parameterliste mit Herkunft, 4.8)", {
+  sp <- wsh_quiet(vofi_resolve(vofi_read_scenario(vofi_example("skeleton"))))
+  out <- capture.output(print(sp))
+  expect_match(out[1L], "base", fixed = TRUE)
+  expect_true(any(grepl(lbl("report.scenario.financing_header"), out, fixed = TRUE)))
+  expect_true(any(grepl("scenario:", out, fixed = TRUE)))
+  df <- as.data.frame(sp)
+  expect_true(all(c("path", "block", "kind", "value", "value_num", "layer", "source_type",
+                    "file", "entry", "location", "variant", "valid_from", "valid_to",
+                    "as_of", "accessed", "quality") %in% names(df)))
+  expect_false(anyDuplicated(df$path) > 0L)
+  r <- df[df$path == "financing.bank.amount_eur", ]
+  expect_identical(r$kind, "const")
+  expect_identical(r$value_num, 60000)
+  expect_identical(r$value, "60.000")
+  expect_identical(r$source_type, "scenario")
+  expect_identical(df$value[df$path == "project.valuation_date"], "01.01.2027")
+  z <- df[df$path == "components.z.values", ]
+  expect_identical(z$kind, "series_t")
+  expect_match(z$value, "[-100.000; 30.000; 40.000; 50.000]", fixed = TRUE)
+  expect_true(all(df$block[df$block != ""] %in% names(unclass(sp))))
+  fin <- as.data.frame(sp, blocks = "financing")
+  expect_true(all(fin$block == "financing"))
+  # Knoten als Text
+  expect_identical(rep_value_text(node_ref("market.mortgage_rate")), "ref: market.mortgage_rate")
+  expect_match(rep_value_text(list(kind = "growth", start = node_const(100),
+                                   growth = node_const(0.02))), "0,02", fixed = TRUE)
+  expect_identical(rep_value_text(TRUE), lbl("report.common.yes"))
+  expect_identical(rep_num_text(c(0.03, 1234.5, 0, NA)), c("0,03", "1.234,5", "0", "n. d."))
+})
+
+test_that("print.vofi_model", {
+  m <- wsh_quiet(vofi_build(vofi_read_scenario(vofi_example("skeleton"))))
+  out <- capture.output(res <- print(m))
+  expect_identical(res, m)
+  expect_match(out[1L], "skeleton", fixed = TRUE)
+  expect_true(any(grepl("bank (bullet_loan)", out, fixed = TRUE)))
+  expect_true(any(grepl("od_repay > dep_invest", out, fixed = TRUE)))
+  expect_true(any(grepl(m$hash, out, fixed = TRUE)))
+})
+
+test_that("Snapshots von print() und summary() eines Szenarios (15.6)", {
+  skip_if_not(l10n_info()[["UTF-8"]])
+  local_reproducible_output(width = 100)
+  sc <- vofi_read_scenario(testthat::test_path("fixtures", "scenarios", "skeleton.yaml"))
+  expect_snapshot(print(sc), transform = function(x) sub("Quelle: .*", "Quelle: <Datei>", x))
+  expect_snapshot(print(summary(sc)))
+})
