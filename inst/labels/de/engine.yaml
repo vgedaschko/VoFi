@@ -1,5 +1,5 @@
-# Texte der Engine (WS-D, Spec 00 Abschnitte 6, 8, 9).
-# Phase-0-Minimalfassung, Eigentümer: WS-D.
+# Texte der Engine (WS-D, Spec 00 Abschnitte 6, 8, 9): Bau, Laufkontext, Wertauflösung,
+# Periodenschleife, Ausgleich, Unterlassungsalternative, Speicherung, Entscheidungsknoten.
 not_buildable: "vofi_build() erwartet ein Objekt der Klasse vofi_scenario oder vofi_spec."
 not_model: "'{arg}' muss ein Objekt der Klasse vofi_model sein."
 validation_failed: "Die Validierung meldet {n} Fehler: {details}"
@@ -32,6 +32,26 @@ prepay_heuristic: "Die Sondertilgung aus Überschüssen (loan_prepay) ist eine H
 flow_key_unknown: "Ausgleichsaktion: unbekannter Flussschlüssel '{row}' (weder Engine-Zeile noch Sondertilgung eines Kredits)."
 kpi_requires: "Kennzahl '{kpi}' entfällt: es fehlt die Datengrundlage {missing}."
 store_single_full: "Einzellauf: store = '{store}' wird als 'full' gerechnet (das Ergebnis enthält den vollständigen VoFi)."
+auto_forbidden: "Kredit '{id}': amount_eur auto bzw. topup ist nicht zulässig mit {fields} (Auszahlungsplan leer, Beginn am Stichtag, kein Bestandsdarlehen; Spec 00, 8.7)."
+auto_zero: "Kredit '{id}': im Basisfall gibt es im Fenster der Bauphase keinen Finanzierungsbedarf; der auto-Kreditbetrag ist 0."
+extra_rows_invalid: "extra_rows: ungültige Zusatzzeilen ({what}); erwartet wird ein vofi_ledger mit den Abschnitten project, grants bzw. memo und der Dimension des Chunks."
+not_result: "'{arg}' muss ein Objekt der Klasse vofi_model oder vofi_result sein."
+opportunity_missing: "Das Ergebnis enthält keine Unterlassungsalternative mit vollständigem Ledger."
+opportunity_note: "Unterlassungsalternative: gleiche Einlagen und Entnahmen wie die Investition, keine Investition, keine Kredite, keine eigenen Nachschüsse."
+not_mc_result: "'{arg}' muss ein Objekt der Klasse vofi_mc_result mit Modell (model) sein."
+seed_missing: "Für die Ziehungen fehlt ein Seed (Argument seed bzw. stochastic.settings.seed)."
+det_no_draws: "Ein deterministischer Lauf verwendet keine Rohziehungen und keine Designzeilen."
+design_missing: "Ein Design-Lauf braucht eine Designtabelle (design)."
+path_unknown: "Unbekannte Rückgabepfade: {path} (zulässig: {allowed})."
+band_unknown: "Bandzeile '{row}' existiert weder im Ledger noch als Rückgabepfad."
+n_sim_blocks: "n_sim = {n_sim:int} ist kein Vielfaches der Blockgröße {block_size:int}; nächstes Vielfaches: {suggestion:int}."
+keep_runs_invalid: "keep_runs: ungültige Angabe {value} (Form p<zz>, z. B. p05, p50, p95)."
+memory: "Geschätzter Speicherbedarf je Chunk {gb} GB über der Schwelle vofi.max_memory_gb = {limit}; Vorschlag: chunk_size = {suggestion:int} statt {chunk:int}."
+decision_multiple: "Höchstens ein Entscheidungsknoten je Variante (Spec 00, 9.11 Nr. 1); gefunden: {ids}."
+decision_not_binary: "Der Entscheidungsschlüssel '{path}' muss 0 oder 1 sein (Basisfallwert {value})."
+decision_needs_scenario: "Der Entscheidungsknoten '{funding}' braucht ein vofi_scenario, um die Ausweichvariante zu bauen."
+decision_nested: "Die Ausweichvariante '{variant}' hat selbst einen Entscheidungsknoten (Spec 00, 9.11 Nr. 1)."
+decision_fallback_has_node: "Die Ausweichvariante '{variant}' enthält das Förderinstrument '{funding}' des Knotens (Spec 00, 9.11 Nr. 1)."
 flags:
   arbitrage: "Der Habenzins liegt über dem Kontokorrentzins (Arbitrage) in {share:pct} der Läufe."
   stopped: "Liquiditätsengpass mit der Policy 'stop': Fehlbetrag in {share:pct} der Läufe; Kennzahlen dieser Läufe sind NA."

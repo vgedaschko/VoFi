@@ -1,12 +1,17 @@
-# Laufzeit-Invarianten (WS-D, Spec 00 Abschnitt 9.7).
-# Phase-0-Minimalfassung, Eigentuemer: WS-D. I1, I2, I3a-c, N1, N2 je Lauf und Periode; bei
-# Verstoss vofi_error_engine mit invariant, sim, t, value und den fuenf betragsgroessten Zeilen.
+# Laufzeit-Invarianten (WS-D, Spec 00 Abschnitt 9.7) und Meldungen der Markierungen (9.8).
+# I1, I2, I3a-c, N1, N2 je Lauf und Periode (Investition und Unterlassungsalternative); bei
+# Verstoss vofi_error_engine mit invariant, sim, t, value und den fuenf betragsgroessten Zeilen
+# (N1: vofi_error_contract mit der Zeile als Quelle).
+# Je Markierungsart hoechstens eine zusammengefasste Bedingung je Lauf mit Anteil der Laeufe.
 
 #' Invarianten pruefen (9.7)
 #'
-#' Phase-0-Minimalfassung, Eigentümer: WS-D.
-#' @param core core aus `eng_balance()`.
-#' @param stop_on_error bei Verstoß `vofi_error_engine` signalisieren.
+#' N1 (keine `NA`/`NaN`/`Inf`) wird zuerst geprüft; ein Verstoß ist `vofi_error_contract` mit
+#' der Zeile als Quelle. Ohne Abbruch (`stop_on_error = FALSE`) gehen nicht endliche Werte nicht
+#' in die übrigen Abweichungen ein.
+#' @param core core aus `eng_balance()` (Investition oder Unterlassungsalternative).
+#' @param stop_on_error bei Verstoß `vofi_error_engine` bzw. `vofi_error_contract` (N1)
+#'   signalisieren.
 #' @return Data Frame `invariant`, `max_dev`, `tol`, `ok`.
 #' @noRd
 eng_checks <- function(core, stop_on_error = TRUE) {
@@ -16,14 +21,28 @@ eng_checks <- function(core, stop_on_error = TRUE) {
   v <- led$values
   n <- led$n
   n_t <- led$T + 1L
+  bad_row <- NULL
+  for (k in names(v)) {
+    m <- v[[k]]
+    if (!is.finite(sum(m)) && !all(is.finite(m))) {
+      bad_row <- k
+      break
+    }
+  }
+  if (stop_on_error && !is.null(bad_row)) {
+    vofi_abort("core.contract.row_not_finite", row = bad_row, .class = "vofi_error_contract",
+               .data = list(invariant = "N1", row = bad_row))
+  }
+  n1 <- is.null(bad_row)
   z <- matrix(0, n, n_t)
   pick <- function(sel) if (any(sel)) Reduce(`+`, v[rows$key[sel]]) else z
   bal_secs <- c("project", "grants", "equity", "loans", "overdraft", "deposit", "tax")
   cash <- rows$cash & rows$section %in% bal_secs
-  abs_sum <- pick(cash & FALSE)
+  abs_sum <- z
   for (k in rows$key[cash]) abs_sum <- abs_sum + abs(v[[k]])
-  vol <- pmax(1, eng_rowmax(abs_sum))
-  rel <- function(m) abs(m) / matrix(vol, n, ncol(m))
+  vol <- pmax.int(1, eng_rowmax(abs_sum))
+  # der n-Vektor laeuft spaltenweise mit: Element [i, j] wird durch vol[i] geteilt
+  rel <- function(m) abs(m) / vol
   i1 <- rel(v$balance_check)
   bs <- v$net_position
   d_bs <- bs - cbind(0, bs[, -n_t, drop = FALSE])
@@ -33,18 +52,17 @@ eng_checks <- function(core, stop_on_error = TRUE) {
     (tl - cbind(0, tl[, -n_t, drop = FALSE]))
   i2 <- rel(d_bs - flow)
   stock_keys <- rows$key[rows$section == "stocks" & rows$category == "balance"]
-  i3a <- if (length(stock_keys) > 0L) -Reduce(pmin, v[stock_keys]) else z
+  i3a <- if (length(stock_keys) > 0L) -eng_pmin_mat(v[stock_keys]) else z
   g <- v$dep_balance
   kk <- v$od_balance + v$odp_balance
-  i3b <- if (isTRUE(core$limits$lmin_zero)) pmin(g, kk) else z
+  i3b <- if (isTRUE(core$limits$lmin_zero)) eng_pmin_mat(list(g, kk)) else z
   i3c <- if (!is.null(core$limits$KL)) v$od_balance - core$limits$KL else z
   te <- core$terminal_ex_rv
   n2 <- matrix(abs(te$BS - (bs[, n_t] - te$rv)) / vol, n, 1L)
-  n1 <- all(vapply(v, function(m) is.finite(sum(m)) || all(is.finite(m)), logical(1)))
+  mx <- function(m) max(m, 0, na.rm = TRUE)
   out <- data.frame(
     invariant = c("I1", "I2", "I3a", "I3b", "I3c", "N1", "N2"),
-    max_dev = c(max(i1, 0), max(i2, 0), max(i3a, 0), max(i3b, 0), max(i3c, 0),
-                if (n1) 0 else Inf, max(n2, 0)),
+    max_dev = c(mx(i1), mx(i2), mx(i3a), mx(i3b), mx(i3c), if (n1) 0 else Inf, mx(n2)),
     tol = c(tol$balance_rel, tol$balance_rel, tol$stock_abs, tol$stock_abs, tol$stock_abs, 0,
             tol$balance_rel),
     stringsAsFactors = FALSE
@@ -71,7 +89,16 @@ eng_checks <- function(core, stop_on_error = TRUE) {
 #' @noRd
 eng_rowmax <- function(m) {
   out <- m[, 1L]
-  for (j in seq_len(ncol(m))[-1L]) out <- pmax(out, m[, j])
+  for (j in seq_len(ncol(m))[-1L]) out <- pmax.int(out, m[, j])
+  out
+}
+
+#' Elementweises Minimum gleich großer Matrizen (Dimensionen bleiben erhalten)
+#' @param ms Liste von Matrizen (mindestens eine).
+#' @noRd
+eng_pmin_mat <- function(ms) {
+  out <- ms[[1L]]
+  for (m in ms[-1L]) out[] <- pmin.int(out, m)
   out
 }
 
@@ -79,23 +106,27 @@ eng_rowmax <- function(m) {
 #'
 #' Je Markierungsart höchstens eine Bedingung je Lauf (Anteil der Läufe): `vofi_warning_engine`
 #' für `arbitrage` (h > s, 8.8), `stopped` (Fehlbetrag bei `stop`, 2.9), `negative_amortization`
-#' (`keep_payment` mit Rate <= Zins, 2.9) und `limit_breach` (Strafzinstranche); `vofi_inform()`
-#' für die übrigen logischen Markierungen. `opp_limit_breach` meldet die Unterlassungsalternative
-#' selbst (9.5 Nr. 5).
+#' (`keep_payment` mit Rate <= Zins, 2.9) und `limit_breach` (Strafzinstranche);
+#' `vofi_warning_plausibility` für `opp_limit_breach` (Unterlassungsalternative überzieht, 9.5
+#' Nr. 5); `vofi_inform()` für die übrigen logischen Markierungen. Aufruf einmal je Lauf
+#' (`vofi_run()`, `vofi_sim()`, `vofi_mc()` über alle Chunks), nicht je Chunk.
 #' @param flags Data Frame der Markierungen (n Zeilen).
 #' @return `invisible(Namen der gemeldeten Markierungen)`.
 #' @noRd
 eng_flag_conditions <- function(flags) {
   warn <- c("arbitrage", "stopped", "negative_amortization", "limit_breach")
+  plaus <- "opp_limit_breach"
   info <- c("shortfall", "reserve_used", "limit_cut", "overdraft_threshold",
             "equity_call_over_savings")
   hit <- character(0)
-  for (f in intersect(c(warn, info), names(flags))) {
+  for (f in intersect(c(warn, plaus, info), names(flags))) {
     x <- flags[[f]]
     if (!is.logical(x) || !any(x, na.rm = TRUE)) next
     share <- mean(x, na.rm = TRUE)
     if (f %in% warn) {
       vofi_warn(paste0("engine.flags.", f), share = share, .class = "vofi_warning_engine")
+    } else if (f %in% plaus) {
+      vofi_warn("engine.opp_limit_breach", share = share, .class = "vofi_warning_plausibility")
     } else {
       vofi_inform(paste0("engine.flags.", f), share = share)
     }

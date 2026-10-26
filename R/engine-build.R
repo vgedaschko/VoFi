@@ -1,19 +1,21 @@
-# Build-Stufen (WS-D, Spec 00 Abschnitt 9.1).
-# Phase-0-Minimalfassung, Eigentuemer: WS-D. Umgesetzt: Stufen 1-6a, 8-10 (Aufloesung,
-# Validierung, Raster, topologisch sortierte Komponenten nach ref-Parametern, Bezuegen und
-# after, Instrumente in financing-Reihenfolge, Ketten, Basisfall-Vorlauf, Steuermodul mit
-# Sperren, Kennzahlen mit Filter nach perspectives und requires, Hash). Offen fuer WS-D:
-# Stufe 7 Sampler-Plan (smp_plan(), WS-C; bis dahin model$sampler = NULL), amount_eur auto
-# (8.7, engine-auto.R), Entscheidungsknoten (9a).
+# Build-Stufen (WS-D, Spec 00 Abschnitt 9.1): Aufloesung (WS-A), Validierung (WS-B), Raster,
+# topologisch sortierte Komponenten (ref-Parameter, Bezuege auf components/financing, after;
+# Kahn mit Gleichstand nach id), Instrumente in financing-Reihenfolge (hoechstens ein auto und
+# ein topup, 8.7), Ausgleichsketten, Basisfall-Vorlauf (6a: Fluesse mit n = 1, auto-Betrag und
+# need0, R-69, R-70), Sampler-Plan (smp_plan() von WS-C, zur Laufzeit aufgeloest), Steuermodul
+# mit Sperren und Parameter-Defaults (10.2), Kennzahlen (perspectives, requires),
+# Entscheidungsknoten der Foerderzusage mit Ausweichvariante (9a, 9.11, R-71), Hash.
 
 #' Rechenfertiges Modell bauen
 #'
-#' Baut aus einem Szenario oder einer Spezifikation ein rechenfertiges Modell: Validierung,
-#' Zeitraster, sortierte Komponenten, Instrumente, Ausgleichsketten, Basisfall-Vorlauf,
-#' Sampler-Plan, Steuermodul und Kennzahlen (Spec 00, Abschnitt 9.1).
-#'
-#' Phase-0-Minimalfassung (Eigentümer: WS-D): ohne Sampler-Plan (WS-C), ohne `amount_eur: auto`
-#' und ohne Entscheidungsknoten.
+#' Baut aus einem Szenario oder einer Spezifikation ein rechenfertiges Modell (Spec 00,
+#' Abschnitt 9.1): Auflösung und Validierung, Zeitraster, topologisch sortierte
+#' Zahlungskomponenten, Kreditinstrumente, Ausgleichsketten, Basisfall-Vorlauf (Kreditbeträge
+#' `amount_eur: auto` werden hier einmal bestimmt und gelten in allen Läufen, R-69),
+#' Sampler-Plan, Steuermodul und Kennzahlen. Ist ein Förderinstrument ein Entscheidungsknoten
+#' (`approval_timing: before_start` und `fallback_variant`, Abschnitt 9.11), wird das Modell der
+#' Ausweichvariante mitgebaut (`model$decision`); im Modell der Variante gilt die Zusage dann
+#' stets als erteilt.
 #'
 #' @param x Objekt der Klasse `vofi_scenario` oder `vofi_spec`.
 #' @param variant Variante (Default `"base"`).
@@ -52,35 +54,197 @@ vofi_build <- function(x, variant = "base", overrides = NULL, scenario_set = NUL
                details = utl_collapse(errs$message, sep = " | "),
                .class = "vofi_error_validation", .data = list(report = report))
   }
+  # 9a (vorgezogen): Entscheidungsknoten erkennen; im Modell der Variante gilt die Zusage
+  # stets als erteilt (9.11 Nr. 2), der Zweig des Basisfalls ist der Wert vor dem Setzen
+  node <- eng_decision_node(spec)
+  if (!is.null(node)) {
+    # die Ausweichvariante darf selbst keinen Knoten haben (9.11 Nr. 1; verhindert Rekursion)
+    if (isTRUE(eng_build_state$fallback)) {
+      vofi_abort("engine.decision_nested", variant = variant, .class = "vofi_error_validation")
+    }
+    node$branch <- eng_decision_branch(spec, node$key)
+    node$p <- eng_decision_probability(spec, node$funding_id)
+    spec <- path_set(spec, node$key, node_const(1))
+  }
   grid <- eng_build_grid(spec)
   nodes <- eng_build_nodes(spec)
   instruments <- eng_build_instruments(spec)
-  auto <- eng_auto_ids(instruments)
+  auto <- eng_auto_ids(instruments, grid)
   surplus <- eng_build_chain(spec$accounts$surplus_order)
   deficit <- eng_build_chain(spec$accounts$deficit_order)
-  tax_def <- reg_get("tax", spec$tax$module %||% "none")
-  tax_params <- spec$tax$params %||% list()
-  tax_mod <- tax_def$constructor(tax_params, spec)
-  # 9.3: die Engine liest model$tax$uses_inputs (Default aus der Typdefinition, 5.3)
-  if (is.null(tax_mod$uses_inputs)) tax_mod$uses_inputs <- isTRUE(tax_def$uses_inputs)
+  tax <- eng_build_tax(spec, grid)
   model <- new_vofi_model(list(
     spec = spec, grid = grid, nodes = nodes, instruments = instruments,
     equity = names(nodes)[vapply(nodes, function(nd) identical(nd$def$name, "equity"),
                                  logical(1))],
     accounts = list(prepay = spec$accounts$prepay %||% list()),
     surplus_chain = surplus, deficit_chain = deficit, sampler = NULL,
-    tax = tax_mod, tax_params = tax_params,
+    tax = tax$module, tax_params = tax$params,
     kpis = eng_build_kpis(spec), auto_id = auto$auto, topup_id = auto$topup,
     hash = stable_hash(spec), contract_version = VOFI_CONTRACT_VERSION
   ))
+  model$rows_meta <- list(inv = eng_model_rows(instruments),
+                          opp = eng_model_rows(list(), opp = TRUE))
   model$base <- eng_base_run(model)
+  model$sampler <- eng_build_sampler(spec, grid)
   model$kpis <- eng_filter_kpis_requires(model$kpis, spec, model$base$flows)
+  if (!is.null(node)) {
+    model$decision <- eng_build_decision(x, node, overrides, scenario_set)
+  }
   model
 }
 
-#' Enthält die Überschusskette Ü3 (loan_prepay)? Ohne Ü3 gilt der Instrument-Cache (9.3)
+#' Sampler-Plan (9.1 Stufe 7, WS-C: `smp_plan(spec, grid)`); ohne Sampler `NULL`
 #' @noRd
-eng_has_prepay <- function(model) "loan_prepay" %in% names(model$surplus_chain)
+eng_build_sampler <- function(spec, grid = NULL) {
+  f <- get0("smp_plan", envir = topenv(environment(eng_smp_fun)), mode = "function",
+            inherits = FALSE)
+  if (is.null(f)) NULL else f(spec, grid)
+}
+
+#' Steuermodul mit Sperren und Parameter-Defaults (9.1 Stufe 8, 10.2)
+#'
+#' Sperren: `perspective` außerhalb von `perspectives` bzw. `tax_regime` in `blocked_regimes`
+#' ergeben `vofi_error_validation` (`validation.tax_module_blocked`). Fehlende Parameter
+#' erhalten den Default aus dem Parameterschema des Moduls; Wertknoten werden zu ihren
+#' Basisfallwerten aufgelöst (das Modul erhält Zahlen bzw. Zeichenketten).
+#' @param grid `vofi_grid` (Auflösung von Pfaden und Bezügen) oder `NULL`.
+#' @return `list(module, params)`.
+#' @noRd
+eng_build_tax <- function(spec, grid = NULL) {
+  name <- spec$tax$module %||% "none"
+  def <- reg_get("tax", name)
+  persp <- spec$project$perspective %||% NA_character_
+  regime <- spec$project$tax_regime %||% NA_character_
+  blocked <- (!is.null(def$perspectives) && !(persp %in% def$perspectives)) ||
+    (!is.null(def$blocked_regimes) && regime %in% def$blocked_regimes)
+  if (blocked) {
+    text <- msg("validation.tax_module_blocked", value = name, path = "tax.module",
+                perspective = persp)
+    rep_df <- data.frame(
+      severity = "error", code = "validation.tax_module_blocked", path = "tax.module",
+      location = NA_character_, message = text, layer = NA_integer_,
+      variant = spec$variant %||% "base", stringsAsFactors = FALSE
+    )
+    report <- new_vofi_validation(rep_df)
+    vofi_abort("engine.validation_failed", n = 1L, details = text,
+               .class = "vofi_error_validation", .data = list(report = report))
+  }
+  params <- spec$tax$params %||% list()
+  for (p in names(def$params)) {
+    if (is.null(params[[p]]) && inherits(def$params[[p]], "vofi_param") &&
+          !is.null(def$params[[p]]$default)) {
+      params[p] <- list(def$params[[p]]$default)
+    }
+  }
+  params <- eng_tax_param_values(params, spec, grid)
+  mod <- def$constructor(params, spec)
+  # 9.3: die Engine liest model$tax$uses_inputs (Default aus der Typdefinition, 5.3)
+  if (is.null(mod$uses_inputs)) mod$uses_inputs <- isTRUE(def$uses_inputs)
+  list(module = mod, params = params)
+}
+
+#' Parameter des Steuermoduls als Basisfallwerte (10.2)
+#'
+#' Konstanten werden zu ihrem Wert; andere Wertknoten (Bezug, Reihe) zum Basisfallwert als
+#' Skalar je Lauf bzw. als Pfad n x (T+1) (n = 1); alles Übrige bleibt unverändert.
+#' @noRd
+eng_tax_param_values <- function(params, spec, grid = NULL) {
+  rc <- NULL
+  for (p in names(params)) {
+    x <- params[[p]]
+    if (!node_is(x)) next
+    if (identical(x$kind, "const")) {
+      params[p] <- list(x$value)
+      next
+    }
+    if (is.null(grid)) next
+    if (is.null(rc)) rc <- res_context(spec, grid, 1L)
+    path <- paste0("tax.params.", p)
+    v <- tryCatch(res_value(rc, path, "scalar", base = TRUE), vofi_error = function(e) NULL)
+    if (is.null(v)) v <- res_value(rc, path, "path", base = TRUE)
+    params[p] <- list(v)
+  }
+  params
+}
+
+#' Entscheidungsknoten der Förderzusage erkennen (9.11 Nr. 1, R-71)
+#'
+#' Knoten: `funding.<f>.approval_timing == "before_start"` (aufgelöster Code, R-86) und
+#' `fallback_variant` gesetzt; höchstens einer je Variante.
+#' @return `NULL` oder `list(funding_id, key, fallback_variant)`.
+#' @noRd
+eng_decision_node <- function(spec) {
+  hits <- character(0)
+  for (f in names(spec$funding %||% list())) {
+    fu <- spec$funding[[f]]
+    if (identical(fu$approval_timing, "before_start") && utl_is_string(fu$fallback_variant)) {
+      hits <- c(hits, f)
+    }
+  }
+  if (length(hits) == 0L) return(NULL)
+  if (length(hits) > 1L) {
+    vofi_abort("engine.decision_multiple", ids = utl_collapse(hits),
+               .class = "vofi_error_validation")
+  }
+  list(funding_id = hits, key = paste0("funding.", hits, ".approved"),
+       fallback_variant = spec$funding[[hits]]$fallback_variant)
+}
+
+#' Zweig des Basisfalls: Wert der Zusage nach den Schichten 0–5, 7, 8 (9.11 Nr. 3)
+#' @noRd
+eng_decision_branch <- function(spec, key) {
+  g <- eng_build_grid(spec)
+  v <- res_value(res_context(spec, g, 1L), key, "scalar", base = TRUE)
+  b <- if (is.null(v)) 1 else v[1L]
+  if (!(b %in% c(0, 1))) {
+    vofi_abort("engine.decision_not_binary", path = key, value = b,
+               .class = "vofi_error_validation")
+  }
+  as.integer(b)
+}
+
+#' Zusagewahrscheinlichkeit des Knotens (Basisfallwert, Default 1)
+#' @noRd
+eng_decision_probability <- function(spec, f) {
+  key <- paste0("funding.", f, ".approval_probability")
+  if (is.null(path_get(spec, key))) return(1)
+  g <- eng_build_grid(spec)
+  v <- res_value(res_context(spec, g, 1L), key, "scalar", base = TRUE)
+  if (is.null(v)) 1 else as.double(v[1L])
+}
+
+#' Zustand des Modellbaus (Bau der Ausweichvariante läuft, 9.11 Nr. 1)
+#' @noRd
+eng_build_state <- new.env(parent = emptyenv())
+
+#' Modell der Ausweichvariante (9.1 Stufe 9a, 9.11 Nr. 1, 2)
+#' @return `list(funding_id, key, p, fallback_variant, fallback = <vofi_model>, branch)`.
+#' @noRd
+eng_build_decision <- function(x, node, overrides, scenario_set) {
+  if (!inherits(x, "vofi_scenario")) {
+    vofi_abort("engine.decision_needs_scenario", funding = node$funding_id,
+               .class = "vofi_error_input")
+  }
+  old <- isTRUE(eng_build_state$fallback)
+  eng_build_state$fallback <- TRUE
+  on.exit(eng_build_state$fallback <- old, add = TRUE)
+  fb <- vofi_build(x, variant = node$fallback_variant, overrides = overrides,
+                   scenario_set = scenario_set)
+  if (!is.null(fb$spec$funding[[node$funding_id]])) {
+    vofi_abort("engine.decision_fallback_has_node", variant = node$fallback_variant,
+               funding = node$funding_id, .class = "vofi_error_validation")
+  }
+  list(funding_id = node$funding_id, key = node$key, p = node$p,
+       fallback_variant = node$fallback_variant, fallback = fb, branch = node$branch)
+}
+
+#' Enthält die Überschusskette Ü3 (loan_prepay bzw. eine Aktion mit Sondertilgungszeilen)?
+#' Ohne Ü3 hängen die Instrumentflüsse nicht vom Ausgleich ab; es gilt der Instrument-Cache (9.3)
+#' @noRd
+eng_has_prepay <- function(model) {
+  any(vapply(model$surplus_chain, function(a) "loan_*_prepay" %in% a$rows, logical(1)))
+}
 
 #' Zeitraster aus project und grid (3.3, 9.1 Stufe 3)
 #' @noRd
@@ -179,22 +343,6 @@ eng_build_instruments <- function(spec) {
   out
 }
 
-#' Instrumente mit amount_eur auto bzw. topup (8.7)
-#' @noRd
-eng_auto_ids <- function(instruments) {
-  auto <- topup <- NULL
-  for (id in names(instruments)) {
-    a <- instruments[[id]]$spec$amount_eur
-    if (node_is(a) && identical(a$kind, "auto")) {
-      if (identical(a$mode, "topup")) topup <- c(topup, id) else auto <- c(auto, id)
-    }
-  }
-  if (length(auto) > 1L || length(topup) > 1L) {
-    vofi_abort("engine.auto_multiple", .class = "vofi_error_validation")
-  }
-  list(auto = auto, topup = topup)
-}
-
 #' Ausgleichskette aus Aktionsnamen (8.9)
 #' @noRd
 eng_build_chain <- function(names_chain) {
@@ -205,8 +353,8 @@ eng_build_chain <- function(names_chain) {
 #' Kennzahlen nach analysis.kpis, gefiltert nach perspectives (9.1 Stufe 9)
 #'
 #' `analysis.kpis: default` bedeutet den Kennzahlensatz des Perspektiven-Profils (Spec 01 Teil A
-#' 1.5); solange die Profile fehlen (WS-A, Welle 2), gelten in Phase 0 alle registrierten
-#' Kennzahlen. Der Filter nach `requires` folgt nach dem Basisfall-Vorlauf
+#' 1.5); solange die Profile nicht vorliegen (WS-A), gelten alle registrierten Kennzahlen.
+#' Der Filter nach `requires` folgt nach dem Basisfall-Vorlauf
 #' (`eng_filter_kpis_requires()`).
 #' @noRd
 eng_build_kpis <- function(spec) {
@@ -222,7 +370,7 @@ eng_build_kpis <- function(spec) {
 
 #' Verfügbare Datengrundlagen für `requires` (5.3, 9.1 Stufe 9)
 #'
-#' Phase-0-Regel (WS-D/WS-D2 präzisieren): `opportunity` immer; `market_value`, wenn eine
+#' Regel (5.3): `opportunity` immer; `market_value`, wenn eine
 #' Komponente des Basisfalls eine Zeile der Kategorie `market_value` schreibt oder
 #' `building.market_value_eur` gesetzt ist; `household_income` bei
 #' `household.net_income_month_eur`; `living_area` bei `building.living_area_m2` bzw.
@@ -233,9 +381,9 @@ eng_build_kpis <- function(spec) {
 #' @return Zeichenvektor der verfügbaren Grundlagen.
 #' @noRd
 eng_kpi_available <- function(spec, base_flows = list()) {
-  cats <- unlist(lapply(base_flows, function(fl) {
+  cats <- as.character(unlist(lapply(base_flows, function(fl) {
     vapply(fl$rows, function(r) r$category, "")
-  }), use.names = FALSE)
+  }), use.names = FALSE))
   ug <- spec$unit_groups %||% list()
   has <- c(
     opportunity = TRUE,
@@ -267,12 +415,16 @@ eng_filter_kpis_requires <- function(kpis, spec, base_flows) {
 }
 
 #' Basisfall-Vorlauf (9.1 Stufe 6a, R-69, R-70): Flüsse mit n = 1 im deterministischen Modus
+#'
+#' Zusagen mit ihrem Wert nach den Schichten 0–5, 7, 8 (Entscheidungsknoten: 1); Grundlage von
+#' `ctx$component_base()` und `ctx$auto()`. Hinweise der Wertauflösung (z. B. Zahlungen nach dem
+#' Horizont) werden hier einmal gemeldet.
 #' @return `list(flows, n = 1, auto, need0)`.
 #' @noRd
 eng_base_run <- function(model) {
-  env <- eng_engine_env(model)
+  env <- eng_engine_env(model, quiet = FALSE)
   ctx <- eng_context(model, draws = NULL, engine_env = env)
   exo <- eng_flows(model, ctx, env)
-  auto <- eng_auto_base(model, ctx, exo)
+  auto <- eng_auto_base(model, ctx, exo$ledger)
   list(flows = env$components, n = 1L, auto = auto$auto, need0 = auto$need0)
 }

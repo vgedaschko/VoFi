@@ -1,14 +1,20 @@
 # Konten: Geldanlage, Kontokorrent, Strafzinstranche (WS-D, Spec 00 Abschnitt 8.8).
-# Phase-0-Minimalfassung, Eigentuemer: WS-D. acc_init() nach 8.8 vollstaendig (Raten als
-# n x (T+1), Sparer-Pauschbetrag je Periode, Limit- und Reservepfade); die Markierung
-# arbitrage (s < h) meldet eng_flag_conditions() als vofi_warning_engine (einmal je Lauf, 9.8).
-# Offen fuer WS-D: Pruefung der Kontoparameter in der Validierung statt zur Laufzeit.
+# acc_init() nach 8.8: Raten als n x (T+1) (effektiv p. a. -> Periodenrate, 3.6), Abgeltungsteuer
+# auf positive Habenzinsen oberhalb des Sparer-Pauschbetrags je Periode (wa = Pauschbetrag p. a.
+# * delta, R-76), Limit KL (Pfad, .inf zulaessig, fehlt: unbegrenzt), Mindestliquiditaet L_min,
+# Markierungsschwelle, Parameter von Ue3. Die Raten werden je Kontext einmal berechnet
+# (eng_acc_rates(), Zwischenspeicher in der Engine-Umgebung) und von Investition,
+# Unterlassungsalternative (sp := s bei D4 equity_call/stop, R-81) und Wiederholungslaeufen
+# (ctx$rebalance()) gemeinsam genutzt. Die Markierung arbitrage (h > s, 8.8) setzt die
+# Periodenschleife; eng_flag_conditions() meldet sie als vofi_warning_engine.
 
 #' Kontenzustand initialisieren (8.8)
+#'
 #' @param accounts normalisierte Kontoparameter des Modells (`model$accounts`); das Feld
 #'   `opp_regular_penalty = TRUE` setzt sp := s (Unterlassungsalternative, 9.5 Nr. 5, R-81).
 #' @param ctx Laufkontext.
-#' @return Liste nach 8.8.
+#' @return Liste nach 8.8 (`G`, `KK`, `KKP` = 0; `h`, `h_pa`, `w`, `wa`, `s`, `s_pa`, `sp`,
+#'   `KL`, `Lmin`, `flag_threshold`, `prepay_buffer`, `prepay_min_spread`, `j`).
 #' @noRd
 acc_init <- function(accounts, ctx) {
   n <- ctx$n
@@ -29,8 +35,8 @@ acc_init <- function(accounts, ctx) {
   h <- ctx$rate_eff(h_pa)
   wa <- scalar("deposit_tax_allowance_eur_pa") * ctx$by_period(g$delta)
   wa[, 1L] <- 0
-  kl <- path("overdraft_limit_eur")
-  if (identical(ctx$value("accounts.overdraft_limit_eur", "path"), NULL)) kl[] <- Inf
+  kl <- ctx$value("accounts.overdraft_limit_eur", "path")
+  kl <- if (is.null(kl)) matrix(Inf, n, g$T + 1L) else acc_strip_attr(kl)
   thr <- ctx$value("accounts.overdraft_flag_threshold_eur", "scalar") %||% rep(Inf, n)
   prepay <- accounts$prepay %||% list()
   list(
@@ -40,6 +46,34 @@ acc_init <- function(accounts, ctx) {
     flag_threshold = thr, prepay_buffer = acc_prepay_value(prepay$buffer_eur),
     prepay_min_spread = acc_prepay_value(prepay$min_spread_pa), j = 1L
   )
+}
+
+#' Kontenzustand mit Zwischenspeicher je Kontext (8.8, Leistung 9.10)
+#'
+#' Investition, Unterlassungsalternative und Wiederholungsläufe eines Chunks nutzen dieselben
+#' Raten (gleicher Kontext, CRN); nur sp weicht in der Alternative ab (R-81).
+#' @param model `vofi_model` (bzw. Modell der Unterlassungsalternative).
+#' @param ctx Laufkontext.
+#' @param engine_env private Engine-Umgebung oder `NULL` (ohne Zwischenspeicher).
+#' @return Kontenzustand wie `acc_init()`.
+#' @noRd
+eng_acc_rates <- function(model, ctx, engine_env = NULL) {
+  base <- if (is.environment(engine_env)) engine_env$acc_rates else NULL
+  if (is.null(base)) {
+    base <- acc_init(acc_modify(model$accounts, opp_regular_penalty = FALSE), ctx)
+    if (is.environment(engine_env)) engine_env$acc_rates <- base
+  }
+  if (isTRUE(model$accounts$opp_regular_penalty)) base$sp <- base$s
+  base
+}
+
+#' Feld einer Liste setzen (auch bei `NULL`-Liste)
+#' @noRd
+acc_modify <- function(x, ...) {
+  x <- x %||% list()
+  args <- list(...)
+  for (nm in names(args)) x[nm] <- list(args[[nm]])
+  x
 }
 
 #' Pfadattribute entfernen (Kontoraten werden nicht weiter indexiert)

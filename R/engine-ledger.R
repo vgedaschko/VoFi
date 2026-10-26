@@ -1,8 +1,32 @@
-# Ledger-Zugriffe und Engine-Zeilen (WS-D, Spec 00 Abschnitte 7.3, 7.4, 7.7, 7.8).
-# Phase-0-Minimalfassung, Eigentuemer: WS-D. Umgesetzt: ledger_add/get/select/sum/subset_sims/
-# long, Metadaten der Komponenten-, Kredit- und Engine-Zeilen mit Grob-Ordnung (7.8).
-# Offen fuer WS-D: ledger_select(rv_basis = ...) ueber das Zusatzfeld der Merkzeilen
-# residual_path ist umgesetzt; Steuer-Merkzeilen tax_report_<name> (10.5) bei aktiven Modulen.
+# Ledger-Zugriffe und Engine-Zeilen (WS-D, Spec 00 Abschnitte 7.3, 7.4, 7.7, 7.8, 10.5).
+# ledger_add/get/select/sum/subset_sims/long, Metadaten der Komponenten-, Kredit-, Engine-,
+# Bestands- und Steuer-Merkzeilen (tax_report_<name>) mit Grob-Ordnung (7.8); schnelles
+# Zusammenfuegen der Metadaten (eng_bind_rows(), ohne rbind.data.frame) und Zwischenspeicher der
+# modellfesten Zeilen (eng_model_rows(), in vofi_build() einmal je Modell).
+
+#' Metadaten-Data-Frames gleicher Spalten zusammenfügen (schnell, ohne `rbind.data.frame`)
+#' @param parts Liste von Data Frames aus `new_ledger_rows()` (`NULL` und leere werden
+#'   übergangen).
+#' @return Data Frame mit kompakten Zeilennamen.
+#' @noRd
+eng_bind_rows <- function(parts) {
+  parts <- Filter(function(p) !is.null(p) && nrow(p) > 0L, parts)
+  if (length(parts) == 0L) return(new_ledger_rows(character(0), character(0), character(0)))
+  if (length(parts) == 1L) {
+    out <- parts[[1L]]
+    rownames(out) <- NULL
+    return(out)
+  }
+  cols <- names(parts[[1L]])
+  out <- lapply(cols, function(cn) {
+    v <- lapply(parts, function(p) p[[cn]])
+    if (identical(cn, "extra")) do.call(c, lapply(v, unclass)) else unlist(v, use.names = FALSE)
+  })
+  names(out) <- cols
+  n <- length(out[[1L]])
+  out$extra <- I(out$extra)
+  structure(out, class = "data.frame", row.names = c(NA_integer_, -n))
+}
 
 #' Zeilen an einen Ledger anhängen
 #' @param led `vofi_ledger` oder `NULL`.
@@ -15,7 +39,7 @@ ledger_add <- function(led, rows, values) {
     all_rows <- rows
     all_values <- values
   } else {
-    all_rows <- rbind(led$rows, rows)
+    all_rows <- eng_bind_rows(list(led$rows, rows))
     all_values <- c(led$values, values)
   }
   if (anyDuplicated(all_rows$key)) {
@@ -156,10 +180,12 @@ eng_loan_rows <- function(id, k, comp, def) {
     eng_type_row_label(def, tkeys[i], cats[i], prefix = shown, fallback_key = core_keys[i],
                        fallback_id = shown)
   }, "")
+  # Tags des Bausteins auf allen Kreditzeilen (Spec 01 Teil A 5.4); Pflicht nur fuer die
+  # Merkzeile repayment_grant (7.6)
   new_ledger_rows(
-    keys, "loans", cats, measure_id = ifelse(cats == "repayment_grant",
-                                             comp$measure_id %||% NA_character_, NA_character_),
-    asset_id = NA_character_, program = comp$program %||% NA_character_, source_id = id,
+    keys, "loans", cats, measure_id = comp$measure_id %||% NA_character_,
+    asset_id = comp$asset_id %||% NA_character_, program = comp$program %||% NA_character_,
+    source_id = id,
     existing_debt = isTRUE(comp$existing), source_type = def$name,
     origin = comp$origin %||% "scenario", local_row = cats,
     label_key = unname(label_key), label = labels,
@@ -211,4 +237,63 @@ eng_stock_rows <- function(loan_ids, labels = loan_ids) {
                           label = vapply(other, function(k) lbl(paste0("core.rows.", k)), ""),
                           order = c(900100, 900101, 900102, 900200, 900300))
   rbind(loan_rows, rows)
+}
+
+#' Merkzeilen der Steuer-Nebenrechnung `tax_report_<name>` (10.5)
+#'
+#' Abschnitt `memo`, Kategorie `tax_report`, `cash = FALSE`; Label
+#' `types.tax.<modul>.report.<name>` aus der Labeldatei des Moduls (Nutzermodule: `name`).
+#' @param module Steuermodul (`vofi_tax_module`).
+#' @param report_names Namen der Berichtsgrößen.
+#' @return Data Frame (leer ohne Namen).
+#' @noRd
+eng_tax_report_rows <- function(module, report_names) {
+  if (length(report_names) == 0L) return(NULL)
+  keys <- paste0("tax_report_", report_names)
+  lkeys <- paste0("types.tax.", module$name %||% "none", ".report.", report_names)
+  labels <- vapply(seq_along(keys), function(i) {
+    lbl(lkeys[i], .default = report_names[i])
+  }, "")
+  new_ledger_rows(keys, "memo", "tax_report", source_id = "engine",
+                  source_type = paste0("tax_", module$name %||% "none"), local_row = keys,
+                  label_key = lkeys, label = labels,
+                  order = eng_row_order("memo", "tax_report") + seq_along(keys) / 1000)
+}
+
+#' Modellfeste Zeilenmetadaten (Kredit-, Engine- und Bestandszeilen; 7.7, 7.8)
+#'
+#' Hängt nur vom Modell ab (Instrumente, Labels) und wird in `vofi_build()` einmal erzeugt
+#' (`model$rows_meta`); die Periodenschleife setzt den Ledger daraus zusammen (Leistung 9.10).
+#' @param instruments Instrumente des Modells (`eng_build_instruments()`).
+#' @param opp zusätzlich die Zeilen der Unterlassungsalternative (`opp_equity_call_in`,
+#'   `opp_in_kind_sale` als Einlage bzw. Entnahme; 7.7, 9.5).
+#' @return `list(ids, loans = <data.frame>, engine = <data.frame ohne balance_check>,
+#'   check = <data.frame balance_check>, stocks = <data.frame>, opp_rows = list() | NULL)`.
+#' @noRd
+eng_model_rows <- function(instruments, opp = FALSE) {
+  loans <- lapply(names(instruments), function(id) {
+    k <- instruments[[id]]
+    eng_loan_rows(id, k$k, k$spec, k$def)
+  })
+  er <- eng_engine_rows()
+  labels <- vapply(names(instruments), function(id) instruments[[id]]$spec$label %||% id, "")
+  sr <- eng_stock_rows(names(instruments), labels)
+  if (length(instruments) > 0L) {
+    sr$existing_debt[seq_along(instruments)] <- vapply(instruments, function(k) {
+      isTRUE(k$spec$existing)
+    }, logical(1))
+  }
+  opp_rows <- NULL
+  if (opp) {
+    mk <- function(key, cat) {
+      new_ledger_rows(key, "equity", cat, local_row = key, label_key = paste0("core.rows.", key),
+                      label = lbl(paste0("core.rows.", key)))
+    }
+    opp_rows <- list(call_in = mk("opp_equity_call_in", "equity_in"),
+                     sale_in = mk("opp_in_kind_sale", "equity_in"),
+                     sale_out = mk("opp_in_kind_sale", "equity_out"))
+  }
+  list(ids = names(instruments), loans = eng_bind_rows(loans),
+       engine = er[er$key != "balance_check", , drop = FALSE],
+       check = er[er$key == "balance_check", , drop = FALSE], stocks = sr, opp_rows = opp_rows)
 }

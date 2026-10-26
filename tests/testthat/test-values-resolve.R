@@ -1,5 +1,4 @@
 # Tests für R/values-resolve.R über den Laufkontext (WS-D; Spec 00 Abschnitte 4.5, 6.3).
-# Phase-0-Minimalfassung.
 
 test_that("series_year: fill, before, Jahre vor dem Stichtag (annual_before)", {
   ctx <- make_ctx(params = list(
@@ -173,4 +172,122 @@ test_that("Randfaelle der Aufloesung: reales Wachstum, floor/cap, Fehlerzweige",
   expect_null(res_node(rc, list(kind = "auto", mode = "auto"), "x", FALSE, character(0)))
   expect_identical(res_quantity_field("m2_component:facade"), "component_areas_m2.facade")
   expect_identical(res_quantity_field("kwp"), "kwp")
+})
+
+#' Ziehungen mit Schlüssel != Ziel (Overlay-Schlüssel, 4.13) und Verknüpfung apply
+key_draws <- function(grid, key, target, x, apply = "multiply", mode = "mc") {
+  n <- length(x)
+  targets <- data.frame(key = key, target = target, kind = "static", apply = apply,
+                        stringsAsFactors = FALSE)
+  new_vofi_draws(mode, n = n, sims = seq_len(n), static = stats::setNames(list(x), key),
+                 targets = targets, years = grid$years)
+}
+
+test_that("Prüffall apply (01c 1.3): 543.301,50 x 1,0087283674 = 548.043,64; Design", {
+  g <- make_grid()
+  pars <- list("measures.huelle.cost_eur" = 543301.50)
+  d <- key_draws(g, "cost_huelle", "measures.huelle.cost_eur", 1.0087283674)
+  ctx <- make_ctx(draws = d, params = pars)
+  expect_equal(ctx$value("measures.huelle.cost_eur"), 548043.64, tolerance = 0.01 / 548043.64)
+  expect_equal(ctx$value_base("measures.huelle.cost_eur"), 543301.50)
+  # Designzeile mit Overlay-Schlüssel: Verknüpfung wie in der MC
+  dd <- key_draws(g, "cost_huelle", "measures.huelle.cost_eur", 1.2, mode = "design")
+  expect_equal(make_ctx(draws = dd, params = pars)$value("measures.huelle.cost_eur"),
+               651961.80)
+  # Designzeile mit Zielpfad: absoluter Wert (replace)
+  dz <- key_draws(g, "measures.huelle.cost_eur", "measures.huelle.cost_eur", 600000,
+                  apply = "replace", mode = "design")
+  expect_equal(make_ctx(draws = dz, params = pars)$value("measures.huelle.cost_eur"), 600000)
+  # unbekannte Verknüpfung ist ein Vertragsfehler
+  bad <- key_draws(g, "k", "measures.huelle.cost_eur", 2, apply = "power")
+  expect_error(make_ctx(draws = bad, params = pars)$value("measures.huelle.cost_eur"),
+               class = "vofi_error_contract")
+})
+
+test_that("Entscheidungsschlüssel wirken nicht auf ihr Ziel (9.11 Nr. 3)", {
+  g <- make_grid()
+  targets <- data.frame(key = "funding.f.approved", target = "funding.f.approved",
+                        kind = "decision", apply = "replace", stringsAsFactors = FALSE)
+  d <- new_vofi_draws("mc", n = 2L, sims = 1:2, decision = list("funding.f.approved" = c(0, 1)),
+                      targets = targets, years = g$years)
+  ctx <- make_ctx(n = 2L, draws = d, params = list("funding.f.approved" = 1))
+  expect_identical(ctx$value("funding.f.approved"), c(1, 1))
+  expect_identical(ctx$draw("funding.f.approved"), c(0, 1))
+})
+
+test_that("Mengenbezug: nächstes Bezugsobjekt, Rückfall building, kein Rückfall für kWp", {
+  ctx <- make_ctx(params = list(
+    "measures.m1.living_area_m2" = 50,
+    "measures.m1.cost" = list(value = 100, per = "m2_living_area"),
+    "measures.m2.cost" = list(value = 100, per = "m2_living_area"),
+    "measures.m3.cost" = list(value = 1000, per = "kwp"),
+    "measures.m4.kwp" = 10,
+    "measures.m4.cost" = list(value = 1000, per = "kwp"),
+    "building.component_areas_m2.facade" = 400,
+    "measures.m5.cost" = list(value = 120, per = "m2_component:facade"),
+    "measures.m6.cost" = list(value = list(years = c(2027, 2033), values = c(10, 70)),
+                              per = "unit"),
+    "measures.m7.cost" = list(value = 9, per = "total")
+  ))
+  expect_identical(ctx$value("measures.m1.cost"), 5000)
+  expect_identical(ctx$value("measures.m2.cost"), 100 * 900)
+  expect_error(ctx$value("measures.m3.cost"), class = "vofi_error_contract")
+  expect_identical(ctx$value("measures.m4.cost"), 10000)
+  expect_identical(ctx$value("measures.m5.cost"), 48000)
+  n_units <- ctx$value("building.n_units")
+  expect_equal(ctx$value("measures.m6.cost", "path")[1L, ], c(10, 10, 20, 30, 40, 50, 60) *
+                 n_units)
+  expect_identical(ctx$value("measures.m7.cost"), 9)
+  spec <- list(measures = list(a = list(n_units = 3)), building = list(n_units = 8))
+  expect_identical(res_quantity_target(spec, "measures.a.cost", "unit"), "measures.a.n_units")
+  expect_identical(res_quantity_target(spec, "measures.b.cost", "unit"), "building.n_units")
+  expect_null(res_quantity_target(spec, "measures.b.cost", "kw"))
+})
+
+test_that("Typ-Defaults (Schicht 0) für nicht gesetzte Parameter und Map-Felder", {
+  comp <- make_component("annuity_loan", id = "bank")
+  ctx <- make_ctx(spec = comp)
+  sp <- ctx$spec$financing$bank
+  sp$payout_rate <- NULL
+  sp$fees <- NULL
+  expect_identical(ctx$param(sp, "payout_rate"), 1)
+  expect_identical(ctx$param(sp, "fees.processing_fee_share"), 0)
+  spec2 <- ctx$spec
+  spec2$financing$bank$fees <- NULL
+  expect_identical(res_default_node(spec2, "financing.bank.fees.processing_fee_share"),
+                   node_const(0))
+  expect_null(res_default_node(spec2, "financing.bank.gibt_es_nicht"))
+  expect_null(res_default_node(spec2, "accounts.deposit_rate_pa"))
+  expect_identical(res_param_kind(res_context(spec2, ctx$grid, 1L),
+                                  "financing.bank.payout_rate"), "share")
+  expect_identical(res_param_kind(res_context(spec2, ctx$grid, 1L), "shared.x_share"), "share")
+})
+
+test_that("Hinweise der Auflösung höchstens einmal je Kontext, quiet unterdrückt sie", {
+  g <- make_grid()
+  spec <- make_spec(g)
+  spec <- path_set(spec, "shared.s", reg_node(list(schedule = list("2027-06-01" = 1,
+                                                                   "2040" = 9)), "shared.s"))
+  rc <- res_context(spec, g, 1L)
+  expect_message(res_value(rc, "shared.s", "path"), class = "vofi_message")
+  expect_silent(res_value(rc, "shared.s", "path"))
+  rq <- res_context(spec, g, 1L, quiet = TRUE)
+  expect_silent(res_value(rq, "shared.s", "path"))
+  once <- new.env()
+  r2 <- res_context(spec, g, 1L, once = once)
+  expect_message(expect_true(res_inform_once(r2, "x", "engine.auto_zero", id = "a")))
+  expect_false(res_inform_once(r2, "x", "engine.auto_zero", id = "a"))
+  env <- reg_engine_env("flows")
+  env$quiet <- TRUE
+  ctx <- eng_context_from_parts(g, spec, engine_env = env)
+  expect_silent(ctx$value("shared.s", "path"))
+})
+
+test_that("Wachstumsform auf gemischtem Raster: Kalenderjahreswert je Periode (R-91)", {
+  ctx <- make_ctx(grid = make_grid("mixed"),
+                  params = list("shared.g" = list(start = 100, growth = 0.02)))
+  g <- ctx$grid
+  v <- ctx$value("shared.g", "path")[1L, ]
+  expect_equal(v, 100 * 1.02^(g$year - 2026L))
+  expect_true(all(v[g$year == 2027L] == v[1L]))
 })

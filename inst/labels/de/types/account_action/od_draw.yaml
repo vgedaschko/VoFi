@@ -1,4 +1,4 @@
-# Labels der Ausgleichsaktion od_draw (WS-D, Spec 00 Abschnitt 8.9). Phase-0-Minimalfassung.
+# Labels der Ausgleichsaktion od_draw (WS-D, Spec 00 Abschnitt 8.9).
 label: "Kontokorrent ziehen"
 description: "D2: Defizit wird bis zum Limit über das Kontokorrent gedeckt."
 rows:
