@@ -1,0 +1,108 @@
+# Labels des Steuermoduls flat (WS-X, Spec 00 Abschnitt 10.7, Memo 06 Abschnitt 6.2).
+label: "Pauschalsteuer (vereinfacht)"
+description: "Vereinfachte Näherung – keine Steuerberatung: Ertragsteuer mit pauschalem Grenzsteuersatz auf das steuerliche Ergebnis (Mieten und sonstige Erträge abzüglich abziehbarer Aufwendungen, Erhaltungsaufwand, AfA und Sollzinsen), Verlustausgleich oder -vortrag, Zahlung in der Periode oder im Folgejahr; private Habenzinsen getrennt mit Abgeltungssatz. Gesperrt für Selbstnutzer und steuerbefreite Rechtsträger."
+note: "Vereinfachte Näherung – keine Steuerberatung. Das Ergebnis vor Steuern bleibt das Primärergebnis."
+params:
+  rate:
+    label: "Steuersatz (Grenzsteuersatz)"
+    help: "Satz s_t auf das steuerliche Ergebnis inkl. Soli und ggf. Kirchensteuer, z. B. 0,42; Skalar oder Pfad. Ohne Angabe: privat 44,31 % (42 % + Soli), Unternehmen Körperschaftsteuer + Soli nach Jahr (15,825 % bis 2027, 10,55 % ab 2032) plus Gewerbesteuer bei Hebesatz."
+  loss_mode:
+    label: "Verlustverrechnung"
+    help: "sofort (Verlust mindert andere Einkünfte, Erstattung) oder vortrag (projektinterner Verlustvortrag ohne Mindestbesteuerung)."
+  other_income_eur_pa:
+    label: "Übriges Einkommen p. a."
+    help: "Nur bei sofort: Obergrenze des sofortigen Verlustausgleichs je Jahr; darüber hinausgehende Verluste werden vorgetragen. Ohne Angabe unbegrenzt."
+  lag:
+    label: "Zahlungszeitpunkt"
+    help: "0 = Zahlung in der Periode (Vorauszahlung, Lohnsteuer-Freibetrag), 1 = Veranlagung im Folgejahr; die am Horizont offene Steuer mindert den Endwert."
+  deposit_interest:
+    label: "Behandlung der Habenzinsen"
+    help: "auto (privat abgeltung, Unternehmen ergebnis), abgeltung (getrennt mit Abgeltungssatz, keine Verrechnung mit Verlusten), ergebnis (im steuerlichen Ergebnis) oder keine."
+  capital_rate:
+    label: "Abgeltungssatz"
+    help: "Satz auf private Habenzinsen; ohne Angabe 25 % + Soli (26,375 %), mit Kirchensteuer nach § 32d EStG."
+  church_tax_rate:
+    label: "Kirchensteuersatz (Habenzinsen)"
+    help: "0, 0,08 oder 0,09; nur für den Abgeltungssatz ohne ausdrückliche Angabe."
+  saver_allowance_eur_pa:
+    label: "Sparer-Pauschbetrag p. a."
+    help: "Freibetrag für private Habenzinsen (1.000 bzw. 2.000 EUR), anteilig je Periode; Default 0 (anderweitig genutzt)."
+  trade_tax_multiplier:
+    label: "Gewerbesteuer-Hebesatz (Faktor)"
+    help: "Nur Unternehmen ohne erweiterte Kürzung, z. B. 4,5 für 450 %; mindestens der gesetzliche Mindesthebesatz (2,8 ab 2027). Ohne Angabe erweiterte Kürzung (keine Gewerbesteuer)."
+  depreciation_method:
+    label: "AfA-Methode Wohngebäude"
+    help: "auto (degressiv nach § 7 Abs. 5a, wenn der Baubeginn im Fenster 10/2023–09/2029 liegt, sonst linear), linear (§ 7 Abs. 4) oder degressiv."
+  degressive_switch_year:
+    label: "Wechsel zur linearen AfA nach Jahren"
+    help: "Optional: nach so vielen Jahren degressiver AfA Wechsel zur linearen AfA (Restwert x Satz nach § 7 Abs. 4)."
+  building_rate:
+    label: "Linearer AfA-Satz Gebäude"
+    help: "Optional: abweichender Satz (z. B. aus einer Restnutzungsdauer); sonst 3 % / 2 % / 2,5 % nach Fertigstellung."
+  special_7b:
+    label: "Sonderabschreibung § 7b"
+    help: "5 % p. a. im Fertigstellungsjahr und den drei Folgejahren für neue Mietwohnungen (Effizienzhaus 40 mit QNG, Bauantrag 2023–09/2029, Baukosten bis 5.200 EUR/m², Basis höchstens 4.000 EUR/m²); Rückgängigmachung nicht abgebildet."
+  spread_years:
+    label: "Verteilung Erhaltungsaufwand (Jahre)"
+    help: "Default der Verteilung nach § 82b EStDV für Erhaltungsaufwand ohne eigene Angabe (1 = sofort, 2–5 Jahre); nur Privatvermögen."
+  subsidy_treatment:
+    label: "Behandlung von Investitionszuschüssen"
+    help: "minderung (R 21.5 EStR: Minderung der AfA-Bemessungsgrundlage bzw. des Erhaltungsaufwands) oder einnahme (steuerpflichtige Einnahme im Zuflussjahr)."
+  acquisition_related:
+    label: "Anschaffungsnahe Herstellungskosten"
+    help: "pruefung (Prüfung der 15-%-Grenze mit Warnung; nur Maßnahmen mit Einordnung auto werden umgegliedert) oder umgliederung (auch Erhaltungsaufwand wird bei Überschreitung zu Herstellungskosten)."
+  acquisition_vat_rate:
+    label: "USt-Satz der 15-%-Prüfung"
+    help: "Satz, mit dem die Bruttokosten für die Prüfung der anschaffungsnahen HK in Nettobeträge umgerechnet werden."
+  residual_value_tax:
+    label: "Besteuerung des Restwerts"
+    help: "auto (Unternehmen stets, privat innerhalb der Zehnjahresfrist des § 23 EStG), ja oder nein. Gewinn = Restwert - Restbuchwerte - Grund und Boden."
+  existing_book_value_eur:
+    label: "Restbuchwert des Bestands"
+    help: "Steuerlicher Restbuchwert des vorhandenen Gebäudes und Bodens am Horizont (Bestandsprojekte), mindert den Gewinn bei Besteuerung des Restwerts."
+  holding_start:
+    label: "Beginn der Haltefrist"
+    help: "Optional: Beginn der Frist des § 23 EStG; sonst Anschaffung laut Anlagenregister, sonst Fertigstellung."
+  remaining_loss:
+    label: "Verbleibender Verlustvortrag am Horizont"
+    help: "verfall (Wert 0, konservativ) oder satz (Steuersatz x Vortrag als Forderung)."
+report:
+  income: "Steuer: Einnahmen"
+  expenses: "Steuer: abziehbare Aufwendungen"
+  maintenance: "Steuer: Erhaltungsaufwand"
+  depreciation: "Steuer: AfA"
+  special_depreciation: "Steuer: Sonder-AfA § 7b"
+  interest_expense: "Steuer: Schuldzinsen und Finanzierungskosten"
+  interest_income: "Steuer: Habenzinsen im Ergebnis"
+  reclassification: "Steuer: Rücknahme Erhaltungsaufwand (anschaffungsnahe HK)"
+  taxable_income: "Steuer: steuerliches Ergebnis"
+  loss_carryforward: "Steuer: Verlustvortrag"
+  tax_assessed: "Steuer: festgesetzte Ertragsteuer"
+  capital_income_tax: "Steuer: Abgeltungsteuer auf Habenzinsen"
+  book_value: "Steuer: Restbuchwerte der Anlagen"
+  acquisition_related: "Steuer: umgegliederte anschaffungsnahe HK"
+  acq_test_costs: "Steuer: Aufwand netto im Prüfzeitraum (15 %)"
+  acq_test_limit: "Steuer: Grenze anschaffungsnahe HK (15 % der AK)"
+  terminal_open_tax: "Steuer: am Horizont offene Steuer"
+  terminal_gain: "Steuer: Gewinn aus dem Restwert"
+  terminal_gain_tax: "Steuer auf den Restwert"
+  terminal_loss_value: "Steuer: Wert des Verlustvortrags"
+msg:
+  disclaimer: "Steuermodul flat: vereinfachte Näherung – keine Steuerberatung; das Ergebnis vor Steuern bleibt das Primärergebnis."
+  blocked: "Das Pauschalsteuer-Modul flat ist für Selbstnutzer und steuerbefreite Rechtsträger gesperrt (Perspektive {perspective}, Steuerregime {regime}): Beim Selbstnutzer ist das Objekt ertragsteuerlich neutral, bei befreiten Genossenschaften und gemeinnützigen Unternehmen fällt keine Ertragsteuer an; das Modul würde fiktive Erstattungen bzw. Steuerlasten erzeugen. Steuermodul none verwenden."
+  param_invalid: "Steuermodul flat: Parameter '{param}' ist ungültig ({value}); erwartet: {expected}."
+  param_form: "Steuermodul flat: Parameter '{param}' hat die nicht auflösbare Wertform '{kind}'."
+  param_unknown: "Steuermodul flat: unbekannter Parameter '{param}'.{suggestion}"
+  rate_invalid: "Steuermodul flat: Steuersatz {value} ist ungültig (endlich, mindestens 0 und kleiner als 1)."
+  rate_path_length: "Steuermodul flat: der Pfad des Steuersatzes hat {n:int} Werte, Periode t = {t:int} fehlt."
+  rate_default: "Steuermodul flat: kein Steuersatz angegeben; Default für das Steuerregime {regime} angenommen (aktuell {value:pct})."
+  rate_high: "Steuermodul flat: Grenzsteuersatz {value:pct} liegt über der Spitzenbelastung (45 % + Soli + Kirchensteuer)."
+  trade_min: "Steuermodul flat: Hebesatz {value:num} liegt unter dem gesetzlichen Mindesthebesatz; je Jahr wird der Mindesthebesatz angesetzt."
+  spread_private_only: "Steuermodul flat: die Verteilung von Erhaltungsaufwand nach § 82b EStDV ({years:int} Jahre) gilt nur im Privatvermögen; Unternehmen ziehen sofort ab."
+  degressive_ineligible: "Steuermodul flat: Anlage '{asset}': degressive AfA nach § 7 Abs. 5a nicht zulässig (Baubeginn nicht im Fenster 01.10.2023–30.09.2029 oder kein Wohngebäude); lineare AfA."
+  s7b_ineligible: "Steuermodul flat: Anlage '{asset}': Sonder-AfA § 7b nicht angesetzt (keine neue Wohnung ab 2023, Effizienzstandard nicht EH 40 oder Bauantrag außerhalb 2023–09/2029)."
+  s7b_unchecked: "Steuermodul flat: Anlage '{asset}': Voraussetzung der Sonder-AfA § 7b nicht prüfbar ('{what}' fehlt); als erfüllt angenommen."
+  s7b_conditions: "Steuermodul flat: Anlage '{asset}': Sonder-AfA § 7b setzt QNG-Siegel und entgeltliche Vermietung über zehn Jahre voraus; Rückgängigmachung ist nicht abgebildet."
+  acq_hint: "Steuermodul flat: Erhaltungsmaßnahmen innerhalb von drei Jahren nach Anschaffung ({measures}); übersteigen sie netto {share:pct} der Gebäude-Anschaffungskosten, sind sie anschaffungsnahe Herstellungskosten (Merkzeilen der Prüfung; acquisition_related: umgliederung gliedert automatisch um)."
+  acq_exceeded: "Steuermodul flat: die Grenze der anschaffungsnahen Herstellungskosten ({limit:pct} der Gebäude-AK) ist in {share:pct} der Läufe überschritten; als Erhaltung eingeordneter Aufwand wurde dennoch sofort abgezogen (acquisition_related: umgliederung)."
+  existing_book_value: "Steuermodul flat: der Restwert eines Bestandsprojekts wird besteuert, der Restbuchwert des Bestands fehlt (existing_book_value_eur); der Gewinn ist überschätzt."
