@@ -1,0 +1,6 @@
+# Labels der Rechtsregel mr_hp_halving (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Halbierung nach § 559f BGB"
+description: "Halbierung der Umlagebasis bei Wärmepumpen mit Plan-JAZ unter der Schwelle, außer bei Baujahr nach 1996 oder niedriger Vorlauftemperatur; nur bei aktivem Thema mietrecht_559f."
+versions:
+  "20260729":
+    note: "Qualität C: nur mit Freigabe bzw. pending_reforms unreleased."

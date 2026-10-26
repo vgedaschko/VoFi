@@ -1,0 +1,6 @@
+# Labels der Rechtsregel co2_s5a_dates (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Termine des § 5a CO2KostAufG"
+description: "Beginn des hälftigen Vermieteranteils an CO2-Kosten, Gasnetzentgelten und Bio-Mehrkosten bei Heizungen nach § 43 GModG bzw. Neubauten nach § 5b, mit Übergang bei Havarie."
+versions:
+  "20260729":
+    note: "§ 5a CO2KostAufG; Übergang Qualität C."

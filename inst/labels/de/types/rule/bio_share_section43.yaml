@@ -1,0 +1,6 @@
+# Labels der Rechtsregel bio_share_section43 (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Mindestanteil biogener Brennstoffe"
+description: "Stufenfunktion des biogenen Mindestanteils nach § 43 GModG je Kalenderjahr."
+versions:
+  "20260729":
+    note: "GModG § 43 Abs. 1; Stufe 2045 nur mit Reformcode stufe_2045."

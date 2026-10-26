@@ -1,0 +1,6 @@
+# Labels der Rechtsregel mr_brake_applies (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Geltung der Mietpreisbremse"
+description: "Prüft, ob die Mietpreisbremse bei einer Wiedervermietung gilt (Gebiet, Verordnungsdauer, Neubau- und Modernisierungsausnahme)."
+versions:
+  "20260729":
+    note: "§§ 556d, 556f BGB."

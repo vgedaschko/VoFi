@@ -1,0 +1,6 @@
+# Labels der Rechtsregel mr_relet_rent (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Miete bei Wiedervermietung"
+description: "Neuvertragsmiete: Marktmiete, mit Mietpreisbremse höchstens 110 % der Vergleichsmiete bzw. Vormiete oder Vergleichsmiete ohne jüngere Modernisierungszuschläge zuzüglich Umlagen."
+versions:
+  "20260729":
+    note: "§§ 556d, 556e BGB."

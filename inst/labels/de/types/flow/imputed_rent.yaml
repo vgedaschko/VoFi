@@ -1,0 +1,24 @@
+# Labels des Zahlungstyps imputed_rent (WS-E, Spec 01 Teil B Abschnitt 3.10.3).
+label: "Ersparte Miete"
+description: "Ersparte Miete der Selbstnutzer als Nutzungsvorteil für den Vergleich Kaufen oder Mieten."
+params:
+  area_m2:
+    label: "Wohnfläche"
+    help: "Selbstgenutzte Wohnfläche in m²."
+  rent_eur_m2_month:
+    label: "Vergleichsmiete"
+    help: "Ersparte Nettokaltmiete in EUR je m² und Monat."
+  growth:
+    label: "Mietsteigerung p. a."
+    help: "Fortschreibung (Konstante oder Pfad)."
+  base_date:
+    label: "Preisstand"
+    help: "Default Stichtag plus 12 Monate."
+  start_event:
+    label: "Beginn"
+    help: "Bestand Stichtag, Neubau Token completion."
+  to:
+    label: "Ende"
+    help: "Default Horizontende."
+rows:
+  value: "Ersparte Miete"

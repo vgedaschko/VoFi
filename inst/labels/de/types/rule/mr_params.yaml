@@ -1,0 +1,6 @@
+# Labels der Rechtsregel mr_params (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Rechtsparameter Mietrecht"
+description: "Bildet die Nutzlasten der Themen mietrecht und mietrecht_559f auf die Parameter der Mietrechtsregeln ab (Kappungsgrenzen, Fristen, Umlagesätze, Kappungen, Auslegungen); ein inaktives Thema ergibt leere Parameter."
+versions:
+  "20260729":
+    note: "Rechtsstand GModG, in Kraft seit 29.07.2026."

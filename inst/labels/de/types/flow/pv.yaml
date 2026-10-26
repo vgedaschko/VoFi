@@ -1,0 +1,68 @@
+# Labels des Zahlungstyps pv (WS-E, Spec 01 Teil B Abschnitt 3.9).
+label: "Photovoltaikanlage"
+description: "Ertrag einer PV-Anlage mit Eigenverbrauch, Einspeisung (feste Vergütung, Anschlusspreis), Verrechnung an Mieter und Betriebskosten; Erlöse ohne Umsatzsteuer, Betriebskosten mit 19 %."
+params:
+  kwp:
+    label: "Nennleistung"
+    help: "Leistung in kWp."
+  measure:
+    label: "Maßnahme"
+    help: "id der Maßnahme der Investition (null = Bestandsanlage)."
+  commissioning_date:
+    label: "Inbetriebnahme"
+    help: "Default Fertigstellung der Maßnahme, sonst Stichtag."
+  specific_yield_kwh_kwp:
+    label: "Spezifischer Ertrag"
+    help: "kWh je kWp und Jahr (Default 950)."
+  degradation_pa:
+    label: "Ertragsminderung p. a."
+    help: "Alterung des Ertrags je Jahr seit Inbetriebnahme."
+  self_consumption_share:
+    label: "Eigenverbrauchsanteil"
+    help: "Anteil des Ertrags, der im Gebäude verbraucht wird (höchstens der Bezug)."
+  self_consumption_components:
+    label: "Eigenverbrauchssegmente"
+    help: "ids der Segmente energy_cost des Eigenverbrauchsträgers in allen Zuständen."
+  feed_in_mode:
+    label: "Einspeisung"
+    help: "partial (Überschusseinspeisung) oder full (Volleinspeisung)."
+  feed_in_tariff_eur_kwh:
+    label: "Einspeisevergütung"
+    help: "Anzulegender Wert in EUR je kWh; Default Mischsatz aus market.feed_in_tariff.*."
+  tariff_years:
+    label: "Vergütungsdauer"
+    help: "Jahre fester Vergütung ab Inbetriebnahme (Default 20)."
+  post_tariff_price_eur_kwh:
+    label: "Erlös nach Vergütungsende"
+    help: "EUR je kWh nach Ablauf der festen Vergütung."
+  internal_price_eur_kwh:
+    label: "Verrechnungspreis Mieter"
+    help: "Bruttopreis je kWh des an Mieter gelieferten PV-Stroms."
+  opex_share_of_cost:
+    label: "Betriebskosten (Anteil der Investition)"
+    help: "Betriebskosten je Jahr als Anteil der Investitionskosten (Default 1,2 %)."
+  opex_eur_pa:
+    label: "Betriebskosten p. a."
+    help: "Wartung, Versicherung und Zähler in EUR je Jahr; ohne Maßnahme Pflicht."
+  opex_growth:
+    label: "Wachstum Betriebskosten p. a."
+    help: "Default market.inflation."
+  base_date:
+    label: "Preisstand"
+    help: "Default 1. Januar nach project.price_base_year."
+  owner_share:
+    label: "Eigentümeranteil"
+    help: "Anteil des Eigenverbrauchs der Eigentümer (Default 1 bei Selbstnutzern, sonst 0)."
+  tax_exempt:
+    label: "Steuerbefreiung § 3 Nr. 72 EStG"
+    help: "auto (bis 30 kWp je Einheit und 100 kWp), yes oder no."
+rows:
+  feed_in: "Einspeisevergütung"
+  self_consumption: "Ersparnis Eigenverbrauch"
+  internal_sale: "PV-Strom an Mieter"
+  opex: "Betriebskosten PV"
+  generation: "PV-Ertrag"
+  feed_in_kwh: "Einspeisung"
+msg:
+  tariff_missing: "Einspeisevergütung fehlt ({mode}, {kwp} kWp): feed_in_tariff_eur_kwh angeben oder market.feed_in_tariff.* setzen."
+  opex_missing: "Betriebskosten der PV-Anlage fehlen: opex_eur_pa angeben oder eine Maßnahme mit cost_eur zuordnen."

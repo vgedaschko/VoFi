@@ -1,0 +1,61 @@
+# Labels des Zahlungstyps operating_cost (WS-E, Spec 01 Teil B Abschnitt 2.2).
+label: "Bewirtschaftungskosten"
+description: "Verwaltungskosten, nicht umlagefähige Betriebskosten und umlagefähige Betriebskosten im Leerstand bzw. bei Selbstnutzung einer Wohnungsgruppe, fortgeschrieben mit dem Kalenderjahresindex; die Mietersicht steht als Merkzeile."
+params:
+  n_units:
+    label: "Wohnungen"
+    help: "Anzahl der Wohneinheiten (Bezug der Verwaltungskosten je Einheit)."
+  living_area_m2:
+    label: "Wohnfläche"
+    help: "Wohnfläche der Gruppe in m²."
+  admin_per_unit_eur_pa:
+    label: "Verwaltung je Einheit"
+    help: "Verwaltungskosten je Wohneinheit und Jahr in EUR (Preisstand base_date)."
+  admin_per_parking_eur_pa:
+    label: "Verwaltung je Stellplatz"
+    help: "Verwaltungskosten je Stellplatz und Jahr in EUR."
+  n_parking:
+    label: "Stellplätze"
+    help: "Anzahl der Stellplätze."
+  nonrecoverable_share_of_rent:
+    label: "Nicht umlagefähig (Anteil der Miete)"
+    help: "Nicht umlagefähige Betriebskosten als Anteil der Sollmiete einschließlich Umlagen."
+  nonrecoverable_eur_m2_pa:
+    label: "Nicht umlagefähig je m²"
+    help: "Nicht umlagefähige Betriebskosten in EUR je m² und Jahr."
+  recoverable_opex_eur_m2_month:
+    label: "Umlagefähige Betriebskosten"
+    help: "Umlagefähige (kalte) Betriebskosten in EUR je m² und Monat."
+  vacancy_opex_scope:
+    label: "Leerstandskosten"
+    help: "cold (kalte Betriebskosten) oder warm (zusätzlich Energie, wirkt im Typ energy_cost)."
+  growth:
+    label: "Wachstum Verwaltung p. a."
+    help: "Fortschreibung der Verwaltungskosten (Konstante oder Pfad)."
+  opex_growth:
+    label: "Wachstum Betriebskosten p. a."
+    help: "Fortschreibung der Betriebskosten (Konstante oder Pfad, z. B. {ref: market.operating_cost_growth})."
+  base_date:
+    label: "Preisstand"
+    help: "Default 1. Januar nach project.price_base_year."
+  start_event:
+    label: "Beginn"
+    help: "Beginn der Kosten: Datum, Jahr oder completion (Default: Fertigstellung)."
+  to:
+    label: "Ende"
+    help: "Default Horizontende."
+  owner_occupied:
+    label: "Selbstnutzung"
+    help: "true: alle umlagefähigen Betriebskosten trägt der Eigentümer."
+  rent_component:
+    label: "Mietkomponente"
+    help: "id der Komponente rent_path der Gruppe (Leerstandsquote, Sollmiete)."
+  perspective_tax:
+    label: "Steuerliche Behandlung"
+    help: "deductible (Werbungskosten) oder nondeductible."
+rows:
+  admin: "Verwaltungskosten"
+  nonrecoverable: "Nicht umlagefähige Betriebskosten"
+  vacancy_opex: "Betriebskosten im Leerstand"
+  owner_opex: "Betriebskosten (Selbstnutzung)"
+  tenant_opex: "Umlagefähige Betriebskosten der Mieter"

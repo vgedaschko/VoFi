@@ -1,0 +1,6 @@
+# Labels der Rechtsregel mr_558_target (WS-E, Spec 01 Teil B Abschnitt 5).
+label: "Zielmiete nach § 558 BGB"
+description: "Höchstmiete einer Erhöhung bis zur ortsüblichen Vergleichsmiete unter Beachtung der Kappungsgrenze, der Kürzungsbeträge nach § 558 Abs. 5 und einer freiwilligen Obergrenze."
+versions:
+  "20260729":
+    note: "§ 558 Abs. 3 und 5 BGB."

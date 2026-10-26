@@ -1,0 +1,202 @@
+# Labels des Zahlungstyps rent_path (WS-E, Spec 01 Teil B Abschnitte 1.7-1.13).
+label: "Mietpfad einer Wohnungsgruppe"
+description: "Monatlich gerechneter Mietpfad einer vermieteten Wohnungsgruppe mit Erhöhungen nach § 558 BGB, Staffel- und Indexmiete, Bindung, Fluktuation und Mietpreisbremse, Erlösminderungen sowie Modernisierungsumlagen je Maßnahme nach §§ 559 bis 559f BGB."
+params:
+  unit_group:
+    label: "Wohnungsgruppe"
+    help: "id der Gruppe in unit_groups (Domänenzugriffe, Kostenverteilung)."
+  living_area_m2:
+    label: "Wohnfläche"
+    help: "Wohnfläche der Gruppe in m² (Bezug aller Größen je m²)."
+  n_units:
+    label: "Wohnungen"
+    help: "Anzahl der Wohneinheiten (Wertgrenze § 559c je Wohnung)."
+  rent_eur_m2_month:
+    label: "Ausgangsmiete"
+    help: "Nettokaltmiete in EUR/m² und Monat zum Stichtag einschließlich früherer Umlagen bzw. Erstvermietungsmiete."
+  rent_regime:
+    label: "Mietregime"
+    help: "paragraph_558, staffel, index, bound_social, cooperative_fee oder owner_occupied."
+  rent_start:
+    label: "Mietbeginn"
+    help: "Beginn der Mietzahlungen (Datum, Jahr oder completion)."
+  rent_end:
+    label: "Mietende"
+    help: "Ende der Vermietung (Default Horizontende)."
+  increase_policy:
+    label: "Erhöhungsstrategie"
+    help: "auto, fixed_growth, max, interval oder capped."
+  rent_growth:
+    label: "Mietsteigerung p. a."
+    help: "Feste Steigerung (fixed_growth) bzw. Wachstum der Vergleichsmiete (Vergleichsmieten-Modi)."
+  growth_from:
+    label: "Erste Steigerung"
+    help: "Erster Steigerungstermin bei fixed_growth; Default erster 1. Januar mindestens 12 Monate nach Mietbeginn."
+  growth_applies_to:
+    label: "Steigerung bezieht sich auf"
+    help: "total (Gesamtmiete inkl. Umlagen) oder base (nur Basismiete)."
+  ovm_eur_m2_month:
+    label: "Ortsübliche Vergleichsmiete"
+    help: "Vergleichsmiete des aktuellen Zustands in EUR/m² und Monat zum Bezugsdatum."
+  ovm_base_date:
+    label: "Bezugsdatum der Vergleichsmiete"
+    help: "Default Stichtag."
+  interval_months:
+    label: "Mindestabstand der Erhöhungen"
+    help: "Monate zwischen zwei Erhöhungen bei increase_policy interval (mindestens 15)."
+  voluntary_558_cap_share:
+    label: "Freiwillige Obergrenze § 558"
+    help: "Höchstanteil der Erhöhungen je Fenster bei increase_policy capped."
+  voluntary_558_cap_months:
+    label: "Fenster der freiwilligen Obergrenze"
+    help: "Länge des Fensters in Monaten."
+  rent_36m_ago_eur_m2_month:
+    label: "Miete vor 36 Monaten"
+    help: "Kappungsbasis; Default Ausgangsmiete."
+  last_558_increase_date:
+    label: "Letzte Erhöhung nach § 558"
+    help: "Wirksamkeit der letzten Erhöhung (Wartefrist); Default Stichtag minus 12 Monate."
+  kappung_rate:
+    label: "Kappungsgrenze"
+    help: "Kappungsgrenze in 36 Monaten; Default nach Rechtsstand (20 %, im Kappungsgebiet 15 %)."
+  kappung_15_area:
+    label: "Kappungsgebiet 15 %"
+    help: "Gemeinde mit abgesenkter Kappungsgrenze."
+  market_rent_eur_m2_month:
+    label: "Marktmiete bei Neuvermietung"
+    help: "Neuvertragsmiete; ohne Angabe keine Wiedervermietungslogik."
+  market_rent_growth:
+    label: "Wachstum der Marktmiete"
+    help: "Fortschreibung der Neuvertragsmiete."
+  market_rent_base_date:
+    label: "Bezugsdatum der Marktmiete"
+    help: "Default Stichtag."
+  turnover_rate_pa:
+    label: "Fluktuation"
+    help: "Mieterwechsel je Wohnung und Jahr."
+  relet_vacancy_months:
+    label: "Leerstand je Mieterwechsel"
+    help: "Zusätzliche Leerstandsmonate je Wechsel."
+  brake_area:
+    label: "Mietpreisbremse"
+    help: "Gebiet mit Mietpreisbremse."
+  brake_until:
+    label: "Ende der Mietpreisbremse"
+    help: "Ende der Verordnung."
+  first_use_after_2014_10_01:
+    label: "Erstnutzung nach 01.10.2014"
+    help: "Neubauausnahme der Mietpreisbremse (§ 556f S. 1)."
+  vacancy_rate:
+    label: "Struktureller Leerstand"
+    help: "Leerstandsanteil der Fläche."
+  rent_default_rate:
+    label: "Forderungsausfall"
+    help: "Ausfallanteil der Sollmiete."
+  extra_loss_share:
+    label: "Sonstiger Erlösverlust"
+    help: "Anteil je Periode, z. B. Erstvermietungsabschlag oder Minderung als Jahresanteil."
+  lease_up_months:
+    label: "Anlaufleerstand"
+    help: "Monate linear abnehmender Anlaufverluste ab Mietbeginn."
+  staffel_steps:
+    label: "Staffeln"
+    help: "Neue Gesamtmiete je m² ab Datum (§ 557a)."
+  after_staffel_regime:
+    label: "Regime nach der Staffel"
+    help: "paragraph_558 oder index."
+  index_rate:
+    label: "Indexrate"
+    help: "VPI-Veränderung p. a. (Indexmiete)."
+  index_adjust_month:
+    label: "Anpassungsmonat"
+    help: "Kalendermonat der jährlichen Indexanpassung."
+  index_cap_area:
+    label: "Gebiet mit Indexmietendämpfung"
+    help: "Nur mit Reform mietrecht_ii wirksam."
+  bound_increase_pa:
+    label: "Steigerung der Bewilligungsmiete"
+    help: "Zulässige jährliche Steigerung während der Bindung."
+  binding_end:
+    label: "Bindungsende"
+    help: "Ende der Mietbindung."
+  after_binding_regime:
+    label: "Regime nach der Bindung"
+    help: "paragraph_558 oder index."
+  post_binding_kappung:
+    label: "Kappung nach Bindungsende"
+    help: "false: erste Erhöhung nach Bindungsende ohne Kappungsgrenze."
+  modernization_levy:
+    label: "Modernisierungsumlage"
+    help: "auto (rechtlich zulässige Umlage) oder none."
+  voluntary_cap_per_m2:
+    label: "Freiwillige Obergrenze der Umlagen"
+    help: "Beschluss in EUR/m² und Monat für die kumulierten Umlagen der Gruppe."
+  voluntary_cap_mode:
+    label: "Art der Obergrenze"
+    help: "fixed oder warm_rent_neutral (Heizkostenersparnis der Mieter im Basisfall)."
+  tenant_cost_component:
+    label: "Komponente Mieterkosten"
+    help: "Komponente tenant_costs für die warmmietenneutrale Obergrenze."
+  hardship_share:
+    label: "Härtefallanteil"
+    help: "Nicht durchsetzbarer Anteil der Umlage (§ 559 Abs. 4, 5)."
+  drittmittel_attribution:
+    label: "Zurechnung der Drittmittel"
+    help: "full oder proportional; Default nach Rechtsstand."
+  flat_559e_order:
+    label: "Reihenfolge § 559e"
+    help: "flat_before_funds oder funds_before_flat; Default nach Rechtsstand."
+  hp_reduction_order:
+    label: "Reihenfolge § 559f"
+    help: "halve_then_funds oder funds_then_halve; Default nach Rechtsstand."
+  section43_flat:
+    label: "Pauschale bei § 43-Heizung"
+    help: "15-%-Pauschale des § 559e auch bei Heizungen nach § 43 GModG."
+  hp_threshold_inclusive:
+    label: "JAZ-Schwelle einschließlich"
+    help: "§ 559f erfüllt bei Plan-JAZ größer oder gleich der Schwelle."
+  interest_subsidy_in_559e:
+    label: "Zinsermäßigung in § 559e"
+    help: "Zinsermäßigung mindert auch die Umlage nach § 559e."
+  kuerzung_558_5:
+    label: "Kürzung nach § 558 Abs. 5"
+    help: "Kürzungsbeträge für Drittmittel in den Vergleichsmieten-Modi anwenden."
+  kuerzung_grant_years:
+    label: "Kürzungsdauer Zuschüsse"
+    help: "Jahre ab Fertigstellung; Default nach Rechtsstand."
+  kuerzung_loan_years:
+    label: "Kürzungsdauer Zinsverbilligung"
+    help: "Jahre ab Kreditbeginn; Default Zinsbindung."
+  levy_effective_delay_months:
+    label: "Wirksamkeit der Umlage"
+    help: "Monate nach dem Zugangsmonat der Erklärung; Default nach Rechtsstand."
+  rent_law_measures:
+    label: "Mietrechtlich relevante Maßnahmen"
+    help: "Maßnahmen mit Umlage oder Kürzungsbeträgen."
+  levy_rows:
+    label: "Maßnahmen mit Umlagezeile"
+    help: "Teilmenge der mietrechtlich relevanten Maßnahmen."
+  cost_components:
+    label: "Kostenkomponenten"
+    help: "Komponenten mit den aufgewendeten Kosten der Maßnahmen."
+  grant_components:
+    label: "Zuschusskomponenten"
+    help: "Komponenten mit Zuschüssen zu den Maßnahmen."
+  funding_ids:
+    label: "Förderkredite und Zinsverbilligungen"
+    help: "Instrumente nach § 559a Abs. 2."
+  rent_roll_units:
+    label: "Wohnungen der Mieterliste"
+    help: "Schlüssel von rent_roll für die Rechnung je Wohnung."
+rows:
+  rent: "Nettokaltmiete (Soll)"
+  rent_cooperative: "Nutzungsentgelt (Soll)"
+  rent_loss: "Erlösminderung (Leerstand, Ausfall, Minderung)"
+  "levy_*": "Modernisierungsumlage {id}"
+msg:
+  topic_inactive: "Mietrecht nicht angewendet (Thema mietrecht ohne wählbaren Eintrag): keine Umlage und keine Erhöhung nach § 558 für Gruppe {group}."
+  topic_559f_inactive: "§ 559f BGB nicht angewendet (Thema mietrecht_559f inaktiv): keine Halbierung der Umlagebasis."
+  turnover_without_market: "Fluktuation ohne Marktmiete: Wiedervermietung ohne Wirkung (Gruppe {group})."
+  kuerzung_only_ovm: "Kürzung nach § 558 Abs. 5 nur in den Vergleichsmieten-Modi abgebildet (Gruppe {group})."
+  warm_neutral_no_saving: "Warmmietenneutrale Obergrenze ohne Heizkostenersparnis der Mieter: Obergrenze 0 (Gruppe {group})."
+  fallback_559: "Rückfall auf § 559: keine Drittmittel in Anspruch genommen (Gruppe {group})."
