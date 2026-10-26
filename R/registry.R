@@ -126,10 +126,6 @@ vofi_type <- function(name, kind, params = list(), ..., example = NULL, label = 
   }
   base <- list(name = name, kind = kind, version = version, label = label, params = params,
                example = example)
-  clash <- intersect(names(dots), names(base))
-  if (length(clash) > 0L) {
-    vofi_abort("core.registry.fields_unnamed", name = name, .class = "vofi_error_registry")
-  }
   def <- c(base, dots)
   def <- utl_fill_defaults(def, c(list(labels = NULL, perspectives = NULL, rows = character(0),
                                        validate = NULL),
@@ -253,8 +249,14 @@ reg_static_findings <- function(def) {
   if (kind %in% c("flow", "instrument", "distribution", "process", "tax")) {
     if (!is.list(ex)) add("C3", "core.registry.example_missing", name = format(name))
   }
-  if (is.list(ex) && length(ex) > 0L) {
-    allowed <- c(names(params), reg_reserved_fields(), ".deps")
+  if (identical(kind, "rule") && is.list(ex) && length(ex) > 0L && is.function(def$fun)) {
+    extra <- setdiff(names(ex), names(formals(def$fun)))
+    if (length(extra) > 0L || is.null(names(ex))) {
+      add("C3", "core.registry.example_unknown", name = format(name),
+          param = utl_collapse(extra))
+    }
+  } else if (is.list(ex) && length(ex) > 0L && !(kind %in% c("kpi", "expander", "rule"))) {
+    allowed <- c(names(params), reg_reserved_fields(), ".deps", ".collection")
     extra <- setdiff(names(ex), allowed)
     if (length(extra) > 0L || is.null(names(ex))) {
       add("C3", "core.registry.example_unknown", name = format(name),
@@ -361,7 +363,7 @@ reg_add <- function(def, source = c("vofi", "user"), overwrite = FALSE) {
                details = utl_collapse(paste0(f$check, ": ", f$message), sep = "; "),
                .class = "vofi_error_registry", .data = list(findings = f))
   }
-  if (source == "user" && !utl_is_string(def$label)) {
+  if (source == "user" && !utl_is_string(def[["label"]])) {
     vofi_abort("core.registry.user_label", name = def$name, .class = "vofi_error_registry")
   }
   kinds <- if (def$kind %in% c("flow", "instrument")) c("flow", "instrument") else def$kind
@@ -500,7 +502,7 @@ reg_label_prefix <- function(def) {
 #' Anzeigename eines Typs
 #' @noRd
 reg_type_label <- function(def, source = "vofi") {
-  if (identical(source, "user") || !is.null(def$label)) return(def$label %||% def$name)
+  if (identical(source, "user") || !is.null(def[["label"]])) return(def[["label"]] %||% def$name)
   lbl(paste0(reg_label_prefix(def), ".label"), .default = def$name)
 }
 

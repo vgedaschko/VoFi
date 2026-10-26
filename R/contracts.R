@@ -56,19 +56,19 @@ vofi_row <- function(key, values, section, category, tax_category = NULL, cash =
                      measure_id = NULL, vat_rate = 0, vat_recoverable = FALSE, is_tax = NULL,
                      program = NULL, label = NULL, label_key = NULL, ...) {
   if (!utl_is_string(key) || !utl_is_id(key, max_len = 80L)) {
-    vofi_abort("core.contract.row_key", key = utl_collapse(format(key)),
+    vofi_abort("core.contract.row_key", row = utl_collapse(format(key)),
                .class = "vofi_error_contract")
   }
   values <- utl_check_values(values, key)
   if (!utl_is_string(section) || !vocab_has("sections", section)) {
-    vofi_abort("core.contract.row_section", key = key, section = utl_collapse(format(section)),
+    vofi_abort("core.contract.row_section", row = key, section = utl_collapse(format(section)),
                suggestion = utl_suggest_text(as.character(section)[1L],
                                              vocab_codes("sections")),
                .class = "vofi_error_contract")
   }
   cat_row <- if (utl_is_string(category)) vocab_category(section, category) else NULL
   if (is.null(cat_row)) {
-    vofi_abort("core.contract.row_category", key = key, section = section,
+    vofi_abort("core.contract.row_category", row = key, section = section,
                category = utl_collapse(format(category)),
                suggestion = utl_suggest_text(as.character(category)[1L],
                                              vocab_codes("categories", section)),
@@ -78,7 +78,7 @@ vofi_row <- function(key, values, section, category, tax_category = NULL, cash =
     tax_category <- cat_row$tax_category
   } else if (!utl_is_string(tax_category) ||
              !(tax_category %in% vocab_tax_allowed(section, category))) {
-    vofi_abort("core.contract.row_tax_category", key = key,
+    vofi_abort("core.contract.row_tax_category", row = key,
                tax_category = utl_collapse(format(tax_category)), category = category,
                allowed = utl_collapse(vocab_tax_allowed(section, category)),
                .class = "vofi_error_contract")
@@ -86,16 +86,16 @@ vofi_row <- function(key, values, section, category, tax_category = NULL, cash =
   if (is.null(cash)) {
     cash <- cat_row$cash
   } else if (!utl_is_flag(cash)) {
-    vofi_abort("core.contract.row_flag", key = key, field = "cash",
+    vofi_abort("core.contract.row_flag", row = key, field = "cash",
                .class = "vofi_error_contract")
   }
   if (section == "memo" && isTRUE(cash)) {
-    vofi_abort("core.contract.row_memo_cash", key = key, .class = "vofi_error_contract")
+    vofi_abort("core.contract.row_memo_cash", row = key, .class = "vofi_error_contract")
   }
   kind <- if (missing(kind)) cat_row$kind else {
     tryCatch(utl_match_arg(kind, c("flow", "stock", "memo"), "kind"),
              vofi_error_input = function(e) {
-               vofi_abort("core.contract.row_kind", key = key,
+               vofi_abort("core.contract.row_kind", row = key,
                           kind = utl_collapse(format(kind)), .class = "vofi_error_contract")
              })
   }
@@ -104,26 +104,26 @@ vofi_row <- function(key, values, section, category, tax_category = NULL, cash =
   for (f in c("asset_id", "measure_id")) {
     v <- get(f)
     if (!is.null(v) && (!utl_is_string(v) || !utl_is_id(v, max_len = 80L))) {
-      vofi_abort("core.contract.row_id", key = key, field = f, value = utl_collapse(format(v)),
+      vofi_abort("core.contract.row_id", row = key, field = f, value = utl_collapse(format(v)),
                  .class = "vofi_error_contract")
     }
   }
   if (!is.numeric(vat_rate) || length(vat_rate) != 1L || is.na(vat_rate) ||
       vat_rate < 0 || vat_rate > 1) {
-    vofi_abort("core.contract.row_vat", key = key, value = utl_collapse(format(vat_rate)),
+    vofi_abort("core.contract.row_vat", row = key, value = utl_collapse(format(vat_rate)),
                .class = "vofi_error_contract")
   }
   if (!utl_is_flag(vat_recoverable) || vat_recoverable) {
-    vofi_abort("core.contract.row_vat_recoverable", key = key, .class = "vofi_error_contract")
+    vofi_abort("core.contract.row_vat_recoverable", row = key, .class = "vofi_error_contract")
   }
   if (!is.null(is_tax) && (!utl_is_string(is_tax) || !vocab_has("is_tax", is_tax))) {
-    vofi_abort("core.contract.row_is_tax", key = key, value = utl_collapse(format(is_tax)),
+    vofi_abort("core.contract.row_is_tax", row = key, value = utl_collapse(format(is_tax)),
                .class = "vofi_error_contract")
   }
   for (f in c("program", "label", "label_key")) {
     v <- get(f)
     if (!is.null(v) && !utl_is_string(v)) {
-      vofi_abort("core.contract.row_string", key = key, field = f,
+      vofi_abort("core.contract.row_string", row = key, field = f,
                  .class = "vofi_error_contract")
     }
   }
@@ -144,11 +144,11 @@ vofi_row <- function(key, values, section, category, tax_category = NULL, cash =
 utl_check_values <- function(values, key) {
   if (!is.matrix(values) || !(is.numeric(values) || is.logical(values)) ||
       nrow(values) < 1L || ncol(values) < 1L) {
-    vofi_abort("core.contract.row_values", key = key, .class = "vofi_error_contract")
+    vofi_abort("core.contract.row_values", row = key, .class = "vofi_error_contract")
   }
   if (!is.double(values)) storage.mode(values) <- "double"
   if (anyNA(values) || any(!is.finite(values))) {
-    vofi_abort("core.contract.row_not_finite", key = key, .class = "vofi_error_contract")
+    vofi_abort("core.contract.row_not_finite", row = key, .class = "vofi_error_contract")
   }
   values
 }
@@ -161,7 +161,7 @@ utl_check_row_unit <- function(key, unit, section, cat_row) {
   if (ok && section != "memo") ok <- identical(unit, "EUR")
   if (ok && !identical(cat_row$unit, "EUR")) ok <- identical(unit, cat_row$unit)
   if (!ok) {
-    vofi_abort("core.contract.row_unit", key = key, unit = utl_collapse(format(unit)),
+    vofi_abort("core.contract.row_unit", row = key, unit = utl_collapse(format(unit)),
                category = cat_row$category, .class = "vofi_error_contract")
   }
   invisible(TRUE)
@@ -174,13 +174,13 @@ utl_check_row_extra <- function(extra, key, category) {
   spec <- vocab("row_extra_fields")
   nms <- names(extra)
   if (is.null(nms) || any(!nzchar(nms)) || anyDuplicated(nms)) {
-    vofi_abort("core.contract.row_extra_names", key = key, .class = "vofi_error_contract")
+    vofi_abort("core.contract.row_extra_names", row = key, .class = "vofi_error_contract")
   }
   for (nm in nms) {
     f <- spec[[nm]]
     v <- extra[[nm]]
     if (is.null(f)) {
-      vofi_abort("core.contract.row_extra_unknown", key = key, field = nm,
+      vofi_abort("core.contract.row_extra_unknown", row = key, field = nm,
                  suggestion = utl_suggest_text(nm, names(spec)),
                  .class = "vofi_error_contract")
     }
@@ -195,7 +195,7 @@ utl_check_row_extra <- function(extra, key, category) {
     )
     if (ok && length(f$categories) > 0L) ok <- category %in% f$categories
     if (!isTRUE(ok)) {
-      vofi_abort("core.contract.row_extra_value", key = key, field = nm,
+      vofi_abort("core.contract.row_extra_value", row = key, field = nm,
                  .class = "vofi_error_contract")
     }
     if (identical(f$type, "integer")) extra[[nm]] <- as.integer(round(v))
@@ -214,18 +214,18 @@ validate_flow_row <- function(row) {
   out <- character(0)
   sec <- vocab("sections")
   if (!isTRUE(sec$flow[match(row$section, sec$code)])) {
-    out <- c(out, msg("core.contract.flow_section", key = row$key, section = row$section))
+    out <- c(out, msg("core.contract.flow_section", row = row$key, section = row$section))
   }
   cat_row <- vocab_category(row$section, row$category)
   if (is.null(cat_row) || !isTRUE(cat_row$flow_ok)) {
-    out <- c(out, msg("core.contract.flow_category", key = row$key, section = row$section,
+    out <- c(out, msg("core.contract.flow_category", row = row$key, section = row$section,
                       category = row$category))
   }
   if (identical(row$tax_category, "principal")) {
-    out <- c(out, msg("core.contract.flow_principal", key = row$key))
+    out <- c(out, msg("core.contract.flow_principal", row = row$key))
   }
   if (identical(row$section, "memo") && isTRUE(row$cash)) {
-    out <- c(out, msg("core.contract.row_memo_cash", key = row$key))
+    out <- c(out, msg("core.contract.row_memo_cash", row = row$key))
   }
   out
 }
@@ -267,7 +267,7 @@ vofi_flows <- function(..., assets = list(), measures = list(), aux = list(), me
   }
   keys <- vapply(rows, function(r) r$key, "")
   if (anyDuplicated(keys)) {
-    vofi_abort("core.contract.flows_duplicate", key = keys[duplicated(keys)][1L],
+    vofi_abort("core.contract.flows_duplicate", row = keys[duplicated(keys)][1L],
                .class = "vofi_error_contract")
   }
   dims <- lapply(rows, function(r) dim(r$values))
@@ -541,7 +541,7 @@ new_ledger_rows <- function(key, section, category, tax_category = NULL, cash = 
   defs <- lapply(seq_len(n), function(i) vocab_category(section[i], category[i]))
   bad <- which(vapply(defs, is.null, logical(1)))
   if (length(bad) > 0L) {
-    vofi_abort("core.contract.row_category", key = key[bad[1L]], section = section[bad[1L]],
+    vofi_abort("core.contract.row_category", row = key[bad[1L]], section = section[bad[1L]],
                category = category[bad[1L]], suggestion = "", .class = "vofi_error_contract")
   }
   pick <- function(x, field, type) {
@@ -603,11 +603,11 @@ validate_vofi_ledger <- function(x) {
   for (k in names(x$values)) {
     v <- x$values[[k]]
     if (!is.matrix(v) || !is.double(v) || !identical(dim(v), c(x$n, x$T + 1L))) {
-      vofi_abort("core.contract.ledger_dims", key = k, n = x$n, T = x$T,
+      vofi_abort("core.contract.ledger_dims", row = k, n = x$n, T = x$T,
                  .class = "vofi_error_contract")
     }
     if (anyNA(v) || any(!is.finite(v))) {
-      vofi_abort("core.contract.row_not_finite", key = k, .class = "vofi_error_contract")
+      vofi_abort("core.contract.row_not_finite", row = k, .class = "vofi_error_contract")
     }
   }
   invisible(x)

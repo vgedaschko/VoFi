@@ -65,7 +65,7 @@ utl_condition <- function(key, args, cls, type = c("error", "warning", "message"
   }
   cls <- setdiff(unique(as.character(cls)), base)
   utl_check_condition_class(cls, type)
-  text <- do.call(msg, c(list(key), args))
+  text <- utl_lbl_text(key, args)
   if (type == "message") text <- paste0(text, "\n")
   structure(
     list(message = text, call = call, key = key, data = data %||% list(), args = args),

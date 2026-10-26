@@ -6,12 +6,13 @@
 | **Dokument** | `docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md` (Spec 01, Teil C) |
 | **Bezug** | `docs/spec/00_kernvertraege.md` (Spec 00, `contract_version = "1.0.0"`, `schema_version = 1`), `docs/Konzept.md`, Memos 02, 03, 04, 07, Prototyp `docs/recherche/prototypen/mc/spec.yaml` |
 | **Stand** | 25.10.2026 |
-| **Status** | Entwurf zur Integration (Rang 3 nach Spec 00 §1.2). Konkretisiert Spec 00 §4.3.14, §4.3.15, §4.9–4.11, §11, §12.7, §12.8 innerhalb der dort festgelegten Strukturen. Wo eine Konkretisierung eine Spec-00-Struktur erweitern müsste, steht ein Änderungsantrag in Abschnitt 8 (`S01C-nn`); bis zur Entscheidung gilt die dort genannte Übergangsregel. |
-| **Eigentümer der Inhalte** | WS-C (Abschnitt 1, Sampler-Semantik), WS-L (Abschnitte 2–3, Bibliotheksdaten), WS-A (Abschnitt 4: Schema und Auflösung der Szenario-Sets; Profile), WS-G (Abschnitte 4.6, 6), WS-S (Abschnitt 5) |
+| **Status** | Entwurf zur Integration (Rang 3 nach Spec 00 §1.2). Konkretisiert Spec 00 §4.3.14, §4.3.15, §4.9–4.11, §9.11, §11, §12.7–12.9 und §15.6 (Referenzszenarien) innerhalb der dort festgelegten Strukturen; abgeglichen mit Spec 00 Runde 2 (R-66 bis R-84). Wo eine Konkretisierung eine Spec-00-Struktur erweitern müsste, steht ein Änderungsantrag in Abschnitt 8 (`S01C-nn`); bis zur Entscheidung gilt die dort genannte Übergangsregel. |
+| **Eigentümer der Inhalte** | WS-C (Abschnitt 1, Sampler-Semantik), WS-L (Abschnitte 2–3, Bibliotheksdaten), WS-A (Abschnitt 4: Schema und Auflösung der Szenario-Sets; Profile), WS-G (Abschnitte 4.3, 4.4, 6), WS-S (Abschnitt 5) |
 | **Nachbarteile** | Teil A (`01a`): Szenario-, Gebäude-, Maßnahmen-, Capex-, Ersatz-, Finanzierungs-, Konten-, Restwert-Felder, globale Defaults und Profile. Teil B (`01b`): Mietrecht, Betriebskosten, Energie/CO2, PV, Haushalt, Mieterkosten, Algorithmen der Förderinstrumente. Teil C liefert die **Daten** der Fördereinträge; ihre **Auslegung** regelt Teil B. |
 
 > **Lesehinweis.** Bezeichner, Schlüssel und Codes sind ASCII-snake_case, Labels und Erläuterungen deutsch. Raten und
-> Anteile sind Dezimalzahlen (`0.039` = 3,9 %), Geldbeträge nominal in EUR brutto (Spec 00 §2.13). Felder, deren Name
+> Anteile sind Dezimalzahlen (`0.039` = 3,9 %), Geldbeträge nominal in EUR brutto (Spec 00 §2.13), **Energiepreisbestandteile im Block `market` und in
+> `energy.carriers` netto** (01b §0.6; USt über `vat_rate`). Felder, deren Name
 > von Teil A bzw. B festgelegt wird und bei Redaktionsschluss noch nicht feststand, tragen den Kommentar `# 01a` bzw.
 > `# 01b`; der hier verwendete Name ist der wahrscheinlichste und ist bei der Integration gegen 01a/01b abzugleichen.
 
@@ -99,7 +100,7 @@ Argumente von `vofi_mc()`/`vofi_run()` gehen vor (Spec 00 §9.2, §14 Nr. 15).
 
 | YAML-Pfad | Typ | Einheit | Default | Pflicht | Validierung | Bedeutung | Quelle/Memo-Ref |
 |---|---|---|---|---|---|---|---|
-| `stochastic.settings.preset` | enum:`preview`,`standard`,`report`,`tail`,`custom` | – | `standard` | nein | E bei unbekanntem Code | setzt `n_sim` nach 6.1, sofern nicht ausdrücklich angegeben; die Blockgröße bleibt 200, sodass jedes Preset ein Präfix des größeren ist (S01C-14) | Konzept §4.3, Memo 04 E9, R-73 |
+| `stochastic.settings.preset` | enum:`preview`,`standard`,`report`,`custom` | – | `standard` | nein | E bei unbekanntem Code | setzt `n_sim` nach 6.1, sofern nicht ausdrücklich angegeben; die Blockgröße bleibt 200, sodass jedes Preset ein Präfix des größeren ist (S01C-14) | Konzept §4.3, Memo 04 E9, R-73 |
 | `stochastic.settings.n_sim` | int | Läufe | `10000` (aus `preset`) | nein | E: ≥ 2 für MC; E: `n_sim %% block_size == 0` (`vofi_error_input` mit Vorschlag des nächsten Vielfachen); im F21-Modus `n_sim %% replicates == 0` | Anzahl Läufe | Spec 00 §11.4, R-73 |
 | `stochastic.settings.seed` | int | – | `20261025` (global.yaml) | ja für MC | E: ganzzahlig in [1, 2^31 − 2]; fehlt Argument und Feld → `vofi_error_input` | Master-Seed der benannten Ströme | Spec 00 §11.3, §9.2 |
 | `stochastic.settings.sampling` | enum:`lhs`,`pseudo` | – | `lhs` | nein | – | Basiszahlen (Spec 00 §11.5) | D8, Memo 04 E6 |
@@ -114,6 +115,7 @@ Argumente von `vofi_mc()`/`vofi_run()` gehen vor (Spec 00 §9.2, §14 Nr. 15).
 | `stochastic.settings.bands` | chr[] | – | `[net_position, dep_balance, od_balance]` | nein | E: Ledger-Schlüssel des Modells (Bestands- oder Flusszeilen) | Fächerbänder | Spec 00 §9.9 |
 | `stochastic.settings.band_probs` | num[] | 1 | `[0.05, 0.25, 0.5, 0.75, 0.95]` | nein | E: streng steigend in (0, 1) | Quantile der Bänder | Spec 00 §13.2 |
 | `stochastic.settings.auto_funding_approval` | lgl | – | `true` | nein | – | automatischer Bernoulli-Schlüssel `funding.<id>.approved` (Spec 00 §11.6 Nr. 4, R-55); bei Entscheidungsknoten (`fallback_variant`) mit Rolle `decision` (Spec 00 §9.11, R-71) | D8 |
+| `stochastic.settings.convergence` | map `{rel_halfwidth_mean, abs_halfwidth_prob}` | 1 | `{0.005, 0.01}` | nein | E: Werte in (0, 1) | Konvergenzkriterien für den Ausweis `converged` (6.1, S01C-14); keine automatische Verlängerung in v1 | Memo 04 §4.4 |
 
 **Prüffälle (WS-C/WS-B):** (s1) `n_sim: 1000` mit Default `block_size: 200` → R = 5, SE-Kennzeichnung „grob“
 (se_df = 4); `n_sim: 10000` → R = 50; (s2) `n_sim: 1100` → `vofi_error_input` mit Vorschlag 1000 oder 1200 (Spec 00
@@ -140,9 +142,9 @@ Präfix: Läufe 1…1.000 von `n_sim: 10000` sind `identical()` zu `n_sim: 1000`
 Schritt 1 von Spec 00 §6.3 bei `multiply` bzw. `add` den Ausdruck `b ⊙ x` bzw. `b + x`, wobei b der in Schritt 3
 ausgewertete deterministische Knoten ist (Skalar → n-Vektor, Pfad → n × (T+1), x zeilenweise gehoben wie
 `ctx$by_sim()`). `draws$static[[key]]` enthält immer x (Faktor bzw. Zuschlag), `draws$u[[key]]` die Uniform. Im
-Design-Lauf (Spec 00 §11.11) gilt dieselbe Verknüpfung mit dem Design-Wert x. Bis zur Entscheidung über S01C-01
-MUSS WS-S in den Referenzszenarien die in Abschnitt 5 je Eintrag als Kommentar angegebene **absolute** Ersatzform
-verwenden können (Werte dort vorberechnet).
+Design-Lauf (Spec 00 §11.11) gilt dieselbe Verknüpfung mit dem Design-Wert x. Die Referenzszenarien (Abschnitt 5)
+verwenden `apply` nur als `replace`; Faktoren und Zuschläge wirken dort über `shared`-Blätter in `expr`-Angaben
+(Muster 5.0 Nr. 6), sodass sie unabhängig von der Entscheidung über S01C-01 rechnen.
 
 **Prüffall apply (WS-C/WS-D):** Ziel `measures.huelle.cost_eur` mit Basiswert 543.301,50; `dist: pert, min: 0.95,
 mode: 1.10, max: 1.50, apply: multiply`; Uniform u = 0,0770428277 (Golden-Vektor 1.10.3, Lauf 1) → x = 1,00872837 →
@@ -434,7 +436,7 @@ Stationär (μ fest): sd 0,012701706; mit μ-Unsicherheit 0,013316656. Prototyp 
 | `…<key>.b` | num \| dist | 1 | `1` | nein | E: endlich; W: b < 0 | Kopplungsfaktor b | |
 | `…<key>.phi` | num \| dist | 1 | `0` | nein | E: \|φ\| < 1 | Persistenz des Rests | |
 | `…<key>.sigma` | num \| dist | 1/a | `0` | nein | E: ≥ 0 | Schock-Std.-Abw. des Rests | |
-| `…<key>.u0` | num \| `base` | 1/a | `0` | nein | E: endlich | Startrest u_1 (Spec 00: u_1 = 0 ist der Default); `base` nach 1.5.1 (S01C-02) | Konzept F18 |
+| `…<key>.u0` | num \| `base` | 1/a | `0` | nein | E: endlich | Startrest u_1 (Spec 00: u_1 = 0 ist der Default; Parameter S01C-03); `base` nach 1.5.1 (S01C-02) | Konzept F18 |
 
 `output = "rate"`. g_y = a + b · base_y + u_y; u_1 = u0; u_y = φ u_{y−1} + σ z_y (y ≥ 2).
 expected: a + b · expected(base) + φ^{y−1} u0. Ohne Schockkorrelation zum Basisprozess:
@@ -676,28 +678,28 @@ zeilenweise konstant, `ctx$by_sim()`); Komponenten sehen beides nur über `ctx$p
 | `market.bund_yield_10y`, `market.mortgage_spread` | rate / path | `vasicek` + `ar1` (Alternative) | `processes/bund10_vasicek_2026`, `processes/mortgage_spread_ar1_2026` | 01a (neue Namen, 1.9.1) |
 | `market.rent_growth`, `market.rent_growth_new` | rate / path | `linked_ar1` | `processes/rent_growth_linked_2026`, `processes/rent_growth_new_linked_2026` | 01a/01b |
 | `market.construction_price_index`, `market.maintenance_index` | rate / path | `linked_ar1` | `processes/construction_price_linked_2026`, `processes/maintenance_cost_linked_2026` | 01a |
-| `market.energy_price.<träger>` | value / path (EUR/kWh) | `mr_trend` | `processes/energy_prices_mr_2026` (`use: <träger>`) | 01b |
+| `market.energy_price.<träger>` | value / path (EUR/kWh netto) | `mr_trend` | `processes/energy_prices_mr_2026` (`use: <träger>`) | 01b |
 | `market.co2_price` | value / path (EUR/t) | `scenario_mix` (Korridor) | `processes/co2_price_corridor_2026` | 01b |
 | `market.bio_fuel_premium` | value / path | statisch `apply: multiply` | `processes/energy_prices_mr_2026` (`use: bio_premium_factor`) | 01b |
 | `shared.network_fee_growth_<träger>` (Wachstum im `growth`-Knoten von `market.energy_network_fee.<träger>`) | rate / scalar | `triangular` | `processes/energy_prices_mr_2026` (`use: network_fee_growth`) | 01b |
-| `measures.<id>.cost_eur` | amount / scalar | `pert` `apply: multiply` | `processes/cost_risks_2026` (`use: overrun_retrofit` \| `overrun_newbuild` \| `overrun_component`) | 01a |
+| `measures.<id>.cost_factor` (Basis 1; Default `{ref: project.construction_cost_factor}`) bzw. `project.construction_cost_factor` (alle Maßnahmen) | number / scalar | `pert` (Faktor; Vorlagen mit `apply: multiply` wirken auf Basis 1 wie `replace`) | `processes/cost_risks_2026` (`use: overrun_retrofit` \| `overrun_newbuild` \| `overrun_component`) | 01a 4.1 (Umlenkung von `cost_eur`, S01A-08) |
 | `project.construction_delay_months` | number / scalar | `pert` | `processes/cost_risks_2026` (`use: delay_newbuild`) | Spec 00 §3.9 |
 | `measures.<id>.delay_months` | number / scalar | `pert` | `processes/cost_risks_2026` (`use: delay_retrofit`) | Spec 00 §3.9 |
 | `measures.<id>.useful_life_years` | number / scalar | `triangular` (aus `costs/nutzungsdauern_2026.uncertainty`) | – | 01a |
 | `energy.performance_gap.prebound_factor` / `.rebound_factor` / `.realisation_factor` | value / scalar | `pert` | `processes/energy_performance_2026` (`use: prebound` \| `rebound` \| `realisation`) | 01b |
-| `energy.<zustand>.generators.<gen>.jaz` (realisierte JAZ; **nicht** `jaz_plan`, das `deterministic_only` ist und § 559f steuert, R-70) | number / scalar | `pert` | `processes/energy_performance_2026` (`use: jaz_air_water_existing` u. a.) | 01b §3.2.3 |
+| `energy.<zustand>.jaz` (realisierte JAZ; **nicht** `jaz_plan`, das `deterministic_only` ist und § 559f steuert, R-70) | number / scalar | `pert` | `processes/energy_performance_2026` (`use: jaz_air_water_existing` u. a.) | 01b §3.2.2 |
 | `funding.<id>.approved` | value 0/1 | `bernoulli` (automatisch aus `approval_probability`; Verfügbarkeit nach 2030 `p = 0.7`); Rolle `decision` bei Entscheidungsknoten | Fördereinträge `budget_risk`; `processes/funding_risks_2026` (`use: availability_post2030`) | Spec 00 §9.11, §11.6 Nr. 4, 01b |
 | `funding.<id>.payout_delay_months` | number ≥ 0 / scalar | `pert` (Auszahlungsverzug nach Zusage, Konzept B12) | `processes/funding_risks_2026` (`use: payout_delay`) | Spec 00 §3.9, R-84, 01b |
-| `financing.<id>.repayment_grant.cut_share` | share / scalar | `discrete` (Kürzung/Rückforderung bei verfehltem Nachweis) | `processes/funding_risks_2026` (`use: repayment_grant_cut`) | Spec 00 §8.2, R-84 |
+| `funding.<id>.repayment_grant.cut_share` (Förderkredite; sonst `financing.<id>.repayment_grant.cut_share`) | share / scalar | `discrete` (Kürzung/Rückforderung bei verfehltem Nachweis) | `processes/funding_risks_2026` (`use: repayment_grant_cut`) | Spec 00 §8.2, R-84, 01b 4.2 |
 | `measures.<id>.active` | value 0/1 / scalar | `bernoulli` (Maßnahme findet statt, z. B. spätere Stufe) | – | Spec 00 §4.3.6, R-71 |
-| `residual_value.<methode>.cap_rate` | rate / path (Spalte T+1) | `apply: add` normal | `processes/valuation_risks_2026` (`use: cap_rate_shock`) | 01a |
-| `residual_value.<methode>.remaining_life_years` | number / scalar | `apply: add` triangular (−5; 0; 5) | `processes/valuation_risks_2026` (`use: remaining_life_shock`) | 01a |
+| `residual_value.income_value.cap_rate` (bzw. `exit_yield.cap_rate`) | rate / path (Spalte T+1) | `truncnorm` bzw. `apply: add` normal | `processes/valuation_risks_2026` (`use: cap_rate_shock`) | 01a 6.1 |
+| `residual_value.income_value.remaining_life_years` (`manual`) bzw. `.remaining_life_offset_years` (sonst; Umlenkung von `apply: add`, S01A-08) | number / scalar | `triangular` bzw. Zuschlag triangular (−5; 0; 5) | `processes/valuation_risks_2026` (`use: remaining_life_shock`) | 01a 6.1 |
 | `unit_groups.<id>.vacancy_rate` | share / path | `pert` bzw. `beta` | `processes/valuation_risks_2026` (`use: vacancy_level`) | 01b |
 | `unit_groups.<id>.rent_law.hardship_share` | share / scalar | `beta` | – | 01b |
 | `unit_groups.<id>.rent_eur_m2_month` | value / scalar | `normal` | – | 01b |
 | `accounts.deposit_rate_pa` | rate / path | Kopplung K3; alternativ `normal` (S4) | – | 01a |
 | `financing.<id>.rate_pa` | rate / scalar | `truncnorm` (spätere Förderkredite) | – | Spec 00 §8.2 |
-| `components.<id>.amount_eur` (Typ `recurring`) | amount / scalar | `pert` `apply: multiply` (Niveaufaktor) | `processes/cost_risks_2026` (`use: maintenance_level`) | Spec 00 §7.12 |
+| `building.maintenance.rate_eur_m2_pa` bzw. `components.<id>.amount_eur` (Typ `recurring`) | amount / scalar | `pert` `apply: multiply` (Niveaufaktor; ohne S01C-01 über `shared`-Faktor im `expr`, 5.2) | `processes/cost_risks_2026` (`use: maintenance_level`) | 01a 3.3, Spec 00 §7.12 |
 | `shared.<name>` | beliebig (Stützstellen, Faktoren) | statisch | – | Spec 00 §4.5 Regel 4, R-64 |
 
 #### 1.9.1 Kanonische Marktnamen, die die Stochastikbibliothek bedient
@@ -823,9 +825,9 @@ Alle Einträge folgen dem Eintragsschema 3.1 mit `block: processes`. Prozess- un
 | `processes/co2_price_corridor_2026` | – | `scenario_mix` (20 Quantilpfade) | `market.co2_price` | `co2_price` | D | Memo 03 §3.4, Konzept B6/F8 |
 | `processes/shock_correlations_2026` | – | Liste | `stochastic.correlations.shocks` | – | D | Memo 03 §2.3, Memo 04 §2.3, Konzept §4.2 |
 | `processes/param_correlations_2026` | – | Liste | `stochastic.correlations.parameters` | – | D | Memo 04 §3.1 |
-| `processes/cost_risks_2026` | `overrun_newbuild`, `overrun_retrofit`, `overrun_component`, `delay_newbuild`, `delay_retrofit`, `maintenance_level` | statisch | `measures.<id>.cost_eur`, `project.construction_delay_months`, `measures.<id>.delay_months`, `components.<id>.amount_eur` | `cost_<id>`, `delay_construction`, `delay_<id>`, `maint_level` | D | Memo 04 §1.2, Memo 07 §4.0/§4.3, Konzept §4.2 |
-| `processes/energy_performance_2026` | `prebound`, `rebound`, `realisation`, `jaz_air_water_existing`, `jaz_air_water_newbuild`, `jaz_ground_existing`, `jaz_air_water_mfh_central`, `jaz_relative` | statisch | `energy.performance_gap.*`, `energy.<zustand>.generators.<gen>.jaz` | `prebound`, `rebound`, `realisation`, `jaz_<id>` | C/D | Memo 04 §1.2, Memo 03 §7.2, Konzept B7 |
-| `processes/funding_risks_2026` | `availability_post2030`, `feed_in_continuation`, `payout_delay`, `repayment_grant_cut` | statisch | `funding.<id>.approved`, `market.feed_in_tariff.<klasse>`, `funding.<id>.payout_delay_months`, `financing.<id>.repayment_grant.cut_share` | `funding.<id>.approved`, `feed_in`, `payout_delay_<id>`, `tz_cut_<id>` | D | Memo 07 §4.0, Konzept B12, Spec 00 §9.11 Nr. 7 |
+| `processes/cost_risks_2026` | `overrun_newbuild`, `overrun_retrofit`, `overrun_component`, `delay_newbuild`, `delay_retrofit`, `maintenance_level` | statisch | `measures.<id>.cost_factor` bzw. `project.construction_cost_factor`, `project.construction_delay_months`, `measures.<id>.delay_months`, `building.maintenance.rate_eur_m2_pa` | `cost_<id>`, `delay_construction`, `delay_<id>`, `maint_level` | D | Memo 04 §1.2, Memo 07 §4.0/§4.3, Konzept §4.2 |
+| `processes/energy_performance_2026` | `prebound`, `rebound`, `realisation`, `jaz_air_water_existing`, `jaz_air_water_newbuild`, `jaz_ground_existing`, `jaz_air_water_mfh_central`, `jaz_relative` | statisch | `energy.performance_gap.*`, `energy.<zustand>.jaz` | `prebound`, `rebound`, `realisation`, `jaz_<id>` | C/D | Memo 04 §1.2, Memo 03 §7.2, Konzept B7 |
+| `processes/funding_risks_2026` | `availability_post2030`, `feed_in_continuation`, `payout_delay`, `repayment_grant_cut` | statisch | `funding.<id>.approved`, `market.feed_in_tariff.<klasse>`, `funding.<id>.payout_delay_months`, `funding.<id>.repayment_grant.cut_share` | `funding.<id>.approved`, `feed_in`, `payout_delay_<id>`, `tz_cut_<id>` | D | Memo 07 §4.0, Konzept B12, Spec 00 §9.11 Nr. 7 |
 | `processes/valuation_risks_2026` | `cap_rate_shock`, `remaining_life_shock`, `vacancy_level`, `vacancy_fluctuation`, `market_value_uplift_efficiency` | statisch; `iid` | `residual_value.*`, `shared.vacancy_level`, `market.vacancy_fluctuation` | `cap_rate_rv`, `rnd_rv`, `vacancy_<group>`, `vacancy_fluct` | D | Memo 04 §1.2, Memo 07 §4.0, Konzept §4.2 |
 
 Förderzusagewahrscheinlichkeiten stehen in den Fördereinträgen (`budget_risk.approval_probability`, 3.4) und erzeugen
@@ -1383,7 +1385,7 @@ values:
   feed_in_continuation:  {dist: bernoulli, label: "feste Einspeisevergütung für Neuanlagen fortgeführt", p: 0.5, apply: multiply}
   payout_delay:          {dist: pert, label: "Auszahlungsverzug Zuschuss nach Zusage (Monate)", min: 0, mode: 0, max: 6}   # Voreinstellung im Basisfall 0 (Spec 00 §9.11 Nr. 7)
   repayment_grant_cut:   {dist: discrete, label: "Kürzung bzw. Rückforderung Tilgungszuschuss (Anteil)", values: [0.0, 0.5, 1.0], probs: [0.95, 0.04, 0.01]}   # D; Basiswert 0 (Konzept B12)
-notes: "Ziele: availability_post2030 -> funding.<id>.approved eines Instruments ohne Entscheidungsknoten (sonst übernimmt der automatische Schlüssel mit Rolle decision); payout_delay -> funding.<id>.payout_delay_months; repayment_grant_cut -> financing.<id>.repayment_grant.cut_share. Prüfwerte: PERT(0; 0; 6) (α = 1, β = 5) Mittel 1,0, q90 2,214256; discrete(0; 0,5; 1) Mittel 0,03, q95 = 0 (Q(0,95) = 0), q96 = 0,5."
+notes: "Ziele: availability_post2030 -> funding.<id>.approved eines Instruments ohne Entscheidungsknoten (sonst übernimmt der automatische Schlüssel mit Rolle decision); payout_delay -> funding.<id>.payout_delay_months; repayment_grant_cut -> funding.<id>.repayment_grant.cut_share (01b 4.2; über den Expander auf financing.f_<id>_loan). Prüfwerte: PERT(0; 0; 6) (α = 1, β = 5) Mittel 1,0, q90 2,214256; discrete(0; 0,5; 1) Mittel 0,03, q95 = 0 (Q(0,95) = 0), q96 = 0,5."
 ```
 
 ```yaml
@@ -1487,7 +1489,8 @@ Qualität C trägt `release`, `legal/*` der Qualität D trägt `reform`.
 | `funding/bafa_beg_em_huelle` | funding | – | ab 2026-07-21 | C | BEG EM Gebäudehülle inkl. iSFP-Bonus |
 | `funding/bafa_beg_em_fachplanung` | funding | – | ab 2026-07-21 | C | Fachplanung/Baubegleitung 50 % |
 | `funding/estg_35c` | funding | – | bis 2030-01-01 | B | Steuerermäßigung § 35c EStG (`instrument_type: tax_credit`, R-11) |
-| `legal/mietrecht_2026` | legal | `mietrecht` | ab 2026-07-29 | A (§ 559f C) | §§ 536, 556d–556g, 557a, 557b, 558, 559, 559a, 559c, 559e, 559f BGB, Auslegungsparameter |
+| `legal/mietrecht_2026` | legal | `mietrecht` | ab 2026-07-29 | A | §§ 536, 556d–556g, 557a, 557b, 558, 559, 559a, 559c, 559e BGB, Auslegungsparameter |
+| `legal/mietrecht_559f_2026` | legal | `mietrecht_559f` | ab 2026-07-29 | C (`release: pending`) | § 559f BGB: JAZ-Schwelle, Halbierung, Ausnahmen (01b 7.4) |
 | `legal/mietrecht_ii_reform` | legal | `mietrecht` / `mietrecht_ii` | ab 2026-07-01 | B | Mietrecht II (BT-Drs. 21/6807, anhängig) |
 | `legal/co2kostaufg_2026` | legal | `co2kostaufg` | ab 2026-07-29 | B (§§ 5b, 5d C) | Stufenmodell, § 5a, § 9 |
 | `legal/gmodg_bio_treppe_2026` | legal | `bio_treppe` | ab 2026-07-29 | B | Bio-Treppe § 43 Abs. 1 GModG |
@@ -2032,8 +2035,11 @@ notes: "Prüfpunkt: Inhalt der Änderung vom 29.06.2026 nicht geprüft (Memo 02 
 
 ### 3.5 Recht (`legal/**`)
 
-Automatische Auswahl je `topic` nach Spec 00 §4.10. Themen v1: `mietrecht`, `co2kostaufg`, `bio_treppe`,
-`co2_pricing`, `emission_factors_geg`, `emission_factors_co2cost`, `grunderwerbsteuer`, `umsatzsteuer`. Die Regeln,
+Automatische Auswahl je `topic` nach Spec 00 §4.10. Themen v1: `mietrecht`, `mietrecht_559f`, `co2kostaufg`,
+`bio_treppe`, `co2_pricing`, `emission_factors_geg`, `emission_factors_co2cost`, `grunderwerbsteuer`, `umsatzsteuer`.
+Einträge der Qualität C ohne Freigabe (`mietrecht_559f`, `grunderwerbsteuer`) sind bis zur Fachfreigabe nur mit
+`project.pending_reforms: [unreleased]` aktiv; sonst ist das Thema inaktiv (§ 559f: keine Halbierung; GrESt: E
+`validation.acquisition.grest_inactive` ohne `grest_rate`, Teil A 4.8). Die Regeln,
 die diese Werte lesen, gehören WS-E (Spec 00 §5.3, Teil B); Feldnamen der Nutzlast sind die Parameternamen der
 Regeln (# 01b).
 
@@ -2050,7 +2056,7 @@ accessed: 2026-10-25
 valid_from: 2026-07-29
 valid_to: null
 quality: A
-quality_detail: {s559f: C, interpretation: D, s558.funding_deduction_duration_grant_years: D}
+quality_detail: {interpretation: D, s558.funding_deduction_duration_grant_years: D}
 legal_state: {as_of: 2026-07-29, status: in_force, reference: "BGB, zuletzt geändert durch Art. 6 GModG-Änderungsgesetz (BGBl. 2026 I Nr. 226)"}
 values:
   s558:
@@ -2095,12 +2101,7 @@ values:
     cap_window_years: 6
     requires_third_party_funds: true      # ohne in Anspruch genommene Drittmittel: § 559
     requires_measure: bgb_555b_1a
-  s559f:                                  # C: nur in Memo 07 belegt (Konzept §10.2)
-    jaz_threshold: 2.5
-    comparison: ge                        # ">= 2,5" (Grenzfall prüfen)
-    reduction_factor: 0.5                 # sonst nur 50 % der Kosten ansetzbar
-    jaz_basis: plan                       # Plan-JAZ VDI 4650 Bl. 1, Nachweis vor Inbetriebnahme
-    exceptions: {construction_year_after: 1996, flow_temperature_max_c: 55}
+  # § 559f (JAZ-Schwelle) als eigener Eintrag legal/mietrecht_559f_2026 (Qualität C, Freigabe ausstehend; 01b 7.4)
   s557a: {excludes: [bgb_558, bgb_559, bgb_559b], min_step_months: 12, mietpreisbremse_per_step: true}
   s557b:
     index: vpi
@@ -2115,12 +2116,12 @@ values:
     newbuild_first_use_after: 2014-10-01
     first_letting_after_comprehensive_modernisation_exempt: true
   s536_1a: {exclusion_months: 3, scope: [bgb_555b_1]}
-  interpretation:                         # Auslegungs-Defaults (vorsichtigere Lesart, Konzept F13/F14/B1); Override in unit_groups.<id>.rent_law (# 01b)
-    third_party_allocation: full          # full | proportional (Zurechnung Drittmittel zum Modernisierungsanteil)
-    s559e_order: flat_before_funds        # 0,10 x (0,85 K - D); Alternative funds_before_flat
-    s559f_order: halve_then_funds         # Alternative funds_then_halve
-    heating_cap_order: heating_first      # Teilkappung Heizungsanteil vor Gesamtkappe
-    s559e_flat_for_section43: false
+  interpretation:                         # Auslegungs-Defaults (vorsichtigere Lesart, Konzept F13/F14/B1); gelesen als Defaults von unit_groups.<g>.rent_law (01b §1.3)
+    third_party_allocation: full          # -> drittmittel_attribution: full | proportional (F14)
+    s559e_order: flat_before_funds        # -> flat_559e_order: 0,10 x (0,85 K - D) (F13); Alternative funds_before_flat
+    s559f_order: halve_then_funds         # -> hp_reduction_order (B1); Alternative funds_then_halve
+    heating_cap_order: heating_first      # Teilkappung Heizungsanteil vor Gesamtkappe (F14; in 01b fest)
+    s559e_flat_for_section43: false       # -> section43_flat: keine 15-%-Pauschale bei § 43-Heizung (B1)
 notes: "Prüfpunkte (Konzept §10.2): § 559f Wortlaut, Grenzfall und Ausnahmen; Reichweite der 15-%-Pauschale bei § 43-Heizungen; Dauer der Kürzung nach § 558 Abs. 5; BGH-Urteile zu Erhaltungsanteil und § 558/§ 559. Rechtsstände vor dem 29.07.2026 sind in v1 nicht hinterlegt."
 ```
 
@@ -2131,6 +2132,29 @@ TZ 3.000, Zinsermäßigung 162 → U = 2.958 €/a = 3,52 €/m²·Monat → Kap
 Vorlauf > 55 °C): `halve_then_funds` 0,10 · (0,85 · 76.780 − 45.300) = 1.996,30 €/a; `funds_then_halve`
 0,10 · (0,85 · 153.560 − 45.300) · 0,5 = 4.261,30 €/a. (m5) S1-T4: (874.303,50 − 144.400) · 0,08 − 1.300.000 · 0,0035 =
 53.842,28 €/a. (m6) § 558 Mietpfad Memo 02 §2.2 (Monat 16: 9,51 €/m²; Monat 106: 11,44 €/m²).
+
+```yaml
+# inst/extdata/library/legal/mietrecht_559f_2026.yaml
+id: legal/mietrecht_559f_2026
+block: legal
+topic: mietrecht_559f
+schema_version: 1
+label: "§ 559f BGB: Halbierung der Umlagebasis bei Wärmepumpen mit Plan-JAZ unter 2,5"
+source: {document: "Memo 07 §1.2 (einzige Fundstelle; Gesetzestext am Stichtag nicht geprüft), Konzept §10.2", url: "docs/recherche/07_use_cases_referenzszenarien.md", publisher: "Sekundärquelle"}
+as_of: 2026-10-25
+valid_from: 2026-07-29
+valid_to: null
+quality: C
+release: {status: pending, by: null, date: null}   # Spec 00 §4.10 (R-80): bis zur Fachfreigabe nur mit pending_reforms: [unreleased]
+legal_state: {as_of: 2026-07-29, status: in_force, reference: "§ 559f BGB i. d. F. GModG-Änderungsgesetz (Wortlaut, Grenzfall und Ausnahmen prüfen)"}
+values:
+  jaz_threshold: 2.5
+  comparison: ge                          # ">= 2,5" (Grenzfall prüfen) -> rent_law.hp_threshold_inclusive
+  reduction_factor: 0.5                   # sonst nur 50 % der Kosten ansetzbar
+  jaz_basis: plan                         # Plan-JAZ VDI 4650 Bl. 1, Nachweis vor Inbetriebnahme (R-70)
+  exceptions: {construction_year_after: 1996, flow_temperature_max_c: 55}
+notes: "Ohne Freigabe ist das Thema inaktiv: keine Halbierung (Spec 00 §4.10 Beispiel). Prüfwerte S3-T4 (5.3) mit pending_reforms: [unreleased]."
+```
 
 ```yaml
 # inst/extdata/library/legal/mietrecht_ii_reform.yaml
@@ -2419,12 +2443,9 @@ values:
       district_heating:   {start: 0.13109, growth: 0.025}
       pellets:            {start: 0.07944, growth: 0.025}   # brutto 8,5 ct / 1,07 (USt-Satz C)
     energy_network_fee:                   # EUR/kWh netto
-      gas:     {start: 0.0257, growth: {ref: shared.network_fee_growth_gas}}       # Memo 07 §1.3, §4.0; Wachstum Default 0,03 (Netzrückbau)
-      gas_mfh: {start: 0.0219, growth: {ref: shared.network_fee_growth_gas_mfh}}
+      gas:     {start: 0.0257, growth: 0.03}   # Memo 07 §1.3, §4.0; Wachstum Netzrückbau (Overlay: Szenario verweist auf shared, 1.9)
+      gas_mfh: {start: 0.0219, growth: 0.03}
     bio_fuel_premium: {start: 0.060, growth: 0.02}   # Biomethan-Mehrkosten 6,0 ct netto (Memo 07 §4.0), D
-  shared:                                 # Basiswerte der Overlay-Ziele (Spec 00 §4.5 Regel 4); Übernahme über shared: {from: prices/energy_prices_2026, use: shared}
-    network_fee_growth_gas: 0.03
-    network_fee_growth_gas_mfh: 0.03
   components:                             # informativ (Herleitung, Plausibilisierung), EUR/kWh BRUTTO
     gas:     {total_incl_co2_65: 0.120, co2_component_at_65: 0.0140, network_fee: 0.0306, range: [0.105, 0.155]}
     gas_mfh: {total_incl_co2_65: 0.112, co2_component_at_65: 0.0140, network_fee: 0.0261, range: [0.098, 0.145]}
@@ -2632,6 +2653,7 @@ values:
     feed_in_tariff:                        # EUR/kWh, fest 20 Jahre ab Inbetriebnahme
       partial_le10kwp: 0.0770
       partial_10_40kwp: 0.0666
+      partial_40_100kwp: 0.0545             # D: 5,74 ct (02/2024) x 0,99^5 (Degression), Prüfpunkt; 01b 7.4
       full_le10kwp: 0.1222
   degression_per_half_year: 0.01           # Memo 07 §4.0 (C)
   fixed_years: 20
@@ -3150,8 +3172,9 @@ Overlay-Einträge weiter.
 
 ### 4.2 Standard-Sets (`inst/extdata/defaults/global.yaml`, Schicht 1; Ablage # 01a)
 
-`foerderstopp` und `vorsichtig` sind nach Spec 00 §4.11 Pflicht; die übrigen Sets stehen zur Wahl in
-`vofi_compare(…, scenario_sets = …)` bereit und werden nur auf Anforderung gerechnet. Alle Werte D (eigene
+`foerderstopp` und `vorsichtig` sind nach Spec 00 §4.11 Pflicht (gleichlautend in Teil A §2.2); die übrigen Sets
+ergänzt WS-A aus dieser Liste in `global.yaml`. Sie stehen zur Wahl in `vofi_compare(…, scenario_sets = …)` bereit
+und werden nur auf Anforderung gerechnet. Alle Werte D (eigene
 Ableitung), Belege in den Kommentaren.
 
 ```yaml
@@ -3305,7 +3328,7 @@ zeigt den Unterschied zum Profilwert 3,5 %.
    2026`; S2-Ersatz und S4 „Preisbasis/Kostenstand 2026“ → je Maßnahme `price_base_year: 2025` (Index ab 1.1.2026;
    Vorlaufjahr 2026 über `series_year` mit Schlüssel 2026, Spec 00 §3.6); S5 Festpreis → `price_index: 0`; S2-Investition
    (nominal 2027/28) → `price_index: 0`.
-5. **Energiepreise netto** (# 01b §0.6, §3.2.1): Die Brutto-Preise aus Memo 07 §4.0 stehen in
+5. **Energiepreise netto** (01b §0.6, §3.2.1): Die Brutto-Preise aus Memo 07 §4.0 stehen in
    `prices/referenzszenarien_2026` als Nettowerte mit acht Nachkommastellen (= brutto / 1,19; Abweichung nach USt
    < 3e-9 EUR/kWh, d. h. < 0,001 EUR je Prüfwert). CO2-Preis netto in EUR/t nach Memo 07 (60/60/70, +5 €/t bis 2035,
    danach +3 %) über `prices/co2_price_path_referenzszenarien_2026` mit den Stützstellen `shared.co2_2030` und
@@ -3318,7 +3341,8 @@ zeigt den Unterschied zum Profilwert 3,5 %.
    Verteilungen nach Memo 07 §4.1–4.5. Variantenspezifische Overlay-Einträge stehen in der Variante (`add`/`set`
    unter `stochastic.parameters`); gleiches Risiko = gleicher Schlüssel mit variantenspezifischen Parametern (CRN,
    R-59), verwandte Kostenrisiken getrennt mit ρ_S 0,7 (B9). Faktoren und Zuschläge wirken über `shared`-Blätter
-   (Basiswert 1 bzw. 0) in `expr`-Angaben (Kosten, Baupreisindex, Bio-Mehrkosten); damit sind die Szenarien
+   (Basiswert 1 bzw. 0): Kostenfaktoren über `measures.<m>.cost_factor: {ref: shared.cost_factor_<v>}` (Teil A
+   4.1), Baupreisindex, Bio-Mehrkosten und Instandhaltungsniveau über `expr`-Angaben; damit sind die Szenarien
    unabhängig von S01C-01.
 7. **Zusagerisiko:** Nur S2 modelliert die Verfügbarkeit der EH-55-Stufe als Entscheidungsknoten (Spec 00 §9.11,
    Konzept S2). Übrige Förderinstrumente tragen `approval_probability: 1.0` (Memo 07 sieht dort kein Zusagerisiko
@@ -3329,7 +3353,11 @@ zeigt den Unterschied zum Profilwert 3,5 %.
    eingearbeitet (S1-T4, S3-T3, S3-T4). MC-Erwartungen gelten für n_sim = 10.000, Seed 20261025, `block_size` 200:
    Eingangsmomente innerhalb 4 SE, Rangkorrelationen ±0,02 (Spec 00 §15.6); qualitative Hypothesen sind keine
    Sollwerte (Konzept §9, F20).
-9. Felder aus Teil A bzw. B, deren Name bei Redaktionsschluss nicht feststand, tragen `# 01a` bzw. `# 01b`.
+9. Feldnamen nach Teil A (Maßnahmen 4.1/4.2, `building.maintenance` 3.3, Restwert 6.1) und Teil B (Energiezustände
+   3.2, PV 3.9, Förderung 4.2, Mietrecht 1.2–1.4), Stand 2026-10-26. Instandhaltung immer über
+   `building.maintenance` (Teil A legt die Pauschale per Default an; keine zusätzliche `recurring`-Instandhaltung).
+   Förderkredite entstehen im Expander `funding` (`financing.f_<f>_loan`, Teil B 4.6; Start = frühester
+   Maßnahmentermin, Teilauszahlungen nach den Zahlungsplänen).
 
 ```yaml
 # inst/extdata/library/prices/referenzszenarien_2026.yaml
@@ -3365,7 +3393,7 @@ values:
       gas_mfh: {start: 0.02193277, growth: {ref: shared.network_fee_growth_gas_mfh}}   # 2,61 ct brutto (2,19 netto)
     bio_fuel_premium: {expr: "market.bio_fuel_premium_base * shared.bio_premium_factor"}
     bio_fuel_premium_base: {start: 0.060, growth: 0.02}       # 6,0 ct netto (7,14 brutto)
-    feed_in_tariff: {partial_le10kwp: 0.0770, partial_10_40kwp: 0.0666}   # IBN bis 31.01.2027, 20 J. fest
+    feed_in_tariff: {partial_le10kwp: 0.0770, partial_10_40kwp: 0.0666, partial_40_100kwp: 0.0545}   # IBN bis 31.01.2027, 20 J. fest
   shared:
     network_fee_growth_gas: 0.03
     network_fee_growth_gas_mfh: 0.03
@@ -3373,7 +3401,7 @@ values:
     co2_2040: 121.72377780                # 105 x 1,03^5
     construction_price_shift: 0           # Overlay-Ziel (additiv, Basis 0)
     bio_premium_factor: 1                 # Overlay-Ziel (Faktor, Basis 1)
-  carriers:                               # Vorlagen für energy.carriers (Übernahme mit use: carriers.<c>, # 01b)
+  carriers:                               # informativ (Werte der Referenzszenarien je Träger; die Szenarien setzen sie in energy.carriers)
     gas:                {class: gas, emission_factor_kg_kwh: 0.181, base_fee_eur_pa: 151.26050420, vat_rate: 0.19}   # Grundpreis 180 EUR brutto
     gas_mfh:            {class: gas, emission_factor_kg_kwh: 0.181, base_fee_eur_pa: 0, vat_rate: 0.19}              # Grundpreis im Arbeitspreis
     heatpump_power:     {class: power_hp, base_fee_eur_pa: 117.64705882, vat_rate: 0.19}                             # 140 EUR brutto
@@ -3435,7 +3463,7 @@ project:
   application_date: 2026-12-15
   legal_state: 2026-10-25
   pending_reforms: []
-  price_base_year: 2026                     # Kostenstand 2027 bzw. Preisbasis 2026 (R-35)
+  price_base_year: 2026                     # Kostenstand 2027 (= Preisstand 1.1.2027) bzw. Preisbasis 2026 der Jahresbeträge (R-35)
   reference_variant: base                   # V1 Ohnehin-Sanierung (Referenzpflicht im Bestand, Spec 00 §12.3a)
   report_mode: expert
 grid: {construction_months: 0}
@@ -3449,10 +3477,13 @@ building:
   energy_class_before: H
   wpb_flag: true                            # Worst Performing Building (Bonus KfW 261)
   denkmal: false
-  heating_existing: {carrier: gas_mfh, installation_year: 1998, efficiency: 0.87}
+  heating_existing: {carrier: gas_mfh, installation_year: 1998}
   consumption_kwh: {gas_mfh: 280000}        # Ø 3 Jahre, Hs
-  land_value_eur: {start: 504000, growth: {ref: market.land_value_growth}, base_date: 2027-01-01}
+  land_value_eur: 504000                    # Bodenwert 2026 (Fortschreibung residual_value.income_value.land_value_growth)
   existing_value_eur: null                  # Memo 07 ohne Bestandswert -> roe_* NA (no_existing_value)
+  maintenance:
+    rate_eur_m2_pa: 14.40                   # 23.040 EUR/a (Preisbasis 2026); V2: Pfad 10,00 2028-2042
+    excludes_explicit_replacements: true    # Ersatz 2042/2047 nicht in der Pauschale (Memo 07)
 unit_groups:
   bestand:
     label: "24 WE Bestand"
@@ -3464,7 +3495,6 @@ unit_groups:
     rent_growth: 0.015
     growth_from: 2028-01-01                 # V2: 2029-01-01
     growth_applies_to: total
-    ovm_eur_m2_month: 7.10                  # informativ (unsaniert); V2 7,60
     vacancy_rate: 0.03                      # V2: 0,01
     rent_default_rate: 0.01
     extra_loss_share: {series: {2027: 0.0125, 2028: 0}, fill: locf, before: first}   # Mietminderung Bauphase; V2: 0,075
@@ -3477,57 +3507,47 @@ unit_groups:
       nonrecoverable_share_of_rent: 0
       recoverable_opex_eur_m2_month: 2.50   # Leerstandsbedingte Betriebskosten
       vacancy_opex_scope: cold
-      growth: {ref: market.inflation}
 measures:
   ohnehin_fassade:
     label: "Gerüst, Putzausbesserung und Anstrich"
-    measure_type: fassade_instandsetzung    # 01a
+    measure_type: putz_anstrich             # ND 15 -> Ersatz 2042 (Memo 07: 82.500, Kostenstand 2027)
     year: 2027
     completion_date: 2027-10-01
-    cost_eur: {expr: "126787.50 * shared.cost_factor_v1"}
+    cost_eur: 126787.50                     # 105.000 x 1,15 x 1,05
+    cost_factor: {ref: shared.cost_factor_v1}
     ohnehin_share: 1
     classification: erhaltung
-    modernization_kind: none
     useful_life_years: 15
-    auto_replacement: false                 # 01a: Ersatz 2042 explizit
+    replacement: {enabled: true, cost_eur: 82500}
   ohnehin_fenster:
     label: "Fenstertausch 2-fach (U_w 1,3)"
-    measure_type: fenster                   # 01a
+    measure_type: fenster
     year: 2027
     completion_date: 2027-10-01
-    cost_eur: {expr: "321195.00 * shared.cost_factor_v1"}
+    cost_eur: 321195.00                     # 266.000 x 1,2075
+    cost_factor: {ref: shared.cost_factor_v1}
     ohnehin_share: 1
     classification: erhaltung
     modernization_kind: none                # Verbesserung bewusst nicht umgelegt (Memo 07)
     useful_life_years: 40
   ohnehin_heizung:
     label: "Gas-Brennwertkessel inkl. Abgas, Speicher, hydraulischer Abgleich"
-    measure_type: heizung_tausch            # 01a
+    measure_type: heizung_gaskessel
     year: 2027
     completion_date: 2027-10-01
-    cost_eur: {expr: "129202.50 * shared.cost_factor_v1"}
+    cost_eur: 129202.50                     # 107.000 x 1,2075
+    cost_factor: {ref: shared.cost_factor_v1}
     ohnehin_share: 1
     classification: erhaltung
-    modernization_kind: none
-    useful_life_years: 20
-    auto_replacement: false                 # 01a: Ersatz 2047 explizit
-  ersatz_fassade_2042:
-    label: "Fassade erneut (Anstrich)"
-    measure_type: fassade_instandsetzung    # 01a
-    year: 2042
-    cost_eur: 82500                         # Kostenstand 2027, Baupreisindex
-    classification: erhaltung
-    modernization_kind: none
-    useful_life_years: 15
-    auto_replacement: false                 # 01a: kein Ersatz am Horizontende 2057-01-01
+    useful_life_years: 20                   # Memo 07 (Szenarioeinstellung, F19)
+    replacement: {enabled: false}           # Ersatz 2047 als eigene Maßnahme (Zustandswechsel bei 2045-Stufe)
   ersatz_heizung_2047:
     label: "Heizungsersatz 2047 (Gas-BW; mit 2045-Stufe Wärmepumpe)"
-    measure_type: heizung_tausch            # 01a
+    measure_type: heizung_gaskessel
     year: 2047
     completion_date: 2047-01-01
     cost_eur: {expr: "95000 + shared.v1_wp_2047 * (300000 - 95000)"}   # WP-Ersatz 300.000 (D, wie V2-Heizung ohne Nebenkosten)
     classification: erhaltung
-    modernization_kind: none
     useful_life_years: 20
 shared:
   from: prices/referenzszenarien_2026       # network_fee_growth_*, co2_2030/2040, construction_price_shift, bio_premium_factor
@@ -3538,33 +3558,26 @@ shared:
   v1_wp_2047: {expr: "ifelse('stufe_2045' %in% project.pending_reforms, 1, 0)"}   # Pflichtsensitivität stufe_2045 (Konzept S1)
 energy:
   carriers:
-    gas_mfh: {class: gas, emission_factor_kg_kwh: 0.181, base_fee_eur_pa: 0}   # Preise per Default aus market.energy_price.gas_mfh (netto), USt 0,19
-    heatpump_power_mfh: {class: power_hp, base_fee_eur_pa: 0}
+    gas_mfh: {emission_factor_kg_kwh: 0.181}          # Preise per Default aus market (netto), USt 0,19
+    heatpump_power_mfh: {}
   before:
-    consumption_basis: measured
-    generators:
-      kessel_alt: {carrier: gas_mfh, type: boiler, efficiency: 0.87, consumption_kwh_pa: 280000, installation_date: 1998-01-01, service_eur_pa: 1512.60504202}   # 1.800 EUR brutto
+    efficiency: 0.87                         # Messverbrauch 280.000 kWh -> Nutzwärme 243.600 kWh
+    service_eur_pa: 1512.60504202            # 1.800 EUR brutto
   after:
     measure: ohnehin_heizung
-    demand_kwh: 242250                      # 255.000 kWh Gas x 0,95 (Memo 07: Wirkungsgradgewinn ≈ 9 %)
-    generators:
-      gas_bw: {carrier: gas_mfh, type: boiler, efficiency: 0.95, installation_date: 2027-10-01, service_eur_pa: 1512.60504202}
+    demand_kwh: 242250                       # 255.000 kWh Gas x 0,95 (Memo 07: Wirkungsgradgewinn ≈ 9 %)
+    heating_carrier: gas_mfh                 # neue Heizung -> installation_date 2027-10-01, § 43, § 5a ab 2028
+    efficiency: 0.95
   stages:
-    ersatz_2047:
+    ersatz2047:
       measure: ersatz_heizung_2047
-      generators:
-        gas_bw_2047: {carrier: gas_mfh, type: boiler, efficiency: 0.95, heat_share: {expr: "1 - shared.v1_wp_2047"}, installation_date: 2047-01-01, service_eur_pa: 1512.60504202}
-        wp_2047: {carrier: heatpump_power_mfh, type: heat_pump, jaz_plan: 2.7, heat_share: {ref: shared.v1_wp_2047}, flow_temperature_c: 60, installation_date: 2047-01-01, service_eur_pa: 2016.80672269}   # D
-components:
-  instandhaltung:
-    type: recurring
-    label: "Instandhaltung pauschal (14,40 EUR/m2 a)"
-    category: maintenance
-    amount_eur: 23040                       # 14,40 x 1.600, Preisbasis 2026
-    growth: {ref: market.maintenance_index}
-    from: 2027-01-01
+      carrier_shares: {gas_mfh: {expr: "1 - shared.v1_wp_2047"}, heatpump_power_mfh: {ref: shared.v1_wp_2047}}
+      efficiency_by_carrier: {gas_mfh: 0.95}
+      heat_pump_carrier: heatpump_power_mfh
+      jaz: 2.7                               # D: unsanierter Bestand, Vorlauf > 55 °C
+      flow_temperature_c: 60
 financing:
-  ek: {type: equity, amount_eur: 151488.50}          # EK-Budget gleich je Variante (V1: 1.488,50 als Geldanlage)
+  ek: {type: equity, amount_eur: 151488.50}  # EK-Budget gleich je Variante (V1: 1.488,50 als Geldanlage)
   bank:
     type: annuity_loan
     label: "Kapitalmarktdarlehen"
@@ -3577,8 +3590,8 @@ financing:
     followup_rate_pa: {ref: market.mortgage_rate}
     refi_rule: keep_term
 accounts:
-  deposit_rate_pa: 0.02                     # Szenarioeinstellung (F18; Profil: 0,035)
-  overdraft_rate_pa: 0.055
+  deposit_rate_pa: {ref: market.mortgage_rate, anchor: 0.02}     # Szenarioeinstellung 2,0 % (F18; Profil 0,035)
+  overdraft_rate_pa: {ref: market.mortgage_rate, anchor: 0.055}
 market:
   from: prices/referenzszenarien_2026
   use: market
@@ -3586,10 +3599,10 @@ market:
 residual_value:
   method: income_value
   sale_cost_share: 0.03
-  cap_rate: 0.035                           # 01a
-  remaining_life_years: 15                  # 01a; V2: 25
-  land_value_eur: {ref: building.land_value_eur}   # 01a
-  management_costs: {from: costs/bewirtschaftung_immowertv_2026}   # 01a: Verwaltung 367, Instandhaltung 14,40, MAW 2 %
+  income_value:
+    cap_rate: 0.035
+    remaining_life_method: manual
+    remaining_life_years: 15                 # V2: 25
 tax: {module: none}
 analysis:
   stabilization_year: 2028
@@ -3611,8 +3624,8 @@ stochastic:
     cost_factor_v2: {target: shared.cost_factor_v2, label: "Kostenabweichung EH-70-Sanierung", from: processes/cost_risks_2026, use: overrun_retrofit, apply: replace}
     vacancy: {target: unit_groups.bestand.vacancy_rate, label: "Leerstand", dist: beta, mean: 0.03, sd: 0.02}
     hardship: {target: unit_groups.bestand.rent_law.hardship_share, label: "Härtefallquote § 559 Abs. 4", dist: beta, mean: 0.08, sd: 0.05}
-    cap_rate_rv: {target: residual_value.cap_rate, label: "Liegenschaftszins 2056", dist: truncnorm, mean: 0.035, sd: 0.005, lower: 0.02, upper: 0.06}
-    rnd_rv: {target: residual_value.remaining_life_years, label: "Restnutzungsdauer 2056", dist: triangular, min: 10, mode: 15, max: 20}
+    cap_rate_rv: {target: residual_value.income_value.cap_rate, label: "Liegenschaftszins 2056", dist: truncnorm, mean: 0.035, sd: 0.005, lower: 0.02, upper: 0.06}
+    rnd_rv: {target: residual_value.income_value.remaining_life_years, label: "Restnutzungsdauer 2056", dist: triangular, min: 10, mode: 15, max: 20}
   correlations:
     parameters: [[cost_factor_v1, cost_factor_v2, 0.7], [co2_2030, co2_2040, 0.8]]
     shocks: {from: processes/shock_correlations_2026}
@@ -3620,99 +3633,78 @@ variants:
   v2_eh70:
     label: "V2 Energetische Sanierung EH 70 EE (KfW 261 mit WPB-Bonus)"
     remove: [financing.bank, measures.ohnehin_fassade, measures.ohnehin_fenster, measures.ohnehin_heizung,
-             measures.ersatz_fassade_2042, measures.ersatz_heizung_2047, energy.stages]
+             measures.ersatz_heizung_2047, energy.stages]
     replace:
       energy.after:
         measure: heizung
         demand_kwh: 120000                  # 75 kWh/m2 a inkl. Rebound
-        generators:
-          wp: {carrier: heatpump_power_mfh, type: heat_pump, jaz_plan: 2.9, flow_temperature_c: 55, installation_date: 2027-10-01, service_eur_pa: 2016.80672269}   # 2.400 EUR brutto; jaz = jaz_plan (Basis)
+        heating_carrier: heatpump_power_mfh
+        jaz: 2.9                            # realisiert (Basis); jaz_plan = Basisfallwert (R-70)
+        jaz_plan: 2.9                       # VDI 4650, Vorlauf <= 55 °C -> § 559f erfüllt
+        flow_temperature_c: 55
+        service_eur_pa: 2016.80672269       # 2.400 EUR brutto
     set:
+      building.maintenance.rate_eur_m2_pa: {series: {2027: 14.40, 2028: {expr: "14.40 - shared.maintenance_saving_v2"}, 2043: 14.40}, fill: locf, before: first}
       unit_groups.bestand.vacancy_rate: 0.01
       unit_groups.bestand.extra_loss_share: {series: {2027: 0.075, 2028: 0}, fill: locf, before: first}
       unit_groups.bestand.growth_from: 2029-01-01
-      unit_groups.bestand.ovm_eur_m2_month: 7.60
       unit_groups.bestand.rent_law.voluntary_cap_per_m2: 1.10      # Beschluss: 21.120 EUR/a ab 01.01.2028
-      residual_value.remaining_life_years: 25
-      components.instandhaltung.to: 2028-01-01
+      residual_value.income_value.remaining_life_years: 25
       stochastic.parameters.vacancy: {mean: 0.01, sd: 0.008}       # gleicher Schlüssel, CRN
       stochastic.parameters.rnd_rv: {min: 18, mode: 25, max: 32}
     add:
       measures.huelle:
         label: "WDVS 16 cm, oberste Geschossdecke, Kellerdecke, Fenster 3-fach, Gerüst"
-        measure_type: daemmung_fassade      # 01a
+        measure_type: daemmung_fassade
         year: 2027
         completion_date: 2027-10-01
-        cost_eur: {expr: "990580.50 * shared.cost_factor_v2"}
-        ohnehin_cost_eur: {expr: "447982.50 * shared.cost_factor_v1"}
-        classification: auto
+        cost_eur: 990580.50                 # 799.500 x 1,18 x 1,05
+        cost_factor: {ref: shared.cost_factor_v2}
+        ohnehin_cost_eur: {expr: "447982.50 * shared.cost_factor_v1"}   # = Ohnehin-Fassade + Ohnehin-Fenster (V1)
         modernization_kind: bgb_555b_1
         useful_life_years: 40
       measures.heizung:
         label: "Luft/Wasser-WP-Kaskade 2 x 45 kW, Heizkörper, Frischwasserstationen, Elektro, Abgleich"
-        measure_type: heizung_tausch        # 01a
+        measure_type: heizung_waermepumpe_luft
         year: 2027
         completion_date: 2027-10-01
-        cost_eur: {expr: "371700.00 * shared.cost_factor_v2"}
+        cost_eur: 371700.00                 # 300.000 x 1,239
+        cost_factor: {ref: shared.cost_factor_v2}
         ohnehin_cost_eur: {expr: "129202.50 * shared.cost_factor_v1"}
-        classification: auto
         modernization_kind: bgb_555b_1a
-        rent_law: {procedure: "559"}        # 01b: § 559 statt § 559e (Teilkappung 0,50 EUR/m2, F14)
-        useful_life_years: 20
-        auto_replacement: false             # 01a: Ersatz 2047 explizit
+        rent_law: {procedure: "559"}        # § 559 statt § 559e (Teilkappung 0,50 EUR/m2, F14; 01b 1.4)
+        useful_life_years: 20               # Memo 07: Erzeuger/Peripherie 2047
+        replacement: {enabled: true, cost_eur: 180000}   # Kostenstand 2027
       measures.lueftung:
         label: "Zentrale Abluftanlage"
-        measure_type: lueftung              # 01a
+        measure_type: lueftung_dezentral
         year: 2027
         completion_date: 2027-10-01
-        cost_eur: {expr: "89208.00 * shared.cost_factor_v2"}
+        cost_eur: 89208.00                  # 72.000 x 1,239
+        cost_factor: {ref: shared.cost_factor_v2}
         ohnehin_cost_eur: 0
-        classification: auto
         modernization_kind: bgb_555b_1
         useful_life_years: 20
-        auto_replacement: false             # 01a: Memo 07 sieht keinen Ersatz 2047 vor
-      measures.ersatz_wp_2047:
-        label: "WP-Erzeuger und Peripherie"
-        measure_type: heizung_tausch        # 01a
-        year: 2047
-        cost_eur: 180000
-        classification: erhaltung
-        modernization_kind: none
-        useful_life_years: 20
-      measures.ersatz_wdvs_2047:
+        replacement: {enabled: false}       # Memo 07 ohne Ersatz im Horizont
+      measures.anstrich_wdvs_2047:
         label: "WDVS-Anstrich"
-        measure_type: fassade_instandsetzung   # 01a
+        measure_type: putz_anstrich
         year: 2047
-        cost_eur: 45000
+        cost_eur: 45000                     # Kostenstand 2027
         classification: erhaltung
-        modernization_kind: none
         useful_life_years: 15
       funding.kfw261:
         from: funding/kfw_261_eh70
         measures: [huelle, heizung, lueftung]
         application_date: 2026-12-15
-        amount_eur: 1264000                 # investiv
-        construction_supervision: {amount_eur: 36000}     # 01b: Baubegleitung, TZ 50 %
-        loan_variant: v30_5_10              # 01b: 30 J., 5 tilgungsfrei, 10 J. fest, 3,65 %
-        payments_per_year: 1                # 01b: Weitergabe an financing.f_kfw261_loan (Spec 00 §15.6)
-        repayment_grant: {date: 2028-01-01, effect: shorten_term}   # 01b
+        amount_eur: 1300000                 # Zusage inkl. Baubegleitung (investiv 1.264.000)
+        construction_support_eur: 36000     # Baubegleitung, TZ 50 %
+        loan_variant: v30_5_10              # 30 J., 5 tilgungsfrei, 10 J. fest, 3,65 %
+        loan: {payments_per_year: 1}        # Spec 00 §15.6 (Bibliothek: 12)
+        repayment_grant: {payout: {lag_months: 3}}   # Gutschrift 2028-01-01 (S1-T8)
+        facts: {ee_class: true}             # EH 70 EE
         approval_probability: 1.0           # Memo 07: kein Zusagerisiko in S1
-      components.instandhaltung_saniert:
-        type: recurring
-        label: "Instandhaltung nach Sanierung (10,00 EUR/m2 a)"
-        category: maintenance
-        amount_eur: {expr: "(14.40 - shared.maintenance_saving_v2) * 1600"}
-        growth: {ref: market.maintenance_index}
-        from: 2028-01-01
-        to: 2043-01-01
-      components.instandhaltung_ab2043:
-        type: recurring
-        label: "Instandhaltung ab 2043 (14,40 EUR/m2 a)"
-        category: maintenance
-        amount_eur: 23040
-        growth: {ref: market.maintenance_index}
-        from: 2043-01-01
-      stochastic.parameters.jaz_v2: {target: energy.after.generators.wp.jaz, label: "JAZ WP-Kaskade (realisiert)", dist: triangular, min: 2.6, mode: 2.9, max: 3.3}
+      stochastic.parameters.jaz_v2: {target: energy.after.jaz, label: "JAZ WP-Kaskade (realisiert)", dist: triangular, min: 2.6, mode: 2.9, max: 3.3}
       stochastic.parameters.demand_after_v2: {target: energy.after.demand_kwh, label: "Nutzwärme nach Sanierung", dist: triangular, min: 104000, mode: 120000, max: 144000}
       stochastic.parameters.maintenance_saving_v2: {target: shared.maintenance_saving_v2, label: "Instandhaltungsersparnis V2", dist: triangular, min: 2.0, mode: 4.4, max: 6.0}
 scenario_sets:
@@ -3724,7 +3716,9 @@ scenario_sets:
 Nicht abgebildet (Abweichungen): Mietspiegelvorteil V2 (Memo 07: Dreieck(0; 0,2; 0,5) €/m² ab 2030) wirkt nur in den
 OVM-Modi des Mietpfads; S1 rechnet nach Memo 07 mit fester Steigerung (`fixed_growth`), daher entfällt er
 (Variante `v2_ovm` mit `increase_policy: max` und `measures.huelle.rent_law.ovm_uplift_eur_m2_month` als Beispiel,
-# 01b). Optionale Varianten V0, V3, V4 nicht im Pflichtumfang (Konzept C7).
+01b 1.4). Die Beschlussumlage 1,10 €/m² ist fest (S1-T6); die rechnerisch warmmietenneutrale Obergrenze liefert
+`unit_groups.bestand.rent_law.voluntary_cap_mode: warm_rent_neutral` (01b 1.3, im Basisfall bestimmt, R-70; Hypothese
+≈ 1,07 €/m²). Optionale Varianten V0, V3, V4 nicht im Pflichtumfang (Konzept C7).
 
 **Prüfwerte S1 (deterministisch):**
 
@@ -3747,7 +3741,8 @@ OVM-Modi des Mietpfads; S1 rechnet nach Memo 07 mit fester Steigerung (`fixed_gr
 | S1-T12 | höherer CO2-Preis (Set `co2_hoch`) ⇒ `delta_vs_reference` (V2) steigt | Monotonie | Memo 07 |
 | S1-T13 | Verwaltung 2027 / 2028 (8.808 × 1,028; × 1,022) | 9.054,62 / 9.253,83 | 01b O-1 |
 | S1-T14 | WP-Strom V2 ab 2028 (120.000 / 2,9) / Gas V1 ab 2028 (242.250 / 0,95) / Gas 2027 (9 Monate Altbestand) | 41.379,31 / 255.000,00 / 210.000,00 kWh | Memo 07 |
-| S1-T15 | Pflichtsensitivität `stufe_2045`: `shared.v1_wp_2047` = 1, Ersatz 2047 = 300.000 (Kostenstand 2027) | Strukturtest | Konzept S1 |
+| S1-T15 | Pflichtsensitivität `stufe_2045`: `shared.v1_wp_2047` = 1, Ersatz 2047 = 300.000 (Kostenstand 2027), Zustand `ersatz2047` zu 100 % Wärmepumpe | Strukturtest | Konzept S1 |
+| S1-T16 | Instandhaltung V1 2027 (14,40 × 1.600 × 1,04) / V2 2028 (10,00 × 1.600 × 1,04 × 1,03) / V2 2043 (14,40 × 1.600 × 1,04 × 1,03^16) | 23.961,60 / 17.139,20 / 38.451,33 | Teil A M1, M5 |
 
 **MC-Erwartungen S1:** (m1) Mittel der Eingänge: Kosten V2 1.657.116,04 (PERT-Mittel 1,1416667), V1 615.664,00
 (1,0666667), JAZ 2,9333, Nutzwärme 122.666,67 kWh, Liegenschaftszins 0,0350222, RND V1 15 / V2 25, CO2 2030 116,67 /
@@ -3756,15 +3751,16 @@ in V1 und V2: identische Uniforms je Lauf (CRN-Test). (m3) Degenerierte Verteilu
 σ = 0) ⇒ jeder Lauf = deterministischer Basisfall (Spec 00 §15.5 Nr. 2). (m4) Hypothesen (Memo 07, F20 neu zu
 prüfen): P(`delta_vs_reference_ex_rv` > 0) klein (< 0,2), P(`delta_vs_reference` > 0) > 0,5; die drei stärksten
 Treiber im Tornado sind RND, Liegenschaftszins und Kostenfaktor V2; Vorzeichenwechsel bei RND V2 ≲ 18 J. bzw.
-LZ ≳ 4,5 % (`vofi_solve(param = "residual_value.remaining_life_years")`). Ampel höchstens Gelb wegen der
+LZ ≳ 4,5 % (`vofi_solve(param = "residual_value.income_value.remaining_life_years", variant = "v2_eh70")`). Ampel höchstens Gelb wegen der
 Restwertregel (Spec 00 §12.9).
 
 ### 5.2 S2 – Kommunales WU: Neubau MFH 36 WE mit KfW 298, Anschlussfinanzierung, Entscheidungsknoten (40 Jahre)
 
 Quelle Memo 07 §4.2, Konzept §9 S2 (Entscheidungsknoten EH-55-Stufe mit Ausweichvariante V1b, DSCR ab 2029).
 Basis = V1 (EH 55 mit KfW 298 EH-55-Stufe), Varianten `v1b_ohne_kfw` (Ausweichvariante) und `v2_eh40_qng`.
-Testkonvention (Memo 07): Bank- und KfW-Darlehen voll zum Stichtag ausgezahlt (Restschuld S2-T6 setzt zehn
-Jahresraten ab 2027 voraus; Bereitstellungsprovision 0); der Überschuss der Bauphase liegt als Geldanlage zu 2,0 %.
+Testkonvention (Memo 07): Das Bankdarlehen ist voll zum Stichtag ausgezahlt (Restschuld S2-T6 setzt zehn
+Jahresraten ab 2027 voraus); der KfW-Kredit folgt dem Zahlungsplan der Maßnahmen (40 % Ende 2027, 60 % Ende 2028,
+Teil B 4.6; Bereitstellungsprovision 0 in der Freizeit); Überschüsse der Bauphase liegen als Geldanlage zu 2,0 %.
 
 ```yaml
 # inst/extdata/examples/s2_wu_neubau_mfh_36we.yaml
@@ -3794,7 +3790,10 @@ building:
   n_units: 36                               # 12 x 50 + 18 x 65 + 6 x 105 m2
   living_area_m2: 2400
   efficiency_standard_after: eh55
-  land_value_eur: {start: 900000, growth: {ref: market.land_value_growth}, base_date: 2027-01-01}
+  land_value_eur: 900000                    # Memo 07: Bodenwert 900.000 (inkl. Nebenkosten) x 1,015^40
+  maintenance:                              # Jahre 1-5 nach Bezug 4,00; 6-15: 9,00; ab 16: 14,40 EUR/m2 a (Preisbasis 2026)
+    rate_eur_m2_pa: {series: {2029: {expr: "4.00 * shared.maintenance_factor"}, 2034: {expr: "9.00 * shared.maintenance_factor"}, 2044: {expr: "14.40 * shared.maintenance_factor"}}, fill: locf, before: first}
+    excludes_explicit_replacements: true
 unit_groups:
   wohnen:
     label: "36 WE Neubau"
@@ -3812,52 +3811,47 @@ unit_groups:
     operating:
       admin_per_unit_eur_pa: 367            # 13.212 EUR/a (2026), VPI
       nonrecoverable_share_of_rent: 0.01
-      growth: {ref: market.inflation}
 measures:
   grundstueck:
-    label: "Grundstück 2.000 m2 x 420 EUR inkl. 7,14 % Erwerbsnebenkosten"
-    measure_type: grundstueck               # 01a
-    asset_type: grundstueck                 # 01a: Kategorie land
+    label: "Grundstück 2.000 m2 x 420 EUR inkl. 7,14 % Erwerbsnebenkosten (pauschal)"
+    measure_type: erwerb_grundstueck
     date: 2027-01-01
-    cost_eur: 900000
-    price_index: 0
-    vat_rate: 0
+    purchase_price_eur: 900000              # Memo 07: 840.000 + 60.000 Nebenkosten als Gesamtbetrag
+    grest_rate: 0                           # in den pauschalen Nebenkosten enthalten (W: Abweichung vom Landessatz)
+    notary_share: 0
+    land_registry_share: 0
   bauwerk:
     label: "Bauwerk KG 300+400 (3.600 EUR/m2)"
-    measure_type: neubau_bauwerk            # 01a
-    kg: 300
+    measure_type: neubau
     payment_schedule: {schedule: {2027-12-31: 0.40, 2028-12-31: 0.60}, unit: share}
     completion_date: 2029-01-01
-    cost_eur: {expr: "8640000 * shared.cost_factor_bau"}
+    cost_eur: 8640000
+    cost_factor: {ref: shared.cost_factor_bau}
     price_index: 0                          # Kostenstand 2027/28 nominal
-    useful_life_years: 80
   nebenkosten:
     label: "Herrichten/Erschließung KG 200, Außenanlagen KG 500, Baunebenkosten KG 700 (20 %)"
-    measure_type: neubau_nebenkosten        # 01a
-    kg: 700
+    measure_type: baunebenkosten
     payment_schedule: {schedule: {2027-12-31: 0.40, 2028-12-31: 0.60}, unit: share}
     completion_date: 2029-01-01
     cost_eur: 2160000                       # 144.000 + 288.000 + 1.728.000
+    cost_factor: 1
     price_index: 0
-    useful_life_years: 80
   ersatz_wp_2049:
     label: "WP-Ersatz"
-    measure_type: heizung_tausch            # 01a
+    measure_type: heizung_waermepumpe_luft
     year: 2049
     cost_eur: 160000                        # V2: 150.000
     price_base_year: 2025                   # Preisbasis 2026 (5.0 Nr. 4)
     classification: erhaltung
     useful_life_years: 20
-    auto_replacement: false                 # 01a
   aufzug_2054:
     label: "Aufzug-Modernisierung"
-    measure_type: aufzug                    # 01a
+    measure_type: aufzug
     year: 2054
     cost_eur: 60000
     price_base_year: 2025
     classification: erhaltung
     useful_life_years: 25
-    auto_replacement: false                 # 01a
 shared:
   from: prices/referenzszenarien_2026
   use: shared
@@ -3867,11 +3861,13 @@ shared:
   maintenance_factor: 1
 energy:
   carriers:
-    heatpump_power_mfh: {class: power_hp, base_fee_eur_pa: 0}
+    heatpump_power_mfh: {}
   after:                                    # Neubau: Zustand ab Fertigstellung (Token completion)
     demand_kwh: 120000                      # D: 50 kWh/m2 a (EH 55, wie S5 V1)
-    generators:
-      wp: {carrier: heatpump_power_mfh, type: heat_pump, jaz_plan: 3.0, flow_temperature_c: 35, service_eur_pa: 2016.80672269}   # D
+    heating_carrier: heatpump_power_mfh
+    jaz: 3.0                                # D
+    flow_temperature_c: 35
+    service_eur_pa: 2016.80672269           # D
 components:
   stellplaetze:
     type: recurring
@@ -3881,36 +3877,13 @@ components:
     growth: 0.02
     base_date: 2030-01-01                   # 2029: 10.080 EUR (S2-T7)
     from: completion
-  instandhaltung_1:
-    type: recurring
-    label: "Instandhaltung Jahre 1-5 nach Bezug (4,00 EUR/m2 a)"
-    category: maintenance
-    amount_eur: {expr: "9600 * shared.maintenance_factor"}
-    growth: {ref: market.maintenance_index}
-    from: 2029-01-01
-    to: 2034-01-01
-  instandhaltung_2:
-    type: recurring
-    label: "Instandhaltung Jahre 6-15 (9,00 EUR/m2 a)"
-    category: maintenance
-    amount_eur: {expr: "21600 * shared.maintenance_factor"}
-    growth: {ref: market.maintenance_index}
-    from: 2034-01-01
-    to: 2044-01-01
-  instandhaltung_3:
-    type: recurring
-    label: "Instandhaltung ab Jahr 16 (14,40 EUR/m2 a)"
-    category: maintenance
-    amount_eur: {expr: "34560 * shared.maintenance_factor"}
-    growth: {ref: market.maintenance_index}
-    from: 2044-01-01
 financing:
   ek: {type: equity, amount_eur: 3000000}
   bank:
     type: annuity_loan
     label: "Kapitalmarktdarlehen"
     amount_eur: 5100000                     # V1b: 8.700.000; V2: 3.858.400
-    start: 2027-01-01
+    start: 2027-01-01                       # Testkonvention: voll zum Stichtag (S2-T6)
     rate_pa: 0.04
     initial_repayment_pa: 0.02              # Annuität 306.000 EUR/a
     fixed_years: 10
@@ -3923,25 +3896,23 @@ funding:
     measures: [bauwerk, nebenkosten]
     application_date: 2026-12-15
     amount_eur: 3600000
-    loan_variant: v35_5_10                  # 01b
-    payments_per_year: 1                    # 01b (Spec 00 §15.6)
-    followup_refi_rule: keep_term           # 01b: KfW-Annuität auf Restlaufzeit
+    loan_variant: v35_5_10
+    loan: {payments_per_year: 1}            # Spec 00 §15.6
     approval_timing: before_start
     fallback_variant: v1b_ohne_kfw          # Entscheidungsknoten (Spec 00 §9.11)
 accounts:
-  deposit_rate_pa: 0.02                     # Szenarioeinstellung (F18)
-  overdraft_rate_pa: 0.055
+  deposit_rate_pa: {ref: market.mortgage_rate, anchor: 0.02}     # Szenarioeinstellung (F18)
+  overdraft_rate_pa: {ref: market.mortgage_rate, anchor: 0.055}
 market:
   from: prices/referenzszenarien_2026
   use: market
-  rent_growth_new: 0.02
 residual_value:
   method: income_value
   sale_cost_share: 0.03
-  cap_rate: 0.030                           # 01a
-  remaining_life_years: 42                  # 01a: GND 80 - Alter 38
-  land_value_eur: {ref: building.land_value_eur}   # 01a
-  management_costs: {from: costs/bewirtschaftung_immowertv_2026}   # 01a
+  income_value:
+    cap_rate: 0.030
+    remaining_life_method: manual
+    remaining_life_years: 42                # GND 80 - Alter 38
 tax: {module: none}
 analysis:
   stabilization_year: 2029
@@ -3956,7 +3927,7 @@ stochastic:
     delay_construction: {target: project.construction_delay_months, label: "Bauzeitverzug", from: processes/cost_risks_2026, use: delay_newbuild}
     rent_initial: {target: shared.rent_initial, label: "Erstvermietungsmiete", dist: normal, mean: 13.00, sd: 0.80}
     rent_growth: {target: unit_groups.wohnen.rent_growth, label: "Mietsteigerung", dist: normal, mean: 0.02, sd: 0.007}
-    cap_rate_rv: {target: residual_value.cap_rate, label: "Liegenschaftszins 2066", dist: truncnorm, mean: 0.030, sd: 0.005, lower: 0.02, upper: 0.06}
+    cap_rate_rv: {target: residual_value.income_value.cap_rate, label: "Liegenschaftszins 2066", dist: truncnorm, mean: 0.030, sd: 0.005, lower: 0.02, upper: 0.06}
     maintenance_factor: {target: shared.maintenance_factor, label: "Instandhaltungsniveau", dist: triangular, min: 0.8, mode: 1.0, max: 1.3}
     construction_price_shift: {target: shared.construction_price_shift, label: "Abweichung Baupreisindex p. a.", dist: normal, mean: 0, sd: 0.012}
     # funding.kfw298.approved: automatisch Bernoulli(0,80), Rolle decision (Spec 00 §11.6 Nr. 4)
@@ -3972,51 +3943,49 @@ variants:
     label: "V2 EH 40 + QNG mit KfW 298 (150.000 EUR/WE), PV 40 kWp, Lüftung mit WRG"
     remove: [funding.kfw298]
     set:
-      building.efficiency_standard_after: eh40_qng
-      measures.bauwerk.cost_eur: {expr: "9072000 * shared.cost_factor_bau"}   # +5 %
-      measures.nebenkosten.cost_eur: 2286400                                  # 144.000 + 288.000 + 1.814.400 + QNG/LCA 40.000
+      building.efficiency_standard_after: eh40
+      measures.bauwerk.cost_eur: 9072000                                   # +5 %
+      measures.nebenkosten.cost_eur: 2286400                               # 144.000 + 288.000 + 1.814.400 + QNG/LCA 40.000
       measures.ersatz_wp_2049.cost_eur: 150000
-      financing.bank.amount_eur: 3858400                                      # Annuität 231.504 EUR/a
+      financing.bank.amount_eur: 3858400                                   # Annuität 231.504 EUR/a
       unit_groups.wohnen.rent_eur_m2_month: {expr: "shared.rent_initial + shared.green_premium_v2"}
-      energy.after.demand_kwh: 84000                                          # D: 35 kWh/m2 a
-      energy.after.generators.wp.jaz_plan: 3.2                                # D
+      energy.after.demand_kwh: 84000                                       # D: 35 kWh/m2 a
+      energy.after.jaz: 3.2                                                # D
     add:
       funding.kfw298_qng:
         from: funding/kfw_298_khn_vermietung  # EH 40 + QNG: 150.000 EUR/WE, 35/5/10, 2,94 %
         measures: [bauwerk, nebenkosten]
         application_date: 2026-12-15
         amount_eur: 5400000
-        qng: true                           # 01b
-        loan_variant: v35_5_10              # 01b
-        payments_per_year: 1                # 01b
-        followup_refi_rule: keep_term       # 01b
+        facts: {qng: true}
+        loan_variant: v35_5_10
+        loan: {payments_per_year: 1}
         approval_probability: 1.0           # Memo 07: Risiko nur für die EH-55-Stufe
       measures.pv:
         label: "PV-Anlage 40 kWp"
-        measure_type: pv                    # 01a
-        asset_type: pv_anlage               # 01a; > 30 kWp: USt-Attribut (Spec 00 §7.10, R-84)
+        measure_type: pv
         payment_schedule: {schedule: {2028-12-31: 1.0}, unit: share}
         completion_date: 2029-01-01
-        cost_eur: 44000                     # 1.100 EUR/kWp netto (costs/anlagentechnik_marktpreise_2026), 0 % USt
-        vat_rate: 0
+        cost_eur: 44000                     # 1.100 EUR/kWp netto (costs/anlagentechnik_marktpreise_2026)
+        vat_rate: 0                         # mit Begünstigungsnachweis (> 30 kWp, R-84)
         price_index: 0
         useful_life_years: 25
+        replacement: {enabled: false}
       measures.wechselrichter_2044:
         label: "Wechselrichtertausch PV"
-        measure_type: pv_wechselrichter     # 01a
+        measure_type: pv_wechselrichter
         year: 2044
         cost_eur: 6000
         price_base_year: 2025
         classification: erhaltung
         useful_life_years: 12
-        auto_replacement: false             # 01a
       energy.pv:
         kwp: 40
         measure: pv
         specific_yield_kwh_kwp: 950
         self_consumption_share: 0.30        # D: WP und Allgemeinstrom
         feed_in_tariff_eur_kwh: 0.0640      # D: 6,66 ct x 0,99^4 (IBN 01/2029)
-        opex_share_of_cost: 0.012
+        vat_zero_rate_attested: true
       stochastic.parameters.green_premium_v2: {target: shared.green_premium_v2, label: "Green Premium EH 40", dist: uniform, min: 0, max: 0.30}
 ```
 
@@ -4031,8 +4000,8 @@ die Maßnahme `pv` nicht mit (Test über `measure_id`).
 | S2-T1 | Gesamtkosten V1 / V2 (ohne `pv`) | 11.700.000 / 12.258.400 | Memo 07 |
 | S2-T2 | KfW-Beträge V1 / V2 (100.000 bzw. 150.000 €/WE × 36) | 3.600.000 / 5.400.000 | Memo 07 |
 | S2-T3 | Bankdarlehen V1 / V1b / V2 | 5.100.000 / 8.700.000 / 3.858.400 | Memo 07 |
-| S2-T4 | KfW-Zinsen tilgungsfreie Jahre 2027–2031 V1 / V2 | 78.840,00 / 158.760,00 €/a | Memo 07 |
-| S2-T4a | KfW-Annuität ab 2032 (30 J.) V1 / V2 | 164.969,40 / 273.371,56 €/a | Memo 07 |
+| S2-T4 | KfW-Zinsen tilgungsfreie Jahre mit Vollauszahlung (2029–2033) V1 / V2; 2028 auf 40 % | 78.840,00 / 158.760,00 €/a; 31.536,00 / 63.504,00 | Memo 07; WS-S |
+| S2-T4a | KfW-Annuität ab 2034 (30 J. nach 5 tilgungsfreien Jahren ab letzter Auszahlung) V1 / V2 | 164.969,40 / 273.371,56 €/a | Memo 07 |
 | S2-T5 | Bank-Annuität V1 / V1b / V2 | 306.000 / 522.000 / 231.504 €/a | Memo 07 |
 | S2-T6 | Restschuld Bank 31.12.2036 V1 / V2 | 3.875.377,07 (±1) / 2.931.912,73 (±1) | Memo 07 |
 | S2-T7 | Rohertrag Soll 2029 (2.400 × 13,00 × 12 + 10.080) | 384.480,00 | Memo 07 |
@@ -4083,7 +4052,7 @@ building:
   construction_year: 1985
   n_units: 12
   living_area_m2: 840
-  heating_existing: {carrier: gas_mfh, installation_year: 2002, efficiency: 0.87}   # Vorlauf 70 °C, Heizlast ≈ 42 kW
+  heating_existing: {carrier: gas_mfh, installation_year: 2002}   # Vorlauf 70 °C, Heizlast ≈ 42 kW
   consumption_kwh: {gas_mfh: 109200}
 unit_groups:
   mitglieder:
@@ -4104,44 +4073,44 @@ unit_groups:
 measures:
   gas_bw:
     label: "Gas-Brennwertkessel inkl. Abgas und Planung (Ohnehin)"
-    measure_type: heizung_tausch            # 01a
+    measure_type: heizung_gaskessel
     year: 2027
     completion_date: 2027-10-01
     cost_eur: 45360                         # 38.000 + 4.000 + 8 % Planung
     ohnehin_share: 1
     classification: erhaltung
-    modernization_kind: none
-    useful_life_years: 20
+    useful_life_years: 20                   # Memo 07 (F19)
 shared:
   from: prices/referenzszenarien_2026
   use: shared
   cost_factor_v2: 1
 energy:
   carriers:
-    gas_mfh: {class: gas, emission_factor_kg_kwh: 0.181, base_fee_eur_pa: 0}
-    heatpump_power_mfh: {class: power_hp, base_fee_eur_pa: 0}
+    gas_mfh: {emission_factor_kg_kwh: 0.181}
+    heatpump_power_mfh: {}
   before:
-    consumption_basis: measured
-    generators:
-      kessel_alt: {carrier: gas_mfh, type: boiler, efficiency: 0.87, consumption_kwh_pa: 109200, installation_date: 2002-01-01, flow_temperature_c: 70, service_eur_pa: 714.28571429}   # 600 + 250 EUR brutto
+    efficiency: 0.87                        # 109.200 kWh -> Nutzwärme 95.004 kWh
+    flow_temperature_c: 70
+    service_eur_pa: 714.28571429            # 600 + 250 EUR brutto
   after:
     measure: gas_bw
     demand_kwh: 95000                       # -> 100.000 kWh Gas bei η 0,95
-    generators:
-      gas_bw: {carrier: gas_mfh, type: boiler, efficiency: 0.95, installation_date: 2027-10-01, service_eur_pa: 714.28571429}
+    heating_carrier: gas_mfh
+    efficiency: 0.95
 financing:
   ek: {type: equity, amount_eur: 50000}     # V1: 45.360 eingesetzt, Rest Geldanlage
 accounts:
-  deposit_rate_pa: 0.02                     # Mindestverzinsung (= Profil wu_genossenschaft)
-  overdraft_rate_pa: 0.055
+  deposit_rate_pa: {ref: market.mortgage_rate, anchor: 0.02}     # Mindestverzinsung (= Profil wu_genossenschaft)
+  overdraft_rate_pa: {ref: market.mortgage_rate, anchor: 0.055}
 market:
   from: prices/referenzszenarien_2026
   use: market
   co2_price: {from: prices/co2_price_path_referenzszenarien_2026}
   pv_internal_price_s3: 0                   # Verrechnungspreis PV-Strom an Mitglieder (Konzept B3); Set pv_verrechnung_20ct
 residual_value:
-  method: component                         # linearer Komponentenzeitwert, kein Gebäudewerteffekt
+  method: component                         # linearer Komponentenzeitwert, kein Gebäudewerteffekt (= Profil für heizungstausch)
   sale_cost_share: 0
+  component: {indexed: false}               # Memo 07 nominal (S3-T8; Teil A OP-02)
 tax: {module: none}
 analysis:
   stabilization_year: 2028
@@ -4168,31 +4137,32 @@ variants:
       energy.after:
         measure: heizung_wp
         demand_kwh: 95000
-        generators:
-          wp: {carrier: heatpump_power_mfh, type: heat_pump, jaz_plan: 3.1, flow_temperature_c: 55, installation_date: 2027-10-01, service_eur_pa: 756.30252101}   # 900 EUR brutto
+        heating_carrier: heatpump_power_mfh
+        jaz: 3.1
+        jaz_plan: 3.1
+        flow_temperature_c: 55
+        service_eur_pa: 756.30252101        # 900 EUR brutto
     set:
       unit_groups.mitglieder.rent_law.voluntary_cap_per_m2: 0.35   # Beschluss: 3.528 EUR/a ab 2028
     add:
       measures.heizung_wp:
         label: "WP-Kaskade 2 x 22 kW, Heizkörper, Frischwasserstation, Elektro, Demontage, Planung"
-        measure_type: heizung_tausch        # 01a
+        measure_type: heizung_waermepumpe_luft
         year: 2027
         completion_date: 2027-10-01
-        cost_eur: {expr: "153560 * shared.cost_factor_v2"}   # 88.000 + 21.600 + 18.000 + 8.000 + 4.000 + 10 % = 13.960
+        cost_eur: 153560                    # 88.000 + 21.600 + 18.000 + 8.000 + 4.000 + 10 % = 13.960
+        cost_factor: {ref: shared.cost_factor_v2}
         ohnehin_cost_eur: 45360             # nur für den Rückfall auf § 559 (01b 1.9.2)
-        classification: auto
         modernization_kind: bgb_555b_1a     # Verfahren auto -> § 559e (Drittmittel)
-        useful_life_years: 20
+        useful_life_years: 20               # Memo 07 (F19)
       measures.pv:
         label: "PV 30 kWp (1.150 EUR/kWp) + Messkonzept"
-        measure_type: pv                    # 01a
-        asset_type: pv_anlage               # 01a
+        measure_type: pv
         year: 2027
         completion_date: 2027-01-01         # IBN bis 31.01.2027 (Vergütungssatz), 20 Jahre genutzt
-        cost_eur: {expr: "38500 * shared.cost_factor_v2"}
+        cost_eur: 38500
+        cost_factor: {ref: shared.cost_factor_v2}
         vat_rate: 0                         # § 12 Abs. 3 UStG (<= 30 kWp)
-        classification: auto
-        modernization_kind: none
         useful_life_years: 25
       energy.pv:
         kwp: 30
@@ -4200,15 +4170,14 @@ variants:
         commissioning_date: 2027-01-01
         specific_yield_kwh_kwp: 900
         self_consumption_share: 0.30        # WP und Allgemeinstrom
-        feed_in_tariff_eur_kwh: {expr: "(10 * market.feed_in_tariff.partial_le10kwp + 20 * market.feed_in_tariff.partial_10_40kwp) / 30"}   # 7,0067 ct
-        tariff_years: 20
+        tariff_years: 20                    # Vergütung (10 x 7,70 + 20 x 6,66)/30 = 7,0067 ct (Default-Ausdruck 01b 3.9.1)
         internal_price_eur_kwh: {ref: market.pv_internal_price_s3}   # Konzept B3: 0 (Memo 07: 0,20)
         opex_share_of_cost: 0.015           # 577,50 EUR/a
       funding.kfw459:
         from: funding/kfw_459_heizung_unternehmen
         measures: [heizung_wp]
         application_date: 2027-01-15
-        payout_date: 2028-01-01             # 01b: Auszahlung 2028
+        payout: {lag_months: 3}             # Auszahlung 2028-01-01 (01b F-1)
         approval_probability: 1.0           # Memo 07: kein Zusagerisiko
       financing.bank:
         type: annuity_loan
@@ -4219,7 +4188,7 @@ variants:
         term_years: 15
         fixed_years: 15
         payments_per_year: 1
-      stochastic.parameters.jaz: {target: energy.after.generators.wp.jaz, label: "JAZ realisiert", dist: triangular, min: 2.6, mode: 3.1, max: 3.4}
+      stochastic.parameters.jaz: {target: energy.after.jaz, label: "JAZ realisiert", dist: triangular, min: 2.6, mode: 3.1, max: 3.4}
       stochastic.parameters.pv_self_share: {target: energy.pv.self_consumption_share, label: "Eigenverbrauchsquote PV", dist: triangular, min: 0.20, mode: 0.30, max: 0.40}
       stochastic.parameters.pv_yield: {target: energy.pv.specific_yield_kwh_kwp, label: "PV-Ertrag", dist: normal, mean: 900, sd: 60}
       stochastic.parameters.cost_factor_v2: {target: shared.cost_factor_v2, label: "Kostenabweichung Komponententausch", from: processes/cost_risks_2026, use: overrun_component, apply: replace}
@@ -4227,8 +4196,9 @@ variants:
     label: "Testfall § 559f: Plan-JAZ 2,4, Vorlauf 70 °C"
     extends: v2_wp_pv
     set:
-      energy.after.generators.wp.jaz_plan: 2.4
-      energy.after.generators.wp.flow_temperature_c: 70
+      project.pending_reforms: [unreleased]   # Thema mietrecht_559f ist C ohne Freigabe (Spec 00 §4.10)
+      energy.after.jaz_plan: 2.4
+      energy.after.flow_temperature_c: 70
       unit_groups.mitglieder.rent_law.voluntary_cap_per_m2: null
 scenario_sets:
   pv_verrechnung_20ct:
@@ -4246,7 +4216,7 @@ den szenarioeigenen Marktpfad `market.pv_internal_price_s3`, den das Set setzt (
 | S3-T1 | förderfähige Höchstkosten 12 WE (28.000 + 5 × 15.000 + 6 × 8.000) | 151.000 | Memo 07 |
 | S3-T2 | Zuschuss KfW 459 (30 % × min(153.560; 151.000)), Auszahlung 2028-01-01 | 45.300,00 | Memo 07 |
 | S3-T3 | § 559e rechnerisch 0,10 × (0,85 × 153.560 − 45.300) / gekappt 0,50 €/m² / angesetzt 0,35 €/m² | 8.522,60 / 5.040,00 / 3.528,00 €/a | **Konzept F13** (Memo 07: 9.202,10) |
-| S3-T4 | `v2_jaz_test` (§ 559f): `halve_then_subtract` 0,10 × (0,85 × 76.780 − 45.300) / `subtract_then_halve` 0,5 × 0,10 × (0,85 × 153.560 − 45.300) | 1.996,30 / 4.261,30 €/a | **Konzept F13** (Memo 07: 2.675,80 / 4.601,05) |
+| S3-T4 | `v2_jaz_test` (§ 559f, Thema `mietrecht_559f` über `pending_reforms: [unreleased]` aktiv): `halve_then_funds` 0,10 × (0,85 × 76.780 − 45.300) / `funds_then_halve` 0,5 × 0,10 × (0,85 × 153.560 − 45.300) | 1.996,30 / 4.261,30 €/a | **Konzept F13** (Memo 07: 2.675,80 / 4.601,05); 01b L-4 |
 | S3-T4a | V2 mit Plan-JAZ 3,1 und Vorlauf 55 °C: keine Halbierung (Ausnahme bzw. JAZ ≥ 2,5) | = S3-T3 | Konzept P5 |
 | S3-T5 | CO2-Stufe Bestand (109.200 × 0,181 / 840) | 23,53 kg/m²·a → 30 % | Memo 07 |
 | S3-T6 | Einspeiseerlös PV (18.900 kWh × 7,00667 ct) | 1.324,26 €/a | Memo 07 |
@@ -4299,10 +4269,11 @@ building:
   n_units: 1
   living_area_m2: 140
   component_areas_m2: {roof: 160, windows: 28, facade: 180, basement_ceiling: 75}
-  heating_existing: {carrier: gas, installation_year: 2005, efficiency: 0.88}   # 21 Jahre: Klimageschwindigkeitsbonus
+  heating_existing: {carrier: gas, installation_year: 2005}   # 21 Jahre: Klimageschwindigkeitsbonus
   consumption_kwh: {gas: 24500}             # Hs, Nutzwärme 21.560 kWh (iSFP-Bedarf 230 kWh/m2 a -> Prebound ≈ 0,76)
+  isfp_available: true                      # iSFP liegt vor (Bonus BAFA, Default funding.<f>.facts.isfp)
 household:
-  taxable_income_avg_eur: 58000             # Ø 2023/2024; minus 10.000 Familienzuschlag -> 48.000 -> Einkommensbonus 10 %
+  taxable_income_avg_eur: 58000             # Ø 2023/2024; minus 10.000 je Kind -> 48.000 -> Einkommensbonus 10 %
   n_children_u18: 1
   net_income_month_eur: 4800
   savings_eur: 60000                        # Erspartes (Expander household -> equity)
@@ -4315,42 +4286,44 @@ unit_groups:
 measures:
   gaskessel:
     label: "Gas-Brennwertkessel nach Ausfall des Altkessels"
-    measure_type: heizung_tausch            # 01a
+    measure_type: heizung_gaskessel
     year: 2030
     delay_months: 0                         # MC: -24 ... +36 (Ausfalljahr 2028-2033)
     cost_eur: 12500                         # Kostenstand 2026 -> 14.068,86 (2030)
     price_base_year: 2025
     classification: erhaltung
     useful_life_years: 20
-    auto_replacement: false                 # 01a: Ersatz explizit (wp_2050)
+    replacement: {enabled: false}           # Ersatz explizit (wp_2050)
   dach_2032:
     label: "Dach-Neueindeckung mit GModG-Mindestdämmung (U <= 0,24)"
-    measure_type: dach                      # 01a
+    measure_type: daemmung_dach_steil
     year: 2032
     cost_eur: 40000                         # -> 47.762,09
     price_base_year: 2025
+    ohnehin_share: 1
     classification: erhaltung
     useful_life_years: 50
   anstrich_2033:
     label: "Fassadenanstrich inkl. Gerüst"
-    measure_type: fassade_instandsetzung    # 01a
+    measure_type: putz_anstrich
     year: 2033
     cost_eur: 11600                         # -> 14.266,54
     price_base_year: 2025
     classification: erhaltung
     useful_life_years: 15
-    auto_replacement: false                 # 01a: Memo 07 ohne Folgeanstrich 2048
+    replacement: {enabled: false}           # Memo 07 ohne Folgeanstrich 2048
   fenster_2042:
     label: "Fenstertausch 2-fach (U_w 1,3)"
-    measure_type: fenster                   # 01a
+    measure_type: fenster
     year: 2042
-    cost_eur: {expr: "building.component_areas_m2.windows * 700"}   # 19.600 -> 31.452,25
+    cost_eur: {value: 700, per: "m2_component:windows"}   # 19.600 -> 31.452,25
     price_base_year: 2025
+    ohnehin_share: 1
     classification: erhaltung
     useful_life_years: 35
   wp_2050:
     label: "Heizungsersatz durch Wärmepumpe (Ende Nutzungsdauer Kessel)"
-    measure_type: heizung_tausch            # 01a
+    measure_type: heizung_waermepumpe_luft
     year: 2050
     delay_months: {ref: measures.gaskessel.delay_months}
     cost_eur: 32000                         # -> 65.049,41; ohne Förderung (Memo 07)
@@ -4363,17 +4336,16 @@ shared:
   saving_stage3: 0.28
 energy:
   carriers:
-    gas: {class: gas, emission_factor_kg_kwh: 0.181, base_fee_eur_pa: 151.26050420}           # 180 EUR brutto
-    heatpump_power: {class: power_hp, base_fee_eur_pa: 117.64705882}                          # 140 EUR brutto
+    gas: {emission_factor_kg_kwh: 0.181, base_fee_eur_pa: 151.26050420}     # 180 EUR brutto
+    heatpump_power: {base_fee_eur_pa: 117.64705882}                         # 140 EUR brutto
   before:
-    consumption_basis: measured
-    generators:
-      kessel_alt: {carrier: gas, type: boiler, efficiency: 0.88, consumption_kwh_pa: 24500, installation_date: 2005-01-01, service_eur_pa: 252.10084034}   # 300 EUR brutto
+    efficiency: 0.88
+    service_eur_pa: 252.10084034            # 300 EUR brutto
   after:
     measure: gaskessel
     demand_kwh: 21560
-    generators:
-      gas_bw: {carrier: gas, type: boiler, efficiency: 0.94, installation_date: 2030-01-01, service_eur_pa: 252.10084034}   # § 43: Bio-Treppe
+    heating_carrier: gas                    # neue Heizung: § 43, Bio-Treppe
+    efficiency: 0.94
   stages:
     dach:
       measure: dach_2032
@@ -4383,13 +4355,14 @@ energy:
       demand_kwh: {expr: "21560 * 0.88 * 0.95"}   # 18.024,16 kWh
     wp:
       measure: wp_2050
-      generators:
-        wp: {carrier: heatpump_power, type: heat_pump, jaz_plan: 3.0, installation_date: 2050-01-01, service_eur_pa: 210.08403361}   # 250 EUR brutto
-financing: {}                               # Einlage aus household.savings_eur (Expander household, # 01b)
+      heating_carrier: heatpump_power
+      jaz: 3.0
+      service_eur_pa: 210.08403361          # 250 EUR brutto
+financing: {}                               # Einlage aus household.savings_eur (Expander household, 01b)
 accounts:
-  deposit_rate_pa: 0.025
-  overdraft_rate_pa: 0.060                  # Ergänzungskredit (Memo 07: Fehlbeträge automatisch)
-  overdraft_limit_eur: .inf                 # Szenarioeinstellung (Profil privat: 0 mit Nachschuss)
+  deposit_rate_pa: 0.025                    # Memo 07; MC: truncnorm (statisch, Memo 07 §4.4)
+  overdraft_rate_pa: {ref: market.mortgage_rate, anchor: 0.060}   # Ergänzungskredit
+  overdraft_limit_eur: .inf                 # Szenarioeinstellung (Memo 07: Fehlbeträge automatisch; Profil: 0 mit Nachschuss)
   deficit_order: [dep_withdraw, od_draw, equity_call]
 market:
   from: prices/referenzszenarien_2026
@@ -4397,7 +4370,7 @@ market:
   construction_price_index_base: {series: {2026: 0.030}, fill: locf, before: first}   # 3,0 % ab 2026
   co2_price: {from: prices/co2_price_path_referenzszenarien_2026}
 residual_value:
-  method: component                         # Zeitwert der Maßnahmen (linear), Pflichtausweis ohne Restwert
+  method: component                         # Zeitwert der Maßnahmen (= Profil selbstnutzer), Pflichtausweis ohne Restwert
   sale_cost_share: 0
 tax: {module: none}
 stochastic:
@@ -4427,34 +4400,37 @@ variants:
       energy.after:
         measure: wp_2027
         demand_kwh: 21560
-        generators:
-          wp: {carrier: heatpump_power, type: heat_pump, jaz_plan: 2.9, installation_date: 2027-01-01, service_eur_pa: 210.08403361}
+        heating_carrier: heatpump_power
+        jaz: 2.9
+        service_eur_pa: 210.08403361
+    set:
+      stochastic.correlations.parameters: [[co2_2030, co2_2040, 0.8], [jaz_s1, jaz_s2, 0.7], [jaz_s2, jaz_s3, 0.7], [jaz_s1, jaz_s3, 0.7]]   # D: dieselbe Anlage
     add:
       measures.wp_2027:
         label: "Luft/Wasser-WP 10 kW inkl. 3 Heizkörper, Demontage"
-        measure_type: heizung_tausch        # 01a
+        measure_type: heizung_waermepumpe_luft
         year: 2027
         cost_eur: 32000                     # -> 32.960,00
         price_base_year: 2025
         useful_life_years: 20
-        auto_replacement: false             # 01a: Ersatz explizit (wp_ersatz_2047)
+        replacement: {enabled: false}       # Ersatz explizit (wp_ersatz_2047)
       measures.dach_fenster_2030:
         label: "Dach (Aufsparrendämmung, U <= 0,14) und Fenster 3-fach"
-        measure_type: dach                  # 01a
+        measure_type: daemmung_dach_steil
         year: 2030
         cost_eur: {expr: "building.component_areas_m2.roof * 320 + building.component_areas_m2.windows * 900"}   # 76.400 -> 85.988,87
         price_base_year: 2025
         useful_life_years: 45               # Dach 50, Fenster 35 (kostengewichtet)
       measures.fassade_2033:
         label: "WDVS 16 cm, Kellerdecke, Gerüst"
-        measure_type: daemmung_fassade      # 01a
+        measure_type: daemmung_fassade
         year: 2033
         cost_eur: {expr: "building.component_areas_m2.facade * 210 + building.component_areas_m2.basement_ceiling * 50 + 3500"}   # 45.050 -> 55.405,82
         price_base_year: 2025
         useful_life_years: 40
       measures.wp_ersatz_2047:
         label: "WP-Ersatz (Erzeuger)"
-        measure_type: heizung_tausch        # 01a
+        measure_type: heizung_waermepumpe_luft
         year: 2047
         cost_eur: 25000                     # -> 46.507,36
         price_base_year: 2025
@@ -4464,62 +4440,54 @@ variants:
         stufe2:
           measure: dach_fenster_2030
           demand_kwh: {expr: "21560 * (1 - shared.saving_stage2)"}                               # 16.170
-          generators:
-            wp: {carrier: heatpump_power, type: heat_pump, jaz_plan: 3.2, installation_date: 2027-01-01, service_eur_pa: 210.08403361}
+          jaz: 3.2
         stufe3:
           measure: fassade_2033
           demand_kwh: {expr: "21560 * (1 - shared.saving_stage2) * (1 - shared.saving_stage3)"}  # 11.642,4
-          generators:
-            wp: {carrier: heatpump_power, type: heat_pump, jaz_plan: 3.5, installation_date: 2027-01-01, service_eur_pa: 210.08403361}
+          jaz: 3.5
       funding.kfw458_wp:
         from: funding/kfw_458_heizung_privat
         measures: [wp_2027]
         application_date: 2026-12-15
-        payout_date: 2028-01-01             # 01b
+        payout: {lag_months: 12}            # Auszahlung 2028-01-01
         approval_probability: 1.0
       funding.bafa_2030:
-        from: funding/bafa_beg_em_huelle
+        from: funding/bafa_beg_em_huelle    # iSFP-Bonus nur auf den Betrag > 30.000 (Default, Konzept B2)
         measures: [dach_fenster_2030]
         application_date: 2029-12-01
-        isfp: true                          # 01b
-        isfp_bonus_mode: excess_over_threshold   # 01b; Alternative whole_amount (Konzept B2)
-        payout_date: 2031-01-01             # 01b
+        payout: {lag_months: 12}            # 2031-01-01
         approval_probability: 1.0
       funding.bafa_2033:
         from: funding/bafa_beg_em_huelle
         measures: [fassade_2033]
         application_date: 2032-12-01        # approval_timing auto -> after_start (einfache Ziehung)
-        isfp: true                          # 01b
-        isfp_bonus_mode: excess_over_threshold   # 01b
-        payout_date: 2034-01-01             # 01b
+        payout: {lag_months: 12}            # 2034-01-01
         approval_probability: 0.7           # Förderverfügbarkeit nach 2030 (Konzept B12)
         on_reject: balance
       funding.kfw358_2030:
         from: funding/kfw_358_ergaenzungskredit_plus
         measures: [dach_fenster_2030]
+        application_date: 2029-12-01
         amount_eur: 70000
-        loan_variant: v25_3_10              # 01b: 25/3/10, 2,53 %
-        start: 2030-01-01                   # 01b
-        payments_per_year: 1                # 01b
+        loan_variant: v25_3_10              # 25/3/10, 2,53 %; Auszahlung zum Maßnahmentermin 2030-01-01
+        loan: {payments_per_year: 1}
         approval_probability: 1.0
       funding.kfw358_2033:
         from: funding/kfw_358_ergaenzungskredit_plus
         measures: [fassade_2033]
+        application_date: 2032-12-01
         amount_eur: 45000
-        loan_variant: v25_3_10              # 01b
-        start: 2033-01-01                   # 01b
-        payments_per_year: 1                # 01b
+        loan_variant: v25_3_10
+        loan: {payments_per_year: 1}
         approved: {ref: funding.bafa_2033.approved}   # Ergänzungskredit nur mit BEG-EM-Förderung
         approval_probability: 1.0
       stochastic.parameters.saving_stage2: {target: shared.saving_stage2, label: "Einsparwirkung Stufe 2", dist: triangular, min: 0.18, mode: 0.25, max: 0.30}
       stochastic.parameters.saving_stage3: {target: shared.saving_stage3, label: "Einsparwirkung Stufe 3", dist: triangular, min: 0.20, mode: 0.28, max: 0.33}
-      stochastic.parameters.jaz_s1: {target: energy.after.generators.wp.jaz, label: "JAZ Zustand 1", dist: triangular, min: 2.6, mode: 2.9, max: 3.2}
-      stochastic.parameters.jaz_s2: {target: energy.stages.stufe2.generators.wp.jaz, label: "JAZ Zustand 2", dist: triangular, min: 2.9, mode: 3.2, max: 3.5}
-      stochastic.parameters.jaz_s3: {target: energy.stages.stufe3.generators.wp.jaz, label: "JAZ Zustand 3", dist: triangular, min: 3.2, mode: 3.5, max: 3.8}
-      stochastic.parameters.rate_kfw358_2030: {target: financing.f_kfw358_2030_loan.rate_pa, label: "Zins KfW 358 (2030)", dist: truncnorm, mean: 0.0275, sd: 0.0075, lower: 0.01, upper: 0.05}   # 01b: Pfad des erzeugten Kredits
-      stochastic.parameters.rate_kfw358_2033: {target: financing.f_kfw358_2033_loan.rate_pa, label: "Zins KfW 358 (2033)", dist: truncnorm, mean: 0.0275, sd: 0.0075, lower: 0.01, upper: 0.05}
-    set:
-      stochastic.correlations.parameters: [[co2_2030, co2_2040, 0.8], [jaz_s1, jaz_s2, 0.7], [jaz_s2, jaz_s3, 0.7], [jaz_s1, jaz_s3, 0.7]]   # D: dieselbe Anlage
+      stochastic.parameters.jaz_s1: {target: energy.after.jaz, label: "JAZ Zustand 1", dist: triangular, min: 2.6, mode: 2.9, max: 3.2}
+      stochastic.parameters.jaz_s2: {target: energy.stages.stufe2.jaz, label: "JAZ Zustand 2", dist: triangular, min: 2.9, mode: 3.2, max: 3.5}
+      stochastic.parameters.jaz_s3: {target: energy.stages.stufe3.jaz, label: "JAZ Zustand 3", dist: triangular, min: 3.2, mode: 3.5, max: 3.8}
+      stochastic.parameters.rate_kfw358_2030: {target: funding.kfw358_2030.loan.variants.v25_3_10.rate_pa, label: "Zins KfW 358 (2030)", dist: truncnorm, mean: 0.0275, sd: 0.0075, lower: 0.01, upper: 0.05}
+      stochastic.parameters.rate_kfw358_2033: {target: funding.kfw358_2033.loan.variants.v25_3_10.rate_pa, label: "Zins KfW 358 (2033)", dist: truncnorm, mean: 0.0275, sd: 0.0075, lower: 0.01, upper: 0.05}
   v2_nur_wp:
     label: "V2 nur Wärmepumpe 2027, Hülle zu den Ohnehin-Terminen"
     remove: [measures.gaskessel, measures.wp_2050, stochastic.parameters.boiler_failure]
@@ -4527,15 +4495,16 @@ variants:
       energy.after:
         measure: wp_2027
         demand_kwh: 21560
-        generators:
-          wp: {carrier: heatpump_power, type: heat_pump, jaz_plan: 2.9, installation_date: 2027-01-01, service_eur_pa: 210.08403361}
+        heating_carrier: heatpump_power
+        jaz: 2.9
+        service_eur_pa: 210.08403361
       energy.stages:
-        dach: {measure: dach_2032, demand_kwh: {expr: "21560 * 0.88"}, generators: {wp: {carrier: heatpump_power, type: heat_pump, jaz_plan: 3.0, installation_date: 2027-01-01, service_eur_pa: 210.08403361}}}
+        dach: {measure: dach_2032, demand_kwh: {expr: "21560 * 0.88"}, jaz: 3.0}
         fenster: {measure: fenster_2042, demand_kwh: {expr: "21560 * 0.88 * 0.95"}}
     add:
-      measures.wp_2027: {label: "Luft/Wasser-WP 10 kW", measure_type: heizung_tausch, year: 2027, cost_eur: 32000, price_base_year: 2025, useful_life_years: 20, auto_replacement: false}
-      measures.wp_ersatz_2047: {label: "WP-Ersatz", measure_type: heizung_tausch, year: 2047, cost_eur: 25000, price_base_year: 2025, classification: erhaltung, useful_life_years: 20}
-      funding.kfw458_wp: {from: funding/kfw_458_heizung_privat, measures: [wp_2027], application_date: 2026-12-15, payout_date: 2028-01-01, approval_probability: 1.0}
+      measures.wp_2027: {label: "Luft/Wasser-WP 10 kW", measure_type: heizung_waermepumpe_luft, year: 2027, cost_eur: 32000, price_base_year: 2025, useful_life_years: 20, replacement: {enabled: false}}
+      measures.wp_ersatz_2047: {label: "WP-Ersatz", measure_type: heizung_waermepumpe_luft, year: 2047, cost_eur: 25000, price_base_year: 2025, classification: erhaltung, useful_life_years: 20}
+      funding.kfw458_wp: {from: funding/kfw_458_heizung_privat, measures: [wp_2027], application_date: 2026-12-15, payout: {lag_months: 12}, approval_probability: 1.0}
 ```
 
 `v3_alles_2027` (optional, Prüfwert Jahresdeckel) entsteht aus `v1_isfp_stufen` mit `year: 2027` für alle Stufen
@@ -4546,7 +4515,7 @@ und je einem BAFA- und KfW-358-Instrument 2027; Prüfwert der Förderung: Hülle
 
 | Nr. | Größe | Soll | Herkunft |
 |---|---|---:|---|
-| S4-T1 | effektives zvE (58.000 − 10.000) / Einkommensbonus | 48.000 / 10 % | Memo 07, # 01b Regel |
+| S4-T1 | effektives zvE (`taxable_income_adj` = 58.000 − 10.000 · 1) / Einkommensbonus | 48.000 / 10 % | Memo 07, 01b 4.3.2, F-3 |
 | S4-T2 | KfW-458-Zuschuss (56 % × min(32.960; 28.000)), Auszahlung 2028-01-01 | 15.680,00 | Memo 07 |
 | S4-T3 | Ausführungskosten V1 2027 / 2030 / 2033 / 2047 | 32.960,00 / 85.988,87 / 55.405,82 / 46.507,36 | Memo 07 |
 | S4-T3a | Ausführungskosten V0 2030 / 2032 / 2033 / 2042 / 2050 | 14.068,86 / 47.762,09 / 14.266,54 / 31.452,25 / 65.049,41 | Memo 07 |
@@ -4574,7 +4543,9 @@ P(`delta_vs_reference`(V1) > 0) ≈ 0,4–0,6; `monthly_saving_avg10`(V1) < 0 in
 Quelle Memo 07 §4.5, Konzept §9 S5. Basis = V1 (Standard ≈ EH 55, KfW 297 EH-55-Stufe), Variante `v2_eh40_kfw300`,
 optional `v2b_eh40_ohne_kfw300` (Fallback bei fehlender Berechtigung, S5-T3) und `v1b_ohne_kfw`. Festpreis-Bauvertrag
 2027 (`price_index: 0`), Bauzeit 03–12/2027, Bezug 2028-01-01. Monatsraten (`payments_per_year: 12`, S01C-06);
-Testkonvention Memo 07: Darlehen voll zum Stichtag ausgezahlt, Raten ab Januar 2027, Zinsbindung bis 31.12.2036.
+Testkonvention Memo 07: Darlehen voll zum Stichtag ausgezahlt, Raten ab Januar 2027, Zinsbindung bis 31.12.2036;
+deshalb sind Bauwerk und Nebenkosten zum Stichtag angesetzt (der Förderkredit startet nach Teil B 4.6 am ersten
+Maßnahmentermin). Ein realistischer Zahlungsplan verschiebt nur die Zinsen der Geldanlage und die ersten KfW-Raten.
 
 ```yaml
 # inst/extdata/examples/s5_neubau_efh_eh40.yaml
@@ -4590,7 +4561,7 @@ project:
   project_type: neubau
   comparison_mode: absolute
   valuation_date: 2027-01-01
-  horizon_years: 30                         # 2027-2056, Horizontende 2057-01-01
+  horizon_years: 30                         # 2027-2056, Horizontende 2057-01-01 (Profil: Neubau 40, Memo 07: 30)
   application_date: 2026-12-15              # EH-55-Stufe bis 31.12.2026, Baugenehmigung vorhanden
   legal_state: 2026-10-25
   price_base_year: 2026
@@ -4603,9 +4574,11 @@ building:
   n_units: 1
   living_area_m2: 140
   efficiency_standard_after: eh55           # GModG-Mindeststandard (≈ EH 55); V2: eh40
-  land_value_eur: {start: 150000, growth: {ref: market.land_value_growth}, base_date: 2028-01-01}
+  land_value_eur: 150000                    # 500 m2 x 300 EUR (Sachwert: Bodenwert fortgeschrieben 1,5 % p. a.)
+  maintenance:
+    rate_eur_m2_pa: 10.0                    # Instandhaltungsrücklage 1.400 EUR/a (Memo 07), ab Fertigstellung
 household:
-  taxable_income_avg_eur: 85000             # Ø 2023/2024; KfW 300: <= 90.000 + 10.000 je Kind
+  taxable_income_avg_eur: 85000             # Ø 2023/2024; KfW 300: <= 90.000 + 10.000 je weiterem Kind
   n_children_u18: 2
   net_income_month_eur: 6300                # inkl. Kindergeld
   current_rent_month_eur: 1250              # Warmmiete bis Einzug (Doppelbelastung 2027)
@@ -4618,63 +4591,61 @@ unit_groups:
     owner_occupied: true
 measures:
   grundstueck:
-    label: "Grundstück 500 m2 x 300 EUR + 10 % Erwerbsnebenkosten"
-    measure_type: grundstueck               # 01a
-    asset_type: grundstueck                 # 01a
+    label: "Grundstück 500 m2 x 300 EUR + 10 % Erwerbsnebenkosten (pauschal)"
+    measure_type: erwerb_grundstueck
     date: 2027-01-01
-    cost_eur: 165000
-    price_index: 0
-    vat_rate: 0
+    purchase_price_eur: 165000              # Memo 07: 150.000 + 15.000 Nebenkosten als Gesamtbetrag
+    grest_rate: 0                           # in den pauschalen Nebenkosten enthalten (W)
+    notary_share: 0
+    land_registry_share: 0
   bauwerk:
     label: "Bauwerk KG 300+400 (3.000 EUR/m2)"
-    measure_type: neubau_bauwerk            # 01a
-    kg: 300
-    payment_schedule: {schedule: {2027-07-01: 0.40, 2027-12-31: 0.60}, unit: share}   # D
+    measure_type: neubau
+    date: 2027-01-01                        # Testkonvention: Zahlung zum Stichtag, damit Förderkredit ab 2027-01 voll (01b 4.6)
     completion_date: 2028-01-01
     cost_eur: 420000                        # V2: 420.000 x (1 + Mehrkosten EH 40)
-    price_index: 0
-    useful_life_years: 80
+    price_index: 0                          # Festpreis-Bauvertrag 2027
   nebenkosten:
     label: "Baunebenkosten KG 700 (12 %), Hausanschlüsse KG 200, Außenanlagen KG 500"
-    measure_type: neubau_nebenkosten        # 01a
-    kg: 700
-    payment_schedule: {schedule: {2027-07-01: 0.40, 2027-12-31: 0.60}, unit: share}
+    measure_type: baunebenkosten
+    date: 2027-01-01
     completion_date: 2028-01-01
     cost_eur: 95400                         # 50.400 + 20.000 + 25.000; V2: + 3.000 LCA/EEE
     price_index: 0
-    useful_life_years: 80
   kueche:
     label: "Küche KG 600"
-    measure_type: ausstattung               # 01a
+    measure_type: ausstattung               # nicht im Sachwert (asset_value.kg_include ohne 600)
     date: 2027-12-31
     cost_eur: 15000
     price_index: 0
     useful_life_years: 15
-    auto_replacement: false                 # 01a
-    residual_excluded: true                 # 01a: nicht im Sachwert (Memo 07)
+    replacement: {enabled: false}
   pv:
     label: "PV-Anlage 8 kWp"
-    measure_type: pv                        # 01a
-    asset_type: pv_anlage                   # 01a
-    date: 2027-12-31
+    measure_type: pv
+    date: 2027-12-01
     completion_date: 2027-12-01             # IBN 12/2027
     cost_eur: 11000
     vat_rate: 0
     price_index: 0
     useful_life_years: 25
+    replacement: {enabled: false}
 shared:
   from: prices/referenzszenarien_2026
   use: shared
   eh40_surcharge: 0.06                      # Mehrkosten EH 40 (Anteil an KG 300+400)
-  efficiency_premium_v2: 0.03               # Effizienzzuschlag Restwert V2
+  efficiency_premium_v2: 0.03               # Effizienzzuschlag Sachwert V2
   feed_in_flag: 1                           # EEG-Vergütung für Neuanlagen < 25 kWp fortgeführt
 energy:
   carriers:
-    power: {class: power, base_fee_eur_pa: 100.84033613}          # Haushaltsstrom 37 ct, Grundpreis 120 EUR brutto (ein Zähler mit PV)
-  after:
+    power: {base_fee_eur_pa: 100.84033613}  # Haushaltsstrom 37 ct, Grundpreis 120 EUR brutto (ein Zähler mit PV)
+  after:                                    # Zustand ab Fertigstellung (Token completion)
     demand_kwh: 7000                        # 50 kWh/m2 a; V2: 4.900
-    generators:
-      wp: {carrier: power, type: heat_pump, jaz_plan: 3.5, flow_temperature_c: 35, service_eur_pa: 210.08403361}   # 250 EUR brutto
+    heating_carrier: power
+    heat_pump_carrier: power                # WP am Haushaltszähler (Klasse power: ausdrücklich, 01b 3.2.2)
+    jaz: 3.5                                # V2: 3,8
+    flow_temperature_c: 35
+    service_eur_pa: 210.08403361            # WP-Wartung 250 EUR brutto
     extra_consumption:
       haushalt: {carrier: power, kwh_pa: 3500, label: "Haushaltsstrom"}
   pv:
@@ -4683,7 +4654,6 @@ energy:
     commissioning_date: 2027-12-01
     specific_yield_kwh_kwp: 950
     self_consumption_share: 0.35            # V2: 0,33
-    self_consumption_carrier: power
     feed_in_tariff_eur_kwh: {expr: "0.0755 * shared.feed_in_flag"}   # IBN 12/2027 (7,70 ct −1 %/Halbjahr), 20 J. fest
     tariff_years: 20
     opex_eur_pa: 150
@@ -4695,19 +4665,12 @@ components:
     amount_eur: 1600
     growth: {ref: market.inflation}
     from: completion
-  ruecklage:
-    type: recurring
-    label: "Instandhaltungsrücklage (10 EUR/m2 a)"
-    category: maintenance
-    amount_eur: 1400
-    growth: {ref: market.maintenance_index}
-    from: completion
 financing:
   bank:
     type: annuity_loan
     label: "Bankdarlehen"
     amount_eur: 426400                      # V2: 384.600
-    start: 2027-01-01
+    start: 2027-01-01                       # Testkonvention: voll zum Stichtag (S5-T4..T6)
     rate_pa: 0.041
     initial_repayment_pa: 0.02              # 2.167,53 EUR/Monat
     term_years: 35                          # Ziel Volltilgung bis 2062 (Anschluss keep_term)
@@ -4718,26 +4681,26 @@ financing:
     fees: {commitment_fee_rate_month: 0.0025, commitment_free_months: 6}   # ohne Wirkung bei Vollauszahlung
 funding:
   kfw297:
-    from: funding/kfw_297_khn_eh55_stufe    # 35/5/10, 2,19 %
+    from: funding/kfw_297_khn_eh55_stufe    # 35/5/10, 2,19 %; Auszahlung zum ersten Maßnahmentermin (01b 4.6)
     measures: [bauwerk, nebenkosten]
     application_date: 2026-12-15
     amount_eur: 100000
-    loan_variant: v35_5_10                  # 01b
-    payments_per_year: 12                   # 01b
-    followup_refi_rule: keep_term           # 01b
+    loan_variant: v35_5_10
+    loan: {payments_per_year: 12}
     approval_probability: 1.0               # Memo 07: kein Zusagerisiko modelliert
 accounts:
-  deposit_rate_pa: 0.025
-  overdraft_rate_pa: 0.060
+  deposit_rate_pa: {ref: market.mortgage_rate, anchor: 0.025}
+  overdraft_rate_pa: {ref: market.mortgage_rate, anchor: 0.060}
 market:
   from: prices/referenzszenarien_2026
   use: market
   co2_price: {from: prices/co2_price_path_referenzszenarien_2026}
 residual_value:
-  method: asset_value                       # Sachwert vereinfacht: Boden + HK x Index x (1 - Alter/80), MAF 1,0
+  method: asset_value                       # Sachwert vereinfacht (= Profil selbstnutzer/neubau)
   sale_cost_share: 0.03
-  market_adjustment_factor: 1.0             # 01a
-  value_premium_share: 0                    # 01a; V2: {ref: shared.efficiency_premium_v2}
+  asset_value:
+    market_adjustment_factor: 1.0
+    uplift_share: 0                         # V2: Effizienzzuschlag
 tax: {module: none}
 analysis:
   stabilization_year: 2028
@@ -4763,21 +4726,20 @@ variants:
       measures.nebenkosten.cost_eur: 98400
       financing.bank.amount_eur: 384600     # 1.955,05 EUR/Monat
       energy.after.demand_kwh: 4900
-      energy.after.generators.wp.jaz_plan: 3.8
+      energy.after.jaz: 3.8
       energy.pv.self_consumption_share: 0.33
-      residual_value.value_premium_share: {ref: shared.efficiency_premium_v2}
+      residual_value.asset_value.uplift_share: {ref: shared.efficiency_premium_v2}
       stochastic.parameters.demand_after: {min: 3920, mode: 4900, max: 6300}   # 28/35/45 kWh/m2 a; gleicher Schlüssel (CRN)
     add:
+      energy.after.extra_consumption.lueftung: {carrier: power, kwh_pa: 400, label: "Lüftung mit WRG"}
       funding.kfw300:
         from: funding/kfw_300_wohneigentum_familien   # Stufe 1 EH 40: 170.000 EUR, 35/5/10, 1,00 %
         measures: [bauwerk, nebenkosten]
         application_date: 2026-12-15
         amount_eur: 170000
-        loan_variant: v35_5_10              # 01b
-        payments_per_year: 12               # 01b
-        followup_refi_rule: keep_term       # 01b
+        loan_variant: v35_5_10
+        loan: {payments_per_year: 12}
         approval_probability: 1.0
-      energy.after.extra_consumption.lueftung: {carrier: power, kwh_pa: 400, label: "Lüftung mit WRG"}
       components.lueftungsfilter:
         type: recurring
         label: "Lüftungsfilter"
@@ -4798,8 +4760,8 @@ variants:
         measures: [bauwerk, nebenkosten]
         application_date: 2026-12-15
         amount_eur: 100000
-        loan_variant: v35_5_10              # 01b: 2,94 %
-        payments_per_year: 12               # 01b
+        loan_variant: v35_5_10              # 2,94 %
+        loan: {payments_per_year: 12}
         approval_probability: 1.0
   v1b_ohne_kfw:
     label: "V1b Standard ohne KfW (EH-55-Stufe ausgelaufen)"
@@ -4812,8 +4774,8 @@ variants:
 | Nr. | Größe | Soll | Herkunft |
 |---|---|---:|---|
 | S5-T1 | Gesamtkosten V1 / V2 | 706.400 / 734.600 | Memo 07 |
-| S5-T2 | KfW-300-Berechtigung: zvE 85.000 ≤ 90.000 + 10.000 · 2 → ja; Höchstbetrag Stufe 1 | ja; 170.000 | Memo 07, # 01b Regel |
-| S5-T3 | Negativtest `household.taxable_income_avg_eur: 105000` in V2 → nicht berechtigt: `vofi_error_validation` (`validation.b.funding.eligibility`, # 01b) mit Hinweis auf `v2b_eh40_ohne_kfw300` | Validierungstest | Memo 07 |
+| S5-T2 | KfW-300-Berechtigung: zvE 85.000 ≤ 90.000 + 10.000 · (2 − 1) = 100.000 → ja; Kreditdeckel Stufe 1 | ja; 170.000 | Memo 07, 01b 4.3.1, F-13 |
+| S5-T3 | Negativtest `household.taxable_income_avg_eur: 105000` in V2 → nicht berechtigt: W „nicht berechtigt“, KfW 300 erzeugt keinen Baustein (01b 4.3.1, F-13); Fehlbetrag 170.000 über den Ausgleich (Nachschuss, Profil privat), Hinweis auf `v2b_eh40_ohne_kfw300` | Validierungstest | Memo 07, 01b F-13 |
 | S5-T4 | Monatsraten Jahre 1–5 (2027–2031) V1: 2.167,53 + 182,50 / V2: 1.955,05 + 141,67 | 2.350,03 / 2.096,72 | Memo 07 |
 | S5-T5 | Monatsraten Jahre 6–10 (2032–2036) V1: 2.167,53 + 379,19 / V2: 1.955,05 + 546,79 | 2.546,73 / 2.501,84 | Memo 07 |
 | S5-T6 | Restschuld nach 120 Monaten Bank V1 / V2; KfW V1 / V2 | 321.200,85 (±1) / 289.713,52; 87.540,04 / 145.085,47 | Memo 07 (321.201 / 289.714; 87.540 / 145.085) |
@@ -4828,3 +4790,245 @@ Einspeisevergütung je Block exakt 100 von 200 Läufen 7,55 ct, Effizienzzuschla
 (Memo 07, F20): P(`delta_vs_reference`(V2) > 0) > 0,8 („wegen der Förderung, nicht wegen der Energiekosten“: die
 Betriebskosten V2 liegen ≈ 50 €/a über V1); `burden_ratio_max` 0,38–0,42 → Restriktion `burden` (Schwelle 0,40)
 in einem Teil der Läufe verletzt; Ampel daher höchstens Gelb, falls P(Verletzung) ≥ 0,30 (Spec 00 §12.9).
+
+### 5.6 `grob_lehrbuch_a` – Lehrbuch-VoFi (Orakel (a)) als Beispiel mit Overlay
+
+Zweck: kleinstes vollständiges Beispiel mit beiden Kreditarten, Kontokorrent, Geldanlage und Restwert (Spec 00 §15.3
+Orakel (a); Memo 01 §10) für Einstieg, Dokumentation und MC-Rechenprobe. Der Restwert ist eine eigene Komponente der
+Kategorie `residual_value` (nur in T) mit dem unsicheren Blatt `shared.rw`; der Endwert ist linear im Restwert
+(EW = BS_T, Zuflüsse in T werden nicht mehr verzinst), deshalb sind alle MC-Kennzahlen geschlossen bekannt.
+
+```yaml
+# inst/extdata/examples/grob_lehrbuch_a.yaml
+schema_version: 1
+meta: {scenario_id: grob_lehrbuch_a, title: "Lehrbuch-VoFi (a): Annuitäten- und endfälliges Darlehen, Restwert", author: "WS-T (Orakel (a))"}
+project: {perspective: wu_privat, project_type: neubau, valuation_date: 2027-01-01, horizon_years: 5}
+components:
+  z:  {type: custom_series, label: "Zahlungsfolge", values: [-100000, 6000, 10000, 30000, 8000, 30000]}
+  rw: {type: custom_series, label: "Restwert", category: residual_value, values: [0, 0, 0, 0, 0, {ref: shared.rw}]}
+shared: {rw: 40000}
+financing:
+  ek:  {type: equity, amount_eur: 30000}
+  ann: {type: annuity_loan, label: "Annuitätendarlehen", amount_eur: 40000, rate_pa: 0.06, term_years: 5, payments_per_year: 1}
+  bul: {type: bullet_loan, label: "Endfälliges Darlehen", amount_eur: 30000, rate_pa: 0.05, term_years: 5, payments_per_year: 1}
+accounts:
+  deposit_rate_pa: 0.03
+  overdraft_rate_pa: 0.10
+  overdraft_limit_eur: .inf
+  min_liquidity_eur: 0
+  surplus_order: [od_repay, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+  deposit_withholding_tax_share: 0
+residual_value: {method: zero}            # Restwert über Komponente rw (Spec 00 §15.3)
+tax: {module: none}
+analysis:
+  kpis: [terminal_value, terminal_value_opp, delta_terminal_value, roe_classic, roe_mirr, roe_irr, payback_time,
+         min_net_liquidity, max_overdraft, withdrawal_equivalent, npv_cf_project, irr_cf_project]
+stochastic:
+  settings: {n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200}
+  parameters:
+    rw: {target: shared.rw, label: "Restwert", dist: triangular, min: 30000, mode: 40000, max: 50000}
+```
+
+**Prüfwerte (deterministisch, Spec 00 §15.3 (a)):** EW 38.504,63; EW_U 34.778,22; ΔEW 3.726,41; R1 = R2 = R3 =
+5,1183 %; `payback_time` 5, ohne Restwert `no_payback`; min. Nettoliquidität −6.491,30; max. KK 6.491,30;
+Entnahme-Äquivalent 672,44; KW(3 %) 10.195,96; IZF 5,5636 %; Annuität 9.495,86 (Tilgung t = 1 7.095,86).
+**Zielwertsuche:** `vofi_solve(x, param = "shared.rw", target = 0)` → kritischer Restwert 36.273,59 (= 40.000 −
+3.726,41), `prob_exceed` = P(RW > 36.273,59) = 0,803210; `vofi_solve(x, param = "shared.rw", kpi = "roe_mirr",
+target = 0.06)` → 41.642,14 (EW* = 30.000 · 1,06⁵ = 40.146,77).
+
+**MC-Erwartungen (geschlossen, n_sim = 10.000; Mittel innerhalb 4 SE, Quantile innerhalb ihrer
+Ordnungsstatistik-Konfidenzintervalle):**
+
+| Größe | Soll | Herleitung |
+|---|---:|---|
+| mean / sd von `terminal_value` | 38.504,63 / 4.082,48 | EW = 38.504,63 + (RW − 40.000); sd Dreieck = 10.000/√6 |
+| mean `delta_terminal_value` | 3.726,41 | |
+| q05 / q50 / q95 `delta_terminal_value` | −3.111,31 / 3.726,41 / 10.564,13 | Q_Dreieck(p) − 40.000 + 3.726,41 |
+| `p_neg` | 0,196790 | F_Dreieck(36.273,59) = 6.273,59² / (20.000 · 10.000) |
+| `es05` | −4.165,40 | E[ΔEW \| ΔEW ≤ q05] |
+| `expected_loss` | 411,53 | E[max(−ΔEW, 0)] |
+| `na_share` von `payback_time` | 0,196790 | Amortisation in t = 5 genau bei ΔEW ≥ 0, sonst `no_payback` |
+| `terminal_value_ex_rv` | 38.504,63 − 40.000 = −1.495,37 in jedem Lauf | Sicht ohne Restwert |
+
+### 5.7 Walking Skeleton
+
+`skeleton.yaml` bleibt wie Spec 00 Anhang A (ohne Overlay). Prüfwerte der Pflichtsensitivitäten auf dem Skelett:
+Abschnitt 4.4.
+
+---
+
+## 6. MC-Ausgabe und Auswertung (WS-G; `vofi_mc()`, `mc_stats()`, `vofi_sensitivity()`, `vofi_solve()`, Ampel)
+
+### 6.1 Presets und Stichprobenumfang (`stochastic.settings.preset`, S01C-14)
+
+| Preset | `n_sim` | Blöcke R (m = 200) | `store` | `keep_runs` | Zweck | Quelle |
+|---|---:|---:|---|---|---|---|
+| `preview` | 1.000 | 5 (SE „grob“) | `kpi` | `[]` | Shiny, schnelle Vorschau; Präfix des Standardlaufs | Memo 04 E9, R-73 |
+| `standard` (Default) | 10.000 | 50 | `bands` | `[p05, p50, p95]` | Regelfall | Memo 04 E9 |
+| `report` | 50.000 | 250 | `bands` | `[p05, p50, p95]` | Bericht, Tail-Kennzahlen (ES, Quantile ≤ 5 %) | Memo 04 E9, §4.4 |
+| `custom` | aus `n_sim` | n_sim/m | Feld | Feld | ausdrückliche Angaben | – |
+
+`vofi_mc(preview = TRUE)` entspricht `preset: preview` (Spec 00 §14 Nr. 15). Ausdrücklich gesetzte Felder gehen dem
+Preset vor. Die Präfix-Eigenschaft (Spec 00 §11.4) erlaubt die schrittweise Erhöhung: Vorschau → Standard → Bericht
+rechnet nur die zusätzlichen Blöcke (Ergebnis identisch zur Neuberechnung).
+
+**Konvergenzkriterien** (Ausweis, keine automatische Verlängerung in v1; Memo 04 §4.4): `mc_stats()` liefert je
+Primärkennzahl `converged` = (relative Halbbreite des Mittels t_{R−1; 0,975} · se / |mean| < 0,005) **und**
+(Halbbreite von `p_neg` t_{R−1; 0,975} · p_neg_se < 0,01); bei R < 10 immer `FALSE` mit Hinweis „grob“. Felder
+`stochastic.settings.convergence: {rel_halfwidth_mean: 0.005, abs_halfwidth_prob: 0.01}` (S01C-14). Automatische
+Blockerweiterung bis zum Kriterium: v1.1.
+
+### 6.2 Gespeicherte Ausgaben (Spec 00 §9.9, §13.2)
+
+| `store` | `kpis`, `kpi_na`, `inputs`, `features`, `flags` | `bands` (Zeilen `bands` × `band_probs` + Mittel) | `runs` (`keep_runs`) | `ledger` | `kpi_series` (Quantile je Jahr) |
+|---|:---:|:---:|:---:|:---:|:---:|
+| `kpi` | x | – | x | – | x |
+| `bands` (Default) | x | x | x | – | x |
+| `full` (W bei n_sim > 2.000) | x | x | x | x | x |
+
+Default-Bänder `[net_position, dep_balance, od_balance]` (Spec 00 §4.3.15); der Bericht ergänzt je Perspektive
+(Profil, # 01a): WU `dscr`-Reihe über `kpi_series`, Selbstnutzer `monthly_burden`, Kleinvermieter
+`monthly_net_cashflow`. `keep_runs` wählt die Läufe, deren `keep_runs_kpi` dem Quantil am nächsten liegt (Gleichstand:
+kleinster Laufindex); bei Entscheidungsknoten auf dem Kompositum (Spec 00 §9.11 Nr. 4).
+
+### 6.3 Statistik je Kennzahl (Konkretisierung Spec 00 §12.7)
+
+| Spalte (`stats`) | Definition | Label (de) |
+|---|---|---|
+| `mean`, `sd` | über gültige Läufe (`n_valid`) | Mittelwert, Standardabweichung |
+| `se`, `se_df` | sd der R Blockmittel / √R; se_df = R − 1 (R < 10: Kennzeichnung „grob“; R = 1: sd/√n mit Hinweis) | MC-Fehler (Standardfehler) |
+| `q05` … `q95` | `quantile(type = 7)`; KI über Ordnungsstatistiken k_lo = qbinom(0,025; n; p), k_hi = qbinom(0,975; n; p) + 1 (Memo 04 §4.4) | Quantile |
+| `p_neg`, `p_neg_se` | mean(x < 0); SE aus den Blockanteilen | Wahrscheinlichkeit eines Nachteils |
+| `es05` | Mittel der Werte ≤ q05 (nicht negiert) | Mittel der schlechtesten 5 % |
+| `expected_loss` | mean(pmax(−x, 0)) | erwarteter Nachteil |
+| `na_share`, `n_valid` | Anteil NA (nach Code getrennt in `kpi_na`) | Anteil nicht definiert |
+| `deterministic` | Wert des Basisfalls | Basisfall |
+| Vergleich (`diff_stats`) | `prob_better` = mean(Δ > 0), SE wie `p_neg` | Wahrscheinlichkeit „besser als Referenz“ |
+
+**Prüffall (WS-G, `test-mc-stats.R`):** x = (−3, −1, 0, 2, 4, 5, 7, 8, 10, 12), Blockgröße 5 (R = 2): mean 4,4; sd
+4,926121; Blockmittel 0,4 / 8,4 → se 4,0 (naiv 1,557776), se_df 1, „grob“; Quantile q05/q10/q25/q50/q75/q90/q95 =
+−2,1 / −1,2 / 0,5 / 4,5 / 7,75 / 10,2 / 11,1; p_neg 0,2 (Blockanteile 0,4 / 0) → p_neg_se 0,2; es05 −3;
+expected_loss 0,4; 95-%-KI des Mittels mit t_{1; 0,975} = 12,7062: [−46,42; 55,22]; `converged = FALSE`.
+
+### 6.4 Sensitivität (`vofi_sensitivity()`, Spec 00 §11.11, §13.4)
+
+| Methode | Default | Ausgabe |
+|---|---|---|
+| `tornado` | `probs = c(0.1, 0.9)`; Kandidaten wie 4.3 Nr. 1; ohne Overlay-Verteilung `delta` (Default 0,2) relativ zum Basiswert; Anzeige der 10 größten Swings | `results` mit `swing`, `rank`; Grundlage des Sets „vorsichtig“ |
+| `spider` | `steps = 5` je Seite zwischen P05 und P95 der Overlay-Verteilung bzw. Basis × (1 ± `delta`) | `spider` (param, step, value, kpi) |
+| `global` | aus einer MC (`inputs` und `features`, 11.7) | `global`: Spearman, SRC (lineare Regression standardisiert), SRRC (auf Rängen), PRCC (partielle Rangkorrelation), `s1_binned` = Var(E[y \| Klasse(x)]) / Var(y) mit 20 gleich besetzten Klassen (Populationsvarianz der Klassenmittel); `r2_src` |
+
+Rangfolge der Treiber im Bericht: nach |SRRC|, wenn R²(SRRC-Regression) ≥ 0,7, sonst nach `s1_binned`; die drei
+stärksten Treiber erscheinen im Fazit in Worten (Konzept 1.4). Entscheidungsschlüssel und `feature`-Spalten mit
+konstantem Wert werden ausgelassen (I).
+
+**Prüffall (synthetisch):** y = 2 x1 + x2, x1, x2 ~ U(0; 1) unabhängig (n = 10.000 LHS): SRC 0,894427 / 0,447214
+(= 2/√5, 1/√5; ±0,005); Spearman 0,900 / 0,426 (±0,01); `s1_binned` 0,798 / 0,200 (exakt 0,8 / 0,2 abzüglich
+Klassierungsfehler 0,002; ±0,01); Tornado mit P10/P90: Swings 1,6 / 0,8.
+
+### 6.5 Zielwertsuchen (Konkretisierung Spec 00 §12.8)
+
+Schwellen (`analysis.thresholds`, Profilwerte nach Konzept A4; gleichlautend in Teil A §1.5, §2.3–2.8; `lending_value_haircut`
+0,10 = Konzept 2.5 „Vorschlag 10 %, Abl.“, D) und Standardparameter der Zielwertsuchen:
+
+| Profil | `roe_hurdle` | `dscr` | `burden_share` | `warm_rent_increase_eur_m2` | `lending_value_haircut` |
+|---|---:|---:|---:|---:|---:|
+| `wu_kommunal`, `wu_privat` | 0,035 | 1,2 | 0,40 | 0,50 | 0,10 |
+| `wu_genossenschaft` | 0,020 | 1,2 | 0,40 | 0,50 | 0,10 |
+| `kleinvermieter` | 0,025 | 1,2 | 0,40 | 0,50 | 0,10 |
+| `selbstnutzer` | 0,025 | (1,2, ohne Wirkung) | 0,40 | (0,50, ohne Wirkung) | 0,10 |
+
+| Zielwertsuche | Aufruf (Beispiel) | Default-Intervall | Prüfwert |
+|---|---|---|---|
+| Break-even (Primärkennzahl = 0) | `vofi_solve(x, param = "shared.rw")` | [min, max] der Overlay-Verteilung, sonst Basis × [0,5; 1,5] | `grob_lehrbuch_a`: 36.273,59; Orakel (c1) Break-even-NOI_1 9.869,14 |
+| Zielrenditemiete | `vofi_solve(x, param = "shared.rent_initial", kpi = "roe_mirr", target = "threshold:roe_hurdle")` | Basis × [0,5; 1,5] | `grob_lehrbuch_a` mit `kpi = roe_mirr`, `target = 0.06`: 41.642,14 |
+| DSCR-Break-even, kostendeckendes Nutzungsentgelt | `vofi_solve(x, param = "unit_groups.<g>.rent_eur_m2_month", kpi = "dscr_min", target = "threshold:dscr")` | Basis × [0,5; 1,5] | Strukturtest S2 (Monotonie in der Miete) |
+| Liquiditäts-Break-even | `kpi = "min_net_liquidity"`, `target = 0` | Basis × [0,5; 1,5] | `grob_lehrbuch_a`: kein Wechsel im Intervall für `shared.rw` (min. Nettoliquidität hängt nicht vom Restwert in T ab) → NA mit Meldung |
+| warmmietenneutrale Umlage | Standard: `unit_groups.<g>.rent_law.voluntary_cap_mode: warm_rent_neutral` (01b 1.3, im Basisfall bestimmt, fest in allen Läufen, R-70); Gegenprobe `vofi_solve(x, param = "unit_groups.<g>.rent_law.voluntary_cap_per_m2", kpi = "warm_rent_change_prepost_y1", target = 0)` | [0; gesetzliche Kappe] | S1 V2: Hypothese ≈ 1,07 €/m² (Memo 07: Heizkostensenkung 1,07 €/m²; Beschluss 1,10) |
+| notwendige Förderung | `param = "funding.<id>.amount_eur"` bzw. Förderquote, `target = 0` | [0; Höchstbetrag] | Strukturtest |
+| maximal tragbare Investition | `param = "shared.cost_factor_v2"`, `kpi = NULL` bzw. `"dscr_min"`/`"burden_ratio_max"`, `rebuild = TRUE` bei `auto`-Darlehen | [0,5; 2] | Strukturtest S1 |
+| Rendite der Mehrinvestition | `vofi_solve(x, what = "incremental_return", variant = "v2_eh70")` | [−0,02; 0,15], 41 Stützstellen | S1, S3 (deterministisch; MC v1.1) |
+
+Für Bestandsprojekte ohne Bestandswert ist die Zielrenditemiete über `delta_vs_reference = 0` bei
+`accounts.deposit_rate_pa = roe_hurdle` zu rechnen (Spec 00 §12.8 Tabelle); WS-G setzt das automatisch, wenn
+`roe_mirr` NA `no_existing_value` ist (Hinweis im Ergebnis).
+
+### 6.6 Ampel und Restriktionen (Profilwerte zu Spec 00 §12.9; Ablage # 01a)
+
+| Profil | `analysis.traffic_light` | `analysis.restrictions` |
+|---|---|---|
+| `wu_kommunal`, `wu_privat`, `wu_genossenschaft` | `{green_prob: 0.70, red_prob: 0.40, restriction_prob: 0.30}` | `[dscr, liquidity, warm_rent]` |
+| `kleinvermieter` | wie oben | `[liquidity, savings]` |
+| `selbstnutzer` | wie oben | `[burden, liquidity, savings]` |
+
+Werte nach Konzept 1.4 und A4. `overdraft_flag_threshold_eur` (Restriktion `liquidity`) ist ein Kontofeld (Teil A).
+
+**Prüffälle Ampel (WS-G, synthetische Eingaben P = Primärkennzahl):**
+
+| Nr. | Basis | Eingaben | Stufe 1 | Stufe 2 | Ergebnis |
+|---|---|---|---|---|---|
+| A1 | `mc` | p = 0,75, Median 1.200, P_base > 0, P_base_ex_rv > 0 | green | keine Verletzung | **green** |
+| A2 | `mc` | p = 0,75, Median 1.200, P_base_ex_rv < 0 | green → höchstens yellow (Restwertregel) | – | **yellow**, `rv_dependent = TRUE` |
+| A3 | `mc` | p = 0,55 | yellow | – | **yellow** |
+| A4 | `mc` | p = 0,35 | red | – | **red** |
+| A5 | `mc` | p = 0,80; `restriction_dscr`: Basis 0, MC-Mittel 0,31 | green | ko (0,31 ≥ 0,30) | **yellow** |
+| A6 | `mc` | p = 0,80; `restriction_burden`: Basis 1 | green | ko (Basis verletzt) | **yellow** |
+| A7 | `cautious` | P_base > 0, P_vorsichtig > 0 | green | – | **green** |
+| A8 | `cautious` | P_base > 0, P_vorsichtig ≤ 0 | yellow | – | **yellow** |
+| A9 | `base_only` | P_base > 0 | yellow (Hinweis „keine Robustheitsprüfung“) | – | **yellow** |
+| A10 | `mc` | p = 0,70 genau, Median > 0 | green (≥) | – | **green** |
+| A11 | `mc` | p = 0,40 genau | yellow (red nur bei p < 0,40) | – | **yellow** |
+
+---
+
+## 7. Offene Punkte
+
+| Nr. | Thema | Stand / Übergangsregel | Klärung durch |
+|---|---|---|---|
+| OP-01 | **Blockgröße (R-73)** gegenüber Konzept F21 („10 Replikate zu je N/10“) | Teil C folgt R-73 (`block_size: 200`, Vorschau R = 5 mit SE „grob“); F21-Modus über `replicates` vollständig spezifiziert (1.2, 1.7.3); Golden-Vektoren für m = 10 und m = 200 (1.10.3). Bei Bestätigung von F21 ändern sich nur die Defaults in 1.2 und 6.1 | Orchestrator/Auftraggeber (Spec 00 §17.3 Nr. 5) |
+| OP-02 | **Energiepreise netto** | erledigt: Bibliothek, Referenzszenarien und 01b §0.6/§3.2.1 führen Arbeitspreise, Netzentgelte und Bio-Mehrkosten netto; CO2-Preis netto; `network_fee_growth` des Trägers bleibt 0, weil der Marktknoten das Wachstum trägt (01b: I bei Doppelung) | – |
+| OP-03 | **2045-Schalter** | erledigt: nur Reformcode `stufe_2045` (Spec 00 §4.10, R-82) mit `legal/gmodg_bio_treppe_2045`; das frühere Feld `energy.climate_neutral_2045` ist in 01b §3.2.4 ein Validierungsfehler | – |
+| OP-04 | **Bibliotheks-id II. BV** | Teil B und Teil C verwenden `costs/bewirtschaftung_ii_bv_2026`; Teil A §2.2 (`global.yaml`, `building.maintenance.iibv`) verweist noch auf `costs/bewirtschaftung_iibv_2026` | 01a |
+| OP-05 | **Abgleich mit Teil A/B (Stand 2026-10-26)** | Referenzszenarien auf die Feldnamen von 01a (Maßnahmentypen 4.2, `cost_factor`, `replacement.*`, `building.maintenance`, `residual_value.<methode>.*`, `erwerb_grundstueck`) und 01b (Zustände ohne Erzeugerliste, `heating_carrier`, `jaz`/`jaz_plan` je Zustand, `funding.<f>.loan`, `loan_variant`, `construction_support_eur`, `facts`, `payout.lag_months`) umgestellt; Auslegungscodes der Bibliothek wie von 01b übernommen (`proportional`, `flat_before_funds`, `halve_then_funds`). Restliche Annahmen: `measures.<m>.rent_law.procedure: "559"` (01b 1.4), `loan: {payments_per_year: 1}` als lokale Überschreibung der Nutzlast | 01a, 01b, WS-S |
+| OP-06 | **Grundstück mit pauschalen Nebenkosten** (S2, S5) | Memo 07 nennt Grundstück inkl. 7,14 % bzw. 10 % Nebenkosten als einen Betrag; abgebildet als `erwerb_grundstueck` mit `grest_rate: 0` und Notar/Grundbuch 0 (W „Abweichung vom Landessatz“, Teil A 4.8). Alternative: Kaufpreis und Nebenkosten getrennt mit `federal_state` und freigegebenem GrESt-Eintrag (ändert S2-T1, S5-T1) | WS-S |
+| OP-07 | **C-Einträge ohne Freigabe** (`legal/grunderwerbsteuer_2026`, `legal/mietrecht_559f_2026`) | `release: pending` → Themen inaktiv bis zur Fachfreigabe (Spec 00 §4.10): GrESt nur mit `grest_rate` (sonst E `validation.acquisition.grest_inactive`, Teil A 4.8), § 559f ohne Halbierung (S3-T4 rechnet mit `pending_reforms: [unreleased]`). Primärprüfung der 16 Landessätze und des § 559f-Wortlauts vor v1-Freigabe | WS-L, Fachstelle (Konzept B14) |
+| OP-08 | **USt-Satz Holzpellets** | Bibliothek rechnet Pellets mit 7 % (Anlage 2 Nr. 48 UStG, C); vor Freigabe prüfen | WS-L |
+| OP-09 | **Rundungen in Memo 07** | Teil C gibt motor-exakte Sollwerte an (S4-T6 3.543,07 statt 3.542,50; S3-T10; S3-T8 Restwerte der Heizungen bei Fertigstellung 10/2027); WS-S verwendet die Werte aus Abschnitt 5 | WS-S |
+| OP-10 | **Testkonvention Vollauszahlung** (S2, S5) | Prüfwerte setzen die Auszahlung aller Darlehen zum Stichtag voraus; realistische Abrufpläne mit Bereitstellungsprovision sind als zusätzliche Varianten möglich, ändern dann S2-T6/S5-T6 | WS-S |
+| OP-11 | **CO2-Unsicherheit der Referenzszenarien** | S1–S5 verwenden die Stützstellen aus Memo 07 §4.0 (Dreieck 2030/2040, ρ 0,8); die Bibliothek bietet zusätzlich den Korridor nach Memo 03/Konzept B6 (`processes/co2_price_corridor_2026`). Konzept F20 nennt nur Energie- und Inflationsprozesse; Annahme: CO2 bleibt Szenarioeinstellung (F19) | Auftraggeber |
+| OP-12 | **Mietspiegelvorteil S1** | nicht abgebildet (S1 rechnet mit fester Steigerung); Beispielvariante mit OVM-Modus offen | WS-S, 01b |
+| OP-13 | **Set „vorsichtig“ und Zusageschlüssel** | Kandidat nach 4.3 Nr. 1 (d); Zweigwahl kann unter den Treibern sein. Alternative: Ausschluss per `generate.exclude: [funding.*.approved]`, wenn „Förderstopp“ getrennt berichtet wird | Auftraggeber |
+| OP-14 | **Profilwerte für Analysefelder** (`thresholds`, `traffic_light`, `restrictions`, `mandatory_sensitivities`, `lending_value_haircut`) | erledigt: 4.4, 6.5, 6.6 stimmen mit den Profilen in Teil A §2.3–2.8 überein; `lending_value_haircut` 0,10 bleibt D (Konzept 2.5) | – |
+| OP-15 | **Prozesstyp CO2-Korridor ohne Diskretisierung** | v1: 20 Quantilpfade als `scenario_mix` (1.6.6, 2.5; Fehler −1,7e-4 im Mittel, −1 % in der sd); eigener Typ `triangular_corridor` v1.1 | WS-C |
+| OP-16 | **Automatische Blockerweiterung** bis zum Konvergenzkriterium (6.1) | v1 nur Ausweis `converged`; Erweiterung um ganze Blöcke ist dank Präfix-Eigenschaft billig, v1.1 | WS-G |
+| OP-17 | **Bedauern und Dominanz** (Memo 04 §6.3: E[max(EW_B − EW_A, 0)], stochastische Dominanz) | nicht in `diff_stats` (Spec 00 §13.3); v1.1 | WS-G |
+| OP-18 | **Prüfpunkte der Bibliothek** vor Freigabe (Konzept §10.2): BEG-Richtlinienfassungen, KfW 458/459-Details, BAFA iSFP-Bonus, ImmoWertV-Zwischenzeilen (D), IWU-Fortschreibungsfaktor 1,12 (D), Nutzungsdauern (D), § 559f-Quelle | in `notes` der Einträge („Prüfpunkte:“) und `quality_detail` | WS-L, Fachstelle |
+
+---
+
+## 8. Änderungsanträge an Spec 00
+
+Bis zur Entscheidung gilt jeweils die genannte Übergangsregel. Die Referenzszenarien (Abschnitt 5) brauchen
+zwingend S01C-06 (S5) und S01C-11 (Förderinstrumente und Overlay-Einträge in Varianten); über die
+Stochastikbibliothek nutzen sie S01C-02, S01C-03 und S01C-13 (Übergang: Zahlen aus `fallback` statt Token,
+`p_norm = p0`, ein Eintrag je Datei) und S01C-01 nur in der Form `apply: replace` (Übergang: Feld weglassen, wenn die
+Bibliotheksvorlagen ohne `apply` geführt werden).
+
+| Nr. | Spec-00-Abschnitt | Antrag | Begründung | Übergangsregel |
+|---|---|---|---|---|
+| S01C-01 | §4.3.15, §6.3, §11.8 | Overlay-Feld `apply: replace \| multiply \| add` je statischem Eintrag: `ctx$param()` liefert b ⊙ x bzw. b + x (b = deterministischer Knoten, x = Ziehung); `draws$static` enthält x | Faktoren und Zuschläge auf beliebige Ziele (Baupreisindex, Liegenschaftszins, Bio-Mehrkosten, Instandhaltungsniveau) ohne Neudefinition des Basiswerts; Bibliotheksvorlagen in Faktorform (Memo 04). Teil A lenkt `multiply` auf `measures.<m>.cost_eur` nach `cost_factor` und `add` auf die RND nach `remaining_life_offset_years` um (S01A-08); S01C-01 verallgemeinert das | Faktoren über `shared`-Blätter und `expr` bzw. `cost_factor` (5.0 Nr. 6) |
+| S01C-02 | §11.7, §4.9 | Token `base` für Startparameter (`x0`, `r0`, `p0`, `u0`, `p_norm`): Wert des deterministischen Ziels im Startjahr; Bibliotheksfeld `fallback` mit Zahlen für Tokens | Prozesse starten exakt am Basisfall (keine Sprünge zwischen deterministischem und MC-Lauf); Bibliothek unabhängig vom Szenario | Zahlen statt Token |
+| S01C-03 | §11.7 (Tabelle) | `linked_ar1`: Parameter `u0` (u_1 = u0, Default 0); `mr_trend`: Parameter `p_norm` (Normalpreis p̄; Y_1 = ln(p0/p̄); E[P_y] = p̄ (1 + g)^{y−1} (p0/p̄)^{φ^{y−1}}) | Startjahr unverändert bei Kopplung; Mean-Reversion vom 12-Monats-Mittel zum Normalpreis (Konzept B8) ohne Verschiebung des langfristigen Mittels | `u0 = 0`, `p_norm = p0` (Spec-00-Formel) |
+| S01C-04 | §5.3 | Quantilfunktionen MÜSSEN monoton nicht fallend sein; Bernoulli Q(u) = 1{u > 1 − p}; `empirical`: mode := median | Iman–Conover und CRN setzen Monotonie voraus; die Form 1{u < p} (Memo 04) kehrt die Ränge um | – (reine Klarstellung) |
+| S01C-05 | §5.3 | `n_shocks(par)`/`n_uniforms(par)` hängen nur von der Struktur ab, nicht von Parameterwerten | Stromzuordnung und Plan-Hash unabhängig von Varianten-Parametern (CRN) | – |
+| S01C-06 | §15.6 | Konvention „Kredite mit `payments_per_year: 1`“ für S1–S4; **S5 mit 12** | S5-Prüfwerte sind Monatsraten (Memo 07 §4.5) | S5 mit 12 |
+| S01C-07 | §4.3.11 | Kanonische Marktnamen ergänzen: `bund_yield_10y`, `mortgage_spread`, `feed_in_tariff.<klasse>`, `vacancy_fluctuation`; Satz „Energiepreise und Netzentgelte netto (ohne USt)“ | Zwei-Faktor-Zinsmodell (F7), EEG-Sätze, Leerstandsschwankung (Memo 04); Konsistenz mit 01b | Namen gelten als szenarioeigene Marktpfade |
+| S01C-08 | §4.9 | Eintragsschema: `quality_detail` (Unterpfad → Stufe), `legal_state` als Map (`as_of`, `status`, `reference`), `references`, `notes`; Korrelationspaare aus Bibliotheksverweisen mit fehlendem Schlüssel werden mit `vofi_inform` verworfen | Herkunft je Blatt (Konzept 6.4), Rechtsstand je Eintrag (F5); wiederverwendbare Korrelationslisten | Felder als zusätzliche Schlüssel tolerieren |
+| S01C-09 | §4.3.14 | `mandatory_sensitivities.<i>.value` darf eine Wertform sein (z. B. `{ref: market.mortgage_rate}`) | „Habenzins = vermiedener FK-Zins“ folgt dem Zinspfad (Konzept A2) | Zahl 0,04 |
+| S01C-10 | §4.11, §11.11 | Tornado-Grenzen für Prozessziele = Quantilpfade der Randverteilung (4.3 Nr. 1 (c)); Felder `generate.params`, `generate.exclude` | Zins-, Energie- und CO2-Risiken gehören zu den stärksten Treibern; ohne Regel fehlen sie im Set „vorsichtig“ | nur statische Schlüssel und Prozessparameter |
+| S01C-11 | §4.7, §4.9, §4.11 | (a) `from:`-Verweise in Varianten (`add`, `set`, `replace`) und Szenario-Sets werden nach der Operation mit denselben Regeln wie in Schicht 3 aufgelöst (Herkunft: Schicht 7, `entry`); (b) Overlay-Einträge dürfen in Varianten hinzugefügt, geändert und entfernt werden (`stochastic.parameters.<key>`, `stochastic.correlations.*`); ein Overlay-Ziel, das in einer Variante fehlt, ist dort ein Validierungsfehler | Förderinstrumente und Messgrößen existieren oft nur in der investiven Variante (S1–S5); CRN über den Vereinigungsplan (§11.10) setzt variantenspezifische Schlüssel voraus | keine (von S1–S5 benötigt) |
+| S01C-12 | §11.7 | `vasicek`: `expected` liefert pmax(θ + (r0 − θ) e^{−κ(y−1)}, floor) | Konsistenz mit der gekappten Ausgabe (Design-Läufe, Quantilpfade) | ungekappt |
+| S01C-13 | §4.3.15 | Overlay-Einträge der Bibliothek dürfen als Map mehrerer Einträge vorliegen (Auswahl mit `use:`), Korrelationslisten als `values`-Liste | eine Datei je Thema (Energiepreise, Kostenrisiken) | eine Datei je Eintrag |
+| S01C-14 | §4.3.15, §12.7 | `stochastic.settings.preset` (`preview`/`standard`/`report`/`custom`, 6.1) und `stochastic.settings.convergence` (Ausweis `converged` in `stats`) | Memo 04 E9, §4.4; Präfix-Eigenschaft (R-73) | Argumente `n_sim`/`preview` |
+| S01C-15 | §4.11 | Szenario-Sets dürfen zusätzlich `shared.*` setzen | `shared`-Blätter sind die Anker unsicherer Stützstellen und Faktoren (CO2 2030/2040, Netzentgeltwachstum); Sets wie `co2_hoch` könnten sie direkt setzen | szenarioeigene Marktpfade (Muster 5.3) |

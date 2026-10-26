@@ -51,15 +51,25 @@ reg_test_market_raw <- function() {
        energy_network_fee = list(gas = 0.01, power = 0.08), bio_fuel_premium = 0.02)
 }
 
-#' Numerische Blätter eines Blocks normalisieren (node_normalize, WS-A)
+#' Wert als Knoten (4.5): Zahl -> const, `{ref: ...}` -> ref, Knoten bleiben, übrige Wertformen
+#' über node_normalize() (WS-A)
+#' @noRd
+reg_node <- function(x, path = NULL) {
+  if (is.numeric(x) && length(x) == 1L) return(node_const(x))
+  if (is.list(x) && utl_is_string(x[["kind"]])) return(x)
+  if (is_map(x) && identical(utl_value_form_kind(x), "ref") && length(x) == 1L) {
+    return(node_ref(x[["ref"]]))
+  }
+  node_normalize(x, NULL, path)
+}
+
+#' Numerische Blätter eines Blocks in Knoten überführen
 #' @noRd
 reg_normalize_block <- function(x, prefix) {
   if (is.null(x)) return(list())
   for (p in path_leaves(x)) {
     v <- path_get(x, p)
-    if (is.numeric(v) || is_value_form(v)) {
-      x <- path_set(x, p, node_normalize(v, NULL, path_join(prefix, p)))
-    }
+    if (is.numeric(v) || is_value_form(v)) x <- path_set(x, p, reg_node(v, path_join(prefix, p)))
   }
   x
 }
@@ -92,8 +102,8 @@ reg_test_spec <- function(grid, perspective = "wu_kommunal",
     reference_variant = "base", report_mode = "auto"
   )
   proj <- deep_merge(proj, project)
-  proj$construction_delay_months <- node_normalize(proj$construction_delay_months, NULL,
-                                                   "project.construction_delay_months")
+  proj$construction_delay_months <- reg_node(proj$construction_delay_months,
+                                             "project.construction_delay_months")
   bld <- deep_merge(list(building_id = "b1", n_units = 12L, living_area_m2 = 900,
                          net_floor_area_m2 = 1100), building)
   hh <- deep_merge(list(net_income_month_eur = 4500, income_growth = list(ref = "market.inflation"),
@@ -121,7 +131,7 @@ reg_test_spec <- function(grid, perspective = "wu_kommunal",
   num_fields <- function(x, fields, prefix) {
     for (f in intersect(fields, names(x))) {
       if (!is.null(x[[f]]) && (is.numeric(x[[f]]) || is_value_form(x[[f]]))) {
-        x[[f]] <- node_normalize(x[[f]], NULL, path_join(prefix, f))
+        x[[f]] <- reg_node(x[[f]], path_join(prefix, f))
       }
     }
     x
@@ -399,7 +409,7 @@ reg_check_labels <- function(def, source = "vofi") {
   prefix <- reg_label_prefix(def)
   if (identical(source, "user")) {
     miss <- character(0)
-    if (!utl_is_string(def$label)) miss <- c(miss, "label")
+    if (!utl_is_string(def[["label"]])) miss <- c(miss, "label")
     if (!utl_is_string(def$labels$description)) miss <- c(miss, "description")
     for (p in names(def$params)) {
       if (!utl_is_string(def$labels$params[[p]])) miss <- c(miss, paste0("params.", p))
@@ -1255,7 +1265,7 @@ reg_example_core <- function(n = 7L, T = 6L, runs = seq_len(n)) { # nolint: obje
   n <- inp$n
   n_t <- grid$T + 1L
   rates <- list(h = grid_rate_eff(grid, rep(0.02, n)), s = grid_rate_eff(grid, rep(0.06, n)),
-                sp = grid_rate_eff(grid, rep(0.08, n)), KL = matrix(50000, n, n_t))
+                sp = grid_rate_eff(grid, rep(0.08, n)), KL = matrix(20000, n, n_t))
   core <- reg_core_from_inputs(inp, grid, rates)
   attr(core, "testkit") <- list(inputs = inp, rates = rates)
   ctx <- tryCatch(reg_example_ctx(core), vofi_error_not_implemented = function(e) NULL)
@@ -1331,17 +1341,17 @@ reg_assemble_core <- function(inp, grid, rates, p) {
   }
   b <- p$bal
   eng <- list(
-    equity_call = c("equity", "equity_call", b$equity_call),
-    shortfall = c("equity", "shortfall", z),
-    od_draw = c("overdraft", "draw", b$od_draw), od_repay = c("overdraft", "repay", b$od_repay),
-    od_interest = c("overdraft", "interest", b$od_interest),
-    odp_draw = c("overdraft", "draw", b$odp_draw),
-    odp_repay = c("overdraft", "repay", b$odp_repay),
-    odp_interest = c("overdraft", "interest", b$odp_interest),
-    dep_invest = c("deposit", "invest", b$dep_invest),
-    dep_withdraw = c("deposit", "withdraw", b$dep_withdraw),
-    dep_interest = c("deposit", "interest", b$dep_interest),
-    dep_wht = c("tax", "withholding_tax", z), tax = c("tax", "income_tax", z)
+    equity_call = list("equity", "equity_call", b$equity_call),
+    shortfall = list("equity", "shortfall", z),
+    od_draw = list("overdraft", "draw", b$od_draw), od_repay = list("overdraft", "repay", b$od_repay),
+    od_interest = list("overdraft", "interest", b$od_interest),
+    odp_draw = list("overdraft", "draw", b$odp_draw),
+    odp_repay = list("overdraft", "repay", b$odp_repay),
+    odp_interest = list("overdraft", "interest", b$odp_interest),
+    dep_invest = list("deposit", "invest", b$dep_invest),
+    dep_withdraw = list("deposit", "withdraw", b$dep_withdraw),
+    dep_interest = list("deposit", "interest", b$dep_interest),
+    dep_wht = list("tax", "withholding_tax", z), tax = list("tax", "income_tax", z)
   )
   for (k in names(eng)) {
     values[[k]] <- eng[[k]][[3L]]
@@ -1390,7 +1400,7 @@ reg_assemble_core <- function(inp, grid, rates, p) {
     limit_cut = rep(FALSE, n),
     opp_limit_breach = rowSums(p$opp$KKP > vofi_tol$zero_abs) > 0,
     ex_rv_gap = p$term$gap,
-    overdraft_threshold = rowSums((b$KK + b$KKP) > 25000) > 0,
+    overdraft_threshold = rowSums((b$KK + b$KKP) > 15000) > 0,
     stopped = rep(FALSE, n), negative_amortization = rep(FALSE, n),
     equity_call_over_savings = rep(FALSE, n), arbitrage = rep(FALSE, n)
   )

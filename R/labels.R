@@ -42,7 +42,7 @@ lbl_load <- function(dir) {
   lbl_state$sources <- src
   lbl_state$dir <- dir
   if (!is.null(dup)) {
-    vofi_abort("core.label_duplicate", key = dup$key, file = dup$file, other = dup$other,
+    vofi_abort("core.label_duplicate", label = dup$key, file = dup$file, other = dup$other,
                .class = "vofi_error_label")
   }
   invisible(length(ls(env, all.names = TRUE)))
@@ -73,13 +73,21 @@ utl_flatten_labels <- function(x, prefix) {
 #'
 #' Fehlender Schlüssel: bei `getOption("vofi.strict_labels")` ein Fehler `vofi_error_label`,
 #' sonst `.default` bzw. `"[[key]]"`. Fehlender Platzhalterwert: `{name}` bleibt sichtbar, bei
-#' strikten Labels Fehler.
+#' strikten Labels Fehler. Platzhalter dürfen nicht `key` heißen (Formal von `lbl()`,
+#' `msg()` und `vofi_abort()`); für Zeilennamen ist `row` üblich.
 #' @param key Label-Schlüssel.
 #' @param ... benannte Platzhalterwerte.
 #' @param .default Ersatztext, wenn der Schlüssel fehlt.
 #' @return Zeichenkette (UTF-8).
 #' @noRd
 lbl <- function(key, ..., .default = NULL) {
+  utl_lbl_text(key, list(...), .default)
+}
+
+#' Text zu einem Schlüssel mit Platzhalterliste (Arbeitsfunktion von lbl(), msg() und den
+#' Bedingungen; Platzhalter dürfen hier auch `key` heißen)
+#' @noRd
+utl_lbl_text <- function(key, args = list(), .default = NULL) {
   text <- if (utl_is_string(key)) {
     get0(key, envir = lbl_state$labels, inherits = FALSE)
   } else {
@@ -94,7 +102,6 @@ lbl <- function(key, ..., .default = NULL) {
       return(paste0("[[", as.character(key)[1L], "]]"))
     }
   }
-  args <- list(...)
   if (!grepl("{", text, fixed = TRUE)) return(text)
   utl_fill_placeholders(text, args, key)
 }
