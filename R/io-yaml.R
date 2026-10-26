@@ -175,7 +175,7 @@ io_as_number <- function(x, path = "", eur = FALSE) {
     return(v)
   }
   if (grepl("^[-+]?[0-9]{1,3}([.][0-9]{3}){2,}$", s) || grepl("^[-+]?[0-9][0-9_]*$", s) ||
-      grepl("^[-+]?[0-9]+([.][0-9]+)?[eE][-+]?[0-9]+$", s)) {
+        grepl("^[-+]?[0-9]+([.][0-9]+)?[eE][-+]?[0-9]+$", s)) {
     v <- as.double(gsub("[._]", "", s))
     if (grepl("[eE]", s)) v <- as.double(s)
     if (!identical(s, format(v, scientific = FALSE, trim = TRUE))) {
@@ -210,7 +210,7 @@ io_unmark <- function(x, path = "") {
       if (!is.null(x[[i]])) x[[i]] <- io_unmark(x[[i]], path_join(path, seg))
     }
     if (is.null(nms) && length(x) > 0L &&
-        all(vapply(x, function(e) is.numeric(e) && length(e) == 1L, logical(1)))) {
+          all(vapply(x, function(e) is.numeric(e) && length(e) == 1L, logical(1)))) {
       x <- as.double(unlist(x))
     }
   }

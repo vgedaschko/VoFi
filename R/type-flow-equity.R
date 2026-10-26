@@ -41,13 +41,13 @@ typedef_equity <- function() {
     name = "equity", kind = "flow",
     params = list(
       amount_eur = vofi_param("amount", default = 0, min = 0, unit = "EUR"),
-      date = vofi_param("timing"),
+      date = vofi_param("timing", grid_default = "valuation_date"),
       contributions = vofi_param("schedule", unit = "EUR"),
       contributions_pa = vofi_param("value", default = 0, unit = "EUR"),
       withdrawals = vofi_param("schedule", unit = "EUR"),
       withdrawals_pa = vofi_param("value", default = 0, unit = "EUR"),
-      from = vofi_param("timing"),
-      to = vofi_param("timing")
+      from = vofi_param("timing", grid_default = "valuation_date"),
+      to = vofi_param("timing", grid_default = "end_date")
     ),
     rows = c("in", "out"),
     build = function(spec, ctx) {

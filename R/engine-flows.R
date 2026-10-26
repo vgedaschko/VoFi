@@ -88,7 +88,7 @@ eng_check_flows <- function(fl, nd, n, big_t) {
     cat_row <- vocab_category(r$section, r$category)
     tol <- vofi_tol$zero_abs
     if ((cat_row$sign == "pos" && min(r$values) < -tol) ||
-        (cat_row$sign == "neg" && max(r$values) > tol)) {
+          (cat_row$sign == "neg" && max(r$values) > tol)) {
       bad(msg("core.testkit.rows_failed", what = "F5", rows = r$key))
     }
   }

@@ -28,7 +28,7 @@
 #' @family Analysieren
 #' @export
 vofi_solve <- function(x, what = c("breakeven", "critical_value", "withdrawal_equivalent",
-                                        "incremental_return"),
+                                   "incremental_return"),
                        param = NULL, kpi = NULL, target = 0, interval = NULL, tol = 1e-8,
                        variant = "base", reference = NULL, rebuild = FALSE) {
   vofi_abort("core.not_implemented", fun = "vofi_solve",

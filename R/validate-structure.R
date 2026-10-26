@@ -109,7 +109,7 @@ val_spec <- function(spec, variant = "base") {
     def <- reg_get("tax", mod)
     persp <- spec$project$perspective
     if ((!is.null(def$perspectives) && !(persp %in% def$perspectives)) ||
-        (spec$project$tax_regime %||% "") %in% (def$blocked_regimes %||% character(0))) {
+          (spec$project$tax_regime %||% "") %in% (def$blocked_regimes %||% character(0))) {
       add("error", "validation.tax_module_blocked", "tax.module", value = mod,
           perspective = persp %||% "")
     }
@@ -225,8 +225,8 @@ val_components <- function(spec, add) {
       type <- comp$type
       def <- scn_type_def(type, coll)
       if (is.null(def) || (identical(coll, "components") && !identical(def$kind, "flow")) ||
-          (identical(coll, "financing") && identical(def$kind, "flow") &&
-           !identical(def$name, "equity"))) {
+            (identical(coll, "financing") && identical(def$kind, "flow") &&
+               !identical(def$name, "equity"))) {
         choices <- if (identical(coll, "financing")) c("equity", reg_list("instrument")$name) else
           reg_list("flow")$name
         add("error", "validation.type_unknown", path_join(path, "type"),
@@ -241,7 +241,7 @@ val_components <- function(spec, add) {
         }
         v <- comp[[p]]
         if (identical(pp$kind, "enum") && !is.null(v) &&
-            !(utl_is_string(v) && v %in% utl_param_codes(pp))) {
+              !(utl_is_string(v) && v %in% utl_param_codes(pp))) {
           add("error", "validation.enum", path_join(path, p), value = utl_collapse(format(v)),
               suggestion = utl_suggest_text(as.character(v)[1L], utl_param_codes(pp)))
         }

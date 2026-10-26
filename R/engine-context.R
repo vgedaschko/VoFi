@@ -82,7 +82,40 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
     v
   }
   param_path <- function(s, name) path_join(eng_collection(spec, s), s[["id"]], name)
-  param_node <- function(s, name) path_get(s, name)
+  # Parameterschema eines (Unter-)Parameters der Komponente (map-Felder ueber fields)
+  type_param <- function(s, name) {
+    def <- scn_type_def(s[["type"]], eng_collection(spec, s))
+    if (is.null(def)) return(NULL)
+    segs <- path_split(name)
+    pp <- def$params[[segs[1L]]]
+    for (sg in segs[-1L]) pp <- if (inherits(pp, "vofi_param")) pp$fields[[sg]] else NULL
+    if (inherits(pp, "vofi_param")) pp else NULL
+  }
+  # Knoten inkl. Default (6.2): Schicht 0 setzt nur Parameter der obersten Ebene; Felder einer
+  # fehlenden Map erhalten hier ihren Feld-Default (z. B. fees.processing_fee_share = 0)
+  param_node <- function(s, name) {
+    v <- path_get(s, name)
+    if (!is.null(v)) return(v)
+    pp <- type_param(s, name)
+    if (is.null(pp) || is.null(pp$default)) return(NULL)
+    node_normalize(pp$default, pp, param_path(s, name))
+  }
+  # rasterabhaengige Termin-Defaults (7.12, 8.2): vofi_param("timing", grid_default = ...)
+  grid_date <- function(token) {
+    switch(token, valuation_date = grid$valuation_date, end_date = grid$end_date,
+           completion = grid$completion_date, NULL)
+  }
+  raw_setting <- function(s, name) {
+    v <- path_get(s, name)
+    if (is.null(v)) v <- path_get(ctx$spec, param_path(s, name))
+    if (!is.null(v)) return(v)
+    pp <- type_param(s, name)
+    if (is.null(pp)) return(NULL)
+    if (!is.null(pp$default)) return(node_normalize(pp$default, pp, param_path(s, name)))
+    tok <- pp$extra$grid_default
+    if (utl_is_string(tok)) return(structure(tok, class = "vofi_grid_token"))
+    NULL
+  }
   where <- function() {
     if (is.environment(engine_env)) get0("current", envir = engine_env, inherits = FALSE) %||%
       "" else ""
@@ -128,8 +161,13 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
     value_at(param_path(spec, name), shape, TRUE, param_node(spec, name))
   }
   ctx$setting <- function(spec, name) {
-    v <- path_get(spec, name)
-    if (is.null(v)) v <- path_get(ctx$spec, param_path(spec, name))
+    v <- raw_setting(spec, name)
+    # timing -> Date (6.2): Token completion bzw. rasterabhaengiger Default als Datum
+    if (inherits(v, "vofi_grid_token")) return(grid_date(unclass(v)))
+    if (identical(v, "completion") &&
+          identical(type_param(spec, name)$kind %||% "timing", "timing")) {
+      return(grid$completion_date)
+    }
     v
   }
   ctx$value <- function(path, shape = c("scalar", "path")) {
@@ -151,12 +189,14 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
   ctx$index <- function(g, base_date = NULL) grid_index(grid, lift(g), base_date)
   ctx$index_year <- function(g, base_date = NULL) grid_index_year(grid, lift(g), base_date)
   ctx$timing <- function(spec, name) {
-    v <- ctx$setting(spec, name)
+    v <- raw_setting(spec, name)
     if (is.null(v)) return(NULL)
+    if (inherits(v, "vofi_grid_token")) v <- unclass(v)
     if (identical(v, "completion")) {
       shift <- ctx$value("project.construction_delay_months", "scalar") %||% rep(0, n)
       return(list(date = grid$completion_date, shift = shift))
     }
+    if (utl_is_string(v) && !is.null(grid_date(v))) v <- grid_date(v)
     list(date = utl_as_date(v, name), shift = rep(0, n))
   }
   ctx$shift_period <- function(date, months) grid_shift_period(grid, date, rep_len(months, n))
@@ -208,8 +248,8 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
       fl <- if (is.null(id)) cs[[cid]] else ctx$component(cid)
       for (r in fl$rows) {
         if (hit(r$section, section) && hit(r$category, category) &&
-            hit(r$tax_category, tax_category) && hit(r$measure_id, measure_id) &&
-            hit(r$key, local_row)) {
+              hit(r$tax_category, tax_category) && hit(r$measure_id, measure_id) &&
+              hit(r$key, local_row)) {
           out[[paste0(cid, "__", r$key)]] <- r$values
         }
       }

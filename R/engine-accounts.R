@@ -1,8 +1,8 @@
 # Konten: Geldanlage, Kontokorrent, Strafzinstranche (WS-D, Spec 00 Abschnitt 8.8).
 # Phase-0-Minimalfassung, Eigentuemer: WS-D. acc_init() nach 8.8 vollstaendig (Raten als
-# n x (T+1), Sparer-Pauschbetrag je Periode, Limit- und Reservepfade); Warnung bei s < h
-# (Arbitrage, einmal je Kontext). Offen fuer WS-D: Pruefung der Kontoparameter in der
-# Validierung statt zur Laufzeit.
+# n x (T+1), Sparer-Pauschbetrag je Periode, Limit- und Reservepfade); die Markierung
+# arbitrage (s < h) meldet eng_flag_conditions() als vofi_warning_engine (einmal je Lauf, 9.8).
+# Offen fuer WS-D: Pruefung der Kontoparameter in der Validierung statt zur Laufzeit.
 
 #' Kontenzustand initialisieren (8.8)
 #' @param accounts normalisierte Kontoparameter des Modells (`model$accounts`); das Feld

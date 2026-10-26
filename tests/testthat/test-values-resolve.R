@@ -81,9 +81,9 @@ test_that("Overlay-Verknüpfung apply (6.3 Schritt 1, R-94) und Mengenbezug per 
   d <- fake_draws(3L, g, static = list("shared.f" = c(1, 1.1, 1.2), "shared.a" = c(0, 1, 2),
                                        "shared.r" = c(5, 6, 7), "shared.p_share" = c(0.5, 2, 3)))
   d$targets$apply <- c("multiply", "add", "replace", "multiply")
-  ctx <- make_ctx(n = 3L, draws = d, params = list(
-    "shared.f" = 100, "shared.a" = list(years = c(2027, 2033), values = c(10, 70)),
-    "shared.r" = 1, "shared.p_share" = 0.4))
+  pars <- list("shared.f" = 100, "shared.a" = list(years = c(2027, 2033), values = c(10, 70)),
+               "shared.r" = 1, "shared.p_share" = 0.4)
+  ctx <- make_ctx(n = 3L, draws = d, params = pars)
   expect_equal(ctx$value("shared.f"), c(100, 110, 120))
   expect_identical(ctx$value_base("shared.f"), c(100, 100, 100))
   a <- ctx$value("shared.a", "path")
@@ -92,21 +92,20 @@ test_that("Overlay-Verknüpfung apply (6.3 Schritt 1, R-94) und Mengenbezug per 
   expect_identical(ctx$value("shared.r"), c(5, 6, 7))
   expect_message(sh <- ctx$value("shared.p_share"), class = "vofi_message")
   expect_equal(sh, c(0.2, 0.8, 1))
-  q <- make_ctx(params = list(
-    "shared.n" = list(value = 3, per = "m2_net_floor_area"),
-    "shared.k" = list(value = 2, per = "parking"),
-    "shared.u" = list(value = 5, per = "unit"),
-    "shared.n_units" = 4,
-    "building.net_floor_area_m2" = 1000, "building.n_parking" = 6))
+  q <- make_ctx(params = list("shared.n" = list(value = 3, per = "m2_net_floor_area"),
+                              "shared.k" = list(value = 2, per = "parking"),
+                              "shared.u" = list(value = 5, per = "unit"),
+                              "shared.n_units" = 4,
+                              "building.net_floor_area_m2" = 1000, "building.n_parking" = 6))
   expect_identical(q$value("shared.n"), 3000)
   expect_identical(q$value("shared.k"), 12)
   expect_identical(q$value("shared.u"), 20)
 })
 
 test_that("Ausdrücke: setting-Semantik für Codes und Wahrheitswerte (R-91)", {
-  ctx <- make_ctx(params = list(
-    "shared.e" = list(expr = "ifelse(project.perspective == 'wu_kommunal', 2, 1)"),
-    "shared.f" = list(expr = "project.perspective + 1")))
+  ex <- list("shared.e" = list(expr = "ifelse(project.perspective == 'wu_kommunal', 2, 1)"),
+             "shared.f" = list(expr = "project.perspective + 1"))
+  ctx <- make_ctx(params = ex)
   expect_identical(ctx$value("shared.e"), 2)
   expect_error(ctx$value("shared.f"), class = "vofi_error_input")
 })
@@ -137,4 +136,41 @@ test_that("res_shape: Laufzahl 1 oder n, sonst Vertragsfehler (keine stille Verk
   expect_error(res_shape(rc, c(1, 2, 3), "scalar", "x"), class = "vofi_error_contract")
   expect_error(res_shape(rc, matrix(0, 3, 7), "path", "x"), class = "vofi_error_contract")
   expect_identical(dim(res_shape(rc, matrix(1, 1, 7), "path", "x")), c(2L, 7L))
+})
+
+test_that("Randfaelle der Aufloesung: reales Wachstum, floor/cap, Fehlerzweige", {
+  ctx <- make_ctx(n = 2L, params = list(
+    "shared.real" = list(start = 100, growth = 0.01, real = TRUE),
+    "shared.fc" = list(ref = "shared.base", floor = 2, cap = 4),
+    "shared.base" = list(years = c(2027, 2033), values = c(0, 6)),
+    "shared.vec" = c(1, 2, 3, 4, 5, 6, 7),
+    "shared.short" = c(1, 2, 3),
+    "shared.early" = list(schedule = list("2026-06-01" = 10)),
+    "shared.qmiss" = list(value = 3, per = "kw"),
+    "shared.emiss" = list(expr = "shared.nichtda * 2"),
+    "shared.nested" = list(years = c(2027, 2033),
+                           values = list(1, list(ref = "shared.base")))
+  ))
+  # reales Wachstum: (1 + g) (1 + pi) - 1 mit market.inflation = 0.02 (Pruefkit-Markt)
+  expect_equal(ctx$value("shared.real", "path")[1, 2], 100 * 1.01 * 1.02, tolerance = 1e-12)
+  fc <- ctx$value("shared.fc", "path")
+  expect_equal(fc[1, ], pmin(pmax(c(0, 0:5), 2), 4))
+  expect_identical(dim(fc), c(2L, 7L))
+  expect_equal(ctx$value("shared.vec", "path")[2, ], as.double(1:7))
+  expect_error(ctx$value("shared.short", "path"), class = "vofi_error_input")
+  expect_error(ctx$value("shared.early", "path"), class = "vofi_error_input")
+  expect_error(ctx$value("shared.qmiss"), class = "vofi_error_contract")
+  expect_error(ctx$value("shared.emiss"), class = "vofi_error_contract")
+  expect_error(ctx$value("shared.nested", "path"), class = "vofi_error_contract")
+  g <- make_grid()
+  rc <- res_context(make_spec(g), g, 1L, NULL, "deterministic")
+  expect_error(res_node(rc, list(kind = "dist", dist = "pert"), "x", FALSE, character(0)),
+               class = "vofi_error_contract")
+  expect_error(res_node(rc, list(kind = "kaputt"), "x", FALSE, character(0)),
+               class = "vofi_error_input")
+  expect_identical(res_node(rc, TRUE, "x", FALSE, character(0)), 1)
+  expect_identical(res_node(rc, "code", "x", FALSE, character(0)), "code")
+  expect_null(res_node(rc, list(kind = "auto", mode = "auto"), "x", FALSE, character(0)))
+  expect_identical(res_quantity_field("m2_component:facade"), "component_areas_m2.facade")
+  expect_identical(res_quantity_field("kwp"), "kwp")
 })

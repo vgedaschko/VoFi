@@ -109,15 +109,15 @@ helper_label_keys_in_code <- function() {
     if (is.call(e)) {
       fn <- e[[1L]]
       fname <- if (is.symbol(fn)) as.character(fn) else if (is.call(fn) &&
-                                                           identical(fn[[1L]], as.name("$"))) {
+                                                              identical(fn[[1L]], as.name("$"))) {
         paste0("$", as.character(fn[[3L]]))
       } else {
         ""
       }
       if ((fname %in% callers || fname %in% c("$abort", "$warn", "$inform", "$lbl")) &&
-          length(e) >= 2L && is.character(e[[2L]]) &&
-          (is.null(names(e)) || !nzchar(names(e)[2L]) || names(e)[2L] == "key") &&
-          !(".default" %in% names(e))) {
+            length(e) >= 2L && is.character(e[[2L]]) &&
+            (is.null(names(e)) || !nzchar(names(e)[2L]) || names(e)[2L] == "key") &&
+            !(".default" %in% names(e))) {
         acc$keys <- c(acc$keys, e[[2L]])
       }
       parts <- as.list(e)[-1L]

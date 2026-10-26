@@ -69,7 +69,7 @@ vofi_time_grid <- function(valuation_date, horizon_years, construction_months = 
   if (!is.null(periods_months)) {
     pm <- periods_months
     if (!is.numeric(pm) || length(pm) == 0L || anyNA(pm) ||
-        any(abs(pm - round(pm)) > 1e-9) || any(pm < 1)) {
+          any(abs(pm - round(pm)) > 1e-9) || any(pm < 1)) {
       vofi_abort("core.grid.periods_invalid", value = utl_collapse(format(pm)),
                  .class = "vofi_error_input")
     }

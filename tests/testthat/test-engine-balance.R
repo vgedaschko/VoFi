@@ -135,3 +135,48 @@ test_that("Einzellauf mit store = kpi bzw. bands liefert ein vollst\u00e4ndiges 
   expect_equal(r$kpis$terminal_value, 52830.80, tolerance = 1e-9)
   expect_message(vofi_run(model, store = "bands"), "full", fixed = TRUE)
 })
+
+test_that("eng_checks: verletzte Invariante ergibt vofi_error_engine mit Lauf, Periode, Zeilen", {
+  model <- vofi_build(vofi_read_scenario(vofi_example("skeleton")))
+  env <- eng_engine_env(model)
+  ctx <- eng_context(model, NULL, env)
+  exo <- eng_flows(model, ctx, env)
+  core <- eng_balance(model, ctx, exo$ledger, engine_env = env)
+  bad <- core
+  bad$ledger$values$balance_check[1, 3] <- 5
+  e <- expect_error(eng_checks(bad), class = "vofi_error_engine")
+  expect_identical(e$data$invariant, "I1")
+  expect_identical(e$data$sim, 1L)
+  expect_identical(e$data$t, 2L)
+  expect_true(length(e$data$rows) >= 1L)
+  chk <- eng_checks(bad, stop_on_error = FALSE)
+  expect_false(chk$ok[chk$invariant == "I1"])
+  bad2 <- core
+  bad2$ledger$values$dep_balance[1, 2] <- -1
+  e2 <- expect_error(eng_checks(bad2), class = "vofi_error_engine")
+  expect_identical(e2$data$invariant, "I3a")
+  bad4 <- core
+  bad4$ledger$values$net_position[1, 3] <- bad4$ledger$values$net_position[1, 3] + 7
+  e4 <- expect_error(eng_checks(bad4), class = "vofi_error_engine")
+  expect_identical(e4$data$invariant, "I2")
+  bad3 <- core
+  bad3$terminal_ex_rv$BS <- bad3$terminal_ex_rv$BS + 10
+  e3 <- expect_error(eng_checks(bad3), class = "vofi_error_engine")
+  expect_identical(e3$data$invariant, "N2")
+  expect_identical(e3$data$t, model$grid$T)
+})
+
+test_that("Sacheinlage (Bestandswert): equity_in_kind und Verkauf in der Alternative (9.5 Nr. 7)", {
+  sc <- engine_scenario(c(-100000, 20000, 120000),
+                        ek = list(type = "equity", amount_eur = 100000),
+                        accounts = list(overdraft_limit_eur = Inf))
+  sc$building <- list(existing_value_eur = 50000)
+  sc$residual_value <- list(sale_cost_share = 0.04)
+  res <- vofi_run(vofi_build(sc))
+  expect_equal(res$ledger$values$equity_in_kind[1, ], c(50000, 0, 0))
+  opp <- res$opportunity$ledger$values
+  expect_equal(opp$opp_in_kind_sale[1, ], c(50000 * 0.96, 0, 0))
+  orows <- res$opportunity$ledger$rows
+  expect_identical(orows$category[orows$key == "opp_in_kind_sale"], "equity_in")
+  expect_true(all(res$checks$ok))
+})

@@ -203,7 +203,7 @@ expect_vofi_invariants <- function(x, tol = vofi_tol) {
   }
   testthat::expect(nrow(bad) == 0L,
                    paste("Invarianten verletzt:", utl_collapse(paste0(bad$invariant, " (",
-                                                                       bad$max_dev, ")"))))
+                                                                      bad$max_dev, ")"))))
   invisible(x)
 }
 

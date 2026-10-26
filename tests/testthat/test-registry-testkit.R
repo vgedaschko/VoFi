@@ -18,9 +18,9 @@ mock_normalize <- function(x, param = NULL, path = NULL) {
     return(x)
   }
   switch(kind,
-    integer = as.integer(x), logical = as.logical(x), date = as.Date(x),
-    timing = if (identical(x, "completion")) x else as.Date(x),
-    map = x, as.character(x))
+         integer = as.integer(x), logical = as.logical(x), date = as.Date(x),
+         timing = if (identical(x, "completion")) x else as.Date(x),
+         map = x, as.character(x))
 }
 
 #' Attrappe von eng_context_from_parts() mit den im Prüfkit benötigten Funktionen
@@ -559,11 +559,11 @@ test_that("Steuermodul T1 und Rechtsregel F7", {
     list(n = n_sim)
   }, envir = asNamespace("vofi"))
   registerS3method("tax_step", "tax_tk_tax", function(module, t, inputs, interest, state,
-                                                       params) {
+                                                      params) {
     list(payment = rep(params$rate %||% 0, state$n), state = state, report = list())
   }, envir = asNamespace("vofi"))
   registerS3method("tax_finalize", "tax_tk_tax", function(module, T, state, terminal_inputs, # nolint
-                                                           params) {
+                                                          params) {
     list(payment_T = rep(0, state$n), report = list())
   }, envir = asNamespace("vofi"))
   tx <- vofi_type("tk_tax", "tax", label = "Test",
@@ -586,9 +586,11 @@ test_that("Steuermodul T1 und Rechtsregel F7", {
   vofi_register_type(rule)
   expect_true(all(findings_of("tk_cap@2026-01-01", "rule")$ok))
   # returns: value (R-93, N-19): deterministischer Wert ohne Batch-Prüfung
+  # Formal P (Rechtsparameter) nach Spec 00 5.3
+  allowed_fun <- function(procedure, P) procedure %in% P$allowed # nolint: object_name_linter.
   rv <- vofi_type("tk_allowed", "rule", label = "Zulässig",
                   labels = list(description = "d", params = list(), rows = list()),
-                  fun = function(procedure, P) procedure %in% P$allowed,
+                  fun = allowed_fun,
                   valid_from = "2026-01-01", returns = "value",
                   example = list(procedure = "bgb_559", P = list(allowed = "bgb_559")))
   vofi_register_type(rv)

@@ -195,9 +195,22 @@ scn_normalize <- function(x) {
   for (b in c("market", "shared")) {
     if (!is.null(x[[b]])) x[[b]] <- scn_normalize_values(x[[b]], b)
   }
+  # Raten der kanonischen Marktnamen (4.3.11: Inflation, Wachstum, Zinsen p. a.): > 1 ist ein
+  # Eingabefehler (4.6)
+  for (nm in intersect(scn_market_rate_names(), names(x$market))) {
+    node_check_rate(x$market[[nm]], "rate", path_join("market", nm))
+  }
   if (!is.null(x$stochastic)) x$stochastic <- scn_normalize_stochastic(x$stochastic)
   x <- scn_move_dists(x)
   io_unmark(x)
+}
+
+#' Kanonische Marktnamen, die Raten p. a. sind (4.3.11, R-103)
+#' @noRd
+scn_market_rate_names <- function() {
+  c("inflation", "rent_growth", "rent_growth_new", "construction_price_index",
+    "maintenance_index", "land_value_growth", "market_value_growth", "operating_cost_growth",
+    "mortgage_rate", "bund_yield_10y", "mortgage_spread")
 }
 
 #' Felder eines Blocks nach Schema normalisieren; übrige numerische Blätter als Knoten
@@ -342,7 +355,7 @@ scn_find_nodes <- function(x, kind, path = "") {
 scn_leaves <- function(x, path = "") {
   if (is.null(x)) return(character(0))
   if (node_is(x) || !is_map(x) || length(x) == 0L ||
-      (nzchar(path) && is_value_form(x, path, kind_of = scn_kind_of))) {
+        (nzchar(path) && is_value_form(x, path, kind_of = scn_kind_of))) {
     return(if (nzchar(path)) path else character(0))
   }
   unlist(lapply(names(x), function(nm) scn_leaves(x[[nm]], path_join(path, nm))),

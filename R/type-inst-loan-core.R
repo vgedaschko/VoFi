@@ -24,7 +24,7 @@ inst_loan_params <- function(repayment) {
     existing = vofi_param("logical", default = FALSE),
     installment_eur = vofi_param("amount", unit = "EUR", min = 0),
     rank = vofi_param("integer"),
-    start = vofi_param("timing"),
+    start = vofi_param("timing", grid_default = "valuation_date"),
     draw_schedule = vofi_param("schedule", deterministic_only = TRUE),
     rate_pa = vofi_param("rate", required = TRUE),
     payments_per_year = vofi_param("integer", default = 12L),
@@ -99,7 +99,7 @@ inst_loan_init <- function(spec, ctx, repayment) {
   amount_node <- path_get(spec, "amount_eur")
   is_auto <- node_is(amount_node) && identical(amount_node$kind, "auto")
   start <- if (existing) g$valuation_date else typ_timing_date(ctx, spec, "start",
-                                                                 g$valuation_date)
+                                                               g$valuation_date)
   t_start <- grid_period_of(g, start)
   if (is.na(t_start)) inst_loan_abort(spec, "start_outside", date = start)
   sched <- path_get(spec, "draw_schedule")
@@ -300,7 +300,11 @@ inst_loan_step <- function(state, t, ctx) {
   n <- length(st$B)
   j <- t + 1L
   z_sum <- r_sum <- rb_sum <- p_sum <- rep(0, n)
-  if (t >= 1L && g$months[j] > 0L) {
+  # Nach Faelligkeit ohne Bestand und ohne Bereitstellungszinsen aendert die Monatsuhr nichts
+  # (alle Monatsbetraege 0); die Schleife entfaellt dann (Leistung, 8.1 Nr. 3; bitgleich)
+  idle <- t >= 1L && g$month_end[j - 1L] + 1L > st$m_mat && all(st$B == 0) &&
+    all(st$par$fee_rate * pmax(st$commitment * st$approved - st$drawn, 0) == 0)
+  if (t >= 1L && g$months[j] > 0L && !idle) {
     for (m in (g$month_end[j - 1L] + 1L):g$month_end[j]) {
       if ((m - 1L) %in% st$reset_months) {
         jstar <- if (m - 1L <= 0L) 1L else utl_month_period(g, m - 1L) + 1L
@@ -356,7 +360,7 @@ inst_loan_step <- function(state, t, ctx) {
   if (!is.na(st$t_tz) && t == st$t_tz) {
     tz_t <- if (all(!is.na(st$tz_amount))) st$tz_amount else
       (st$par$tz_share %||% 0) * pmin(st$commitment, st$drawn) * st$par$tz_approved *
-      (1 - st$par$tz_cut)
+        (1 - st$par$tz_cut)
     tz <- pmin(pmax(tz_t, 0), st$B)
     st$B <- st$B - tz
     if (identical(st$par$effect, "reduce_installment") && st$inst_set) {
@@ -424,7 +428,7 @@ inst_loan_validate <- function(spec, scenario, repayment) {
   term <- inst_loan_const(spec$term_years)
   tau <- spec$initial_repayment_pa
   if (is.null(term) && !(identical(repayment, "annuity") && !is.null(tau)) &&
-      !isTRUE(spec$existing)) {
+        !isTRUE(spec$existing)) {
     add("term_missing", "term_years")
   }
   if (!is.null(term) && term <= 0) add("term_nonpositive", "term_years", value = term)

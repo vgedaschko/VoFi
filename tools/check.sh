@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Prüflauf des Pakets vofi (Integrator, Spec 00 Abschnitte 2.6, 15.7):
-#   1. NAMESPACE und man/ mit roxygen2 erzeugen
+#   1. NAMESPACE und man/ mit roxygen2 erzeugen (im CI: Fehler, wenn sie veraltet waren)
 #   2. Testsuite (testthat) aus dem Quellbaum
 #   3. R CMD build und R CMD check --no-manual (LANG=C.UTF-8, _R_CHECK_FORCE_SUGGESTS_=false)
 # Aufruf aus der Paketwurzel oder von beliebiger Stelle: tools/check.sh [--no-tests] [--no-check]
@@ -24,9 +24,35 @@ export _R_CHECK_FORCE_SUGGESTS_=false
 export _R_CHECK_CRAN_INCOMING_=false
 export _R_CHECK_SYSTEM_CLOCK_=false
 
+# Ausgabeverzeichnis absichern (wird mit rm -rf geleert): nicht leer, nicht /, nicht das
+# Paketverzeichnis oder ein Verzeichnis darueber
+case "$OUT_DIR" in
+  ""|"/"|"$PKG_DIR"|"$PKG_DIR"/*) echo "Unzulaessiges VOFI_CHECK_DIR: '$OUT_DIR'" >&2; exit 2 ;;
+esac
+case "$PKG_DIR/" in
+  "$OUT_DIR"/*) echo "VOFI_CHECK_DIR '$OUT_DIR' enthaelt das Paketverzeichnis" >&2; exit 2 ;;
+esac
+
 cd "$PKG_DIR"
 echo "== roxygen2::roxygenise() =="
+# Pruefsummen vor und nach roxygenise(): Unterschiede bedeuten, dass der eingecheckte Stand
+# veraltet war (2.6 Nr. 1). Im CI (Variable CI gesetzt) ist ein veraltetes NAMESPACE ein Fehler;
+# man/ nur ein Hinweis, weil andere roxygen2-Versionen die Rd-Dateien anders formatieren koennen.
+ns_sum() { cksum < NAMESPACE; }
+man_sum() { cat man/*.Rd 2>/dev/null | cksum; }
+NS_BEFORE="$(ns_sum)"
+MAN_BEFORE="$(man_sum)"
 Rscript -e 'roxygen2::roxygenise()'
+if [ "$MAN_BEFORE" != "$(man_sum)" ]; then
+  echo "Hinweis: man/ wurde durch roxygenise() aktualisiert."
+fi
+if [ "$NS_BEFORE" != "$(ns_sum)" ]; then
+  echo "Hinweis: NAMESPACE wurde durch roxygenise() aktualisiert."
+  if [ -n "${CI:-}" ]; then
+    echo "Fehler: NAMESPACE im Repository ist veraltet (roxygen2::roxygenise() ausfuehren)." >&2
+    exit 1
+  fi
+fi
 
 if [ "$RUN_TESTS" = "1" ]; then
   echo "== testthat =="

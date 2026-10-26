@@ -20,7 +20,7 @@ res_context <- function(spec, grid, n, draws = NULL, mode = "deterministic") {
 res_draw <- function(rc, path) {
   d <- rc$draws
   if (is.null(d) || identical(rc$mode, "deterministic") || is.null(d$targets) ||
-      nrow(d$targets) == 0L) {
+        nrow(d$targets) == 0L) {
     return(NULL)
   }
   hit <- which(d$targets$target == path)

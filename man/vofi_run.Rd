@@ -19,7 +19,9 @@ vofi_run(
 
 \item{seed}{Seed (ganze Zahl in \verb{[1, 2^31 - 2]}); Default aus \code{stochastic$settings$seed}.}
 
-\item{store}{Speicherstrategie: \code{"auto"}, \code{"full"}, \code{"bands"} oder \code{"kpi"}.}
+\item{store}{Speicherstrategie: \code{"auto"}, \code{"full"}, \code{"bands"} oder \code{"kpi"}. Bei \code{n_sim = 1}
+enthält das Ergebnis stets den vollständigen Ledger (\code{"full"}, mit Hinweis bei \code{"bands"}
+bzw. \code{"kpi"}).}
 
 \item{chunk_size}{Läufe je Chunk (wird auf ganze Blöcke abgerundet).}
 }

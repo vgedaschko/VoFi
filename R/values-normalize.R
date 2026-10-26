@@ -164,8 +164,9 @@ node_check_rate <- function(node, kind, path, eur = FALSE) {
   is_rate <- kind %in% c("rate", "share") ||
     (!isTRUE(eur) && grepl("(_pa|_share)$", last) && !grepl("_eur", last, fixed = TRUE))
   if (!is_rate || !is.list(node)) return(invisible(TRUE))
-  vals <- if (identical(node$kind, "const")) node$value else if (identical(node$kind, "series_t") &&
-                                                                 is.numeric(node$values)) {
+  vals <- if (identical(node$kind, "const")) {
+    node$value
+  } else if (node$kind %in% c("series_t", "series_year", "points") && is.numeric(node$values)) {
     node$values
   } else {
     numeric(0)
@@ -244,9 +245,9 @@ node_schedule_raw <- function(x, path, eur) {
   }
   dates <- do.call(c, lapply(names(s), function(k) node_timing(k, path_join(path, "schedule"))))
   unit <- if (is.null(x[["unit"]])) NULL else node_enum(x[["unit"]],
-                                                         vofi_param("enum",
-                                                                    values = "vocab:schedule_unit"),
-                                                         path_join(path, "unit"))
+                                                        vofi_param("enum",
+                                                                   values = "vocab:schedule_unit"),
+                                                        path_join(path, "unit"))
   is_eur <- eur && !identical(unit, "share")
   node <- node_schedule(dates, node_elements(unname(s), path_join(path, "schedule"), is_eur))
   node$unit <- unit
@@ -257,7 +258,7 @@ node_schedule_raw <- function(x, path, eur) {
 #' @noRd
 node_growth_raw <- function(x, path, eur) {
   bd <- if (is.null(x[["base_date"]])) NULL else node_timing(x[["base_date"]],
-                                                              path_join(path, "base_date"))
+                                                             path_join(path, "base_date"))
   idx <- node_enum(x[["index"]] %||% vocab("growth_index")$default,
                    vofi_param("enum", values = "vocab:growth_index"), path_join(path, "index"))
   if (!vocab_has("growth_index", idx)) {
@@ -272,7 +273,7 @@ node_growth_raw <- function(x, path, eur) {
   # growth ist eine Jahresrate (4.5): |g| > 1 ist ein Eingabefehler (4.6)
   node_check_rate(node$growth, "rate", path_join(path, "growth"))
   node$real <- if (is.null(x[["real"]])) FALSE else node_logical(x[["real"]],
-                                                                  path_join(path, "real"))
+                                                                 path_join(path, "real"))
   node
 }
 
@@ -290,7 +291,7 @@ node_dist_raw <- function(x, path) {
   })
   list(kind = "dist", dist = node_string(x[["dist"]], path_join(path, "dist")), par = par,
        base = if (is.null(x[["base"]])) NULL else node_number(x[["base"]],
-                                                               path_join(path, "base")),
+                                                              path_join(path, "base")),
        label = x[["label"]])
 }
 

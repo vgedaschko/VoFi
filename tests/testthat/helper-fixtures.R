@@ -234,7 +234,7 @@ example_mc_result <- function(n_sim = 200L) {
                es05 = mean(x[x <= q[1L]]), expected_loss = mean(pmax(-x, 0)), na_share = 0,
                n_valid = length(x), deterministic = det$kpis[[nm]],
                converged = helper_converged(mean(x), se, sqrt(mean(x < 0) * (1 - mean(x < 0)) /
-                                                               length(x)), r_blocks),
+                                                                length(x)), r_blocks),
                stringsAsFactors = FALSE)
   }
   stats <- do.call(rbind, lapply(setdiff(names(kpis), c("sim", "block")), stat_row))
@@ -247,16 +247,13 @@ example_mc_result <- function(n_sim = 200L) {
     rownames(m) <- c(paste0("q", sprintf("%02d", round(100 * band_probs))), "mean")
     m
   }
-  run_idx <- c(p05 = which.min(abs(kpis$delta_terminal_value - stats$q05[stats$kpi ==
-                                                                       "delta_terminal_value"])),
-               p50 = which.min(abs(kpis$delta_terminal_value - stats$q50[stats$kpi ==
-                                                                       "delta_terminal_value"])),
-               p95 = which.min(abs(kpis$delta_terminal_value - stats$q95[stats$kpi ==
-                                                                       "delta_terminal_value"])))
+  dtv <- stats[stats$kpi == "delta_terminal_value", , drop = FALSE]
+  near <- function(q) which.min(abs(kpis$delta_terminal_value - q))
+  run_idx <- c(p05 = near(dtv$q05), p50 = near(dtv$q50), p95 = near(dtv$q95))
   checks <- det$checks
   checks$n_runs <- n_sim
   model <- vofi_build(vofi_read_scenario(testthat::test_path("fixtures", "scenarios",
-                                                            "oracle_a.yaml")))
+                                                             "oracle_a.yaml")))
   new_vofi_mc_result(list(
     spec = det$spec, grid = det$grid, model = model, kpis = kpis, kpi_na = kpi_na,
     kpi_series = list(),

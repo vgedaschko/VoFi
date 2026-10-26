@@ -75,7 +75,7 @@ utl_value_form_kind <- function(x) {
   # Bibliotheksverweis nur mit einer id der Form <bereich>/<eintrag> (4.9); {from: 2030} bzw.
   # {from: completion} ist ein Termin, keine Wertform
   if (identical(form, "from") && !(is.character(x[["from"]]) && length(x[["from"]]) == 1L &&
-                                   grepl("/", x[["from"]], fixed = TRUE))) {
+                                     grepl("/", x[["from"]], fixed = TRUE))) {
     return(NA_character_)
   }
   form

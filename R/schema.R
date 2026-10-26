@@ -97,7 +97,7 @@ vofi_param <- function(kind, ..., default = NULL, required = FALSE, min = NULL, 
   }
   if (kind == "map") {
     if (!is.list(fields) || length(fields) == 0L || is.null(names(fields)) ||
-        !all(vapply(fields, inherits, logical(1), "vofi_param"))) {
+          !all(vapply(fields, inherits, logical(1), "vofi_param"))) {
       vofi_abort("core.registry.param_fields", .class = "vofi_error_registry")
     }
   } else if (!is.null(fields)) {

@@ -184,3 +184,48 @@ test_that("Overrides (Schicht 8) in Baum- und Pfadform wirken gleich", {
                    list(c = 1, a = list(b = NULL)))
   expect_error(scn_overrides_tree(1), class = "vofi_error_input")
 })
+
+test_that("Kennzahlen: Filter nach requires (9.1 Stufe 9), uses_inputs am Steuermodul", {
+  local_registry_state <- reg_state$types
+  withr::defer(reg_state$types <- local_registry_state)
+  mv <- vofi_type("tk_mv", "kpi", label = "Marktwert T", requires = "market_value",
+                  labels = list(description = "d", params = list(), rows = list()),
+                  compute = function(core, ctx) vofi_kpi_value(rep(1, core$n)))
+  vofi_register_type(mv)
+  sc <- example_scenario("skeleton")
+  sc$analysis$kpis <- "default"
+  m <- vofi_build(sc)
+  expect_false("tk_mv" %in% names(m$kpis))
+  expect_true(all(c("terminal_value", "delta_terminal_value") %in% names(m$kpis)))
+  sc$components$mv <- list(type = "custom_series", section = "memo", category = "market_value",
+                           values = c(100000, 101000, 102000, 103000))
+  expect_true("tk_mv" %in% names(vofi_build(sc)$kpis))
+  sc2 <- example_scenario("skeleton")
+  sc2$analysis$kpis <- c("terminal_value", "tk_mv")
+  expect_message(m2 <- vofi_build(sc2), "tk_mv", fixed = TRUE)
+  expect_identical(names(m2$kpis), "terminal_value")
+  expect_false(isTRUE(m2$tax$uses_inputs))
+  expect_null(m2$tax_uses_inputs)
+  expect_null(m2$has_prepay)
+  expect_identical(eng_kpi_available(m2$spec, m2$base$flows), "opportunity")
+})
+
+test_that("ctx$setting()/ctx$timing() liefern Defaults inkl. rasterabhaengiger Termine (6.2)", {
+  g <- make_grid("annual")
+  eq <- make_component("equity", amount_eur = 1000, id = "ek")
+  ctx <- make_ctx(1L, grid = g, spec = eq)
+  expect_identical(ctx$setting(eq, "date"), g$valuation_date)
+  expect_identical(ctx$setting(eq, "to"), g$end_date)
+  expect_identical(ctx$timing(eq, "to")$date, g$end_date)
+  rec <- make_component("recurring", amount_eur = 100, category = "rent", id = "r")
+  ctx2 <- make_ctx(2L, grid = g, spec = rec)
+  expect_identical(ctx2$setting(rec, "from"), g$completion_date)
+  expect_identical(ctx2$timing(rec, "from")$shift, c(0, 0))
+  bank <- make_component("bullet_loan", amount_eur = 1000, rate_pa = 0.05, term_years = 3,
+                         id = "bank")
+  ctx3 <- make_ctx(1L, grid = g, spec = bank)
+  expect_identical(ctx3$setting(bank, "start"), g$valuation_date)
+  expect_identical(ctx3$param(bank, "fees.processing_fee_share"), 0)
+  expect_identical(ctx3$setting(bank, "repayment_grant.effect"), "shorten_term")
+  expect_null(ctx3$param(bank, "repayment_grant.share"))
+})

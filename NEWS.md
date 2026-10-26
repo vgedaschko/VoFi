@@ -22,6 +22,31 @@
   `apply` (multiply/add), Codes und Wahrheitswerte in Ausdrücken nur in
   Vergleich und Logik, `ctx$rows()` mit `measure_id`/`local_row`,
   `item_defaults`-Semantik für optionale Blöcke und Herkunft `rule:<name>` der
-  Ableitungsregeln (P0-04 bis P0-07, P0-09, P0-10). Offen: P0-01 bis P0-03
-  (Vokabulare) und P0-08 (Registry).
+  Ableitungsregeln (P0-04 bis P0-07, P0-09, P0-10).
+* Phase-0-Integration der Reviews (Linsen „vertrag“ und „r-qualitaet“):
+  - P0-01 bis P0-03 und P0-08 erledigt: `measure_types` mit den 37 Codes aus Spec 01
+    Teil A 4.2 (keine Sammelcodes), Enums `growth_index`, `overlay_apply`, `mc_preset`,
+    `levy_procedure` (Alias auch für die Zahl 559), `bgb_procedure`, `quantity_per` um
+    `m2_net_floor_area`/`parking`, `rule_returns` um `value`, NA-Code `no_liquidity_limit`;
+    Registry: `returns: value`, optionale Prozessfunktion `quantile_path(par, years, p)` mit
+    Prüfung P4, `domain_reads` (C3).
+  - YAML-Leser: Handler `int#oct`, `int#hex`, `int#base60`, `float#base60` (`0,02`, `-0,5`,
+    `010` werden nicht mehr oktal gelesen), quotierte Zahlen nach denselben Regeln wie
+    unquotierte (`"40.000"` bei EUR ein Fehler), eigener Fehler für nicht UTF-8-kodierte Dateien.
+  - `vofi_build()`: unbekannte Wurzelschlüssel von Szenario und Overrides sind
+    Validierungsfehler; Overrides auch in Pfadform; unbekannte Felder der Domänenblöcke
+    (`validation.unknown_field`); Wertebereiche des Parameterschemas (`validation.range`);
+    Kombinationsregeln der Kredite; Kennzahlen nach `requires` gefiltert.
+  - **Verhaltensänderung** Zeitraster (R-98): `grid_overlap()`/`grid_shift_overlap()` runden
+    Daten, die keine Monatsersten sind, auf den folgenden Monatsersten (wie
+    `grid_shift_months()`).
+  - `deep_merge()`/`is_value_form()`: Sammlungseinträge sind ohne `kind_of` nie Wertformen,
+    `from:` ist nur mit einer Bibliotheks-id (`/`) ein Verweis.
+  - `ctx`: `rows()`/`component_base()` nur für deklarierte Abhängigkeiten; `setting()`/`timing()`
+    mit Defaults inkl. rasterabhängiger Termine; Map-Felder mit Default.
+  - Engine: zusammengefasste Meldungen je Markierungsart (9.8), `model$tax$uses_inputs`,
+    `meta$defaults`, Typlabels der Kreditzeilen, Einzellauf mit `store = "kpi"`.
+  - `recurring.growth` als Rate (Prüfung > 1), `vofi_library_paths()` umgesetzt.
+  - Testhelfer und Fixtures an die Engine-Struktur angeglichen, Stub-Liste `vofi_stubs()`,
+    Batch-Tests auf Identität und N = T+1, `.lintr` ohne `cyclocomp_linter`.
 

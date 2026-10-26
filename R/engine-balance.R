@@ -313,9 +313,11 @@ eng_assemble_core <- function(model, ctx, exo, rec, loan, st_g, st_kk, st_kkp, t
     assumed0 <- Reduce(`+`, lapply(loan, function(l) l$assumed[, 1L]), rep(0, n))
     eik <- matrix(0, n, n_t)
     eik[, 1L] <- ev - assumed0
-    rows[[length(rows) + 1L]] <- new_ledger_rows(
-      "equity_in_kind", "equity", "equity_in_kind", local_row = "equity_in_kind",
-      label_key = "core.rows.equity_in_kind", label = lbl("core.rows.equity_in_kind"))
+    eik_row <- new_ledger_rows("equity_in_kind", "equity", "equity_in_kind",
+                               local_row = "equity_in_kind",
+                               label_key = "core.rows.equity_in_kind",
+                               label = lbl("core.rows.equity_in_kind"))
+    rows[[length(rows) + 1L]] <- eik_row
     values$equity_in_kind <- eik
   }
   meta <- do.call(rbind, rows)

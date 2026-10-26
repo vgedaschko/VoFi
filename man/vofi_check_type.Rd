@@ -18,7 +18,7 @@ vofi_check_type(name, kind = NULL, n = c(1L, 2L, 7L))
 }
 \description{
 Führt die Vertragstests aus Spec 00, Abschnitt 5.6 (C1–C4 und die artspezifischen Prüfungen
-F1–F10, I1–I4, A1–A2, D1–D3, P1–P3, K1, T1) mit dem Prüfkit des Pakets aus. Ein Verstoß ist
+F1–F10, I1–I4, A1–A2, D1–D3, P1–P4, K1, T1) mit dem Prüfkit des Pakets aus. Ein Verstoß ist
 ein Fehler der Klasse \code{vofi_error_contract}; das Feld \code{data$findings} enthält alle Befunde.
 }
 \examples{

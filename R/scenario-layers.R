@@ -133,7 +133,7 @@ vofi_resolve <- function(scenario, variant = "base", overrides = NULL, scenario_
   # entries/layers fuer spaeter ueberschriebene Pfade gelten nicht mehr
   for (p in names(types)) {
     if (types[[p]] %in% c("scenario", "variant", "scenario_set", "override") &&
-        p %in% names(entries)) {
+          p %in% names(entries)) {
       entries <- entries[names(entries) != p]
     }
   }

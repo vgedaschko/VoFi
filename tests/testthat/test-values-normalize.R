@@ -92,3 +92,15 @@ test_that("Wachstumsraten > 1 sind ein Eingabefehler (4.6): Wachstumsform und re
                                   "components.r.growth")$kind, "ref")
   expect_true("path" %in% def$params$growth$shapes)
 })
+
+test_that("Kanonische Marktraten > 1 sind ein Eingabefehler (4.3.11, 4.6)", {
+  sc <- unclass(vofi_read_scenario(vofi_example("skeleton")))
+  x <- sc[intersect(names(sc), utl_scenario_blocks())]
+  x$schema_version <- 1L
+  x$market <- list(inflation = 2)
+  expect_error(vofi_scenario(x), class = "vofi_error_input")
+  x$market <- list(rent_growth = list(series = list("2027" = 0.02, "2030" = 3)))
+  expect_error(vofi_scenario(x), class = "vofi_error_input")
+  x$market <- list(inflation = 0.02, co2_price = 55)
+  expect_s3_class(vofi_scenario(x), "vofi_scenario")
+})

@@ -24,7 +24,7 @@ typedef_recurring <- function() {
       growth = vofi_param("rate", default = 0, shapes = c("scalar", "path")),
       base_date = vofi_param("timing"),
       from = vofi_param("timing", default = "completion"),
-      to = vofi_param("timing"),
+      to = vofi_param("timing", grid_default = "end_date"),
       category = vofi_param("string", default = "other_cost"),
       direction = vofi_param("enum", values = "vocab:direction"),
       tax_category = vofi_param("string")

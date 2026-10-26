@@ -62,12 +62,13 @@ test_that("Steuerkategorien, NA-Codes, Register-Codes", {
   expect_identical(length(vocab_codes("tax_categories")), 22L)
   expect_true(all(c("not_applicable", "principal", "tax_credit") %in%
                     vocab_codes("tax_categories")))
-  expect_identical(vocab_codes("na_reasons"), c(
-    "no_equity", "multiple_equity_flows", "equity_lost", "irr_ambiguous", "irr_out_of_range",
-    "no_payback", "no_debt_service", "no_market_value", "no_household_income", "no_tenant_data",
-    "no_living_area", "no_inflation_path", "no_operation_period", "no_construction_period",
-    "no_solution", "run_stopped", "not_applicable_perspective", "not_computed",
-    "no_existing_value", "no_co2_reduction", "no_liquidity_limit"))
+  na_codes <- c("no_equity", "multiple_equity_flows", "equity_lost", "irr_ambiguous",
+                "irr_out_of_range", "no_payback", "no_debt_service", "no_market_value",
+                "no_household_income", "no_tenant_data", "no_living_area", "no_inflation_path",
+                "no_operation_period", "no_construction_period", "no_solution", "run_stopped",
+                "not_applicable_perspective", "not_computed", "no_existing_value",
+                "no_co2_reduction", "no_liquidity_limit")
+  expect_identical(vocab_codes("na_reasons"), na_codes)
   expect_identical(vocab_codes("asset_types"),
                    c("gebaeude_wohnen", "gebaeude_nichtwohnen", "grund_boden", "aussenanlage",
                      "bewegliches_wg", "pv_anlage", "ladeinfrastruktur"))

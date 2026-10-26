@@ -17,6 +17,11 @@
 #   Basis * (1 - 0.1 * (i - 1) / n)), Periodenreihen (series_t) als Pfad.
 # - Kontext: eng_context_from_parts() (WS-D) mit einer Attrappe der Engine-Umgebung
 #   (`stage`, `rebalance(extra_out)`, `auto(id)`), siehe reg_engine_env().
+# - Prozesse: simulate() erhaelt die Laufzahl n immer als attr(linked, "n") (auch wenn z und u
+#   NULL sind, n_shocks = n_uniforms = 0); der Sampler (WS-C) uebergibt sie ebenso. P4 prueft
+#   die optionale Funktion quantile_path(par, years, p).
+# - Abhaengigkeiten: der Pruefkontext kennt die deklarierten Abhaengigkeiten der Komponente
+#   (ref-Parameter, Bezuege, after; engine_env$deps); andere Komponenten sind nicht lesbar.
 # - Steuermodule: das `example` eines Steuermoduls MUSS Nullparameter tragen (T1: Zahlung 0).
 # - Kennzahlen: reg_example_core() liefert ein synthetisches, vertragsgemäßes core (12.1) mit
 #   Attribut "ctx" (zugehöriger Kontext mit funktionsfähiger rebalance()-Attrappe), sofern
@@ -244,9 +249,8 @@ reg_test_setup <- function(def, n, grid, draws = NULL, example = NULL) {
                                    engine_env = reg_engine_env("flows"))
     deps[[id]] <- dep_defs[[id]]$def$build(dep_defs[[id]]$comp, dctx)
   }
-  declared <- if (is.null(comp)) NULL else {
-    eng_component_deps(comp, def, c(names(dep_raw), comp$id))
-  }
+  declared <- NULL
+  if (!is.null(comp)) declared <- eng_component_deps(comp, def, c(names(dep_raw), comp$id))
   ctx <- eng_context_from_parts(grid, spec, draws = draws, components = deps,
                                 components_base = deps, mode = mode,
                                 engine_env = reg_engine_env("flows", deps = declared))
@@ -283,14 +287,14 @@ reg_fake_draws <- function(def, n, grid, example = NULL) {
     for (p in names(def$params)) {
       pp <- def$params[[p]]
       if (isTRUE(pp$deterministic_only) ||
-          !(pp$kind %in% c("number", "amount", "rate", "share", "value"))) {
+            !(pp$kind %in% c("number", "amount", "rate", "share", "value"))) {
         next
       }
       node <- comp[[p]]
       key <- path_join(coll, comp$id, p)
       fac <- if (identical(pp$kind, "share")) 1 - 0.1 * i / n else 1 + 0.1 * i
       if (is.list(node) && identical(node$kind, "const") && is.numeric(node$value) &&
-          length(node$value) == 1L) {
+            length(node$value) == 1L) {
         static[[key]] <- as.double(node$value) * fac
         keys <- c(keys, key)
         kinds <- c(kinds, "static")
@@ -487,7 +491,7 @@ reg_flow_findings <- function(fl, ctx, def, n, grid, tag) {
     }
     v <- r$values
     if (!is.matrix(v) || !identical(dim(v), c(as.integer(n), n_t)) || !is.double(v) ||
-        anyNA(v) || any(!is.finite(v))) {
+          anyNA(v) || any(!is.finite(v))) {
       f2 <- c(f2, k)
       next
     }
@@ -506,11 +510,11 @@ reg_flow_findings <- function(fl, ctx, def, n, grid, tag) {
       f6 <- c(f6, k)
     }
     if ("measure" %in% cat_row$ids &&
-        (is.null(r$measure_id) || !(r$measure_id %in% measure_ids))) {
+          (is.null(r$measure_id) || !(r$measure_id %in% measure_ids))) {
       f6 <- c(f6, k)
     }
     if (r$category %in% c("residual_value", "sale_cost") && n_t > 1L &&
-        any(abs(v[, -n_t, drop = FALSE]) > tol)) {
+          any(abs(v[, -n_t, drop = FALSE]) > tol)) {
       f9 <- c(f9, k)
     }
   }
@@ -578,7 +582,7 @@ reg_check_flow <- function(def, n) {
     }
   }
   out[[length(out) + 1L]] <- reg_finding("F8", rng_ok, if (rng_ok) "" else
-    msg("core.testkit.rng", name = def$name))
+                                           msg("core.testkit.rng", name = def$name))
   nmax <- max(n)
   if (nmax > 1L) {
     for (gname in names(grids)) {
@@ -595,7 +599,7 @@ reg_check_flow <- function(def, n) {
         ok
       } else {
         reg_finding("F7", ok, if (ok) "" else msg("core.testkit.batch", name = def$name,
-                                                     grid = gname))
+                                                  grid = gname))
       }
     }
   }
@@ -660,10 +664,10 @@ reg_run_instrument <- function(def, n, grid, draws, tag) {
     fl_names <- c("draw", "repay", "repay_balloon", "prepay", "interest", "fees")
     mm_names <- c("repayment_grant", "disagio")
     if (!is.list(r) || !all(c("state", "flows", "memo", "stocks") %in% names(r)) ||
-        !all(fl_names %in% names(r$flows)) || !all(mm_names %in% names(r$memo)) ||
-        is.null(r$stocks$balance) ||
-        !all(vapply(c(r$flows[fl_names], r$memo[mm_names], list(r$stocks$balance)), vec_ok,
-                    logical(1)))) {
+          !all(fl_names %in% names(r$flows)) || !all(mm_names %in% names(r$memo)) ||
+          is.null(r$stocks$balance) ||
+          !all(vapply(c(r$flows[fl_names], r$memo[mm_names], list(r$stocks$balance)), vec_ok,
+                      logical(1)))) {
       i1 <- c(i1, paste0("t=", t))
       break
     }
@@ -672,7 +676,7 @@ reg_run_instrument <- function(def, n, grid, draws, tag) {
               disagio = get0v(r$memo, "disagio"), assumed = get0v(r$memo, "assumed"))
     b <- as.double(r$stocks$balance)
     if (any(f$draw < -zero) || any(unlist(f[setdiff(fl_names, "draw")]) > zero) ||
-        any(unlist(m) < -zero) || any(b < -tol)) {
+          any(unlist(m) < -zero) || any(b < -tol)) {
       i2 <- c(i2, paste0("t=", t))
     }
     expect <- b_prev + f$draw + m$disagio + m$assumed + f$repay + f$repay_balloon + f$prepay -
@@ -738,7 +742,7 @@ reg_check_instrument <- function(def, n) {
     }
   }
   out[[length(out) + 1L]] <- reg_finding("F8", rng_ok, if (rng_ok) "" else
-    msg("core.testkit.rng", name = def$name))
+                                           msg("core.testkit.rng", name = def$name))
   nmax <- max(n)
   if (nmax > 1L) {
     for (gname in names(grids)) {
@@ -757,7 +761,7 @@ reg_check_instrument <- function(def, n) {
         ok
       } else {
         reg_finding("F7", ok, if (ok) "" else msg("core.testkit.batch", name = def$name,
-                                                     grid = gname))
+                                                  grid = gname))
       }
     }
   }
@@ -860,19 +864,19 @@ reg_check_action <- function(def, n) {
     a1 <- length(used) == nn && all(used >= -tol) && all(used <= res$amount + tol) &&
       keys_ok && flows_ok && all(acc1$G >= -tol) && all(acc1$KK >= -tol) &&
       all(acc1$KKP >= -tol)
-    out[[length(out) + 1L]] <- reg_finding("A1", a1, if (a1) "" else
-      paste(tag, msg("core.testkit.action", what = "A1", name = def$name)))
+    m1 <- if (a1) "" else paste(tag, msg("core.testkit.action", what = "A1", name = def$name))
+    out[[length(out) + 1L]] <- reg_finding("A1", a1, m1)
     wealth <- function(a, b) a$G - a$KK - a$KKP - b
     total <- if (length(keys) > 0L) Reduce(`+`, lapply(r$flows, as.double)) else rep(0, nn)
     ext <- Reduce(`+`, lapply(intersect(keys, c("equity_call", "shortfall")),
                               function(k) as.double(r$flows[[k]])), rep(0, nn))
     d_w <- wealth(acc1, res$b1) - wealth(acc0, res$b0)
     a2 <- length(d_w) == nn && all(abs(d_w + (total - ext)) <= 1e-9 * pmax(1, res$amount))
-    out[[length(out) + 1L]] <- reg_finding("A2", a2, if (a2) "" else
-      paste(tag, msg("core.testkit.action", what = "A2", name = def$name)))
+    m2 <- if (a2) "" else paste(tag, msg("core.testkit.action", what = "A2", name = def$name))
+    out[[length(out) + 1L]] <- reg_finding("A2", a2, m2)
   }
   out[[length(out) + 1L]] <- reg_finding("F8", rng_ok, if (rng_ok) "" else
-    msg("core.testkit.rng", name = def$name))
+                                           msg("core.testkit.rng", name = def$name))
   reg_bind(out)
 }
 
@@ -1006,8 +1010,8 @@ reg_check_process <- function(def) {
     if (sim$ok && all(is.finite(sim$ex))) {
       se <- apply(sim$x, 2L, stats::sd) / sqrt(n)
       ok <- isTRUE(all(abs(colMeans(sim$x) - sim$ex) <= 4 * se + 1e-9 * pmax(1, abs(sim$ex))))
-      out[[length(out) + 1L]] <- reg_finding("P3", ok, if (ok) "" else
-        msg("core.testkit.process", what = "P3", name = def$name))
+      m3 <- if (ok) "" else msg("core.testkit.process", what = "P3", name = def$name)
+      out[[length(out) + 1L]] <- reg_finding("P3", ok, m3)
     }
     if (sim$ok && is.function(def$quantile_path)) {
       out[[length(out) + 1L]] <- reg_try("P4", reg_check_quantile_path(def, par, years, sim$x,
@@ -1021,7 +1025,7 @@ reg_check_process <- function(def) {
                                               name = def$name))
   })
   out[[length(out) + 1L]] <- reg_finding("F8", rng, if (rng) "" else
-    msg("core.testkit.rng", name = def$name))
+                                           msg("core.testkit.rng", name = def$name))
   reg_bind(out)
 }
 
@@ -1105,7 +1109,7 @@ reg_check_kpi <- function(def) {
   ok <- reg_kpi_ok(res$v, n, def)
   out[[1L]] <- reg_finding("K1", ok, if (ok) "" else msg("core.testkit.kpi", name = def$name))
   out[[2L]] <- reg_finding("F8", res$rng, if (res$rng) "" else
-    msg("core.testkit.rng", name = def$name))
+                             msg("core.testkit.rng", name = def$name))
   if (ok) {
     out[[3L]] <- reg_try("F7", {
       vals <- list(v = res$v$values)
@@ -1116,7 +1120,7 @@ reg_check_kpi <- function(def) {
         reg_same_run(vals, list(v = vi$values), i)
       }, logical(1)))
       reg_finding("F7", same, if (same) "" else msg("core.testkit.batch", name = def$name,
-                                                     grid = "annual"))
+                                                    grid = "annual"))
     })
   }
   reg_bind(out)
@@ -1162,7 +1166,7 @@ reg_check_tax <- function(def) {
     reg_bind(list(
       reg_finding("T1", ok, if (ok) "" else msg("core.testkit.tax", name = def$name)),
       reg_finding("F8", rr$rng_ok, if (rr$rng_ok) "" else msg("core.testkit.rng",
-                                                                name = def$name))
+                                                              name = def$name))
     ))
   }, error = function(e) reg_finding("T1", FALSE, conditionMessage(e)))
   res
@@ -1195,9 +1199,9 @@ reg_check_rule <- function(def, n) {
     }
     reg_bind(list(
       reg_finding("F7", same, if (same) "" else msg("core.testkit.batch", name = def$name,
-                                                     grid = "-")),
+                                                    grid = "-")),
       reg_finding("F8", rb$rng_ok, if (rb$rng_ok) "" else msg("core.testkit.rng",
-                                                                name = def$name))
+                                                              name = def$name))
     ))
   }, error = function(e) reg_finding("F7", FALSE, conditionMessage(e)))
   res
@@ -1443,7 +1447,7 @@ reg_assemble_core <- function(inp, grid, rates, p) {
                                        "installment_loan",
                                      origin = "scenario", local_row = cats[ci],
                                      measure_id = if (cats[ci] == "repayment_grant" &&
-                                                      lk == "kfw") "m1" else NA_character_,
+                                                        lk == "kfw") "m1" else NA_character_,
                                      order = 1000 * (400 + pos) + 10 * ci)
     }
   }

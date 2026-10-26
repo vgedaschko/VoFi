@@ -40,10 +40,12 @@ eng_opportunity <- function(model, ctx, core) {
     sale <- matrix(0, n, n_t)
     sale[, 1L] <- ev * (1 - sale_share) - assumed
     pos <- all(sale[, 1L] >= 0)
-    rows <- rbind(rows, new_ledger_rows(
-      "opp_in_kind_sale", "equity", if (pos) "equity_in" else "equity_out",
-      local_row = "opp_in_kind_sale", label_key = "core.rows.opp_in_kind_sale",
-      label = lbl("core.rows.opp_in_kind_sale")))
+    sale_row <- new_ledger_rows("opp_in_kind_sale", "equity",
+                                if (pos) "equity_in" else "equity_out",
+                                local_row = "opp_in_kind_sale",
+                                label_key = "core.rows.opp_in_kind_sale",
+                                label = lbl("core.rows.opp_in_kind_sale"))
+    rows <- rbind(rows, sale_row)
     values$opp_in_kind_sale <- sale
   }
   ord <- order(rows$order, method = "radix")

@@ -40,7 +40,7 @@ eng_checks <- function(core, stop_on_error = TRUE) {
   i3c <- if (!is.null(core$limits$KL)) v$od_balance - core$limits$KL else z
   te <- core$terminal_ex_rv
   n2 <- matrix(abs(te$BS - (bs[, n_t] - te$rv)) / vol, n, 1L)
-  n1 <- all(vapply(v, function(m) all(is.finite(m)), logical(1)))
+  n1 <- all(vapply(v, function(m) is.finite(sum(m)) || all(is.finite(m)), logical(1)))
   out <- data.frame(
     invariant = c("I1", "I2", "I3a", "I3b", "I3c", "N1", "N2"),
     max_dev = c(max(i1, 0), max(i2, 0), max(i3a, 0), max(i3b, 0), max(i3c, 0),

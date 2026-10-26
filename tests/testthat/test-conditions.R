@@ -44,11 +44,12 @@ test_that("nur zul\u00e4ssige Bedingungsklassen", {
   expect_error(vofi_inform("core.file_missing", path = "x", .class = "vofi_warning_input"),
                class = "vofi_error_contract")
   tab <- vocab("conditions")
-  expect_setequal(tab$code, c(
-    "vofi_error_input", "vofi_error_validation", "vofi_error_registry", "vofi_error_contract",
-    "vofi_error_engine", "vofi_error_not_implemented", "vofi_error_label", "vofi_warning_input",
-    "vofi_warning_plausibility", "vofi_warning_library_outdated", "vofi_warning_engine",
-    "vofi_warning_correlation", "vofi_warning_memory", "vofi_message"))
+  expected <- c("vofi_error_input", "vofi_error_validation", "vofi_error_registry",
+                "vofi_error_contract", "vofi_error_engine", "vofi_error_not_implemented",
+                "vofi_error_label", "vofi_warning_input", "vofi_warning_plausibility",
+                "vofi_warning_library_outdated", "vofi_warning_engine",
+                "vofi_warning_correlation", "vofi_warning_memory", "vofi_message")
+  expect_setequal(tab$code, expected)
 })
 
 test_that("fehlender Schl\u00fcssel: strikt Fehler, sonst [[key]]", {

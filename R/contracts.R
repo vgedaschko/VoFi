@@ -77,7 +77,7 @@ vofi_row <- function(key, values, section, category, tax_category = NULL, cash =
   if (is.null(tax_category)) {
     tax_category <- cat_row$tax_category
   } else if (!utl_is_string(tax_category) ||
-             !(tax_category %in% vocab_tax_allowed(section, category))) {
+               !(tax_category %in% vocab_tax_allowed(section, category))) {
     vofi_abort("core.contract.row_tax_category", row = key,
                tax_category = utl_collapse(format(tax_category)), category = category,
                allowed = utl_collapse(vocab_tax_allowed(section, category)),
@@ -111,7 +111,7 @@ vofi_row <- function(key, values, section, category, tax_category = NULL, cash =
     }
   }
   if (!is.numeric(vat_rate) || length(vat_rate) != 1L || is.na(vat_rate) ||
-      vat_rate < 0 || vat_rate > 1) {
+        vat_rate < 0 || vat_rate > 1) {
     vofi_abort("core.contract.row_vat", row = key, value = utl_collapse(format(vat_rate)),
                .class = "vofi_error_contract")
   }
@@ -145,7 +145,7 @@ vofi_row <- function(key, values, section, category, tax_category = NULL, cash =
 #' @noRd
 utl_check_values <- function(values, key) {
   if (!is.matrix(values) || !(is.numeric(values) || is.logical(values)) ||
-      nrow(values) < 1L || ncol(values) < 1L) {
+        nrow(values) < 1L || ncol(values) < 1L) {
     vofi_abort("core.contract.row_values", row = key, .class = "vofi_error_contract")
   }
   if (!is.double(values)) storage.mode(values) <- "double"
@@ -284,7 +284,7 @@ vofi_flows <- function(..., assets = list(), measures = list(), aux = list(), me
   for (nm in names(aux)) {
     a <- aux[[nm]]
     if (!is.matrix(a) || !is.numeric(a) || anyNA(a) ||
-        (length(dims) > 0L && !identical(dim(a), dims[[1L]]))) {
+          (length(dims) > 0L && !identical(dim(a), dims[[1L]]))) {
       vofi_abort("core.contract.flows_aux", .class = "vofi_error_contract")
     }
   }
@@ -349,13 +349,13 @@ vofi_asset <- function(asset_id, asset_type, in_service_date, land_share = 0, af
   }
   in_service_date <- utl_as_date(in_service_date, "in_service_date")
   if (!is.numeric(land_share) || length(land_share) != 1L || is.na(land_share) ||
-      land_share < 0 || land_share > 1) {
+        land_share < 0 || land_share > 1) {
     vofi_abort("core.contract.register_value", field = "land_share",
                .class = "vofi_error_contract")
   }
   if (!is.null(useful_life_override) &&
-      (!is.numeric(useful_life_override) || length(useful_life_override) != 1L ||
-       !(useful_life_override > 0))) {
+        (!is.numeric(useful_life_override) || length(useful_life_override) != 1L ||
+           !(useful_life_override > 0))) {
     vofi_abort("core.contract.register_value", field = "useful_life_override",
                .class = "vofi_error_contract")
   }
@@ -364,7 +364,7 @@ vofi_asset <- function(asset_id, asset_type, in_service_date, land_share = 0, af
                                                 "original_completion_year")
   }
   if (!is.null(living_area_m2) &&
-      (!is.numeric(living_area_m2) || length(living_area_m2) != 1L || !(living_area_m2 >= 0))) {
+        (!is.numeric(living_area_m2) || length(living_area_m2) != 1L || !(living_area_m2 >= 0))) {
     vofi_abort("core.contract.register_value", field = "living_area_m2",
                .class = "vofi_error_contract")
   }
@@ -490,7 +490,7 @@ vofi_kpi_value <- function(values, na_reason = NULL, years = NULL) {
     n <- nrow(values)
     na_rows <- rowSums(is.na(values)) > 0
     if (is.null(years) || length(years) != ncol(values) || !is.numeric(years) ||
-        anyNA(years)) {
+          anyNA(years)) {
       vofi_abort("core.contract.kpi_years", .class = "vofi_error_contract")
     }
     years <- as.integer(years)
@@ -595,7 +595,7 @@ validate_vofi_ledger <- function(x) {
             "existing_debt", "source_type", "origin", "local_row", "label_key", "label",
             "order", "extra")
   if (!inherits(x, "vofi_ledger") || !is.data.frame(x$rows) ||
-      length(setdiff(cols, names(x$rows))) > 0L) {
+        length(setdiff(cols, names(x$rows))) > 0L) {
     vofi_abort("core.contract.fields_missing", class = "vofi_ledger",
                fields = utl_collapse(setdiff(cols, names(x$rows))),
                .class = "vofi_error_contract")
@@ -609,7 +609,9 @@ validate_vofi_ledger <- function(x) {
       vofi_abort("core.contract.ledger_dims", row = k, n = x$n, T = x$T,
                  .class = "vofi_error_contract")
     }
-    if (anyNA(v) || any(!is.finite(v))) {
+    # N1 in einem Durchlauf ohne Hilfsvektor: eine Summe ist genau dann nicht endlich, wenn ein
+    # Element NA/NaN/Inf ist (Betraege in EUR liegen weit unter dem double-Ueberlauf)
+    if (!is.finite(sum(v)) && !all(is.finite(v))) {
       vofi_abort("core.contract.row_not_finite", row = k, .class = "vofi_error_contract")
     }
   }
@@ -741,8 +743,8 @@ new_vofi_scenario <- function(x, source = list(), provenance = NULL) {
                            utl_scenario_blocks()))
   obj <- utl_new_object(x, "vofi_scenario", optional = opt)
   attr(obj, "source") <- utl_fill_defaults(source, list(path = NA_character_, format = "list",
-                                                         read_time = NULL, sha = NA_character_,
-                                                         stochastic_path = NULL))
+                                                        read_time = NULL, sha = NA_character_,
+                                                        stochastic_path = NULL))
   attr(obj, "provenance") <- provenance
   obj
 }
@@ -811,12 +813,12 @@ validate_vofi_result <- function(x) {
   n <- x$ledger$n
   if (!is.data.frame(x$kpis) || nrow(x$kpis) != n) bad("kpis")
   if (!is.data.frame(x$kpi_na) || nrow(x$kpi_na) != n ||
-      !identical(names(x$kpi_na), names(x$kpis))) {
+        !identical(names(x$kpi_na), names(x$kpis))) {
     bad("kpi_na")
   }
   if (!is.data.frame(x$flags) || nrow(x$flags) != n) bad("flags")
   if (!is.data.frame(x$checks) ||
-      length(setdiff(c("invariant", "max_dev", "tol", "ok"), names(x$checks))) > 0L) {
+        length(setdiff(c("invariant", "max_dev", "tol", "ok"), names(x$checks))) > 0L) {
     bad("checks")
   }
   if (!is.list(x$meta)) bad("meta")

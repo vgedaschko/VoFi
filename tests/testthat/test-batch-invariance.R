@@ -65,33 +65,38 @@ batch_scenario <- function(block_size = 7L, n_sim = 7L, degenerate = FALSE, extr
 
 batch_model <- function(...) vofi_build(batch_scenario(...))
 
-expect_same_ledger_row <- function(batch, single, i, tol = 1e-12) {
+#' Zeile i des Batch-Ledgers = Einzellauf; tol = 0 (Default) verlangt Identität (15.5 Nr. 1)
+expect_same_ledger_row <- function(batch, single, i, tol = 0) {
+  testthat::expect_identical(batch$rows$key, single$rows$key)
   for (k in batch$rows$key) {
     a <- batch$values[[k]][i, ]
     b <- single$values[[k]][1L, ]
-    testthat::expect_true(all(abs(a - b) <= tol * pmax(1, abs(a))), info = k)
+    if (tol == 0) {
+      testthat::expect_identical(a, b, info = k)
+    } else {
+      testthat::expect_true(all(abs(a - b) <= tol * pmax(1, abs(a))), info = k)
+    }
   }
 }
 
 #' Ledger, Kennzahlen und Pfade eines Laufs mit vorgegebenen Ziehungen (Stufen 2-9 der Engine)
 run_with_draws <- function(model, draws) eng_run_draws(model, draws = draws, store = "full")
 
-#' Lauf i des Batches = Einzellauf mit den Ziehungen von Lauf i (Ledger, Kennzahlen, Opp)
-expect_batch_equals_single <- function(model, draws, tol = 1e-12) {
+#' Lauf i des Batches = Einzellauf mit den Ziehungen von Lauf i (Ledger, Kennzahlen, Opp),
+#' identisch (15.5 Nr. 1; gemessene Abweichung exakt 0)
+expect_batch_equals_single <- function(model, draws) {
   n <- draws$n
   batch <- run_with_draws(model, draws)
   expect_identical(batch$ledger$n, n)
   expect_identical(nrow(batch$kpis), n)
   for (i in seq_len(n)) {
     single <- run_with_draws(model, reg_draws_subset(draws, i))
-    expect_same_ledger_row(batch$ledger, single$ledger, i, tol)
+    expect_same_ledger_row(batch$ledger, single$ledger, i)
     for (k in names(batch$kpis)) {
-      a <- batch$kpis[[k]][i]
-      b <- single$kpis[[k]][1L]
-      expect_true(abs(a - b) <= tol * max(1, abs(a)), info = paste(k, i))
+      expect_identical(batch$kpis[[k]][i], single$kpis[[k]][1L], info = paste(k, i))
     }
-    expect_true(all(abs(batch$opp$BS[i, ] - single$opp$BS[1L, ]) <=
-                      tol * pmax(1, abs(batch$opp$BS[i, ]))), info = paste("opp", i))
+    expect_identical(batch$opp$BS[i, ], single$opp$BS[1L, ], info = paste("opp", i))
+    expect_identical(batch$flags[i, , drop = FALSE], `rownames<-`(single$flags, i))
   }
   invisible(batch)
 }
@@ -119,6 +124,32 @@ test_that("0. Walking Skeleton: Lauf i im Batch = Einzellauf i (fake_draws, N = 
   expect_same_ledger_row(batch$ledger, det$ledger, 4L, 1e-12)
   expect_equal(batch$kpis$delta_terminal_value[4], det$kpis$delta_terminal_value,
                tolerance = 1e-12)
+})
+
+test_that("0c. N = T+1: Wachstumspfad, Miete, Zins und Monatsannuit\u00e4t im Batch (2.8 Nr. 8)", {
+  sc <- batch_scenario()
+  sc$stochastic <- list()
+  sc$financing$bank <- list(type = "annuity_loan", amount_eur = 60000, rate_pa = 0.04,
+                            term_years = 10, payments_per_year = 12L, fixed_years = 3,
+                            followup_rate_pa = list(ref = "market.mortgage_rate"))
+  sc$market$mortgage_rate <- 0.05
+  model <- vofi_build(sc)
+  g <- model$grid
+  n <- g$T + 1L
+  expect_identical(n, 6L)
+  i <- seq_len(n) - 1
+  growth <- outer(0.01 + 0.004 * i, rep(1, g$T + 1L))
+  growth[, 1L] <- 0
+  draws <- fake_draws(n, g,
+                      paths = list("market.rent_growth" = growth,
+                                   "market.mortgage_rate" = outer(0.03 + 0.01 * i,
+                                                                  rep(1, g$T + 1L))),
+                      static = list("components.rent.amount_eur" = 8000 + 500 * i,
+                                    "financing.bank.rate_pa" = 0.03 + 0.003 * i))
+  batch <- expect_batch_equals_single(model, draws)
+  expect_identical(nrow(batch$kpis), n)
+  expect_identical(length(unique(batch$ledger$values$loan_bank_interest[, 2L])), n)
+  expect_true(length(unique(batch$ledger$values$rent__value[, g$T + 1L])) == n)
 })
 
 test_that("0b. Orakel (a) mit stochastischen Zinsen: Lauf i im Batch = Einzellauf i", {
@@ -200,15 +231,24 @@ test_that("6. Rasterinvarianz der Kredite (Jahresannuit\u00e4t, Bauphase monatli
     sc <- batch_scenario()
     sc$stochastic <- list()
     sc$grid <- grid
+    # Teilauszahlung zum Ende der Bauphase: die Auszahlung liegt nicht nur in t0; der Termin
+    # 2028-01-01 ist Periodenende auf beiden Rastern ("gleiche Vertragstermine", 15.5 Nr. 6;
+    # Auszahlungen wirken zum Periodenende, 8.5 (h))
     sc$financing$bank <- list(type = "annuity_loan", amount_eur = 60000, rate_pa = 0.04,
-                              term_years = 5, payments_per_year = 1L)
+                              term_years = 5, payments_per_year = 1L,
+                              draw_schedule = list(schedule = list("2027-01-01" = 0.5,
+                                                                   "2028-01-01" = 0.5),
+                                                   unit = "share"))
     vofi_run(vofi_build(sc))
   }
   a <- mk(list())
   m <- mk(list(construction_months = 9L, construction_step_months = 1L))
   ga <- a$grid
   gm <- m$grid
+  expect_true(any(m$ledger$values$loan_bank_draw[1L, -1L] > 0))
   for (k in c("loan_bank_repay", "loan_bank_interest", "loan_bank_draw")) {
+    expect_equal(m$ledger$values[[k]][1L, 1L], a$ledger$values[[k]][1L, 1L], tolerance = 1e-9,
+                 info = paste(k, "t0"))
     for (y in unique(ga$year[-1L])) {
       sa <- sum(a$ledger$values[[k]][1L, -1L][ga$year[-1L] == y])
       sm <- sum(m$ledger$values[[k]][1L, -1L][gm$year[-1L] == y])

@@ -197,7 +197,8 @@ test_that("statische Vertragspr\u00fcfung C1-C3 bei der Registrierung", {
                      compute = function(core, ctx) NULL)
   expect_error(vofi_register_type(kp_dr), class = er)
   # Regeln: returns aus vocab rule_returns (inkl. value, R-93)
-  rv <- vofi_type("tk_rv", "rule", fun = function(procedure, P) TRUE, valid_from = "2026-01-01",
+  rule_fun <- function(procedure, P) TRUE # nolint: object_name_linter. Formal P nach 5.3
+  rv <- vofi_type("tk_rv", "rule", fun = rule_fun, valid_from = "2026-01-01",
                   returns = "value", label = "R")
   expect_silent(vofi_register_type(rv))
   rbad <- vofi_type("tk_rbad", "rule", fun = function(x) x, valid_from = "2026-01-01",

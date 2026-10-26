@@ -2,8 +2,9 @@
 # Phase-0-Minimalfassung, Eigentuemer: WS-D. Umgesetzt: Stufen 1-6a, 8-10 (Aufloesung,
 # Validierung, Raster, topologisch sortierte Komponenten nach ref-Parametern, Bezuegen und
 # after, Instrumente in financing-Reihenfolge, Ketten, Basisfall-Vorlauf, Steuermodul mit
-# Sperren, Kennzahlen mit Filter nach perspectives und requires, Hash). Offen fuer WS-D: Stufe 7 Sampler-Plan (smp_plan(), WS-C; bis
-# dahin model$sampler = NULL), amount_eur auto (8.7, engine-auto.R), Entscheidungsknoten (9a).
+# Sperren, Kennzahlen mit Filter nach perspectives und requires, Hash). Offen fuer WS-D:
+# Stufe 7 Sampler-Plan (smp_plan(), WS-C; bis dahin model$sampler = NULL), amount_eur auto
+# (8.7, engine-auto.R), Entscheidungsknoten (9a).
 
 #' Rechenfertiges Modell bauen
 #'
@@ -43,7 +44,7 @@ vofi_build <- function(x, variant = "base", overrides = NULL, scenario_set = NUL
   report <- vofi_validate(spec)
   if (length(pre) > 0L) {
     report <- new_vofi_validation(val_bind(c(pre, list(as.data.frame(unclass(report),
-                                                                      stringsAsFactors = FALSE)))))
+                                                                     stringsAsFactors = FALSE)))))
   }
   errs <- report[report$severity == "error", , drop = FALSE]
   if (nrow(errs) > 0L) {

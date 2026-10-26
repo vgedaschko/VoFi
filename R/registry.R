@@ -189,7 +189,7 @@ reg_static_findings <- function(def) {
     if (!is.function(f)) {
       add("C2", "core.registry.fun_missing", name = format(name), fun = fn)
     } else if (!is.null(fs$required[[fn]]) &&
-               !identical(names(formals(f)), fs$required[[fn]])) {
+                 !identical(names(formals(f)), fs$required[[fn]])) {
       add("C2", "core.registry.fun_formals", name = format(name), fun = fn,
           expected = utl_collapse(fs$required[[fn]]),
           actual = utl_collapse(names(formals(f))))
@@ -244,8 +244,8 @@ reg_static_findings <- function(def) {
     }
   }
   if (!is.null(def$perspectives) &&
-      (!is.character(def$perspectives) ||
-       !all(def$perspectives %in% vocab_codes("perspective")))) {
+        (!is.character(def$perspectives) ||
+           !all(def$perspectives %in% vocab_codes("perspective")))) {
     add("C3", "core.registry.field_invalid", name = format(name), field = "perspectives")
   }
   if (!is.null(def$validate) && !(kind %in% c("flow", "instrument", "distribution", "process"))) {
@@ -256,8 +256,8 @@ reg_static_findings <- function(def) {
   }
   dr <- def[["domain_reads"]]
   if (!is.null(dr) &&
-      (!(kind %in% c("flow", "instrument")) || !is.character(dr) || anyNA(dr) ||
-       anyDuplicated(dr) || !all(dr %in% reg_domain_blocks()))) {
+        (!(kind %in% c("flow", "instrument")) || !is.character(dr) || anyNA(dr) ||
+           anyDuplicated(dr) || !all(dr %in% reg_domain_blocks()))) {
     add("C3", "core.registry.field_invalid", name = format(name), field = "domain_reads")
   }
   ex <- def$example
@@ -287,7 +287,7 @@ reg_static_findings <- function(def) {
       }
       v <- ex[[p]]
       if (identical(pp$kind, "enum") && utl_is_string(v) &&
-          !(v %in% utl_param_codes(pp))) {
+            !(v %in% utl_param_codes(pp))) {
         add("C3", "core.registry.example_enum", name = format(name), param = p, value = v)
       }
     }
@@ -338,15 +338,15 @@ reg_kind_field_findings <- function(def) {
     tax = {
       if (!utl_is_flag(def$uses_inputs)) flag("uses_inputs")
       if (!is.null(def$blocked_regimes) &&
-          (!is.character(def$blocked_regimes) ||
-           !all(def$blocked_regimes %in% vocab_codes("tax_regime")))) {
+            (!is.character(def$blocked_regimes) ||
+               !all(def$blocked_regimes %in% vocab_codes("tax_regime")))) {
         flag("blocked_regimes")
       }
     },
     rule = {
       if (!utl_is_string(def$rule_name) || !utl_is_id(def$rule_name)) flag("rule_name")
       if (!inherits(def$valid_from, "Date") || length(def$valid_from) != 1L ||
-          is.na(def$valid_from)) {
+            is.na(def$valid_from)) {
         flag("valid_from")
       }
       if (!is.null(def$valid_to) && !inherits(def$valid_to, "Date")) flag("valid_to")

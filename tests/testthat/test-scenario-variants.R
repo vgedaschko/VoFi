@@ -5,7 +5,7 @@ variant_scenario <- function() {
   sc <- example_scenario("skeleton")
   sc$variants <- list(
     teuer = list(label = "Teurer", set = list("components.z.values" = c(-120000, 30000, 40000,
-                                                                       50000))),
+                                                                        50000))),
     mehr = list(label = "Mehr Miete", extends = "teuer",
                 add = list("components.miete" = list(type = "recurring", category = "rent",
                                                      amount_eur = 6000, from = "2027-01-01")),
@@ -67,8 +67,8 @@ test_that("Szenario-Sets und Overrides (Schicht 8)", {
   expect_identical(ov$financing$bank$rate_pa, node_const(0.06))
   expect_identical(ov$financing$bank$term_years, node_const(3))
   m1 <- vofi_build(sc, overrides = list(financing = list(bank = list(rate_pa = 0.06))))
-  m2 <- vofi_build(vofi_resolve(sc), overrides = list(financing = list(bank = list(
-    rate_pa = 0.06))))
+  ov_rate <- list(financing = list(bank = list(rate_pa = 0.06)))
+  m2 <- vofi_build(vofi_resolve(sc), overrides = ov_rate)
   expect_identical(vofi_run(m1)$kpis, vofi_run(m2)$kpis)
   # 1 % mehr Sollzins: 600 EUR je Jahr weniger Anlage, aufgezinst mit 2 %
   expect_equal(vofi_run(m1)$kpis$terminal_value, 52830.80 - 600 * (1.02^2 + 1.02 + 1),
@@ -78,10 +78,8 @@ test_that("Szenario-Sets und Overrides (Schicht 8)", {
 })
 
 test_that("Knotenbewusstes Mischen: Knoten und Wertformen ersetzen, Teil-Maps mischen", {
-  base <- list(market = list(
-    a = node_const(1), b = list(kind = "series_year", years = 2027L, values = 1, fill = "locf",
-                                before = "first"),
-    c = list(x = 1, y = 2)))
+  sy <- list(kind = "series_year", years = 2027L, values = 1, fill = "locf", before = "first")
+  base <- list(market = list(a = node_const(1), b = sy, c = list(x = 1, y = 2)))
   m <- scn_merge(base, list(market = list(a = list(ref = "market.x"), b = list(fill = "zero"),
                                           c = list(y = NULL, z = 3))))$market
   expect_identical(m$a, list(ref = "market.x"))

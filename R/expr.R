@@ -149,7 +149,7 @@ expr_check_operands <- function(args, name, text) {
   chr <- any(vapply(args, is.character, logical(1)))
   lgl <- any(vapply(args, is.logical, logical(1)))
   if ((chr && !(name %in% c("==", "!="))) ||
-      (lgl && !(name %in% c("==", "!=", "!", "&", "|")))) {
+        (lgl && !(name %in% c("==", "!=", "!", "&", "|")))) {
     vofi_abort("validation.expr.code_operand", text = text, fun = name,
                .class = "vofi_error_input")
   }

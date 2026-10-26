@@ -155,8 +155,8 @@ test_that("grid_index: Periodenende, base_date nach und vor dem Stichtag", {
   local_vofi_options(vofi.verbose = FALSE)
   pre <- grid_index(g, 0.02, base_date = as.Date("2025-01-01"))
   expect_equal(pre[1, 1:3], 1.02^(2:4))
-  gg <- structure(0.02, annual_before = matrix(c(0.05, 0.04), 1, dimnames = list(NULL,
-                                                                          c("2025", "2026"))))
+  before <- matrix(c(0.05, 0.04), 1, dimnames = list(NULL, c("2025", "2026")))
+  gg <- structure(0.02, annual_before = before)
   pre2 <- grid_index(g, gg, base_date = as.Date("2025-01-01"))
   expect_equal(pre2[1, 1], 1.05 * 1.04)
 })

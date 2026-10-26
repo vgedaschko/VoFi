@@ -150,7 +150,7 @@ eng_result <- function(model, res, mode, store, seed, runtime) {
   primary <- spec$analysis$primary_kpi %||% "auto"
   if (identical(primary, "auto")) {
     primary <- if ((p$project_type %||% "") %in% existing &&
-                   identical(p$comparison_mode %||% "absolute", "absolute")) {
+                     identical(p$comparison_mode %||% "absolute", "absolute")) {
       "delta_vs_reference"
     } else {
       "delta_terminal_value"
