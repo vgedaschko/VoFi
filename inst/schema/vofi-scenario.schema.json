@@ -1,0 +1,4835 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vofi.example.org/schema/vofi-scenario.schema.json",
+  "title": "vofi-Szenario (Schema v1)",
+  "description": "Eingabeschema eines vofi-Szenarios (VoFi für Wohnungsbau und Sanierung). Erzeugt aus dem Feldkatalog und den registrierten Typen; maßgeblich ist vofi_validate().",
+  "type": "object",
+  "required": ["schema_version", "meta", "project"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scenario_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "maxLength": 40
+        },
+        "version": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "maxLength": 40
+        },
+        "title": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "created_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "tags": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "required": [
+        "scenario_id",
+        "title"
+      ]
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "perspective": {
+          "enum": ["wu_kommunal", "wu_genossenschaft", "wu_privat", "kleinvermieter", "selbstnutzer"]
+        },
+        "tax_regime": {
+          "enum": ["wu_kommunal", "wu_eg_befreit", "wu_eg_stpfl", "wu_kapges", "wu_gemeinnuetzig", "privat_vermieter", "selbstnutzer"]
+        },
+        "project_type": {
+          "enum": ["neubau", "sanierung_eh", "sanierung_einzelmassnahmen", "sanierung_stufenweise", "heizungstausch", "erwerb_sanierung", "erwerb_neubau"]
+        },
+        "comparison_mode": {
+          "enum": ["absolute", "differential"]
+        },
+        "valuation_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "horizon_years": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ]
+        },
+        "application_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "legal_state": {
+          "type": "string",
+          "format": "date"
+        },
+        "pending_reforms": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "federal_state": {
+          "enum": ["BW", "BY", "BE", "BB", "HB", "HH", "HE", "MV", "NI", "NW", "RP", "SL", "SN", "ST", "SH", "TH"]
+        },
+        "municipality": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mietpreisbremse_area": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "mietpreisbremse_until": {
+              "type": "string",
+              "format": "date"
+            },
+            "kappung_15_area": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "index_cap_area": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "milieuschutz": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            }
+          }
+        },
+        "price_base_year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ],
+          "minimum": 1990
+        },
+        "construction_delay_months": {
+          "$ref": "#/$defs/value"
+        },
+        "construction_cost_factor": {
+          "$ref": "#/$defs/value"
+        },
+        "reference_variant": {
+          "type": "string"
+        },
+        "report_mode": {
+          "enum": ["auto", "expert", "household"]
+        }
+      },
+      "required": [
+        "perspective",
+        "project_type",
+        "valuation_date"
+      ]
+    },
+    "grid": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "construction_months": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ],
+          "minimum": 0
+        },
+        "construction_step_months": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ]
+        },
+        "operation_step_months": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ]
+        },
+        "operation_alignment": {
+          "enum": ["calendar", "completion"]
+        },
+        "periods_months": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ],
+          "minimum": 1
+        }
+      }
+    },
+    "building": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "building_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "maxLength": 20
+        },
+        "label": {
+          "type": "string"
+        },
+        "building_type": {
+          "enum": ["EFH", "ZFH", "DHH", "RH", "MFH", "ETW"]
+        },
+        "construction_year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ]
+        },
+        "first_occupancy_year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ]
+        },
+        "fictitious_construction_year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ]
+        },
+        "n_units": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ],
+          "minimum": 1
+        },
+        "living_area_m2": {
+          "$ref": "#/$defs/value"
+        },
+        "net_floor_area_m2": {
+          "$ref": "#/$defs/value"
+        },
+        "n_parking": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ],
+          "minimum": 0
+        },
+        "component_areas_m2": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/value"
+          }
+        },
+        "land_area_m2": {
+          "$ref": "#/$defs/value"
+        },
+        "land_value_eur_m2": {
+          "$ref": "#/$defs/value"
+        },
+        "land_value_eur": {
+          "$ref": "#/$defs/value"
+        },
+        "market_value_eur": {
+          "$ref": "#/$defs/value"
+        },
+        "existing_value_eur": {
+          "$ref": "#/$defs/value"
+        },
+        "modernization_points_before": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            ],
+            "minimum": 0
+          }
+        },
+        "commercial_share": {
+          "$ref": "#/$defs/value"
+        },
+        "maintenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "basis": {
+              "enum": ["auto", "rate", "iibv", "share_of_cost", "none"]
+            },
+            "rate_eur_m2_pa": {
+              "$ref": "#/$defs/value"
+            },
+            "area_m2": {
+              "$ref": "#/$defs/value"
+            },
+            "price_base_year": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              ],
+              "minimum": 1990
+            },
+            "growth": {
+              "$ref": "#/$defs/value"
+            },
+            "start_event": {
+              "$ref": "#/$defs/timing"
+            },
+            "to": {
+              "$ref": "#/$defs/timing"
+            },
+            "vat_rate": {
+              "$ref": "#/$defs/value"
+            },
+            "excludes_explicit_replacements": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "iibv": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "rates_eur_m2_pa": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "lt22y": {
+                      "$ref": "#/$defs/value"
+                    },
+                    "ge22y": {
+                      "$ref": "#/$defs/value"
+                    },
+                    "ge32y": {
+                      "$ref": "#/$defs/value"
+                    }
+                  }
+                },
+                "adjust_eur_m2_pa": {
+                  "$ref": "#/$defs/value"
+                },
+                "price_base_year": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  ],
+                  "minimum": 1990
+                },
+                "reset_by_measures": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "property_tax": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "amount_eur_pa": {
+              "$ref": "#/$defs/value"
+            },
+            "assessment_amount_eur": {
+              "$ref": "#/$defs/value"
+            },
+            "municipal_multiplier": {
+              "$ref": "#/$defs/value"
+            },
+            "land_amount_eur_pa": {
+              "$ref": "#/$defs/value"
+            },
+            "amount_after_completion_eur_pa": {
+              "$ref": "#/$defs/value"
+            },
+            "after_completion_from": {
+              "$ref": "#/$defs/timing"
+            },
+            "growth": {
+              "$ref": "#/$defs/value"
+            }
+          }
+        },
+        "energy_class_before": {
+          "enum": ["A+", "A", "B", "C", "D", "E", "F", "G", "H"]
+        },
+        "energy_class_after": {
+          "enum": ["A+", "A", "B", "C", "D", "E", "F", "G", "H"]
+        },
+        "efficiency_standard_after": {
+          "enum": ["eh40", "eh55", "eh70", "eh85", "eh_denkmal", "none"]
+        },
+        "wpb_flag": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "enum": ["ja", "nein", "yes", "no"]
+            }
+          ]
+        },
+        "denkmal": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "enum": ["ja", "nein", "yes", "no"]
+            }
+          ]
+        },
+        "serial_renovation": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "enum": ["ja", "nein", "yes", "no"]
+            }
+          ]
+        },
+        "isfp_available": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "enum": ["ja", "nein", "yes", "no"]
+            }
+          ]
+        },
+        "heating_existing": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "carrier": {
+              "type": "string"
+            },
+            "installation_year": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              ]
+            },
+            "type": {
+              "enum": ["central", "floor", "single_room"]
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        },
+        "consumption_kwh": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/value"
+          }
+        },
+        "elements": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "measure_type": {
+                "enum": ["neubau", "erweiterung", "aufstockung", "rueckbau", "herrichten_erschliessung", "erwerb_grundstueck", "erwerb_objekt", "daemmung_fassade", "daemmung_dach_steil", "daemmung_dach_flach", "daemmung_oberste_geschossdecke", "daemmung_kellerdecke", "fenster", "aussentueren", "putz_anstrich", "instandsetzung", "heizung_waermepumpe_luft", "heizung_waermepumpe_sole", "heizung_gaskessel", "heizung_pelletkessel", "heizung_fernwaerme", "heizungsverteilung", "lueftung_zentral", "lueftung_dezentral", "pv", "pv_wechselrichter", "batteriespeicher", "leitungen", "baeder", "innenausbau", "grundriss", "aufzug", "ladeinfrastruktur", "aussenanlagen", "ausstattung", "baunebenkosten", "sonstige"]
+              },
+              "installed_year": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              },
+              "useful_life_years": {
+                "$ref": "#/$defs/value"
+              },
+              "replacement_cost_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "price_base_year": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ],
+                "minimum": 1990
+              },
+              "price_index": {
+                "$ref": "#/$defs/value"
+              },
+              "vat_rate": {
+                "$ref": "#/$defs/value"
+              },
+              "next_replacement": {
+                "$ref": "#/$defs/timing"
+              },
+              "next_replacement_delay_months": {
+                "$ref": "#/$defs/value"
+              },
+              "overdue": {
+                "enum": ["first_period", "valuation", "skip"]
+              },
+              "active": {
+                "$ref": "#/$defs/value"
+              },
+              "kg": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              },
+              "asset_type": {
+                "enum": ["gebaeude_wohnen", "gebaeude_nichtwohnen", "grund_boden", "aussenanlage", "bewegliches_wg", "pv_anlage", "ladeinfrastruktur"]
+              }
+            },
+            "required": [
+              "measure_type",
+              "replacement_cost_eur"
+            ]
+          }
+        }
+      }
+    },
+    "household": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "net_income_month_eur": {
+          "$ref": "#/$defs/value"
+        },
+        "income_growth": {
+          "$ref": "#/$defs/value"
+        },
+        "taxable_income_avg_eur": {
+          "$ref": "#/$defs/value"
+        },
+        "n_children_u18": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ],
+          "minimum": 0
+        },
+        "savings_capacity_month_eur": {
+          "$ref": "#/$defs/value"
+        },
+        "current_rent_month_eur": {
+          "$ref": "#/$defs/value"
+        },
+        "expected_income_tax_eur_pa": {
+          "$ref": "#/$defs/value"
+        },
+        "savings_eur": {
+          "$ref": "#/$defs/value"
+        },
+        "contribution_month_eur": {
+          "$ref": "#/$defs/value"
+        },
+        "contribution_from": {
+          "$ref": "#/$defs/timing"
+        },
+        "contribution_to": {
+          "$ref": "#/$defs/timing"
+        }
+      }
+    },
+    "unit_groups": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "n_units": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            ],
+            "minimum": 1
+          },
+          "living_area_m2": {
+            "$ref": "#/$defs/value"
+          },
+          "owner_occupied": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": ["ja", "nein", "yes", "no"]
+              }
+            ]
+          },
+          "rent_regime": {
+            "enum": ["paragraph_558", "staffel", "index", "bound_social", "cooperative_fee", "owner_occupied"]
+          },
+          "rent_eur_m2_month": {
+            "$ref": "#/$defs/value"
+          },
+          "rent_start": {
+            "$ref": "#/$defs/timing"
+          },
+          "rent_end": {
+            "$ref": "#/$defs/timing"
+          },
+          "rent_growth": {
+            "$ref": "#/$defs/value"
+          },
+          "increase_policy": {
+            "enum": ["auto", "fixed_growth", "max", "interval", "capped"]
+          },
+          "growth_from": {
+            "$ref": "#/$defs/timing"
+          },
+          "growth_applies_to": {
+            "enum": ["total", "base"]
+          },
+          "ovm_eur_m2_month": {
+            "$ref": "#/$defs/value"
+          },
+          "ovm_base_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "interval_months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            ],
+            "minimum": 15
+          },
+          "voluntary_558_cap_share": {
+            "$ref": "#/$defs/value"
+          },
+          "voluntary_558_cap_months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            ],
+            "minimum": 12
+          },
+          "rent_36m_ago_eur_m2_month": {
+            "$ref": "#/$defs/value"
+          },
+          "last_558_increase_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "levy_history": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "effective_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "eur_m2_month": {
+                  "$ref": "#/$defs/value"
+                },
+                "heating": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": ["ja", "nein", "yes", "no"]
+                    }
+                  ]
+                },
+                "procedure": {
+                  "enum": ["auto", "bgb_559", "bgb_559c", "bgb_559e", "559", "559c", "559e"]
+                }
+              }
+            }
+          },
+          "market_rent_eur_m2_month": {
+            "$ref": "#/$defs/value"
+          },
+          "market_rent_growth": {
+            "$ref": "#/$defs/value"
+          },
+          "market_rent_base_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "turnover_rate_pa": {
+            "$ref": "#/$defs/value"
+          },
+          "relet_vacancy_months": {
+            "$ref": "#/$defs/value"
+          },
+          "first_use_after_2014_10_01": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": ["ja", "nein", "yes", "no"]
+              }
+            ]
+          },
+          "vacancy_rate": {
+            "$ref": "#/$defs/value"
+          },
+          "rent_default_rate": {
+            "$ref": "#/$defs/value"
+          },
+          "extra_loss_share": {
+            "$ref": "#/$defs/value"
+          },
+          "lease_up_months": {
+            "$ref": "#/$defs/value"
+          },
+          "staffel_steps": {
+            "$ref": "#/$defs/value"
+          },
+          "after_staffel_regime": {
+            "enum": ["paragraph_558", "index"]
+          },
+          "index_rate": {
+            "$ref": "#/$defs/value"
+          },
+          "index_adjust_month": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            ],
+            "minimum": 1
+          },
+          "bound_increase_pa": {
+            "$ref": "#/$defs/value"
+          },
+          "binding_end": {
+            "$ref": "#/$defs/timing"
+          },
+          "after_binding_regime": {
+            "enum": ["paragraph_558", "index"]
+          },
+          "post_binding_kappung": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": ["ja", "nein", "yes", "no"]
+              }
+            ]
+          },
+          "imputed_rent_eur_m2_month": {
+            "$ref": "#/$defs/value"
+          },
+          "imputed_rent_growth": {
+            "$ref": "#/$defs/value"
+          },
+          "rent_roll": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "living_area_m2": {
+                  "$ref": "#/$defs/value"
+                },
+                "rent_eur_m2_month": {
+                  "$ref": "#/$defs/value"
+                },
+                "rent_36m_ago_eur_m2_month": {
+                  "$ref": "#/$defs/value"
+                },
+                "last_558_increase_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "levy_history": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "effective_date": {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      "eur_m2_month": {
+                        "$ref": "#/$defs/value"
+                      },
+                      "heating": {
+                        "anyOf": [
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "enum": ["ja", "nein", "yes", "no"]
+                          }
+                        ]
+                      },
+                      "procedure": {
+                        "enum": ["auto", "bgb_559", "bgb_559c", "bgb_559e", "559", "559c", "559e"]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "operating": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "admin_per_unit_eur_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "n_parking": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ],
+                "minimum": 0
+              },
+              "admin_per_parking_eur_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "nonrecoverable_share_of_rent": {
+                "$ref": "#/$defs/value"
+              },
+              "nonrecoverable_eur_m2_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "recoverable_opex_eur_m2_month": {
+                "$ref": "#/$defs/value"
+              },
+              "vacancy_opex_scope": {
+                "enum": ["cold", "warm"]
+              },
+              "growth": {
+                "$ref": "#/$defs/value"
+              },
+              "opex_growth": {
+                "$ref": "#/$defs/value"
+              },
+              "base_date": {
+                "$ref": "#/$defs/timing"
+              }
+            }
+          },
+          "rent_law": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "modernization_levy": {
+                "enum": ["auto", "none"]
+              },
+              "voluntary_cap_per_m2": {
+                "$ref": "#/$defs/value"
+              },
+              "voluntary_cap_mode": {
+                "enum": ["fixed", "warm_rent_neutral"]
+              },
+              "hardship_share": {
+                "$ref": "#/$defs/value"
+              },
+              "drittmittel_attribution": {
+                "enum": ["full", "proportional"]
+              },
+              "flat_559e_order": {
+                "enum": ["flat_before_funds", "funds_before_flat"]
+              },
+              "hp_reduction_order": {
+                "enum": ["halve_then_funds", "funds_then_halve"]
+              },
+              "section43_flat": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "interest_subsidy_in_559e": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "hp_threshold_inclusive": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "kappung_rate": {
+                "$ref": "#/$defs/value"
+              },
+              "kuerzung_558_5": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "kuerzung_grant_years": {
+                "$ref": "#/$defs/value"
+              },
+              "kuerzung_loan_years": {
+                "$ref": "#/$defs/value"
+              },
+              "levy_effective_delay_months": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ],
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "required": [
+          "n_units",
+          "living_area_m2"
+        ]
+      }
+    },
+    "measures": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "measure_type": {
+            "enum": ["neubau", "erweiterung", "aufstockung", "rueckbau", "herrichten_erschliessung", "erwerb_grundstueck", "erwerb_objekt", "daemmung_fassade", "daemmung_dach_steil", "daemmung_dach_flach", "daemmung_oberste_geschossdecke", "daemmung_kellerdecke", "fenster", "aussentueren", "putz_anstrich", "instandsetzung", "heizung_waermepumpe_luft", "heizung_waermepumpe_sole", "heizung_gaskessel", "heizung_pelletkessel", "heizung_fernwaerme", "heizungsverteilung", "lueftung_zentral", "lueftung_dezentral", "pv", "pv_wechselrichter", "batteriespeicher", "leitungen", "baeder", "innenausbau", "grundriss", "aufzug", "ladeinfrastruktur", "aussenanlagen", "ausstattung", "baunebenkosten", "sonstige"]
+          },
+          "description": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            ]
+          },
+          "payment_schedule": {
+            "$ref": "#/$defs/value"
+          },
+          "duration_months": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            ],
+            "minimum": 0
+          },
+          "payment_profile": {
+            "enum": ["linear", "s_curve", "front", "back"]
+          },
+          "completion_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "follows_construction": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": ["ja", "nein", "yes", "no"]
+              }
+            ]
+          },
+          "construction_delay_mode": {
+            "enum": ["none", "last", "stretch"]
+          },
+          "delay_months": {
+            "$ref": "#/$defs/value"
+          },
+          "active": {
+            "$ref": "#/$defs/value"
+          },
+          "cost_eur": {
+            "$ref": "#/$defs/value"
+          },
+          "cost_kg": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kg200": {
+                "$ref": "#/$defs/value"
+              },
+              "kg300": {
+                "$ref": "#/$defs/value"
+              },
+              "kg400": {
+                "$ref": "#/$defs/value"
+              },
+              "kg500": {
+                "$ref": "#/$defs/value"
+              },
+              "kg600": {
+                "$ref": "#/$defs/value"
+              },
+              "kg700": {
+                "$ref": "#/$defs/value"
+              },
+              "kg800": {
+                "$ref": "#/$defs/value"
+              }
+            }
+          },
+          "kg": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            ]
+          },
+          "kg700_share": {
+            "$ref": "#/$defs/value"
+          },
+          "kg700_basis": {
+            "enum": ["kg300_400", "kg200_600"]
+          },
+          "contingency_share": {
+            "$ref": "#/$defs/value"
+          },
+          "contingency_basis": {
+            "enum": ["kg200_700", "kg200_600"]
+          },
+          "cost_is_net": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": ["ja", "nein", "yes", "no"]
+              }
+            ]
+          },
+          "vat_recoverable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": ["ja", "nein", "yes", "no"]
+              }
+            ]
+          },
+          "vat_rate": {
+            "$ref": "#/$defs/value"
+          },
+          "cost_factor": {
+            "$ref": "#/$defs/value"
+          },
+          "price_base_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            ],
+            "minimum": 1990
+          },
+          "price_index": {
+            "$ref": "#/$defs/value"
+          },
+          "component_areas_m2": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/$defs/value"
+            }
+          },
+          "kw": {
+            "$ref": "#/$defs/value"
+          },
+          "kwp": {
+            "$ref": "#/$defs/value"
+          },
+          "kwh": {
+            "$ref": "#/$defs/value"
+          },
+          "useful_life_years": {
+            "$ref": "#/$defs/value"
+          },
+          "replacement": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "cost_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "cost_factor": {
+                "$ref": "#/$defs/value"
+              },
+              "price_index": {
+                "$ref": "#/$defs/value"
+              },
+              "classification": {
+                "enum": ["auto", "erhaltung", "herstellung"]
+              }
+            }
+          },
+          "ohnehin_share": {
+            "$ref": "#/$defs/value"
+          },
+          "ohnehin_cost_eur": {
+            "$ref": "#/$defs/value"
+          },
+          "ohnehin_due_date": {
+            "$ref": "#/$defs/timing"
+          },
+          "ohnehin_due_year": {
+            "$ref": "#/$defs/timing"
+          },
+          "classification": {
+            "enum": ["auto", "erhaltung", "herstellung"]
+          },
+          "tax_spread_years": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              }
+            ],
+            "minimum": 1
+          },
+          "modernization_kind": {
+            "enum": ["none", "bgb_555b_1", "bgb_555b_1a", "bgb_555b_2", "bgb_555b_3", "bgb_555b_4", "bgb_555b_4a", "bgb_555b_5", "bgb_555b_6", "bgb_555b_7", "erhaltung", "instandsetzung", "energetisch", "heizung"]
+          },
+          "asset_type": {
+            "enum": ["gebaeude_wohnen", "gebaeude_nichtwohnen", "grund_boden", "aussenanlage", "bewegliches_wg", "pv_anlage", "ladeinfrastruktur"]
+          },
+          "asset_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "maxLength": 40
+          },
+          "replaces_ohnehin": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "replaces_elements": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "funding_choice": {
+            "enum": ["keine", "beg_zuschuss", "beg_kredit", "35c"]
+          },
+          "contractor_certified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": ["ja", "nein", "yes", "no"]
+              }
+            ]
+          },
+          "paid_in_full_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "effects": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "start": {
+                "enum": ["completion", "next_year"]
+              },
+              "maintenance": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "factor": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "duration_years": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "reset_age": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "enum": ["ja", "nein", "yes", "no"]
+                      }
+                    ]
+                  },
+                  "share_of_cost_pa": {
+                    "$ref": "#/$defs/value"
+                  }
+                }
+              },
+              "residual": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "modernization_points": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        }
+                      ],
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "rent_law": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "levy": {
+                "enum": ["auto", "none"]
+              },
+              "procedure": {
+                "enum": ["auto", "bgb_559", "bgb_559c", "bgb_559e", "559", "559c", "559e"]
+              },
+              "maintenance_share_method": {
+                "enum": ["auto", "linear_wear", "fixed_share", "ohnehin", "none"]
+              },
+              "maintenance_share": {
+                "$ref": "#/$defs/value"
+              },
+              "fictitious_maintenance_cost_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "component_age_years": {
+                "$ref": "#/$defs/value"
+              },
+              "component_life_years": {
+                "$ref": "#/$defs/value"
+              },
+              "heating_part_share": {
+                "$ref": "#/$defs/value"
+              },
+              "section43_heating": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "fundable_in_principle": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "hp_state": {
+                "type": "string"
+              },
+              "heat_pump": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "hp_exception": {
+                "enum": ["auto", "none", "building_after_1996", "flow_temperature"]
+              },
+              "landlord_responsible": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "unit_groups": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "allocation": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/$defs/value"
+                }
+              },
+              "declaration_date": {
+                "$ref": "#/$defs/timing"
+              },
+              "levy_effective_date": {
+                "type": "string",
+                "format": "date"
+              },
+              "announcement_ok": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "works_start_date": {
+                "$ref": "#/$defs/timing"
+              },
+              "works_rent_reduction_share": {
+                "$ref": "#/$defs/value"
+              },
+              "works_vacancy_share": {
+                "$ref": "#/$defs/value"
+              },
+              "ovm_uplift_eur_m2_month": {
+                "$ref": "#/$defs/value"
+              },
+              "comprehensive_modernization": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              }
+            }
+          },
+          "purchase_price_eur": {
+            "$ref": "#/$defs/value"
+          },
+          "land_share": {
+            "$ref": "#/$defs/value"
+          },
+          "uniform_contract": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": ["ja", "nein", "yes", "no"]
+              }
+            ]
+          },
+          "uniform_contract_measures": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "grest_rate": {
+            "$ref": "#/$defs/value"
+          },
+          "notary_share": {
+            "$ref": "#/$defs/value"
+          },
+          "land_registry_share": {
+            "$ref": "#/$defs/value"
+          },
+          "broker_share": {
+            "$ref": "#/$defs/value"
+          },
+          "other_share": {
+            "$ref": "#/$defs/value"
+          },
+          "ancillary_date": {
+            "$ref": "#/$defs/timing"
+          }
+        },
+        "required": [
+          "measure_type"
+        ]
+      }
+    },
+    "energy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "before": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "start_event": {
+              "$ref": "#/$defs/timing"
+            },
+            "measure": {
+              "type": "string"
+            },
+            "consumption_basis": {
+              "enum": ["measured", "demand"]
+            },
+            "consumption_kwh": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/value"
+              }
+            },
+            "demand_kwh": {
+              "$ref": "#/$defs/value"
+            },
+            "carrier_shares": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/value"
+              }
+            },
+            "heating_carrier": {
+              "type": "string"
+            },
+            "efficiency": {
+              "$ref": "#/$defs/value"
+            },
+            "efficiency_by_carrier": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/value"
+              }
+            },
+            "jaz": {
+              "$ref": "#/$defs/value"
+            },
+            "jaz_plan": {
+              "$ref": "#/$defs/value"
+            },
+            "heat_pump_carrier": {
+              "type": "string"
+            },
+            "flow_temperature_c": {
+              "$ref": "#/$defs/value"
+            },
+            "installation_date": {
+              "type": "string",
+              "format": "date"
+            },
+            "section43": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "emergency_replacement": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "service_eur_pa": {
+              "$ref": "#/$defs/value"
+            },
+            "efficiency_degradation_pa": {
+              "$ref": "#/$defs/value"
+            },
+            "extra_consumption": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "carrier": {
+                    "type": "string"
+                  },
+                  "kwh_pa": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        },
+        "after": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "start_event": {
+              "$ref": "#/$defs/timing"
+            },
+            "measure": {
+              "type": "string"
+            },
+            "consumption_basis": {
+              "enum": ["measured", "demand"]
+            },
+            "consumption_kwh": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/value"
+              }
+            },
+            "demand_kwh": {
+              "$ref": "#/$defs/value"
+            },
+            "carrier_shares": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/value"
+              }
+            },
+            "heating_carrier": {
+              "type": "string"
+            },
+            "efficiency": {
+              "$ref": "#/$defs/value"
+            },
+            "efficiency_by_carrier": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/value"
+              }
+            },
+            "jaz": {
+              "$ref": "#/$defs/value"
+            },
+            "jaz_plan": {
+              "$ref": "#/$defs/value"
+            },
+            "heat_pump_carrier": {
+              "type": "string"
+            },
+            "flow_temperature_c": {
+              "$ref": "#/$defs/value"
+            },
+            "installation_date": {
+              "type": "string",
+              "format": "date"
+            },
+            "section43": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "emergency_replacement": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "service_eur_pa": {
+              "$ref": "#/$defs/value"
+            },
+            "efficiency_degradation_pa": {
+              "$ref": "#/$defs/value"
+            },
+            "extra_consumption": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "carrier": {
+                    "type": "string"
+                  },
+                  "kwh_pa": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "label": {
+              "type": "string"
+            }
+          }
+        },
+        "performance_gap": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "prebound_factor": {
+              "$ref": "#/$defs/value"
+            },
+            "rebound_factor": {
+              "$ref": "#/$defs/value"
+            },
+            "realisation_factor": {
+              "$ref": "#/$defs/value"
+            }
+          }
+        },
+        "co2_landlord_share_reduction": {
+          "$ref": "#/$defs/value"
+        },
+        "co2_hardship_5d": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "enum": ["ja", "nein", "yes", "no"]
+            }
+          ]
+        },
+        "co2_newbuild_5b": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "enum": ["ja", "nein", "yes", "no"]
+            }
+          ]
+        },
+        "pv": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kwp": {
+              "$ref": "#/$defs/value"
+            },
+            "measure": {
+              "type": "string"
+            },
+            "commissioning_date": {
+              "$ref": "#/$defs/timing"
+            },
+            "specific_yield_kwh_kwp": {
+              "$ref": "#/$defs/value"
+            },
+            "degradation_pa": {
+              "$ref": "#/$defs/value"
+            },
+            "self_consumption_share": {
+              "$ref": "#/$defs/value"
+            },
+            "self_consumption_carrier": {
+              "type": "string"
+            },
+            "feed_in_mode": {
+              "enum": ["partial", "full"]
+            },
+            "feed_in_tariff_eur_kwh": {
+              "$ref": "#/$defs/value"
+            },
+            "tariff_years": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              ],
+              "minimum": 0
+            },
+            "post_tariff_price_eur_kwh": {
+              "$ref": "#/$defs/value"
+            },
+            "internal_price_eur_kwh": {
+              "$ref": "#/$defs/value"
+            },
+            "opex_share_of_cost": {
+              "$ref": "#/$defs/value"
+            },
+            "opex_eur_pa": {
+              "$ref": "#/$defs/value"
+            },
+            "tax_exempt": {
+              "enum": ["auto", "yes", "no"]
+            },
+            "vat_zero_rate_attested": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            }
+          },
+          "required": [
+            "kwp",
+            "self_consumption_share"
+          ]
+        },
+        "carriers": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "class": {
+                "enum": ["gas", "oil", "lpg", "coal", "power", "power_hp", "district_heating", "biomass", "other"]
+              },
+              "price_eur_kwh": {
+                "$ref": "#/$defs/value"
+              },
+              "price_includes": {
+                "enum": ["commodity", "all"]
+              },
+              "price_basis": {
+                "enum": ["net", "gross"]
+              },
+              "price_growth": {
+                "$ref": "#/$defs/value"
+              },
+              "price_base_date": {
+                "$ref": "#/$defs/timing"
+              },
+              "network_fee_eur_kwh": {
+                "$ref": "#/$defs/value"
+              },
+              "network_fee_growth": {
+                "$ref": "#/$defs/value"
+              },
+              "base_fee_eur_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "fee_growth": {
+                "$ref": "#/$defs/value"
+              },
+              "vat_rate": {
+                "$ref": "#/$defs/value"
+              },
+              "emission_factor_kg_kwh": {
+                "$ref": "#/$defs/value"
+              },
+              "ghg_factor_kg_kwh": {
+                "$ref": "#/$defs/value"
+              },
+              "co2_price_eur_t": {
+                "$ref": "#/$defs/value"
+              },
+              "bio_premium_eur_kwh": {
+                "$ref": "#/$defs/value"
+              },
+              "label": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "stages": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "start_event": {
+                "$ref": "#/$defs/timing"
+              },
+              "measure": {
+                "type": "string"
+              },
+              "consumption_basis": {
+                "enum": ["measured", "demand"]
+              },
+              "consumption_kwh": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/$defs/value"
+                }
+              },
+              "demand_kwh": {
+                "$ref": "#/$defs/value"
+              },
+              "carrier_shares": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/$defs/value"
+                }
+              },
+              "heating_carrier": {
+                "type": "string"
+              },
+              "efficiency": {
+                "$ref": "#/$defs/value"
+              },
+              "efficiency_by_carrier": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/$defs/value"
+                }
+              },
+              "jaz": {
+                "$ref": "#/$defs/value"
+              },
+              "jaz_plan": {
+                "$ref": "#/$defs/value"
+              },
+              "heat_pump_carrier": {
+                "type": "string"
+              },
+              "flow_temperature_c": {
+                "$ref": "#/$defs/value"
+              },
+              "installation_date": {
+                "type": "string",
+                "format": "date"
+              },
+              "section43": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "emergency_replacement": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "service_eur_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "efficiency_degradation_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "extra_consumption": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "carrier": {
+                      "type": "string"
+                    },
+                    "kwh_pa": {
+                      "$ref": "#/$defs/value"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "label": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "funding": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "instrument_type": {
+            "enum": ["grant", "loan", "loan_with_repayment_grant", "interest_subsidy", "tax_credit", "rent_binding"]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "program_code": {
+            "type": "string"
+          },
+          "measures": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "unit_groups": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "applicant": {
+            "enum": ["privatperson", "privatperson_vermieter", "weg", "unternehmen", "kommunales_unternehmen", "genossenschaft", "gemeinnuetzig", "koerperschaft", "contractor"]
+          },
+          "application_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "approved": {
+            "$ref": "#/$defs/value"
+          },
+          "approval_probability": {
+            "$ref": "#/$defs/value"
+          },
+          "availability_after_2030": {
+            "$ref": "#/$defs/value"
+          },
+          "application_before_start": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": ["ja", "nein", "yes", "no"]
+              }
+            ]
+          },
+          "approval_timing": {
+            "enum": ["auto", "before_start", "after_start"]
+          },
+          "fallback_variant": {
+            "type": "string"
+          },
+          "on_reject": {
+            "enum": ["balance", "drop_measures"]
+          },
+          "payout_delay_months": {
+            "$ref": "#/$defs/value"
+          },
+          "payout": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "event": {
+                "enum": ["completion_proof", "commitment"]
+              },
+              "lag_months": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ],
+                "minimum": 0
+              }
+            }
+          },
+          "eligibility": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "applicants": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "project_types": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "measure_types": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "conditions": {
+                "type": "object"
+              },
+              "exclusions": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          },
+          "eligibility_override": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": ["ja", "nein", "yes", "no"]
+              }
+            ]
+          },
+          "basis": {
+            "type": "object"
+          },
+          "eligible_shares": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/$defs/value"
+            }
+          },
+          "eligible_cost_eur": {
+            "$ref": "#/$defs/value"
+          },
+          "rate_components": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "rate": {
+                  "$ref": "#/$defs/value"
+                },
+                "condition": {
+                  "type": "string"
+                },
+                "schedule_by_taxable_income": {
+                  "type": "object"
+                },
+                "threshold": {
+                  "type": "object"
+                },
+                "mode": {
+                  "enum": ["excess_over_threshold", "whole_amount"]
+                },
+                "min_age_gas_biomass_years": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  ],
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "rate_cap": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "default": {
+                "$ref": "#/$defs/value"
+              },
+              "exceptions": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "degression": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "amount_eur": {
+            "$ref": "#/$defs/value"
+          },
+          "loan": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "repayment": {
+                "enum": ["annuity", "installment", "bullet"]
+              },
+              "payments_per_year": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              },
+              "variants": {
+                "type": "object"
+              },
+              "default_variant": {
+                "type": "string"
+              },
+              "term_ranges": {
+                "type": "object"
+              },
+              "fees": {
+                "type": "object"
+              },
+              "prepay_allowed": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "followup": {
+                "type": "string"
+              },
+              "max_share_of_eligible_costs": {
+                "$ref": "#/$defs/value"
+              }
+            }
+          },
+          "loan_variant": {
+            "type": "string"
+          },
+          "repayment_grant": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "base_rates": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/$defs/value"
+                }
+              },
+              "bonuses": {
+                "type": "object"
+              },
+              "cap_per_unit_basis_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "max_total_share": {
+                "$ref": "#/$defs/value"
+              },
+              "payout": {
+                "type": "object"
+              },
+              "effect": {
+                "enum": ["shorten_term", "reduce_installment", "reduce_annuity", "payment_reduction", "term_reduction"]
+              },
+              "class": {
+                "enum": ["ee", "nh"]
+              },
+              "cut_share": {
+                "$ref": "#/$defs/value"
+              }
+            }
+          },
+          "construction_supervision": {
+            "type": "object"
+          },
+          "construction_support_eur": {
+            "$ref": "#/$defs/value"
+          },
+          "interest_subsidy": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "subsidized_amount_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "rate_reduction_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "years": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ],
+                "minimum": 1
+              },
+              "start_event": {
+                "$ref": "#/$defs/timing"
+              }
+            }
+          },
+          "rent_binding": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "rent_eur_m2_month": {
+                "$ref": "#/$defs/value"
+              },
+              "increase_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "years": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ],
+                "minimum": 1
+              }
+            }
+          },
+          "rent_law": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "grant_counts_as": {
+                "enum": ["zuschuss_559a_abs1", "none"]
+              },
+              "loan_counts_as": {
+                "enum": ["zinsverbilligung_559a_abs2", "none"]
+              },
+              "enables": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "reference_rate_pa": {
+                "$ref": "#/$defs/value"
+              }
+            }
+          },
+          "cumulation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "exclusive_with": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "combinable_with": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "requires": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "max_total_share": {
+                "$ref": "#/$defs/value"
+              }
+            }
+          },
+          "budget_risk": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "approval_probability": {
+                "$ref": "#/$defs/value"
+              }
+            }
+          },
+          "facts": {
+            "type": "object"
+          },
+          "credit": {
+            "type": "object"
+          },
+          "energy_advice_cost_eur": {
+            "$ref": "#/$defs/value"
+          },
+          "prior_credit_used_eur": {
+            "$ref": "#/$defs/value"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*(/[a-z0-9_]+)+$"
+          },
+          "use": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "values": {
+                "$ref": "#/$defs/value"
+              },
+              "section": {
+                "enum": ["project", "grants", "memo"]
+              },
+              "category": {
+                "type": "string"
+              },
+              "tax_category": {
+                "type": "string"
+              },
+              "cash": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "kind": {
+                "enum": ["flow", "stock", "memo"]
+              },
+              "unit": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "after": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "origin": {
+                "type": "string"
+              },
+              "asset_id": {
+                "type": "string"
+              },
+              "measure_id": {
+                "type": "string"
+              },
+              "funding_id": {
+                "type": "string"
+              },
+              "program": {
+                "type": "string"
+              },
+              "type": {
+                "const": "custom_series"
+              }
+            },
+            "required": [
+              "type",
+              "values"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "amount_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "date": {
+                "$ref": "#/$defs/timing"
+              },
+              "contributions": {
+                "$ref": "#/$defs/value"
+              },
+              "contributions_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "withdrawals": {
+                "$ref": "#/$defs/value"
+              },
+              "withdrawals_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "start_event": {
+                "$ref": "#/$defs/timing"
+              },
+              "to": {
+                "$ref": "#/$defs/timing"
+              },
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "after": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "origin": {
+                "type": "string"
+              },
+              "asset_id": {
+                "type": "string"
+              },
+              "measure_id": {
+                "type": "string"
+              },
+              "funding_id": {
+                "type": "string"
+              },
+              "program": {
+                "type": "string"
+              },
+              "type": {
+                "const": "equity"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "amount_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "growth": {
+                "$ref": "#/$defs/value"
+              },
+              "base_date": {
+                "$ref": "#/$defs/timing"
+              },
+              "start_event": {
+                "$ref": "#/$defs/timing"
+              },
+              "to": {
+                "$ref": "#/$defs/timing"
+              },
+              "category": {
+                "type": "string"
+              },
+              "direction": {
+                "enum": ["inflow", "outflow"]
+              },
+              "tax_category": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "after": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "origin": {
+                "type": "string"
+              },
+              "asset_id": {
+                "type": "string"
+              },
+              "measure_id": {
+                "type": "string"
+              },
+              "funding_id": {
+                "type": "string"
+              },
+              "program": {
+                "type": "string"
+              },
+              "type": {
+                "const": "recurring"
+              }
+            },
+            "required": [
+              "type",
+              "amount_eur"
+            ]
+          }
+        ]
+      }
+    },
+    "financing": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "amount_eur": {
+                "$ref": "#/$defs/amount_auto"
+              },
+              "approved": {
+                "$ref": "#/$defs/value"
+              },
+              "existing": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "installment_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "rank": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              },
+              "start": {
+                "$ref": "#/$defs/timing"
+              },
+              "draw_schedule": {
+                "$ref": "#/$defs/value"
+              },
+              "rate_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "payments_per_year": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              },
+              "term_years": {
+                "$ref": "#/$defs/value"
+              },
+              "grace_years": {
+                "$ref": "#/$defs/value"
+              },
+              "initial_repayment_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "fixed_years": {
+                "$ref": "#/$defs/value"
+              },
+              "followup_rate_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "followup_spread_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "followup_fixed_years": {
+                "$ref": "#/$defs/value"
+              },
+              "refi_rule": {
+                "enum": ["keep_term", "keep_tilg_rate", "keep_payment"]
+              },
+              "followup_repayment_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "payout_rate": {
+                "$ref": "#/$defs/value"
+              },
+              "fees": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "processing_fee_share": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "commitment_fee_rate_month": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "commitment_free_months": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "commitment_date": {
+                    "$ref": "#/$defs/timing"
+                  }
+                }
+              },
+              "repayment_grant": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "share": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "amount_eur": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "date": {
+                    "$ref": "#/$defs/timing"
+                  },
+                  "year": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      }
+                    ]
+                  },
+                  "effect": {
+                    "enum": ["shorten_term", "reduce_installment", "reduce_annuity", "payment_reduction", "term_reduction"]
+                  },
+                  "approved": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "cut_share": {
+                    "$ref": "#/$defs/value"
+                  }
+                }
+              },
+              "planned_prepayments": {
+                "$ref": "#/$defs/value"
+              },
+              "prepay_allowed": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "prepay_cap_share_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "auto_buffer_share": {
+                "$ref": "#/$defs/value"
+              },
+              "auto_round_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "round_payments": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "after": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "origin": {
+                "type": "string"
+              },
+              "asset_id": {
+                "type": "string"
+              },
+              "measure_id": {
+                "type": "string"
+              },
+              "funding_id": {
+                "type": "string"
+              },
+              "program": {
+                "type": "string"
+              },
+              "type": {
+                "const": "annuity_loan"
+              }
+            },
+            "required": [
+              "type",
+              "amount_eur",
+              "rate_pa"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "amount_eur": {
+                "$ref": "#/$defs/amount_auto"
+              },
+              "approved": {
+                "$ref": "#/$defs/value"
+              },
+              "existing": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "rank": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              },
+              "start": {
+                "$ref": "#/$defs/timing"
+              },
+              "draw_schedule": {
+                "$ref": "#/$defs/value"
+              },
+              "rate_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "payments_per_year": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              },
+              "term_years": {
+                "$ref": "#/$defs/value"
+              },
+              "grace_years": {
+                "$ref": "#/$defs/value"
+              },
+              "fixed_years": {
+                "$ref": "#/$defs/value"
+              },
+              "followup_rate_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "followup_spread_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "followup_fixed_years": {
+                "$ref": "#/$defs/value"
+              },
+              "refi_rule": {
+                "enum": ["keep_term", "keep_tilg_rate", "keep_payment"]
+              },
+              "payout_rate": {
+                "$ref": "#/$defs/value"
+              },
+              "fees": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "processing_fee_share": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "commitment_fee_rate_month": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "commitment_free_months": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "commitment_date": {
+                    "$ref": "#/$defs/timing"
+                  }
+                }
+              },
+              "repayment_grant": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "share": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "amount_eur": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "date": {
+                    "$ref": "#/$defs/timing"
+                  },
+                  "year": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      }
+                    ]
+                  },
+                  "effect": {
+                    "enum": ["shorten_term", "reduce_installment", "reduce_annuity", "payment_reduction", "term_reduction"]
+                  },
+                  "approved": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "cut_share": {
+                    "$ref": "#/$defs/value"
+                  }
+                }
+              },
+              "planned_prepayments": {
+                "$ref": "#/$defs/value"
+              },
+              "prepay_allowed": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "prepay_cap_share_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "auto_buffer_share": {
+                "$ref": "#/$defs/value"
+              },
+              "auto_round_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "round_payments": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "after": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "origin": {
+                "type": "string"
+              },
+              "asset_id": {
+                "type": "string"
+              },
+              "measure_id": {
+                "type": "string"
+              },
+              "funding_id": {
+                "type": "string"
+              },
+              "program": {
+                "type": "string"
+              },
+              "type": {
+                "const": "bullet_loan"
+              }
+            },
+            "required": [
+              "type",
+              "amount_eur",
+              "rate_pa"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "amount_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "date": {
+                "$ref": "#/$defs/timing"
+              },
+              "contributions": {
+                "$ref": "#/$defs/value"
+              },
+              "contributions_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "withdrawals": {
+                "$ref": "#/$defs/value"
+              },
+              "withdrawals_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "start_event": {
+                "$ref": "#/$defs/timing"
+              },
+              "to": {
+                "$ref": "#/$defs/timing"
+              },
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "after": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "origin": {
+                "type": "string"
+              },
+              "asset_id": {
+                "type": "string"
+              },
+              "measure_id": {
+                "type": "string"
+              },
+              "funding_id": {
+                "type": "string"
+              },
+              "program": {
+                "type": "string"
+              },
+              "type": {
+                "const": "equity"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "amount_eur": {
+                "$ref": "#/$defs/amount_auto"
+              },
+              "approved": {
+                "$ref": "#/$defs/value"
+              },
+              "existing": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "installment_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "rank": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              },
+              "start": {
+                "$ref": "#/$defs/timing"
+              },
+              "draw_schedule": {
+                "$ref": "#/$defs/value"
+              },
+              "rate_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "payments_per_year": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              },
+              "term_years": {
+                "$ref": "#/$defs/value"
+              },
+              "grace_years": {
+                "$ref": "#/$defs/value"
+              },
+              "fixed_years": {
+                "$ref": "#/$defs/value"
+              },
+              "followup_rate_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "followup_spread_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "followup_fixed_years": {
+                "$ref": "#/$defs/value"
+              },
+              "refi_rule": {
+                "enum": ["keep_term", "keep_tilg_rate", "keep_payment"]
+              },
+              "payout_rate": {
+                "$ref": "#/$defs/value"
+              },
+              "fees": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "processing_fee_share": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "commitment_fee_rate_month": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "commitment_free_months": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "commitment_date": {
+                    "$ref": "#/$defs/timing"
+                  }
+                }
+              },
+              "repayment_grant": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "share": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "amount_eur": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "date": {
+                    "$ref": "#/$defs/timing"
+                  },
+                  "year": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      }
+                    ]
+                  },
+                  "effect": {
+                    "enum": ["shorten_term", "reduce_installment", "reduce_annuity", "payment_reduction", "term_reduction"]
+                  },
+                  "approved": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "cut_share": {
+                    "$ref": "#/$defs/value"
+                  }
+                }
+              },
+              "planned_prepayments": {
+                "$ref": "#/$defs/value"
+              },
+              "prepay_allowed": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "prepay_cap_share_pa": {
+                "$ref": "#/$defs/value"
+              },
+              "auto_buffer_share": {
+                "$ref": "#/$defs/value"
+              },
+              "auto_round_eur": {
+                "$ref": "#/$defs/value"
+              },
+              "round_payments": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "enum": ["ja", "nein", "yes", "no"]
+                  }
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "after": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "origin": {
+                "type": "string"
+              },
+              "asset_id": {
+                "type": "string"
+              },
+              "measure_id": {
+                "type": "string"
+              },
+              "funding_id": {
+                "type": "string"
+              },
+              "program": {
+                "type": "string"
+              },
+              "type": {
+                "const": "installment_loan"
+              }
+            },
+            "required": [
+              "type",
+              "amount_eur",
+              "rate_pa"
+            ]
+          }
+        ]
+      }
+    },
+    "accounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deposit_rate_pa": {
+          "$ref": "#/$defs/value"
+        },
+        "overdraft_rate_pa": {
+          "$ref": "#/$defs/value"
+        },
+        "overdraft_limit_eur": {
+          "$ref": "#/$defs/value"
+        },
+        "penalty_spread_pa": {
+          "$ref": "#/$defs/value"
+        },
+        "min_liquidity_eur": {
+          "$ref": "#/$defs/value"
+        },
+        "deposit_withholding_tax_share": {
+          "$ref": "#/$defs/value"
+        },
+        "deposit_tax_allowance_eur_pa": {
+          "$ref": "#/$defs/value"
+        },
+        "overdraft_flag_threshold_eur": {
+          "$ref": "#/$defs/value"
+        },
+        "surplus_order": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "deficit_order": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "prepay": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "buffer_eur": {
+              "$ref": "#/$defs/value"
+            },
+            "min_spread_pa": {
+              "$ref": "#/$defs/value"
+            }
+          }
+        }
+      }
+    },
+    "market": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/market"
+      }
+    },
+    "residual_value": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "enum": ["zero", "market_growth", "income_value", "component", "asset_value", "multiplier", "exit_yield", "user_value", "none", "linear_book_value", "component_book_value", "ertragswert_allg", "ertragswert_vereinf", "sachwert_linear"]
+        },
+        "sale_cost_share": {
+          "$ref": "#/$defs/value"
+        },
+        "path_pre_operation": {
+          "enum": ["auto", "cost", "method", "zero"]
+        },
+        "income_value": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "variant": {
+              "enum": ["general", "simplified"]
+            },
+            "cap_rate": {
+              "$ref": "#/$defs/value"
+            },
+            "remaining_life_method": {
+              "enum": ["anlage2", "linear", "manual"]
+            },
+            "remaining_life_years": {
+              "$ref": "#/$defs/value"
+            },
+            "remaining_life_offset_years": {
+              "$ref": "#/$defs/value"
+            },
+            "gnd_years": {
+              "$ref": "#/$defs/value"
+            },
+            "rnd_table": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "a": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "b": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "c": {
+                    "$ref": "#/$defs/value"
+                  },
+                  "rel_age_min": {
+                    "$ref": "#/$defs/value"
+                  }
+                }
+              }
+            },
+            "points_max": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ],
+                "minimum": 0
+              }
+            },
+            "points_decay_years": {
+              "$ref": "#/$defs/value"
+            },
+            "income_basis": {
+              "enum": ["forward", "trailing"]
+            },
+            "forward_growth": {
+              "$ref": "#/$defs/value"
+            },
+            "cost_forward_growth": {
+              "$ref": "#/$defs/value"
+            },
+            "include_other_income": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "land_value_eur": {
+              "$ref": "#/$defs/value"
+            },
+            "land_value_growth": {
+              "$ref": "#/$defs/value"
+            },
+            "bwk": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "admin_eur_unit_pa": {
+                  "$ref": "#/$defs/value"
+                },
+                "maintenance_eur_m2_pa": {
+                  "$ref": "#/$defs/value"
+                },
+                "rent_loss_share": {
+                  "$ref": "#/$defs/value"
+                },
+                "price_base_year": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  ],
+                  "minimum": 1990
+                },
+                "index": {
+                  "$ref": "#/$defs/value"
+                },
+                "admin_source": {
+                  "enum": ["model", "ledger"]
+                },
+                "maintenance_source": {
+                  "enum": ["model", "ledger"]
+                },
+                "variant_cost_categories": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "vacancy_from_ledger": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "enum": ["ja", "nein", "yes", "no"]
+                    }
+                  ]
+                }
+              }
+            },
+            "bog_eur": {
+              "$ref": "#/$defs/value"
+            },
+            "bog_component_residual": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "stranded_discount_share": {
+              "$ref": "#/$defs/value"
+            },
+            "liquidation_floor": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "demolition_cost_eur": {
+              "$ref": "#/$defs/value"
+            }
+          }
+        },
+        "multiplier": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "factor": {
+              "$ref": "#/$defs/value"
+            },
+            "basis": {
+              "enum": ["net_cold_rent_incl_levy", "net_cold_rent"]
+            },
+            "income_basis": {
+              "enum": ["forward", "trailing"]
+            },
+            "forward_growth": {
+              "$ref": "#/$defs/value"
+            }
+          }
+        },
+        "exit_yield": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cap_rate": {
+              "$ref": "#/$defs/value"
+            },
+            "income_basis": {
+              "enum": ["forward", "trailing"]
+            },
+            "forward_growth": {
+              "$ref": "#/$defs/value"
+            },
+            "cost_forward_growth": {
+              "$ref": "#/$defs/value"
+            }
+          }
+        },
+        "market_growth": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "base_value_eur": {
+              "$ref": "#/$defs/value"
+            },
+            "growth": {
+              "$ref": "#/$defs/value"
+            },
+            "uplift_share": {
+              "$ref": "#/$defs/value"
+            }
+          }
+        },
+        "asset_value": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "life_basis": {
+              "enum": ["gnd", "component"]
+            },
+            "gnd_years": {
+              "$ref": "#/$defs/value"
+            },
+            "kg_include": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              ]
+            },
+            "include_existing": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "market_adjustment_factor": {
+              "$ref": "#/$defs/value"
+            },
+            "uplift_share": {
+              "$ref": "#/$defs/value"
+            },
+            "index": {
+              "$ref": "#/$defs/value"
+            },
+            "land_value_eur": {
+              "$ref": "#/$defs/value"
+            },
+            "land_value_growth": {
+              "$ref": "#/$defs/value"
+            }
+          }
+        },
+        "component": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "indexed": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "include_land": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "include_existing": {
+              "enum": ["auto", "true", "false"]
+            },
+            "existing_growth": {
+              "$ref": "#/$defs/value"
+            }
+          }
+        },
+        "user_value": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "value_eur": {
+              "$ref": "#/$defs/value"
+            }
+          }
+        }
+      }
+    },
+    "tax": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "module": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object"
+        }
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kpis": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "primary_kpi": {
+          "enum": ["auto", "delta_terminal_value", "delta_vs_reference"]
+        },
+        "allow_opportunity_reference": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "enum": ["ja", "nein", "yes", "no"]
+            }
+          ]
+        },
+        "deterministic_point": {
+          "enum": ["mode", "median", "mean"]
+        },
+        "thresholds": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dscr": {
+              "$ref": "#/$defs/value"
+            },
+            "burden_share": {
+              "$ref": "#/$defs/value"
+            },
+            "warm_rent_increase_eur_m2": {
+              "$ref": "#/$defs/value"
+            },
+            "roe_hurdle": {
+              "$ref": "#/$defs/value"
+            }
+          }
+        },
+        "stabilization_year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          ]
+        },
+        "lending_value_haircut": {
+          "$ref": "#/$defs/value"
+        },
+        "rv_path_basis": {
+          "enum": ["auto", "method", "measures"]
+        },
+        "restrictions": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "traffic_light": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "green_prob": {
+              "$ref": "#/$defs/value"
+            },
+            "red_prob": {
+              "$ref": "#/$defs/value"
+            },
+            "restriction_prob": {
+              "$ref": "#/$defs/value"
+            }
+          }
+        },
+        "mandatory_sensitivities": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "tenant_view": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "enum": ["ja", "nein", "yes", "no"]
+            }
+          ]
+        }
+      }
+    },
+    "stochastic": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "settings": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "preset": {
+              "enum": ["preview", "standard", "report", "custom"]
+            },
+            "n_sim": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              ],
+              "minimum": 2
+            },
+            "seed": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              ],
+              "minimum": 1
+            },
+            "sampling": {
+              "enum": ["lhs", "pseudo"]
+            },
+            "block_size": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              ],
+              "minimum": 2
+            },
+            "replicates": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              ],
+              "minimum": 1
+            },
+            "antithetic": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "copula": {
+              "enum": ["iman_conover", "gaussian"]
+            },
+            "start_year": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              ],
+              "minimum": 1990
+            },
+            "store": {
+              "enum": ["auto", "full", "bands", "kpi"]
+            },
+            "keep_runs": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "keep_runs_kpi": {
+              "type": "string"
+            },
+            "bands": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "band_probs": {
+              "$ref": "#/$defs/value"
+            },
+            "auto_funding_approval": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "enum": ["ja", "nein", "yes", "no"]
+                }
+              ]
+            },
+            "convergence": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "rel_halfwidth_mean": {
+                  "$ref": "#/$defs/value"
+                },
+                "abs_halfwidth_prob": {
+                  "$ref": "#/$defs/value"
+                }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "target": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "dist": {
+                "type": "string"
+              },
+              "apply": {
+                "enum": ["replace", "multiply", "add"]
+              },
+              "base": {
+                "$ref": "#/$defs/value"
+              },
+              "from": {
+                "type": "string"
+              },
+              "use": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "target",
+              "dist"
+            ]
+          }
+        },
+        "processes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "target": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "from": {
+                "type": "string"
+              },
+              "use": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "target",
+              "type"
+            ]
+          }
+        },
+        "correlations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "parameters": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3
+                  }
+                },
+                {
+                  "$ref": "#/$defs/library_ref"
+                }
+              ]
+            },
+            "shocks": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3
+                  }
+                },
+                {
+                  "$ref": "#/$defs/library_ref"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "shared": {
+      "type": "object"
+    },
+    "variants": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "extends": {
+            "type": "string"
+          },
+          "set": {
+            "type": "object"
+          },
+          "replace": {
+            "type": "object"
+          },
+          "add": {
+            "type": "object"
+          },
+          "remove": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "overrides": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "label"
+        ]
+      }
+    },
+    "scenario_sets": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "set": {
+            "type": "object"
+          },
+          "replace": {
+            "type": "object"
+          },
+          "add": {
+            "type": "object"
+          },
+          "remove": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "overrides": {
+            "type": "object"
+          },
+          "generate": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "method": {
+                "enum": "cautious"
+              },
+              "n_drivers": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                ],
+                "minimum": 1
+              },
+              "probs": {
+                "$ref": "#/$defs/value"
+              },
+              "kpi": {
+                "type": "string"
+              },
+              "params": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "exclude": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "required": [
+          "label"
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "scalar": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "object"
+        }
+      ]
+    },
+    "value": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string",
+          "pattern": "^-?[0-9.,_eE+%\\s]+$|^\\.?-?\\.inf$"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/scalar"
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "ref"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "ref": {
+              "type": "string"
+            },
+            "scale": {
+              "type": "number"
+            },
+            "offset": {
+              "type": "number"
+            },
+            "floor": {
+              "type": ["number", "string"]
+            },
+            "cap": {
+              "type": ["number", "string"]
+            },
+            "anchor": {
+              "type": "number"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "expr"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "expr": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "series"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "series": {
+              "type": "object"
+            },
+            "fill": {
+              "enum": ["locf", "zero", "linear"]
+            },
+            "before": {
+              "enum": ["first", "zero"]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "years",
+            "values"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "years": {
+              "type": "array"
+            },
+            "values": {
+              "type": "array"
+            },
+            "interpolate": {
+              "enum": ["linear", "step"]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "schedule"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "schedule": {
+              "type": "object"
+            },
+            "unit": {
+              "enum": ["eur", "share"]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "start",
+            "growth"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "start": {
+              "$ref": "#/$defs/scalar"
+            },
+            "growth": {
+              "$ref": "#/$defs/value"
+            },
+            "base_date": {
+              "$ref": "#/$defs/timing"
+            },
+            "real": {
+              "type": "boolean"
+            },
+            "index": {
+              "enum": ["calendar_year", "period_end"]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "value",
+            "per"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/value"
+            },
+            "per": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "dist"
+          ]
+        },
+        {
+          "$ref": "#/$defs/library_ref"
+        }
+      ]
+    },
+    "amount_auto": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/value"
+        },
+        {
+          "enum": ["auto", "topup"]
+        }
+      ]
+    },
+    "timing": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date"
+        },
+        {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 9999
+        },
+        {
+          "enum": ["completion", "auto"]
+        }
+      ]
+    },
+    "library_ref": {
+      "type": "object",
+      "required": [
+        "from"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(/[a-z0-9_]+)+$"
+        },
+        "use": {
+          "type": "string"
+        }
+      }
+    },
+    "market": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/value"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/market"
+          }
+        }
+      ]
+    }
+  }
+}
