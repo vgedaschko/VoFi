@@ -499,7 +499,7 @@ smp_plan <- function(spec, grid = NULL) {
   pr <- smp_process_entries(stoch$processes %||% list(), grid, base_ctx)
   st <- smp_bind_static(st, pr$static)
   if (isTRUE(settings$auto_funding_approval)) {
-    st <- smp_bind_static(st, smp_funding_auto(spec, st, nodes, base_ctx))
+    st <- smp_bind_static(st, smp_funding_auto(spec, st, nodes, base_ctx, prov))
   }
   if (length(st) > 0L) st <- st[order(names(st), method = "radix")]
   static <- smp_static_table(st)
@@ -839,14 +839,20 @@ smp_bind_static <- function(a, b) {
 #'
 #' Für jedes Förderinstrument mit Basisfallwert `approval_probability` < 1 ohne Overlay-Eintrag
 #' auf `funding.<id>.approved` entsteht der Schlüssel `funding.<id>.approved` (bernoulli,
-#' p = approval_probability); bei einem Entscheidungsknoten mit Rolle `decision`.
+#' p = approval_probability); bei einem Entscheidungsknoten mit Rolle `decision`. Setzt eine
+#' Variante, ein Szenario-Set (Schicht 7, z. B. `foerderstopp`) oder ein Override (Schicht 8)
+#' `funding.<id>.approved`, ist die Zusage für den Lauf deterministisch und es entsteht kein
+#' Schlüssel (4.7 letzter Absatz: die Overlay-Bindung entfällt auch für den automatisch
+#' erzeugten Eintrag).
+#' @param prov Herkunft (`attr(spec, "provenance")`) oder `NULL`.
 #' @noRd
-smp_funding_auto <- function(spec, static, nodes, base_ctx) {
+smp_funding_auto <- function(spec, static, nodes, base_ctx, prov = NULL) {
   out <- list()
   targets <- vapply(static, function(e) e$target, "")
   for (f in names(spec$funding %||% list())) {
     key <- paste0("funding.", f, ".approved")
     if (key %in% targets || key %in% names(static)) next
+    if (smp_fixed_by_layer(prov, key)) next
     pv <- smp_value_base(base_ctx(), paste0("funding.", f, ".approval_probability"))
     if (is.null(pv) || !is.numeric(pv)) next
     p <- as.double(pv)[1L]
@@ -857,6 +863,17 @@ smp_funding_auto <- function(spec, static, nodes, base_ctx) {
                                    "replace")
   }
   out
+}
+
+#' Ist ein Pfad durch eine Variante, ein Set (Schicht 7) oder Overrides (Schicht 8) gesetzt?
+#' @param prov Herkunft (`attr(spec, "provenance")`, Spalten `path`, `layer`) oder `NULL`.
+#' @param path Pfad.
+#' @return logical(1).
+#' @noRd
+smp_fixed_by_layer <- function(prov, path) {
+  if (!is.data.frame(prov) || !all(c("path", "layer") %in% names(prov))) return(FALSE)
+  layer <- suppressWarnings(as.integer(prov$layer[prov$path == path]))
+  any(!is.na(layer) & layer >= 7L)
 }
 
 #' Data Frame `static` des Plans (11.2), nach Schlüssel sortiert

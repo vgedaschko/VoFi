@@ -482,6 +482,32 @@ test_that("Set foerderstopp mit Entscheidungsknoten (Teil C 4.2 (z1)): Zweig 0 i
                    "red")
 })
 
+test_that("Set foerderstopp in der MC: automatischer Zusageschl\u00fcssel wird nicht gezogen (4.7, 11.6 Nr. 4)", {
+  # Integrator (Stufe II, Befund des WS-G-Reviews): das Set setzt funding.*.approved = 0
+  # (Schicht 7); damit entfällt auch der automatisch erzeugte Schlüssel, alle Läufe
+  # realisieren die Ausweichvariante (Zweiganteil 0 statt approval_probability = 0,6)
+  sc <- wsg_decision_scenario(n_sim = 200L, p = 0.6)
+  m <- wsg_quiet(vofi_build(sc, scenario_set = "foerderstopp"))
+  expect_false("funding.f.approved" %in% m$sampler$static$key)
+  expect_identical(m$decision$branch, 0L)
+  mc <- wsg_quiet(vofi_mc(m, n_sim = 200L, seed = 1L))
+  expect_identical(mc$decision$share_approved, 0)
+  expect_true(all(mc$kpis$branch == 0L))
+  # im Basisfall bleibt die Zusage unsicher (Schlüssel mit Rolle decision)
+  mb <- wsg_quiet(vofi_build(sc))
+  expect_identical(mb$sampler$static$role[mb$sampler$static$key == "funding.f.approved"],
+                   "decision")
+  cmp <- wsg_quiet(vofi_compare(sc, variants = "base", baseline = "ohne",
+                                scenario_sets = "foerderstopp", n_sim = 200L))
+  fs <- cmp$results[["base@foerderstopp"]]
+  expect_identical(fs$decision$share_approved, 0)
+  expect_true(all(fs$kpis$branch == 0L))
+  expect_gt(cmp$results$base$decision$share_approved, 0)
+  # ohne Zusage ist jeder Lauf die Ausweichvariante = Referenz (CRN): Vorteil 0 je Lauf
+  expect_equal(unname(cmp$differences$delta_vs_reference[, "base@foerderstopp"]),
+               rep(0, 200L), tolerance = 1e-9)
+})
+
 test_that("Modus differential in Einzel- und Design-Auswertungen (9.6 Nr. 6)", {
   # gleiche Ökonomie in beiden Modi: die Vergleichskennzahlen müssen übereinstimmen
   abs_sc <- wsg_incremental_scenario("absolute")
@@ -535,6 +561,11 @@ test_that("Modus differential: Set „vorsichtig“ und bedingte Ergebnisse wie 
     res <- lapply(c("absolute", "differential"), function(mode) {
       sc <- wsg_decision_scenario(n_sim = 200L, p = 0.6)
       sc$project$comparison_mode <- mode
+      # Integrator: seit WS-E2 erzeugt die Maßnahme eine Kostenzeile (m_huelle_capex, 1 EUR);
+      # mit Eigenkapital = Investition ginge die Referenz dann in t = 0 um 1 EUR ins
+      # Kontokorrent (Sollzins 8 %), und der Vereinfachungsmodus wäre nicht mehr exakt
+      # (9.6 Nr. 6: Konten der Variante bleiben). Eigenkapital deckt daher auch die Maßnahme.
+      sc$financing$ek$amount_eur <- node_const(110000)
       wsg_quiet(vofi_compare(sc, variants = "base", baseline = "ohne", n_sim = n_sim,
                              seed = 3L, store = "kpi"))
     })

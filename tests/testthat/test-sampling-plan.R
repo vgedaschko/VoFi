@@ -249,6 +249,17 @@ test_that("Automatische Förderzusage und Entscheidungsknoten (11.6 Nr. 4, R-55,
   off <- smp_plan(wsc_spec(list(settings = list(auto_funding_approval = FALSE)),
                            funding = fund))
   expect_identical(nrow(off$static), 0L)
+  # Zusage durch Variante/Set (Schicht 7) oder Override (Schicht 8) gesetzt: deterministisch,
+  # kein automatischer Schlüssel (4.7 letzter Absatz); Szenariowert (Schicht 5) bindet nicht
+  prov <- data.frame(path = c("funding.kfw.approved", "funding.node.approved"),
+                     layer = c(7L, 5L), source_type = c("scenario_set", "scenario"),
+                     stringsAsFactors = FALSE)
+  p7 <- smp_plan(wsc_spec(list(), funding = fund, provenance = prov))
+  expect_identical(p7$static$key, "funding.node.approved")
+  prov$layer <- c(5L, 8L)
+  prov$source_type <- c("scenario", "override")
+  p8 <- smp_plan(wsc_spec(list(), funding = fund, provenance = prov))
+  expect_identical(p8$static$key, "funding.kfw.approved")
   # ausdrücklicher Overlay-Eintrag ersetzt den automatischen Schlüssel; Knoten -> decision
   ov <- list(parameters = list(avail = wsc_par("funding.node.approved", "bernoulli", p = 0.4)))
   po <- smp_plan(wsc_spec(ov, funding = fund))
