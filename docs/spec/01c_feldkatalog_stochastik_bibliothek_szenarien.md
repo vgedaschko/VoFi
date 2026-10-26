@@ -5,8 +5,8 @@
 | **Projekt** | VoFi-Werkzeug (R-Paket `vofi`) |
 | **Dokument** | `docs/spec/01c_feldkatalog_stochastik_bibliothek_szenarien.md` (Spec 01, Teil C) |
 | **Bezug** | `docs/spec/00_kernvertraege.md` (Spec 00, `contract_version = "1.0.0"`, `schema_version = 1`), `docs/Konzept.md`, Memos 02, 03, 04, 07, Prototyp `docs/recherche/prototypen/mc/spec.yaml` |
-| **Stand** | 26.10.2026 (Runde 3) |
-| **Status** | Entwurf zur Integration (Rang 3 nach Spec 00 §1.2). Konkretisiert Spec 00 §4.3.14, §4.3.15, §4.9–4.11, §9.11, §11, §12.7–12.9 und §15.6 (Referenzszenarien) innerhalb der dort festgelegten Strukturen; abgeglichen mit Spec 00 Runde 2 (R-66 bis R-84) und **Runde 3** (R-85 bis R-109, Namens- und Eigentumsentscheidungen N-01 bis N-31 in Spec 00 §17.5.3). Die Änderungsanträge S01C-01 bis S01C-15 sind entschieden (Abschnitt 8); Einzelnachweis der Überarbeitung in Abschnitt 9. |
+| **Stand** | 26.10.2026 (Runde 3; Runde 4 „Restbefunde“ eingearbeitet, Abschnitt 10) |
+| **Status** | Entwurf zur Integration (Rang 3 nach Spec 00 §1.2). Konkretisiert Spec 00 §4.3.14, §4.3.15, §4.9–4.11, §9.11, §11, §12.7–12.9 und §15.6 (Referenzszenarien) innerhalb der dort festgelegten Strukturen; abgeglichen mit Spec 00 Runde 2 (R-66 bis R-84) und **Runde 3** (R-85 bis R-109, Namens- und Eigentumsentscheidungen N-01 bis N-31 in Spec 00 §17.5.3). Die Änderungsanträge S01C-01 bis S01C-17 sind entschieden (Abschnitt 8; S01C-16, S01C-17 in Runde 4, Spec 00 §17.6); Einzelnachweis der Überarbeitung in Abschnitt 9 (Runde 3) und 10 (Runde 4). |
 | **Eigentümer der Inhalte** | WS-C (Abschnitt 1, Sampler-Semantik), WS-L (Abschnitte 2–3, Bibliotheksdaten), WS-A (Abschnitt 4: Schema und Auflösung der Szenario-Sets; Profile), WS-G (Abschnitte 4.3, 4.4, 6), WS-S (Abschnitt 5) |
 | **Nachbarteile** | Teil A (`01a`): Szenario-, Gebäude-, Maßnahmen-, Capex-, Ersatz-, Finanzierungs-, Konten-, Restwert-Felder, globale Defaults und Profile. Teil B (`01b`): Mietrecht, Betriebskosten, Energie/CO2, PV, Haushalt, Mieterkosten, Algorithmen der Förderinstrumente. Teil C liefert die **Daten** der Fördereinträge; ihre **Auslegung** regelt Teil B. |
 
@@ -421,7 +421,9 @@ verteilbar (E mit Hinweis „statischen Schlüssel und Ausdruck verwenden“).
 - `quantile_path(par, years, p)` (optional, Spec 00 §5.3, R-95): Randquantil der Ausgabe je Jahr bei Punktparametern
   (Verteilungsparameter → `point(…, "mean")`, wie `expected`); Definition je Typ in 4.3 Nr. 1 (c); Vertragstest P4
   (monoton in p; σ = 0 ⇒ `quantile_path == expected` auf 1e-12; empirisches Quantil der Simulation je Jahr innerhalb
-  4 SE). Alle Typen außer `fixed_path` haben die Funktion.
+  4 SE). Alle Typen außer `fixed_path` haben die Funktion. Prozesse mit `linked` erhalten Typ, Punktparameter und
+  Schockkorrelation des Basisprozesses in `par$.base = list(type, par, rho)` (Spec 00 §5.3, R-114); ohne Gaußbasis
+  liefern sie `NA` (4.3 Nr. 1 c).
 
 ### 1.6 Prozesstypen (Registry-Art `process`, `R/process-<name>.R`, WS-C)
 
@@ -2350,7 +2352,7 @@ accessed: 2026-10-25
 valid_from: 2026-07-29
 valid_to: null
 quality: A
-quality_detail: {interpretation: D, s558.funding_deduction_duration_grant_years: D}
+quality_detail: {interpretation: D, s558.funding_deduction_duration_grant_years: D, s558.funding_deduction_duration_loan: D}   # Auslegungs-Defaults von Nutzerfeldern (01b §1.3): Freigabe-Ausnahme Spec 00 §4.10 (R-116)
 legal_state: {as_of: 2026-07-29, status: in_force, reference: "BGB, zuletzt geändert durch Art. 6 GModG-Änderungsgesetz (BGBl. 2026 I Nr. 226)"}
 values:
   s558:
@@ -3654,8 +3656,9 @@ Overlay-Einträge weiter.
 
 ### 4.2 Standard-Sets (`inst/extdata/defaults/global.yaml`, Schicht 1; Ablage # 01a)
 
-`foerderstopp` und `vorsichtig` sind nach Spec 00 §4.11 Pflicht (gleichlautend in Teil A §2.2); die übrigen Sets
-ergänzt WS-A aus dieser Liste in `global.yaml`. Sie stehen zur Wahl in `vofi_compare(…, scenario_sets = …)` bereit
+`foerderstopp` und `vorsichtig` sind nach Spec 00 §4.11 Pflicht; die übrigen Sets ergänzt WS-A aus dieser Liste in
+`global.yaml`. Dieser Abschnitt ist die **einzige Quelle** des Inhalts aller Standard-Sets; Teil A §2.2 und Teil B §7.1
+verweisen nur hierher (N-22, R-118). Sie stehen zur Wahl in `vofi_compare(…, scenario_sets = …)` bereit
 und werden nur auf Anforderung gerechnet. Alle Werte D (eigene
 Ableitung), Belege in den Kommentaren.
 
@@ -3668,7 +3671,7 @@ scenario_sets:
   vorsichtig:
     label: "Vorsichtig: ungünstige Werte der fünf stärksten Treiber"
     description: "Aus dem Tornado der Primärkennzahl: die fünf Treiber mit dem größten Ausschlag gleichzeitig auf P10 bzw. P90 (Konzept 1.4, B5)."
-    generate: {method: cautious, n_drivers: 5, probs: [0.1, 0.9], kpi: auto, params: auto}
+    generate: {method: cautious, n_drivers: 5, probs: [0.1, 0.9], kpi: auto, params: auto, exclude: []}
   zinsschock:
     label: "Zinsschock: Bauzins 6,5 %"
     description: "Bauzins und Anschlusszins dauerhaft 6,5 % (+2,4 Pp ggü. 10/2026; Größenordnung 2022: +2,7 Pp in zwölf Monaten)."
@@ -3730,9 +3733,10 @@ nicht.
      sd_y = σ √((1 − e^{−2κ(y−1)})/(2κ)) (die Kappung ist monoton, daher exakt).
    - `linked_ar1`: m_y + Φ⁻¹(p) · sd_y mit sd_y² = b² Var(base_y) + σ²(1 − φ^{2(y−1)})/(1 − φ²) + 2 b ρ σ_B σ
      (1 − (φ_B φ)^{y−1})/(1 − φ_B φ); ρ = Schockkorrelation zum Basisprozess, φ_B, σ_B dessen AR-Parameter (Vasicek:
-     φ_B = e^{−κ}, σ_B = σ √((1 − e^{−2κ})/(2κ))). `smp_design()` übergibt Typ, Punktparameter und ρ des Basisprozesses
-     in `par$.base`. Nur bei Gaußbasis (`ar1`, `vasicek` mit `floor = -.inf`, `linked_ar1` mit Gaußbasis); sonst liefert
-     die Funktion `NA` und der Kandidat entfällt (I `validation.scenario_set.quantile_path_unavailable`).
+     φ_B = e^{−κ}, σ_B = σ √((1 − e^{−2κ})/(2κ))). `smp_design()` bzw. `cmp_cautious()` übergibt Typ,
+     Punktparameter und ρ des Basisprozesses in `par$.base = list(type, par, rho)` (Spec 00 §5.3, R-114). Nur bei
+     Gaußbasis (`ar1`, `vasicek` mit `floor = -.inf`, `linked_ar1` mit Gaußbasis); sonst liefert die Funktion
+     `rep(NA_real_, length(years))`, und der Kandidat entfällt (I `validation.scenario_set.quantile_path_unavailable`).
    - `mr_trend`: p̄ (1 + g)^{y−1} exp(φ^{y−1} ln(p0/p̄) − v_y/2 + Φ⁻¹(p) √v_y), v_y = σ²(1 − φ^{2(y−1)})/(1 − φ²).
    - `gbm`: p0 (1 + g)^{y−1} exp(−σ²(y−1)/2 + Φ⁻¹(p) σ √(y − 1)).
    - `scenario_mix`: je Jahr das p-Quantil der Mischverteilung: ohne `noise` der Wert x^{(k*)}_y mit den Szenarien
@@ -4092,7 +4096,7 @@ shared:
   v1_wp_2047: {expr: "ifelse('stufe_2045' %in% project.pending_reforms, 1, 0)"}   # Pflichtsensitivität stufe_2045 (Konzept S1); Code-Symbol mit setting-Semantik in %in% (Spec 00 §4.5 Regel 5, R-91)
 energy:
   carriers:
-    gas_mfh: {emission_factor_kg_kwh: 0.181}          # Preis {ref: market.energy_price.{id}} aus item_defaults."energy.carriers", Klasse, Netzentgelt, THG-Faktor aus rule:carrier_defaults (N-04); USt 0,19
+    gas_mfh: {emission_factor_kg_kwh: 0.181}          # Preis {ref: "market.energy_price.{id}"} aus item_defaults."energy.carriers", Klasse, Netzentgelt, THG-Faktor aus rule:carrier_defaults (N-04); USt 0,19
     heatpump_power_mfh: {}                             # dto. (Komponenten e_after_heatpump_power_mfh_cost usw., N-14)
   before:
     efficiency: 0.87                         # Messverbrauch 280.000 kWh -> Nutzwärme 243.600 kWh
@@ -4413,7 +4417,7 @@ components:
     amount_eur: 10080
     growth: 0.02
     base_date: 2030-01-01                   # 2029: 10.080 EUR (S2-T7)
-    from: completion
+    start_event: completion                 # Terminparameter (Spec 00 §4.9, R-110)
 financing:
   ek: {type: equity, amount_eur: 3000000}
   bank:
@@ -4715,6 +4719,7 @@ variants:
         from: funding/kfw_459_heizung_unternehmen
         measures: [heizung_wp]
         application_date: 2027-01-15
+        approval_timing: before_start       # ausdrücklich (R-111): Vorhabenbeginn nach dem Antrag; year: 2027 ist nur der Kostenansatz zum 1. Januar (Memo 07), daher keine W
         payout: {lag_months: 3}             # Termin 2027-10-01 + 3 Monate = 2028-01-01 -> t = 1 (Periode 2027, R-98; 01b F-1, N-13)
         approval_probability: 1.0           # Memo 07: kein Zusagerisiko
       financing.bank:
@@ -4937,7 +4942,7 @@ variants:
   v1_isfp_stufen:
     label: "V1 iSFP stufenweise: WP 2027, Dach + Fenster 2030, Fassade + Kellerdecke 2033"
     remove: [measures.gaskessel, measures.dach_2032, measures.anstrich_2033, measures.fenster_2042, measures.wp_2050,
-             energy.stages, stochastic.parameters.boiler_failure]
+             stochastic.parameters.boiler_failure]
     replace:
       energy.after:
         measure: wp_2027
@@ -4945,6 +4950,15 @@ variants:
         heating_carrier: heatpump_power
         jaz: 2.9
         service_eur_pa: 210.08403361
+      energy.stages:                        # ersetzt die Stufen der Basis (wie V2; K3-18)
+        stufe2:
+          measure: dach_fenster_2030
+          demand_kwh: {expr: "21560 * (1 - shared.saving_stage2)"}                               # 16.170
+          jaz: 3.2
+        stufe3:
+          measure: fassade_2033
+          demand_kwh: {expr: "21560 * (1 - shared.saving_stage2) * (1 - shared.saving_stage3)"}  # 11.642,4
+          jaz: 3.5
     set:
       stochastic.correlations.parameters: [[co2_2030, co2_2040, 0.8], [jaz_s1, jaz_s2, 0.7], [jaz_s2, jaz_s3, 0.7], [jaz_s1, jaz_s3, 0.7]]   # D: dieselbe Anlage
     add:
@@ -4978,15 +4992,6 @@ variants:
         price_base_year: 2025
         classification: erhaltung
         useful_life_years: 20
-      energy.stages:
-        stufe2:
-          measure: dach_fenster_2030
-          demand_kwh: {expr: "21560 * (1 - shared.saving_stage2)"}                               # 16.170
-          jaz: 3.2
-        stufe3:
-          measure: fassade_2033
-          demand_kwh: {expr: "21560 * (1 - shared.saving_stage2) * (1 - shared.saving_stage3)"}  # 11.642,4
-          jaz: 3.5
       funding.kfw458_wp:
         from: funding/kfw_458_heizung_privat
         measures: [wp_2027]
@@ -4996,14 +5001,14 @@ variants:
       funding.bafa_2030:
         from: funding/bafa_beg_em_huelle    # iSFP-Bonus nur auf den Betrag > 30.000 (Default, Konzept B2)
         measures: [dach_fenster_2030]
-        application_date: 2029-12-01
+        application_date: 2029-12-01        # approval_timing auto -> before_start (Antrag vor dem Stufentermin 2030-01-01; R-111), keine W
         payout: {lag_months: 12}            # Termin 2031-01-01 -> t = 4
         approval_probability: 1.0
       funding.bafa_2033:
         from: funding/bafa_beg_em_huelle
         measures: [fassade_2033]
         application_date: 2032-12-01
-        approval_timing: after_start        # ausdrücklich (X-31): einfache Ziehung ohne Entscheidungsknoten (Spec 00 §9.11 Nr. 6); die Stufe findet in jedem Fall statt, die Lücke deckt der Ausgleich
+        approval_timing: after_start        # ausdrücklich (X-31, R-111): Zusage erst nach Vorhabenbeginn, einfache Ziehung ohne Entscheidungsknoten (Spec 00 §9.11 Nr. 6); Antrag vor dem Termin 2033, daher keine W; die Stufe findet in jedem Fall statt, die Lücke deckt der Ausgleich
         payout: {lag_months: 12}            # Termin 2034-01-01 -> t = 7
         approval_probability: 0.7           # Memo 07 (Förderverfügbarkeit nach 2030, Konzept B12); ohne Angabe ergäbe rule:approval_probability 0,90 x 0,7 = 0,63 (Antrag ab 2031)
         on_reject: balance
@@ -5105,7 +5110,7 @@ project:
   project_type: neubau
   comparison_mode: absolute
   valuation_date: 2027-01-01
-  horizon_years: 30                         # 2027-2056, Horizontende 2057-01-01 (Profil: Neubau 40, Memo 07: 30)
+  horizon_years: 30                         # 2027-2056, Horizontende 2057-01-01 (global.yaml by_project_type: Neubau 40; Memo 07: 30)
   application_date: 2026-12-15              # EH-55-Stufe bis 31.12.2026, Baugenehmigung vorhanden
   legal_state: 2026-10-25
   price_base_year: 2026
@@ -5209,7 +5214,7 @@ components:
     category: other_cost                    # trägt auch die Grundsteuer: ohne building.property_tax W property_tax_missing erwartet (01b 2.3, X-16)
     amount_eur: 1600
     growth: {ref: market.inflation}
-    from: completion
+    start_event: completion                 # Terminparameter (Spec 00 §4.9, R-110)
 financing:
   bank:
     type: annuity_loan
@@ -5292,7 +5297,7 @@ variants:
         category: maintenance
         amount_eur: 120
         growth: {ref: market.inflation}
-        from: completion
+        start_event: completion
       stochastic.parameters.eh40_surcharge: {target: shared.eh40_surcharge, label: "Mehrkosten EH 40", dist: triangular, min: 0.03, mode: 0.06, max: 0.10}
       stochastic.parameters.efficiency_premium_v2: {target: shared.efficiency_premium_v2, label: "Effizienzzuschlag Restwert", dist: uniform, min: 0, max: 0.06}
   v2b_eh40_ohne_kfw300:
@@ -5561,13 +5566,14 @@ prüfbar“ (Spec 00 §12.3, §12.9, R-101, X-30; Validierung W `validation.acco
 | OP-20 | **Sommerlicher Wärmeschutz (`sonnenschutz`)** | kein Katalogcode in v1 (N-01, Spec 00 §17.3 Nr. 8 a); BAFA-Liste ohne ihn. Aufnahme als 38. Code nur über einen Antrag von Teil A mit Katalogzeile, dann Ergänzung der BAFA-Liste | Teil A |
 | OP-21 | **BEHG-Kostenfaktor Kohle** (01b §9 Nr. 13) | nicht ergänzt: EBeV-2030-Standardwerte für Stein- und Braunkohle am Primärtext nicht geprüft; bis dahin W in 01b („CO2-Kosten 0“) | WS-L |
 | OP-22 | **`bgb_559c` als `bgb_559` bei der Ausschlussprüfung** (N-06) | fachlich durch Teil B bestätigt (01b §9 Nr. 6); Freigabevermerk der Rechtsprüfung offen; `s558.excludes_increases` führt `bgb_559c` ausdrücklich, § 560 ist nicht abgebildet (kein Code) | Fachstelle |
-| OP-23 | **Quantilpfad `linked_ar1` mit nicht gaußscher Basis** | v1: kein Kandidat des Sets „vorsichtig“ (I `quantile_path_unavailable`, 4.3); v1.1 Momentennäherung | WS-C |
+| OP-23 | **Quantilpfad `linked_ar1` mit nicht gaußscher Basis** | v1: Rückgabe `NA`, kein Kandidat des Sets „vorsichtig“ und keine Designspalte (I `quantile_path_unavailable`, 4.3; vertraglich seit Runde 4: Spec 00 §5.3, R-114); v1.1 Momentennäherung | WS-C |
 
 ---
 
 ## 8. Änderungsanträge an Spec 00
 
-Alle Anträge S01C-01 bis S01C-15 sind in Runde 3 entschieden (Spec 00 §17.5.1); die Übergangsregeln entfallen. Die
+Alle Anträge sind entschieden: S01C-01 bis S01C-15 in Runde 3 (Spec 00 §17.5.1), S01C-16 und S01C-17 in Runde 4
+(Spec 00 §17.6.2); die Übergangsregeln entfallen. Die
 Spalte „Entscheidung“ nennt die Auflösung, die Spalte „Umsetzung in Teil C“ die angepassten Abschnitte.
 
 | Nr. | Spec-00-Abschnitt | Antrag (Kurzform) | Entscheidung | Umsetzung in Teil C |
@@ -5587,8 +5593,8 @@ Spalte „Entscheidung“ nennt die Auflösung, die Spalte „Umsetzung in Teil 
 | S01C-13 | §4.3.15 | Overlay-Vorlagen als Map mit `use:`; Korrelationslisten | **entschieden: angenommen** (R-87) | 1.1 Nr. 6, 1.3, 1.5, 2.1 |
 | S01C-14 | §4.3.15, §12.7 | `settings.preset`, `settings.convergence` | **entschieden: angenommen mit Änderung** (R-97, R-101): Vorrangregel, `global.yaml` ohne `n_sim`, Spalte `converged` | 1.2, 6.1, 6.3 |
 | S01C-15 | §4.11 | Szenario-Sets dürfen `shared.*` setzen | **entschieden: abgelehnt** (R-109, N-21): Muster szenarioeigener `market`-Pfad | 4.1 (E `path_forbidden`), 4.2 (z7), 5.3 |
-| S01C-16 | §5.3 (`quantile_path`) | **neu (PATCH, Klarstellung):** Für `linked_ar1` übergibt `smp_design()` Typ, Punktparameter und Schockkorrelation des Basisprozesses in `par$.base`; ohne Gaußbasis liefert `quantile_path` `NA` (kein Kandidat). Die Signatur bleibt `quantile_path(par, years, p)` | offen | Übergang: wie beantragt (4.3 Nr. 1 c) |
-| S01C-17 | §17.3 Nr. 8 c, §11.9 | **neu (PATCH):** Offenen Punkt „Energiepreis-Basisfall“ als entschieden vermerken (Teil C 2.4, 3.6: Basisfall = Erwartungspfad der Mean-Reversion; Bibliotheks-`p_norm` für Startjahr 2027). Der Satz in §11.9 („deterministischer Wert entspricht im Allgemeinen nicht dem MC-Erwartungswert“) bleibt richtig (Jensen-Lücke des unsicheren Trends) | offen | keine Übergangsregel nötig |
+| S01C-16 | §5.3 (`quantile_path`) | **neu (PATCH, Klarstellung):** Für `linked_ar1` übergibt `smp_design()` Typ, Punktparameter und Schockkorrelation des Basisprozesses in `par$.base`; ohne Gaußbasis liefert `quantile_path` `NA` (kein Kandidat). Die Signatur bleibt `quantile_path(par, years, p)` | **entschieden (Runde 4): angenommen mit Änderung** (R-114): `par$.base = list(type, par, rho)` als reservierter Listeneintrag (führender Punkt reserviert, rekursiv bei verketteten Prozessen); Rückgabe `NA` = weder Kandidat noch Designspalte (I `validation.scenario_set.quantile_path_unavailable`); P4 mit Fall `linked_ar1` auf `ar1`-Basis (Spec 00 §5.3, §5.6, §11.11) | 1.5, 4.3 Nr. 1 (c), OP-23 |
+| S01C-17 | §17.3 Nr. 8 c, §11.9 | **neu (PATCH):** Offenen Punkt „Energiepreis-Basisfall“ als entschieden vermerken (Teil C 2.4, 3.6: Basisfall = Erwartungspfad der Mean-Reversion; Bibliotheks-`p_norm` für Startjahr 2027). Der Satz in §11.9 („deterministischer Wert entspricht im Allgemeinen nicht dem MC-Erwartungswert“) bleibt richtig (Jensen-Lücke des unsicheren Trends) | **entschieden (Runde 4): angenommen** (R-119): Spec 00 §17.3 Nr. 8 (c) als erledigt vermerkt, zugleich Nr. 8 (d) (01b §5.2); §11.9 unverändert | keine Änderung in Teil C (OP-19 bereits entschieden) |
 
 ---
 
@@ -5656,7 +5662,7 @@ Arbeitsverzeichnis der Überarbeitung).
 | X-27 | gültig (Spec 00) | Kommentar in `legal/grunderwerbsteuer_2026`: Schlüssel = Codes `federal_state` |
 | X-29 | gültig, umgesetzt | wie N-28 |
 | X-30 | gültig (Spec 00, Teil A) | 6.6 Text und Prüffall A12 (NA `no_liquidity_limit`, kein K.-o.) |
-| X-31 | gültig, umgesetzt | S4 `bafa_2033` mit `approval_timing: after_start` ausdrücklich; nach dem Wortlaut von Spec 00 §4.3.7 („Maßnahmen der Variante“) ergäbe `auto` bereits `after_start`, nach dem Vorschlag S01B-14 („des Instruments“) `before_start` mit W; die ausdrückliche Angabe macht S4 von dieser Frage unabhängig (OP in 01b §9 Nr. 23) |
+| X-31 | gültig, umgesetzt (Runde 4 angepasst) | S4 `bafa_2033` mit `approval_timing: after_start` ausdrücklich („Zusage erst nach Vorhabenbeginn“, einfache Ziehung ohne Entscheidungsknoten). Seit Runde 4 (S01B-14 angenommen, Spec 00 §4.3.7, R-111) bezieht sich `auto` auf die Maßnahmen des Instruments: `bafa_2030`, `kfw358_2030` und `kfw358_2033` ergeben ohne Angabe `before_start` (Antrag vor dem Stufentermin, keine W „förderschädlicher Vorhabenbeginn“); bei `bafa_2033` ergäbe `auto` ebenfalls `before_start` (einfache Ziehung mit W „Ausweichvariante fehlt“, Spec 00 §9.11 Nr. 1). Die ausdrückliche Angabe bleibt und meldet nichts, weil der Antrag (2032-12-01) vor dem Termin (2033-01-01) liegt (01b §4.2) |
 | X-32 | gültig, umgesetzt | wie N-15; `shared.network_fee_growth_*` in `global.yaml` (Teil A) |
 | F-01 | gültig, umgesetzt | Nutzlast KfW 458 mit `child_u18_threshold_shift_per_child: false`; Prüfwerte 15.680,00 € bzw. 19.600,00 € (3.4, wie 01b F-2a) |
 | F-02 | gültig, ohne Listenänderung | Teil B legt `privatperson` als Oberbegriff fest (01b §4.3.1); die Listen bleiben, Kommentare und Prüffall 8.400,00 € ergänzt |
@@ -5692,3 +5698,26 @@ Arbeitsverzeichnis der Überarbeitung).
 | S4 (m1) | Verschiebung −24 … +36, „+24 nach Horizontende“ | 0 … 60 Monate ab 2028; 48 Monate → t = 25, 60 Monate entfällt | X-14, R-35 |
 | KfW 459 | – | Antrag ab 2027-02-01: 150.250 € förderfähig → 45.075,00 € | X-02 |
 | 6.6 | Selbstnutzer `[burden, liquidity, savings]` | `[burden, savings, liquidity]` (wie Teil A) | Abgleich |
+
+---
+
+## 10. Review-Protokoll Runde 4 (Restbefunde, 26.10.2026)
+
+Grundlage: Spec 00 §17.6 (Befunde K3-01 bis K3-19, Anträge S01C-16, S01C-17, Auflösungen R-110 bis R-119). K3-01
+und K3-02 folgen Orchestrator-Entscheidungen.
+
+| Punkt | Entscheidung | Umsetzung in Teil C |
+|---|---|---|
+| K3-01 (R-110) | Terminparameter heißen `start_event` | S2 `stellplaetze`, S5 `grundsteuer_versicherung`, S5 V2 `lueftungsfilter`: `start_event: completion` |
+| K3-02 (R-111) | Bezug Maßnahmen des Instruments | S4 V1: `bafa_2030`, `kfw358_2030`, `kfw358_2033` ergeben `before_start` ohne W (Kommentar), `bafa_2033` bleibt ausdrücklich `after_start` ohne W; X-31 neu gefasst; S3 V2 `kfw459` ausdrücklich `before_start` (Antrag nach dem Kostenansatz `year: 2027`) |
+| K3-08 (R-118) | `{id}` quoten | S1-Kommentar |
+| K3-11 (R-118) | 4.2 ist die einzige Quelle der Standard-Sets | 4.2 (Kopf, `vorsichtig` mit `exclude: []`) |
+| K3-16 (R-116) | Variante a (Auslegungs-Defaults bleiben im Eintrag) | `legal/mietrecht_2026`: `quality_detail` um `s558.funding_deduction_duration_loan: D` ergänzt, Kommentar |
+| K3-18 (R-119) | `energy.stages` unter `replace` | S4 V1 |
+| K3-19 (R-119) | Kommentar berichtigt | S5 `horizon_years` |
+| S01C-16 (R-114) | mit Änderung angenommen | 1.5, 4.3 Nr. 1 (c), 8, OP-23 |
+| S01C-17 (R-119) | angenommen | 8 |
+
+Prüfwerte unverändert: S3 V2 (`kfw459` mit Zusagewahrscheinlichkeit 1, kein Knoten), S4 V1 (Stufen inhaltlich
+gleich, nur über `replace`), S2 und S5 (nur der Parametername). Die YAML-Teile parsen, alle `from`-Werte sind
+Bibliotheks-ids (Spec 00 §17.6.4).

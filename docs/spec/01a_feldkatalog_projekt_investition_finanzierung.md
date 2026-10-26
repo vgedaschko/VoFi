@@ -5,8 +5,8 @@
 | **Projekt** | VoFi-Werkzeug (R-Paket `vofi`) für Neubau und energetische Sanierung, Wohnungswirtschaft und Privatpersonen |
 | **Dokument** | `docs/spec/01a_feldkatalog_projekt_investition_finanzierung.md` (Spec 01, Teil A) |
 | **Bezug** | `docs/spec/00_kernvertraege.md` (Spec 00, `contract_version = "1.0.0"`, `schema_version = 1`), `docs/Konzept.md` (§ 2, § 3, § 11.2 F1–F21, § 11.3 A1–C12, Review-Protokoll), Memos 01, 02, 03, 05, 06, 07 |
-| **Stand** | 26.10.2026 (Runde 3 „Feldkatalog-Abgleich“ eingearbeitet: Entscheidungen R-85 bis R-109 und N-01 bis N-31 aus Spec 00 §16.3/§17.5; Nachweis in Abschnitt 12) |
-| **Status** | Entwurf zur Integration (Rang 3 nach Spec 00 §1.2). Konkretisiert Felder, Defaults und Algorithmen **innerhalb** der Strukturen von Spec 00; wo eine Konkretisierung eine Spec-00-Struktur berühren würde, steht ein Änderungsantrag in Abschnitt 11 (`S01A-nn`) mit Übergangsregel; offene fachliche Punkte stehen in Abschnitt 10; das Review-Protokoll der Runde 3 steht in Abschnitt 12. |
+| **Stand** | 26.10.2026 (Runde 3 „Feldkatalog-Abgleich“ eingearbeitet: Entscheidungen R-85 bis R-109 und N-01 bis N-31 aus Spec 00 §16.3/§17.5; Nachweis in Abschnitt 12. Runde 4 „Restbefunde“ eingearbeitet: R-110 bis R-119, N-08a aus Spec 00 §17.6; Nachweis in Abschnitt 13) |
+| **Status** | Entwurf zur Integration (Rang 3 nach Spec 00 §1.2). Konkretisiert Felder, Defaults und Algorithmen **innerhalb** der Strukturen von Spec 00; wo eine Konkretisierung eine Spec-00-Struktur berühren würde, steht ein Änderungsantrag in Abschnitt 11 (`S01A-nn`; alle entschieden); offene fachliche Punkte stehen in Abschnitt 10; die Review-Protokolle der Runden 3 und 4 stehen in Abschnitt 12 und 13. |
 | **Nachbarteile** | Teil B (`01b`): Mietrecht (`rent_path`, §§ 558/559/559a/559c/559e/559f), Betriebskosten, Grundsteuer, Energie/CO2, PV, Haushalt, Mieterkosten, Förderinstrumente (Auslegung). Teil C (`01c`): Stochastik-Overlay, Bibliotheksdaten, Szenario-Sets, Referenzszenarien, MC-Auswertung. Teil A verweist auf B und C, ohne deren Inhalte zu wiederholen. |
 | **Eigentümer der Inhalte** | WS-A (Abschnitte 1–2: Schema der Blöcke `meta`, `project`, `grid`, `analysis`, `global.yaml`, Profile), WS-E (Typen `capex`, `land`, `acquisition_cost`, `replacement`, `maintenance`, `equity`, `custom_series`, `recurring`, `share_of`, `residual_value`, Regel `grest`), WS-E2 (Expander `measures`, `residual`; Expander `unit_groups` nach Teil B), WS-F (Kredittypen), WS-D (Konten), WS-L (Bibliothekseinträge aus Abschnitt 8.3), WS-B (Validierungscodes) |
 
@@ -100,10 +100,10 @@ Danach ZP mit diesen Ereignissen (alle mit derselben Verschiebung s). Auf dem Ja
 Kalenderjahres in dieselbe Periode; das Profil wirkt dann nur über Jahresgrenzen hinweg.
 
 **JB – laufender Jahresbetrag (R-62).** Jahresbetrag A (n-Vektor oder n × (T+1)) in Preisen von d₀, Wachstumsrate g,
-Wirkungszeitraum [from, to) mit Verschiebung s:
+Wirkungszeitraum [start_event, to) mit Verschiebung s:
 
 ```text
-value_t = sign * A_t * I^Y_t(g, d0) * Δ_t * ω_t(from + s, to)       # Spec 00 §7.12 (recurring)
+value_t = sign * A_t * I^Y_t(g, d0) * Δ_t * ω_t(start_event + s, to)   # Spec 00 §7.12 (recurring)
 ```
 
 **AF – Aktivierung.** Jede aus einer Maßnahme m abgeleitete Zahlung und Wirkung wird mit a_m multipliziert
@@ -207,7 +207,7 @@ Blätter bzw. lösen den Code `auto` eines Enum-Felds auf; ein fehlendes Feld gi
 oder Bezugs-/Ausdrucksknoten – Bezüge dürfen auf Blätter zeigen, die erst `item_defaults` füllt –, nie aus
 overlay-fähigen numerischen Blättern berechnete Konstanten (Spec 00 §4.12 Nr. 5). Ausgewertet werden deterministische
 Termine, Codes, Flags sowie `bctx$legal()`- und `bctx$lib()`-Werte; einzige Ausnahme ist die Ableitung eines Codes aus
-Basisfallwerten in 4.5.1 Nr. 6 (Antrag S01A-11). Regeln für Gebäudefelder laufen nur, wenn `building` existiert.
+Basisfallwerten in 4.5.1 Nr. 6 (Antrag S01A-11, entschieden: Spec 00 §4.7, R-113). Regeln für Gebäudefelder laufen nur, wenn `building` existiert.
 Herkunft `source_type = "type_default"`, `layer = 0`, `entry = "rule:<regel>"` bzw. die Bibliotheks-id, aus der der
 Wert stammt. Ableitungsregeln sind **keine** Registry-Regeln (Abschnitt 7); ein Paket, das ihr Ergebnis braucht, liest
 das abgeleitete Domänenblatt. Eigentümer ist WS-A (N-07). Die Regeln dieses Teils laufen in der Reihenfolge der
@@ -227,7 +227,7 @@ ergänzt `rule:unit_group_defaults`, `rule:carrier_defaults`, `rule:approval_tim
 | `rule:first_occupancy` | `building.first_occupancy_year` | `= building.construction_year`; bei Neubauprojekten Jahr(`grid$completion_date` − 1 Tag) |
 | `rule:measure_catalog` | fehlende Felder je Maßnahme und Bauteil | Katalogwerte aus `costs/massnahmentypen_2026`, `costs/nutzungsdauern_2026`, `costs/kostenzuschlaege_2026`, `costs/erwerbsnebenkosten_2026` (`entry` = Bibliotheks-id) und abgeleitete Felder (Termine, Projektart, Nutzungsdauer der Hauptmaßnahme, PV-Umsatzsteuer und PV-Leistung, `modernization_kind: none` bei Erhaltung; `entry = "rule:measure_catalog"`); vollständig in 4.5.1 |
 | `rule:cost_from_kg` | `measures.<m>.cost_eur` bei `cost_kg` bzw. bei `payment_schedule` mit `unit: eur` | `expr` der Grundkosten K⁰ bzw. Summe der Beträge des Zahlungsplans (4.6.1; X-28) |
-| `rule:maintenance_from` | `building.maintenance.from`, `building.maintenance.basis` (fehlend bzw. `auto`) | `from`: Neubauprojekt Token `completion`, Erwerb Erwerbsdatum, sonst `valuation_date`; `basis`: `rate`, wenn `rate_eur_m2_pa` vor `item_defaults` gesetzt ist (Szenario, Variante, Set, Override), sonst Neubauprojekt `iibv`, sonst `rate` (3.3, F-22) |
+| `rule:maintenance_from` | `building.maintenance.start_event`, `building.maintenance.basis` (fehlend bzw. `auto`) | `start_event` (R-110; Regelname unverändert): Neubauprojekt Token `completion`, Erwerb Erwerbsdatum, sonst `valuation_date`; `basis`: `rate`, wenn `rate_eur_m2_pa` vor `item_defaults` gesetzt ist (Szenario, Variante, Set, Override), sonst Neubauprojekt `iibv`, sonst `rate` (3.3, F-22) |
 
 **Perspektiven (Übersicht der Profilwerte, Details Abschnitt 2):**
 
@@ -317,7 +317,7 @@ Schlüssel ein Validierungsfehler.
 |---|---|---|---|
 | `defaults_meta` | beide | ja | `{kind: global \| profile, id, schema_version: 1, as_of, quality, source, note}`; wird nie gemischt, nur in `meta$defaults` des Ergebnisses und in der Herkunft (`entry`) geführt |
 | `by_project_type` | beide | nein | Map `project_type → Teilbaum`; der Teilbaum des aktuellen `project.project_type` wird **unmittelbar nach** der eigenen Datei gemischt (Schicht 1b bzw. 2b, Herkunft `global` bzw. `profile` mit `entry = "<datei>#by_project_type.<code>"`); im Profil gilt R-76 |
-| `item_defaults` | nur `global.yaml` | nein | einstufige Map Pfad (Zeichenkette mit Punkten) → Vorlage für **Elemente von Sammlungen** (`measures`, `building.elements`, `unit_groups`, `funding`, `energy.carriers`, `energy.stages`, `financing`, `components`) und für **optionale Blöcke** (`building`, `household`, `energy`, `energy.pv`, `energy.performance_gap`, `energy.before`, `energy.after`, `building.property_tax`, `building.maintenance`). Angewandt nach den Ableitungsregeln (1.4) in aufsteigender Pfadtiefe: je vorhandenem Element `element <- deep_merge(vorlage, element)` (das Element gewinnt), bei optionalen Blöcken nur, wenn der Block existiert. Platzhalter `{id}` in Pfaden von `ref`-/`expr`-Knoten = Element-id; `from:` in Vorlagen wird vorher nach Schicht 3 aufgelöst. Herkunft `global`, `layer = 1`, `entry = "global#item_defaults.<pfad>"` |
+| `item_defaults` | nur `global.yaml` | nein | einstufige Map Pfad (Zeichenkette mit Punkten) → Vorlage für **Elemente von Sammlungen** (`measures`, `building.elements`, `unit_groups`, `funding`, `energy.carriers`, `energy.stages`, `financing`, `components`) und für **optionale Blöcke** (`building`, `household`, `energy`, `energy.pv`, `energy.performance_gap`, `energy.before`, `energy.after`, `building.property_tax`); Teilbäume einer Vorlage entstehen mit ihrem Block, so `building.maintenance` (Teil der Vorlage `item_defaults.building`, mit `enabled: true`) in jedem Szenario mit `building` (3.3; Spec 00 §4.7, R-118). Angewandt nach den Ableitungsregeln (1.4) in aufsteigender Pfadtiefe: je vorhandenem Element `element <- deep_merge(vorlage, element)` (das Element gewinnt), bei optionalen Blöcken nur, wenn der Block existiert. Platzhalter `{id}` in Pfaden von `ref`-/`expr`-Knoten = Element-id; `from:` in Vorlagen wird vorher nach Schicht 3 aufgelöst. Herkunft `global`, `layer = 1`, `entry = "global#item_defaults.<pfad>"` |
 | alle übrigen | – | – | Blöcke des Szenarios (Spec 00 §4.2), gemischt nach Spec 00 §4.7. Felder der optionalen Blöcke `building`, `household`, `energy` stehen **nie** hier, sondern nur unter `item_defaults` (N-05); sonst entstünde der Block in jedem Szenario, z. B. in den Orakeln und im Gerüst (Spec 00 Anhang A) ohne Gebäude |
 
 Reihenfolge (Spec 00 §4.7): Schicht 0 (Typ-/Schema-Defaults) → `global.yaml` → `global.yaml#by_project_type` → Profil →
@@ -331,9 +331,11 @@ Felder von Sammlungselementen) gilt **auch** für `by_project_type` im Profil; `
 **Existenz von Pfaden.** Pfade, die erst eine Ableitungsregel oder `item_defaults` anlegt (z. B.
 `measures.<m>.useful_life_years`, `measures.<m>.cost_factor`, `measures.<m>.delay_months`,
 `building.maintenance.rate_eur_m2_pa`), existieren im aufgelösten `vofi_spec` und sind dort Overlay- und Designziele.
-Varianten-Operationen (Schicht 7) laufen davor; bis zur Entscheidung über S01A-10 setzt eine Variante einen solchen Pfad
-über die vorhandene Elternmap (`set: {measures.wp: {cost_factor: 1.2}}`, Map-Merge am existierenden Pfad, Spec 00
-§4.11).
+Varianten-Operationen (Schicht 7) laufen davor. Nach S01A-10 (entschieden mit Änderung, Spec 00 §4.11, R-112) gilt
+ein solcher Pfad für `set` und `overrides` als vorhanden, wenn sein Elternelement existiert und das Blatt ein Feld der
+Feldtabellen bzw. der Vorlage ist (`set: {measures.wp.cost_factor: 1.2}`); der gesetzte Wert bleibt, weil Regeln und
+Vorlagen nur fehlende Blätter füllen. `replace` und `remove` verlangen weiterhin einen existierenden Pfad; die Form über
+die Elternmap (`set: {measures.wp: {cost_factor: 1.2}}`, Map-Merge) bleibt gültig (XM13).
 
 `analysis.kpis: "default"` im Szenario bedeutet „Wert der Schicht 2“ (Profilliste). Sequenzen (`kpis`,
 `surplus_order`, `deficit_order`, `mandatory_sensitivities`, `restrictions`) werden als Ganzes ersetzt (Spec 00 §4.7).
@@ -345,10 +347,10 @@ in `global.yaml` und den Profilen MUSS auflösen (PR7, `test-profiles.R`, R-104)
 S01A-02, entschieden). **Die Datei ist die Vereinigung der Teile (N-04):** Teil A liefert die Blöcke in 2.2 und die
 Vorlagen `item_defaults.building`, `item_defaults.measures` und `item_defaults."building.elements"`; Teil B ergänzt
 `item_defaults.unit_groups`, `item_defaults.energy`, `item_defaults."energy.carriers"` (mit `price_eur_kwh: {ref:
-market.energy_price.{id}}`), `item_defaults."energy.pv"`, `item_defaults."energy.performance_gap"`,
+"market.energy_price.{id}"}`, in Flow-Notation gequotet, R-118), `item_defaults."energy.pv"`, `item_defaults."energy.performance_gap"`,
 `item_defaults.funding` (u. a. `availability_after_2030: 0.7`), `item_defaults."building.property_tax"` und die Vorlage
 des Blocks `household` (Teil B §7.1, Kommentar `# 01b`); Teil C liefert `stochastic.settings` (gleichlautend 2.2) und
-die weiteren Standard-Sets (Teil C §4.2).
+den Inhalt **aller** Standard-Sets `scenario_sets` (einzige Quelle Teil C §4.2, N-22, R-118; 2.2 verweist nur).
 
 ### 2.2 `inst/extdata/defaults/global.yaml` (Teil-A-Inhalt, vollständig)
 
@@ -506,17 +508,9 @@ analysis:
     - {id: stufe_2045, path: project.pending_reforms, add: stufe_2045, label: "mit 2045-Stufe (100 % klimaneutraler Brennstoff ab 2045)"}
   tenant_view: false
 
-scenario_sets:                     # Spec 00 §4.11, R-74; Labels und Inhalte nach Teil C §4.2 (N-22)
-  foerderstopp:
-    label: "Förderstopp: keine Förderzusage"
-    description: "Alle Förderinstrumente ohne Zusage (Konzept B12). Bei Entscheidungsknoten realisiert der Basisfall die Ausweichvariante (Spec 00 §9.11 Nr. 3)."
-    set: {funding.*.approved: 0}
-  vorsichtig:
-    label: "Vorsichtig: ungünstige Werte der fünf stärksten Treiber"
-    description: "Aus dem Tornado der Primärkennzahl: die fünf Treiber mit dem größten Ausschlag gleichzeitig auf P10 bzw. P90 (Konzept 1.4, B5)."
-    generate: {method: cautious, n_drivers: 5, probs: [0.1, 0.9], kpi: auto, params: auto, exclude: []}
-  # weitere Standard-Sets wörtlich nach Teil C §4.2: zinsschock, zins_niedrig, stress_2022, co2_niedrig, co2_hoch,
-  # gasnetz_rueckbau, mit_2045_stufe (nur auf Anforderung gerechnet)
+# scenario_sets: Inhalt ausschließlich nach Teil C §4.2 (einzige Quelle, N-22, R-118): foerderstopp, vorsichtig
+#   (Pflicht nach Spec 00 §4.11), zinsschock, zins_niedrig, stress_2022, co2_niedrig, co2_hoch, gasnetz_rueckbau,
+#   mit_2045_stufe (nur auf Anforderung gerechnet)
 
 stochastic:
   settings:                        # Spec 00 §4.3.15 (R-73, R-97); Semantik und Prüfungen Teil C §1.2, §6.1
@@ -546,7 +540,7 @@ item_defaults:                     # Spec 00 §4.7 Nr. 3 (R-85); nach den Ableit
     wpb_flag: false
     commercial_share: 0            # Anteil Gewerbe an der Fläche; > 0 -> Warnung Vorsteuer (Spec 00 §7.10)
     n_parking: 0
-    maintenance:                   # Instandhaltung (Typ maintenance, 3.3, 4.11); basis und from setzt rule:maintenance_from
+    maintenance:                   # Instandhaltung (Typ maintenance, 3.3, 4.11); basis und start_event setzt rule:maintenance_from
       enabled: true
       rate_eur_m2_pa: {from: costs/bewirtschaftung_immowertv_2026, use: maintenance_eur_m2_pa}   # 14,40 (Anlage 3, 2026; B)
       area_m2: {ref: building.living_area_m2}
@@ -941,8 +935,9 @@ Ein Bauteil, das in einer Variante durch eine Maßnahme ersetzt wird, steht in `
 
 ### 3.3 `building.maintenance` – Instandhaltung (Domänenblock zum Typ `maintenance`)
 
-Alle (G)-Werte stehen in `item_defaults.building.maintenance` (2.2) und entstehen nur in Szenarien mit `building`;
-`basis` und `from` setzt `rule:maintenance_from` (1.4) vor der Vorlage.
+Alle (G)-Werte stehen in `item_defaults.building.maintenance` (2.2), einem Teilbaum der Vorlage `building`; der Block
+entsteht deshalb in jedem Szenario mit `building` (mit `enabled: true`) und in keinem ohne (Spec 00 §4.7, R-118).
+`basis` und `start_event` setzt `rule:maintenance_from` (1.4) vor der Vorlage.
 
 | YAML-Pfad | Typ | Einheit | Default (Quelle) | Pflicht | Validierung | Bedeutung | Memo-Ref |
 |---|---|---|---|---|---|---|---|
@@ -952,7 +947,7 @@ Alle (G)-Werte stehen in `item_defaults.building.maintenance` (2.2) und entstehe
 | `building.maintenance.area_m2` | value | m² | `{ref: building.living_area_m2}` (G) | nein | E: > 0 | Bezugsfläche | – |
 | `building.maintenance.price_base_year` | int | Jahr | `2026` (G) | nein | wie 1.2 | Preisstand des Jahresbetrags (Wert gilt für das Jahr 2026; Kalenderjahresindex, 4.11.2) | R-35, R-62 |
 | `building.maintenance.growth` | value | 1/a | `{ref: market.maintenance_index}` (G) | nein | – | Fortschreibung (Kalenderjahresindex) | Memo 03 §5.2 |
-| `building.maintenance.from`, `.to` | timing \| `auto` | – | `from`: A (`rule:maintenance_from`, fehlend = `auto`): Neubauprojekt → Token `completion`, Erwerb → Erwerbsdatum, sonst `valuation_date`; `to`: `NULL` (G) = `end_date` | nein | E: from < to | Wirkungszeitraum | Spec 00 §3.9 |
+| `building.maintenance.start_event`, `.to` | timing \| `auto` | – | `start_event`: A (`rule:maintenance_from`, fehlend = `auto`): Neubauprojekt → Token `completion`, Erwerb → Erwerbsdatum, sonst `valuation_date`; `to`: `NULL` (G) = `end_date` | nein | E: `start_event` < `to`; E `validation.library.ref_not_id` bei einem Schlüssel `from` (Spec 00 §4.9, R-110) | Wirkungszeitraum | Spec 00 §3.9 |
 | `building.maintenance.vat_rate` | share | 1 | `0.19` (G) | nein | – | enthaltener USt-Satz (Ausweis netto/USt) | D6 |
 | `building.maintenance.excludes_explicit_replacements` | lgl | – | `false` (G) | nein | W `validation.maintenance.double_count`, wenn `false`, Pauschale > 0 und im Horizont Ersatzereignisse oder Erhaltungsmaßnahmen liegen; I `validation.maintenance.replacements_excluded` mit Kennwert der expliziten Erneuerungen bei `true` (4.11.4, F-21) | Erklärung, dass der Satz die explizit modellierten Ersatz- und Instandsetzungsmaßnahmen nicht enthält (Satz entsprechend gemindert) | Konzept 3.4 |
 | `building.maintenance.iibv.rates_eur_m2_pa.{lt22y,ge22y,ge32y}` | value | EUR/m²·a | `11.50`, `14.58`, `18.62` (G über B:`costs/bewirtschaftung_ii_bv_2026`, `use: maintenance_eur_m2_pa`, N-02) | nein | E: ≥ 0 | Sätze nach Bezugsfertigkeit < 22, ≥ 22, ≥ 32 Jahre | Memo 03 §8.1 |
@@ -1248,7 +1243,7 @@ zulässig. Die Regel meldet einmal je Variante I `validation.measures.catalog_de
    Katalogwerts, wenn (a) `classification: erhaltung` ausdrücklich angegeben ist (Szenario, Variante, Set oder
    Override; nicht der Katalogwert aus Nr. 2) oder (b) der Ohnehin-Anteil im Basisfall 1 ist (`ohnehin_share` = 1 bzw.
    `ohnehin_cost_eur` ≥ Grundkosten K⁰ nach 4.6.2 (1), ausgewertet mit `bctx$value_base()` nach den übrigen
-   Vorbelegungen und `rule:cost_from_kg`; Antrag S01A-11). Der Code ist deterministisch; Overlays auf den
+   Vorbelegungen und `rule:cost_from_kg`; zulässig nach Spec 00 §4.7, R-113, Antrag S01A-11). Der Code ist deterministisch; Overlays auf den
    Ohnehin-Anteil ändern ihn nicht. Meldung I `validation.measures.kind_from_classification` mit den betroffenen
    Maßnahmen („keine Modernisierungsumlage; für eine Umlage `modernization_kind` angeben“). Ein ausdrücklicher Code
    ≠ `none` bei Ohnehin-Anteil 1 bleibt und erzeugt W `validation.measures.kind_ohnehin_conflict`. Beispiel Teil C S2:
@@ -1301,7 +1296,7 @@ expand(block = scenario$measures, scenario, bctx):
                               factors[[m_<m>_capex]] <- node_ref("measures.<m>.effects.maintenance.factor") und
                               factor_years[[m_<m>_capex]] (duration_years) für Maßnahmen mit Wirkungsfeld;
                               reset_capex_ids = m_<m>_capex der Maßnahmen aus iibv.reset_by_measures (auto: reset_age);
-                              from nach rule:maintenance_from; tax_category nach Perspektive (4.11.3);
+                              start_event nach rule:maintenance_from; tax_category nach Perspektive (4.11.3);
                               after = alle referenzierten m_<m>_capex
   falls building vorhanden: Assets <bid>_building und <bid>_land (4.5.4)
   rückgabe list(components = comps, financing = list(), assets, measures = measures_reg, notes)
@@ -1365,7 +1360,7 @@ bzw. Erhaltungskosten des Gebäudes, Memo 06 §7.4).
 | XM10 | `neubau: {measure_type: neubau, cost_eur: 1000000, follows_construction: true}`, `nk: {measure_type: baunebenkosten, cost_eur: 200000}` | `measures.nk.useful_life_years = {ref: measures.neubau.useful_life_years}` (80), `measures.nk.replacement.enabled = false`; Komponente `m_nk_repl` mit `enabled = FALSE` (nur Wertpfad); ohne Hauptmaßnahme `{ref: residual_value.income_value.gnd_years}` (X-26) |
 | XM11 | `payment_schedule: {schedule: {2027-07-01: 100000, 2028-07-01: {ref: shared.rate2}}, unit: eur}` mit `shared.rate2: 50000` | `measures.<m>.cost_eur = {expr: "100000 + shared.rate2"}` (Herkunft `rule:cost_from_kg`), Basisfallwert 150.000; Betrag als Kurzform-Verteilung → E `validation.measures.schedule_amount_form` (X-28) |
 | XM12 | Maßnahmen- oder Bauteil-id mit 30 Zeichen (beliebiger Typ) | E (Nutzer-id > 29, N-23; bei Erwerbstypen zusätzlich erzeugte id `m_<m>_purchase` mit 41 > 40 Zeichen); Meldung nennt die Höchstlänge 29 |
-| XM13 | Variante setzt `measures.wp.cost_factor: 1.2` (Pfad nur aus `item_defaults`) bzw. `measures.wp: {cost_factor: 1.2}` | erste Form E (Pfad existiert in Schicht 7 nicht, bis zur Entscheidung über S01A-10), zweite Form gültig (Map-Merge) |
+| XM13 | Variante setzt `measures.wp.cost_factor: 1.2` (Pfad nur aus `item_defaults`) bzw. `measures.wp: {cost_factor: 1.2}`; dazu `replace: {measures.wp.cost_factor: 1.2}` und `set: {measures.wp.kostenfaktor: 1.2}` | beide `set`-Formen gültig (R-112: Elternelement existiert, `cost_factor` ist Feld der Feldtabelle 4.1); Wert 1,2 mit Herkunft `variant` bleibt gegen `item_defaults.measures`; `replace` auf den Pfad → E (Pfad existiert nicht); unbekanntes Feld `kostenfaktor` → E |
 
 ### 4.6 Typ `capex` (WS-E, `R/type-flow-capex.R`)
 
@@ -1738,7 +1733,7 @@ Wartung, X-10). Komponenten:
 | `factors` | `map` id → `value` | `{}` | Faktor je wirkender Maßnahme (`{ref: measures.<m>.effects.maintenance.factor}`), Schlüssel = `capex`-Komponente |
 | `factor_years` | `map` id → `number` | `{}` | Wirkungsdauer je Faktor (Jahre; fehlt = bis Horizont) |
 | `price_base_year`, `growth` | `integer`, `value` | `project.price_base_year`, `{ref: market.maintenance_index}` | Preisstand, Fortschreibung (Kalenderjahresindex) |
-| `from`, `to` | `timing` | Expander nach `building.maintenance.from: auto` (3.3), `end_date` | Laufzeit |
+| `start_event`, `to` | `timing` | Expander nach `building.maintenance.start_event` (3.3, `rule:maintenance_from`), `end_date` | Laufzeit (R-110) |
 | `vat_rate` | `share` | `0.19` | USt |
 | `tax_category` | `enum` | `expense_deductible` (`selbstnutzer`: `expense_nondeductible`) | Steuerkategorie |
 
@@ -1747,7 +1742,7 @@ Wartung, X-10). Komponenten:
 ```text
 b*   <- (price_base_year + 1)-01-01
 IY   <- ctx$index_year(ctx$param(spec, "growth", "path"), base_date = b*)                  # R-62
-ω    <- ctx$shift_overlap(from$date, from$shift, to$date)                                  # ctx$timing()
+ω    <- ctx$shift_overlap(start_event$date, start_event$shift, to$date)                    # ctx$timing()
 rate:           r_t <- rate_eur_m2_pa
 iibv:           ref_i <- reference_year bzw. max_{c in reset_capex_ids} (Jahr(verschobene Fertigstellung_c - 1 Tag))
                          nur in Läufen mit a_c = 1 und Fertigstellung vor b_t (je Spalte t)
@@ -1761,8 +1756,8 @@ cost <- −(r_t * area_m2 bzw. A_t) * IY_t * Δ_t * ω_t * F_t
 - Der Satz ist ein **Jahresbetrag** des Preisstands b*; ein Wert „für das Jahr 2026“ (z. B. 14,40 €/m² laut
   Anlage 3 für 2026) hat `price_base_year: 2026` (Preisstand Jahresende 2026 = 2027-01-01, Spec 00 §3.6
   `grid_index_year`). Innerhalb eines Kalenderjahres ist der Index konstant (F10).
-- `from: completion` (Neubau) beginnt mit der Fertigstellung einschließlich Bauzeitverzug; in Bestandsprojekten setzt
-  der Expander `from` = Stichtag.
+- `start_event: completion` (Neubau) beginnt mit der Fertigstellung einschließlich Bauzeitverzug; in Bestandsprojekten
+  setzt `rule:maintenance_from` (1.4) `start_event` = Stichtag (Erwerb: Erwerbsdatum).
 
 | lokale Zeile | section / category | tax_category | vat | noi/burden |
 |---|---|---|---|---|
@@ -1791,7 +1786,7 @@ Erhaltungsmaßnahme als laufende Pauschale, selten).
 | Nr. | Fall | Erwartung |
 |---|---|---|
 | M1 | 14,40 €/m² × 1.600 m², `price_base_year: 2026`, Wachstum 2027 4 %, ab 2028 3 %, annual | 2027 −23.961,60; 2028 −24.680,45; 2029 −25.420,86 |
-| M2 | M1 auf G4, `from` = Fertigstellung 2027-10-01 | t = 9: 0; t = 10 (3 Monate): −5.990,40; t = 11: −24.680,45; Summe 2027 = 23.961,60 · 3/12 |
+| M2 | M1 auf G4, `start_event` = Fertigstellung 2027-10-01 | t = 9: 0; t = 10 (3 Monate): −5.990,40; t = 11: −24.680,45; Summe 2027 = 23.961,60 · 3/12 |
 | M3 | `iibv`, Bezug 2004, 1.000 m², Wachstum 0, Reset durch Maßnahme mit Fertigstellung 2030-01-01 | 2027–2029: −14.580; 2030–2050: −11.500; 2051: −14.580; ohne Reset: 2036 Wechsel auf −18.620 |
 | M4 | `share_of_cost`, WP 32.000, `share_pa: 0.010` (Instandsetzung nach Katalog 4.2), ab Fertigstellung | −320 je vollem Jahr (Preisstand) |
 | M5 | 14,40 × 1.000, Wachstum 0, Maßnahme mit `effects.maintenance.factor: 0.694444` (Memo 07 S1 V2: 10/14,40), Fertigstellung 2030-01-01 | bis 2029 −14.400; ab 2030 −10.000,00 |
@@ -1805,11 +1800,11 @@ Parameter nach Spec 00 §7.12 (verbindlich). Konkretisierung:
 
 - Einmalige Einlage `amount_eur` zum Termin `date` (Periode `period_of(date)`); `contributions`/`withdrawals` als
   Zahlungspläne (Beträge ≥ 0, Vorzeichen setzt der Typ); `contributions_pa`/`withdrawals_pa` als Jahresbeträge
-  **ohne Fortschreibung**: `value_t = x_pa · Δ_t · overlap(from, to)_t`.
+  **ohne Fortschreibung**: `value_t = x_pa · Δ_t · overlap(start_event, to)_t` (Terminparameter `start_event`, R-110).
 - Zeilen `in` (equity/`equity_in`, +), `out` (equity/`equity_out`, −); `tax_category = equity`.
 - Haushaltseinlagen des Selbstnutzers erzeugt der Expander `household` (Teil B); ein Baustein `ek` mit
   `amount_eur: auto` ist unzulässig (nur Kredite, Spec 00 §8.7) → E.
-- Prüfwert E1 (WS-E, `test-type-flow-equity.R`): `contributions_pa: 6000`, `from: 2027-01-01`, `to: 2030-01-01`: annual t = 1…3 je 6.000; G4-Raster
+- Prüfwert E1 (WS-E, `test-type-flow-equity.R`): `contributions_pa: 6000`, `start_event: 2027-01-01`, `to: 2030-01-01`: annual t = 1…3 je 6.000; G4-Raster
   (H = 6): t = 1…9 je 500, t = 10: 1.500, t = 11, 12: 6.000; Summe 2027 = 6.000 auf beiden Rastern.
 
 ### 4.13 Typ `custom_series` (Spec 00 §7.12)
@@ -1822,7 +1817,8 @@ und löst für S1–S5 den Steuerbereitschaftstest aus (Spec 00 §15.6). Validie
 
 ### 4.14 Typ `recurring` (Spec 00 §7.12)
 
-Parameter und Formel verbindlich nach Spec 00 §7.12 (Kalenderjahresindex, Token `completion`, Verschiebung). Teil A
+Parameter und Formel verbindlich nach Spec 00 §7.12 (Kalenderjahresindex, Beginn `start_event` mit Token `completion`,
+Verschiebung; R-110). Teil A
 ergänzt: `direction` ist Pflicht bei ±-Kategorien (`passthrough`, `custom`), sonst aus dem Vorzeichen der Kategorie;
 `base_date` Default = (`project.price_base_year` + 1)-01-01. Prüfwert F10 (Spec 00; `test-type-flow-recurring.R`): 14.000, 2 %, Basis 2027-01-01 →
 Jahressumme 2027 = 14.280,00 auf `annual` und G4.
@@ -1943,7 +1939,7 @@ Alle Ledger-Zeilen tragen `existing_debt = TRUE` (DSCR Objekt- vs. Maßnahmenebe
 | `loan_<k>_draw` | loans / `draw` | T | `program`, `funding_id`, `measure_id`, `asset_id` des Bausteins |
 | `loan_<k>_repay`, `_repay_balloon`, `_prepay` | loans / gleichnamig | T | dto. |
 | `loan_<k>_interest`, `_fees` | loans / gleichnamig (`interest_expense`) | T | dto. |
-| `loan_<k>_repayment_grant` | loans / `repayment_grant` (memo) | F | `measure_id` Pflicht |
+| `loan_<k>_repayment_grant` | loans / `repayment_grant` (memo) | F | `measure_id` oder `funding_id` Pflicht (Spec 00 §7.6, R-99); Förderkredite `financing.f_<f>_loan`: `funding_id`, `measure_id` als Anzeige-Tag (größte Basisfallkosten, Teil B §4.6) |
 | `loan_<k>_disagio`, `loan_<k>_assumed` | loans / gleichnamig (memo) | F | dto. |
 | `loan_<k>_balance` | stocks / `balance` | F | dto. |
 
@@ -2016,7 +2012,10 @@ AC3: `surplus_order` mit `loan_prepay` → einmal W je Lauf. AC4: PR5 (Kopplung 
 ### 6.1 Block `residual_value` (Spec 00 §4.3.12) – Feldkatalog
 
 Methodenparameter liegen je Methode in einer Untermap (`residual_value.<methode>.<feld>`); damit sind Overlay-Ziele
-wie `residual_value.income_value.cap_rate` (Teil C §1.9) adressierbar. Profile setzen nur `method` und
+wie `residual_value.income_value.cap_rate` (Teil C §1.9) adressierbar. Gelesen werden nur die Blätter der gewählten
+Methode (6.2 Nr. 2); Bezüge der übrigen Untermaps (z. B. `land_value_eur: {ref: building.land_value_eur}` aus
+`global.yaml`) werden nicht aufgelöst und nicht geprüft (Spec 00 §4.5 Regel 2, R-115). Szenarien ohne `building`
+(Orakel, Gerüst, `grob_lehrbuch_a`) sind daher mit den Defaults aus 2.2 gültig. Profile setzen nur `method` und
 `sale_cost_share` (R-76); alle übrigen Werte kommen aus `global.yaml` (2.2) bzw. dem Szenario.
 
 | YAML-Pfad | Typ | Einheit | Default (Quelle) | Pflicht | Validierung | Bedeutung | Memo-Ref |
@@ -2319,8 +2318,10 @@ Marktpfade vor (Kalenderjahreswert, `index: calendar_year`, N-27).
 (N-02), `costs/kostenzuschlaege_2026`, `costs/nutzungsdauern_2026`, `costs/wartung_instandsetzung_vdi2067_2026`,
 `costs/erwerbsnebenkosten_2026`, `valuation/liegenschaftszinsen_2026`, `valuation/immowertv_anlage1_2_2026`,
 `valuation/verkaufskosten_2026`, `valuation/kaufpreisfaktoren_2026`. Alle `from`/`use`-Verweise aus 2.2 wurden in
-Runde 3 gegen Teil C §3.6–3.8 geprüft; offen ist nur die Schlüsselbenennung von `costs/erwerbsnebenkosten_2026`
-(OP-20) und die Ergänzung der Preise für `lpg`, `power_mfh` in `prices/energy_prices_2026` (N-15, Teil C).
+Runde 3 gegen Teil C §3.6–3.8 geprüft und lösen auf (in Runde 4 erneut geprüft). Teil C hat in Runde 3 die Schlüssel
+von `costs/erwerbsnebenkosten_2026` (`notary_share` 0,010, `land_registry_share` 0,005, `broker_share` 0,0357,
+`other_share` 0,005; OP-20 erledigt) und die Preise für `lpg` und `power_mfh` in `prices/energy_prices_2026` (N-15)
+umgesetzt.
 
 ### 8.3 Schema des Eintrags `costs/massnahmentypen_2026` (Datenträger WS-L, Inhalt Teil C §3.7)
 
@@ -2400,8 +2401,11 @@ bzw. blockübergreifend unter `validation.<code>` (Spec 00 §2.10, R-104, N-17);
   `balloon_at_maturity`
 - `accounts`: `liquidity_unchecked` (Spec 00 §12.3, N-17)
 - `residual`: `land_value_missing`, `construction_year_missing`, `no_rent`, `double_count`, `rnd_target`,
-  `no_useful_life` (Namensraum wörtlich nach N-17/N-20; zum Blocknamen `residual_value` OP-16)
-- blockübergreifend: `profile_path_forbidden`, `reference_variant_missing` (Spec 00), `unknown_key`
+  `no_useful_life` (`residual` ist der Sondernamensraum des Blocks `residual_value`, Spec 00 §2.10, R-117; OP-16
+  erledigt)
+- blockübergreifend: `profile_path_forbidden`, `reference_variant_missing` (Spec 00), `unknown_key`,
+  `ref_target_missing` (Spec 00 §4.5 Regel 2, R-115); zum Schlüssel `from` ohne Bibliotheks-id:
+  `validation.library.ref_not_id` (Spec 00 §4.9, R-110)
 
 Geändert in Runde 3: `validation.elements.cost_missing` → `validation.building.element_cost_missing`;
 `expand.catalog_defaults` → `validation.measures.catalog_defaults` (die Vorbelegung ist eine WS-A-Ableitungsregel);
@@ -2431,17 +2435,17 @@ entfallen sind `validation.measures.cost_target_redirected` (S01A-08 abgelehnt) 
 | OP-13 | ~~Overlay-Ziele aus Teil C auf abgeleitete bzw. leere Felder~~ | **entschieden** (S01A-08 abgelehnt, R-109, N-20): keine Umlenkung; Teil C zielt auf `cost_factor` bzw. `remaining_life_offset_years`; sonst E mit Vorschlag (4.6.1, 6.1) | – |
 | OP-14 | **Ersatz unmittelbar vor T** | Komponenten-Zeitwert springt, Ertragswert nicht; nur Berichtshinweis (Konzept 3.11) | 6.4 |
 | OP-15 | **Vertragsfrequenz und TZ-Wirkung KfW** | Teil C: `payments_per_year` Qualität D, `effect` C; Merkblatt prüfen | 5.2 |
-| OP-16 | **Namensraum `validation.residual.*`** (N-17, N-20) gegenüber dem Blocknamen `residual_value` (Spec 00 §2.10: `<block>` = oberster Szenarioblock) | Teil A übernimmt `residual` wörtlich aus N-17/N-20; der Integrator bestätigt die Abkürzung oder benennt einheitlich um | 9, WS-B |
-| OP-17 | **Code aus Basisfallwerten** (X-09) | `modernization_kind: none` bei Ohnehin-Anteil 1 wertet numerische Blätter mit `bctx$value_base()` aus; Spec 00 §4.7 lässt für Ableitungsregeln nur Termine, Codes, Flags und Rechts-/Bibliothekswerte zu → Antrag S01A-11 | 4.5.1 Nr. 6 |
-| OP-18 | **Varianten auf Pfade aus `item_defaults` bzw. Ableitungsregeln** | Existenzprüfung in Schicht 7 läuft vor diesen Stufen → Antrag S01A-10; bis dahin Map-Merge am Elternpfad (2.1, XM13) | 2.1 |
+| OP-16 | ~~Namensraum `validation.residual.*`~~ | **erledigt** (Runde 4, R-117): `residual` ist Sondernamensraum des Blocks `residual_value` (Spec 00 §2.10) | – |
+| OP-17 | ~~Code aus Basisfallwerten~~ | **erledigt** (Runde 4, S01A-11 mit Änderung angenommen, R-113): Enum-Codes dürfen aus Basisfallwerten abgeleitet werden; Übergangsregel entfällt | – |
+| OP-18 | ~~Varianten auf Pfade aus `item_defaults` bzw. Ableitungsregeln~~ | **erledigt** (Runde 4, S01A-10 mit Änderung angenommen, R-112): `set`/`overrides` auf Vorlagen- und Regelfelder zulässig (2.1, XM13) | – |
 | OP-19 | **`sonnenschutz`** (sommerlicher Wärmeschutz, BAFA-förderfähig) | in v1 kein Code (Spec 00 §17.3 Nr. 8 a); Aufnahme als 38. Code in v1.1 mit Katalogzeile (Vorschlag: KG 300, `gebaeude_wohnen`, `erhaltung`, ND 20, Ohnehin 0, `bgb_555b_1`, keine Anl.-2-Punkte, Ersatz ja) und Antrag von Teil A; in Runde 3 kein Antrag | 4.2, Teil C §3.4 |
-| OP-20 | **Schlüssel von `costs/erwerbsnebenkosten_2026`** (X-19) | Teil A liest `notary_share` (0,010), `land_registry_share` (0,005) und nennt `broker_share` (0,0357), `other_share` (0,005) als Vergleichswerte; der Eintrag führt noch `cost_notary_land_registry_share` (0,015), `cost_broker_buyer_share`, `cost_due_diligence_share`; Umbenennung durch Teil C (WS-L); bis dahin setzt `rule:measure_catalog` die Tabellenwerte 0,010 und 0,005 (Herkunft `rule:measure_catalog`, I `validation.measures.catalog_defaults`) | 4.1, 4.5.1, Teil C §3.7 |
+| OP-20 | ~~Schlüssel von `costs/erwerbsnebenkosten_2026`~~ (X-19) | **erledigt** in Teil C (Runde 3): `notary_share` 0,010, `land_registry_share` 0,005, `broker_share` 0,0357, `other_share` 0,005; die Übergangsregel (Tabellenwerte über `rule:measure_catalog`) entfällt (Runde 4, R-119) | – |
 | OP-21 | **PV-Umsatzsteuer von Komponenten ohne `energy.pv`** | Katalogwert 0 mit Hinweis; fachlich prüfen, ob Speicher und Wechselrichter ohne zugehörige, im Szenario beschriebene Anlage den Nullsatz erhalten (§ 12 Abs. 3 Nr. 1 UStG) | 4.5.1 Nr. 5 |
 
 ## 11. Änderungsanträge an Spec 00
 
-Entschiedene Anträge tragen die Entscheidung der Runde 3 (Spec 00 §17.5.1); offene Anträge eine Übergangsregel, mit der
-die WS-Pakete bis zur Entscheidung arbeiten.
+Alle Anträge sind entschieden: S01A-01 bis S01A-09 in Runde 3 (Spec 00 §17.5.1), S01A-10 und S01A-11 in Runde 4
+(Spec 00 §17.6.2); Übergangsregeln gibt es nicht mehr.
 
 | Nr. | Spec-00-Stelle | Antrag | Begründung | Entscheidung bzw. Übergangsregel |
 |---|---|---|---|---|
@@ -2454,8 +2458,8 @@ die WS-Pakete bis zur Entscheidung arbeiten.
 | S01A-07 | §4.3.1, §4.3.2, §4.3.4, §4.3.6 (Auszüge) | Auszüge um die Felder dieses Teils ergänzen | Schemaprüfung braucht die vollständige Feldliste | **entschieden: mit Änderung angenommen (R-106).** Die Feldtabellen von Spec 01 sind maßgeblich; Spec 00 führt nur Auszüge |
 | S01A-08 | §11.2 bzw. §4.7 (Overlay-Normalisierung) | Umlenkung von Overlay-Einträgen auf `cost_factor` bzw. `remaining_life_offset_years` | Teil C zielt auf abgeleitete bzw. leere Felder | **entschieden: abgelehnt (R-109, N-20).** Keine Umlenkung (Pfad-Identität); E `validation.measures.cost_derived` bzw. `validation.residual.rnd_target` mit Vorschlag; 4.6.1, 6.1 |
 | S01A-09 | §2.11 (Vokabulare) | Codes nach 8.1 aufnehmen | Validierung der Enums (Ebene 2) | **entschieden: mit Änderung angenommen (R-89)**, ergänzt um `federal_state`, `levy_procedure`, `bgb_procedure`, `overlay_apply`, `growth_index`, `mc_preset`, `quantity_per`, `rule_returns`, `na_reasons`; 8.1 |
-| S01A-10 | §4.11 (Existenzprüfung von `set`, `replace`, `overrides`) | Pfade, die nach Schicht 8 durch `item_defaults` oder eine Ableitungsregel angelegt werden, gelten für die Existenzprüfung der Varianten- und Set-Operationen als vorhanden, wenn ihr Elternelement existiert und der Pfad ein Feld der Feldtabelle bzw. der Vorlage ist; der gesetzte Wert gewinnt dann gegen Vorlage und Regel | Varianten wollen Katalog- und Vorlagenfelder einer Maßnahme gezielt ändern (z. B. `measures.wp.cost_factor`, `measures.wp.useful_life_years`); nach R-85/R-86 existieren diese Pfade in Schicht 7 noch nicht | Übergangsregel: Varianten setzen solche Felder über die Elternmap (`set: {measures.wp: {cost_factor: 1.2}}`, Map-Merge am existierenden Pfad, 2.1, XM13) |
-| S01A-11 | §4.7 „Ableitungsregeln“ (zulässige Auswertungen), §6.4 (`value_base()`) | Ableitungsregeln dürfen einen **Code** (Enum-Feld ohne Overlay-Fähigkeit) aus Basisfallwerten numerischer Blätter ableiten (`bctx$value_base()`), wie Expander für Register und Anzeige-Tags (§4.12 Nr. 5 (a)) | `rule:measure_catalog` setzt `modernization_kind: none` bei Ohnehin-Anteil 1 (X-09, N-07); der Code ist deterministisch und wird an das Maßnahmenregister weitergereicht | Übergangsregel: WS-A wertet nur Konstanten aus (`ohnehin_share` als Zahl 1, `ohnehin_cost_eur` und Grundkosten als Zahlen); bei anderen Formen gilt nur Bedingung (a) aus 4.5.1 Nr. 6 |
+| S01A-10 | §4.11 (Existenzprüfung von `set`, `replace`, `overrides`) | Pfade, die nach Schicht 8 durch `item_defaults` oder eine Ableitungsregel angelegt werden, gelten für die Existenzprüfung der Varianten- und Set-Operationen als vorhanden, wenn ihr Elternelement existiert und der Pfad ein Feld der Feldtabelle bzw. der Vorlage ist; der gesetzte Wert gewinnt dann gegen Vorlage und Regel | Varianten wollen Katalog- und Vorlagenfelder einer Maßnahme gezielt ändern (z. B. `measures.wp.cost_factor`, `measures.wp.useful_life_years`); nach R-85/R-86 existieren diese Pfade in Schicht 7 noch nicht | **entschieden (Runde 4): mit Änderung angenommen (R-112).** Gilt nur für `set` und `overrides` (nicht `replace`/`remove`); das Blatt muss ein Feld der Feldtabellen von Spec 01 bzw. der Vorlage in `item_defaults` sein; der gesetzte Wert ist ein Blatt der Schicht 7; 2.1, XM13 |
+| S01A-11 | §4.7 „Ableitungsregeln“ (zulässige Auswertungen), §6.4 (`value_base()`) | Ableitungsregeln dürfen einen **Code** (Enum-Feld ohne Overlay-Fähigkeit) aus Basisfallwerten numerischer Blätter ableiten (`bctx$value_base()`), wie Expander für Register und Anzeige-Tags (§4.12 Nr. 5 (a)) | `rule:measure_catalog` setzt `modernization_kind: none` bei Ohnehin-Anteil 1 (X-09, N-07); der Code ist deterministisch und wird an das Maßnahmenregister weitergereicht | **entschieden (Runde 4): mit Änderung angenommen (R-113).** Nur Enum-Codes ohne Overlay- und Designfähigkeit, Basisfall n = 1 der Schichten 0–8 und der bereits gelaufenen Regeln, Herkunft `rule:<name>`; Overlays ändern den Code nicht (Hinweis I); die Übergangsregel entfällt; 1.4, 4.5.1 Nr. 6 |
 
 ---
 
@@ -2481,8 +2485,8 @@ gerechnete Prüfwerte: Skripte `l1.py`, `l11.py` in `…/scratchpad/spec01-revie
 | S01A-07 | mit Änderung angenommen (R-106) | 4.1 Kopf (Feldtabellen maßgeblich) |
 | S01A-08 | abgelehnt (R-109, N-20) | 4.6.1 und 6.1: Umlenkung gestrichen, E `validation.measures.cost_derived` bzw. `validation.residual.rnd_target` mit Vorschlag; `validation.measures.cost_target_redirected` entfällt; OP-13 geschlossen |
 | S01A-09 | mit Änderung angenommen (R-89) | 8.1 (u. a. `federal_state`, `quantity_per`, `maintenance_basis` mit `auto`) |
-| S01A-10 | neu (Runde 3) | 2.1, 11 – Existenzprüfung von Varianten für Pfade aus `item_defaults` und Ableitungsregeln |
-| S01A-11 | neu (Runde 3) | 4.5.1 Nr. 6, 11 – Ableitung eines Codes aus Basisfallwerten (X-09) |
+| S01A-10 | neu (Runde 3); in Runde 4 mit Änderung angenommen (R-112, Abschnitt 13) | 2.1, 11 – Existenzprüfung von Varianten für Pfade aus `item_defaults` und Ableitungsregeln |
+| S01A-11 | neu (Runde 3); in Runde 4 mit Änderung angenommen (R-113, Abschnitt 13) | 4.5.1 Nr. 6, 11 – Ableitung eines Codes aus Basisfallwerten (X-09) |
 
 ### 12.2 Namens- und Eigentumsentscheidungen (Spec 00 §17.5.3)
 
@@ -2500,7 +2504,7 @@ gerechnete Prüfwerte: Skripte `l1.py`, `l11.py` in `…/scratchpad/spec01-revie
 | N-18 | übernommen | Testdateien `test-type-flow-capex.R`, `-acquisition-cost.R`, `-replacement.R`, `-maintenance.R`, `-residual-value.R`, `-equity.R`, `-custom-series.R`, `-recurring.R`, `-share-of.R`, `test-type-inst-loan-core.R`, `test-rules-grest.R`; `test-profiles.R` (WS-A) |
 | N-19 | übernommen | 4.8, 7: `grest(basis_eur, federal_state, rate, P)` ohne Defaults, `returns: "sim"` |
 | N-20 | übernommen | 4.6.1, 4.6.5, 6.1, 6.6, OP-13 |
-| N-22 | übernommen | 2.2: `foerderstopp` und `vorsichtig` wörtlich nach Teil C §4.2 (Label, Beschreibung, `params: auto`, `exclude: []`) |
+| N-22 | übernommen | 2.2: `foerderstopp` und `vorsichtig` nach Teil C §4.2 (Label, Beschreibung, `params: auto`); Runde 4 (K3-11, R-118): die Kopie in 2.2 wich in `exclude: []` von Teil C ab und ist durch einen Verweis auf Teil C §4.2 ersetzt |
 | N-23 | übernommen | 3.2, 4.1, 4.5.2 Nr. 1 (≤ 29 statt ≤ 33), XM12 |
 | N-24 | übernommen | 4.10.2, 6.1, 6.3.7, RV8 = 82.853,16 |
 | N-25 | übernommen | 5.2 (`initial_repayment_pa`, `refi_rule`), 5.5, L1 neu gerechnet, L11 neu |
@@ -2522,7 +2526,7 @@ gerechnete Prüfwerte: Skripte `l1.py`, `l11.py` in `…/scratchpad/spec01-revie
 | X-13 | übernommen | 5.2: E nur τ + `installment_eur`, I bei τ + `term_years`; 5.5; L11 |
 | X-14 | ohne Änderung | Teil A verlangte bereits ≥ 0 (4.1, 3.2, 1.2); Hinweis auf den früheren Basistermin in 0.2, 4.1, 3.2; Umbau von S4 ist Sache von Teil C (N-26) |
 | X-15 | übernommen (Teil A) | XM1 (Herkunft `costs/nutzungsdauern_2026`), 4.3, 8.3 als vollständiges Schema; Inhalt der 37 Zeilen liefert Teil C (N-30) |
-| X-19 | übernommen (Teil A) | `use`-Pfade genannt: `share_kg700_of_kg300_400`, `contingency_share` (`costs/kostenzuschlaege_2026`), `notary_share`, `land_registry_share` (`costs/erwerbsnebenkosten_2026`); Umbenennung im Eintrag durch Teil C (OP-20) |
+| X-19 | übernommen (Teil A); umgesetzt in Teil C | `use`-Pfade genannt: `share_kg700_of_kg300_400`, `contingency_share` (`costs/kostenzuschlaege_2026`), `notary_share`, `land_registry_share` (`costs/erwerbsnebenkosten_2026`); Umbenennung im Eintrag hat Teil C in Runde 3 umgesetzt (OP-20 in Runde 4 geschlossen) |
 | X-20 | übernommen | ≤ 29 Zeichen (N-23), Prüfung jeder erzeugten id (4.5.2 Nr. 1), XM12 |
 | X-21 | übernommen (a) | `grest` ohne `ctx`-Default (4.8, 7); (b), (c) betreffen Teil B |
 | X-22 | übernommen (Teil A) | Testdateinamen nach N-18; `R/compare-cautious.R` kommt in Teil A nicht vor |
@@ -2565,3 +2569,26 @@ Keine Datei des Pakets wurde bearbeitet. P0-01 übernimmt die 37 Codes aus 4.2 (
 (neu: `federal_state`, `maintenance_basis` mit `auto`); P0-06 (`res_quantity()`) entspricht 3.5; P0-07 (`ctx$rows()` mit
 `local_row`) nutzt `share_of` (4.15); P0-09 (Gebäude-Defaults nur bei vorhandenem Block, Herkunft `rule:<name>`,
 Reihenfolge Ableitungsregeln → `item_defaults` → Expander) entspricht 1.4 und 2.1/2.2.
+
+---
+
+## 13. Review-Protokoll Runde 4 (Restbefunde, 26.10.2026)
+
+Grundlage: Spec 00 §17.6 (Befunde K3-01 bis K3-19 der Endprüfung, Anträge S01A-10, S01A-11, Auflösungen R-110 bis
+R-119, Ergänzung N-08a). K3-01 und K3-02 folgen Orchestrator-Entscheidungen.
+
+| Punkt | Entscheidung | Umsetzung in Teil A |
+|---|---|---|
+| K3-01 (R-110) | Terminparameter heißen `start_event`; `from` nur noch Bibliotheksverweis | 0.3 (JB), 1.4 (`rule:maintenance_from` setzt `building.maintenance.start_event`; Regelname unverändert), 2.2 (Kommentar), 3.3 (Feldzeile, E bei Schlüssel `from`), 4.5 (Pseudocode), 4.11.1, 4.11.2, M2, 4.12 (Formel, E1), 4.14 |
+| K3-03 (R-119) | übernommen | 5.4: Merkzeile `repayment_grant` mit `measure_id` oder `funding_id` |
+| K3-04 (R-119) | übernommen | 8.2, OP-20 geschlossen, 12.3 X-19 |
+| K3-07 (R-117) | `residual` ist Sondernamensraum des Blocks `residual_value` | 9, OP-16 geschlossen |
+| K3-08, K3-09, K3-11 (R-118) | `{id}` quoten; `maintenance` als Teilbaum der Vorlage `building`; Standard-Sets nur in Teil C §4.2 | 2.1 (Tabelle `item_defaults`, Vereinigung), 2.2 (Verweis statt Kopie der Sets), 3.3; 12.2 (N-22) berichtigt |
+| K3-15 (R-115) | Bezüge nur in gelesenen Blättern prüfen | 6.1 (Kopf), 9 (`ref_target_missing`) |
+| S01A-10 (R-112) | mit Änderung angenommen (`set`/`overrides`, nicht `replace`/`remove`) | 2.1 „Existenz von Pfaden“, XM13 neu gefasst, 11, OP-18 geschlossen |
+| S01A-11 (R-113) | mit Änderung angenommen (nur Enum-Codes) | 1.4, 4.5.1 Nr. 6, 11, OP-17 geschlossen |
+| R-111, R-114, R-116, N-08a | betreffen Teil B bzw. Teil C | keine Änderung in Teil A |
+
+Prüfwerte: unverändert (M2 und E1 nur mit dem neuen Parameternamen; XM13 mit neuer Erwartung). Phase-0-Nacharbeit aus
+Sicht von Teil A (Spec 00 §17.6.5): P0-11 (`equity`, `recurring` mit `start_event`), P0-12 (Bibliotheks-id-Muster und
+Fehler `validation.library.ref_not_id`), P0-13 (Existenzprüfung nach XM13).

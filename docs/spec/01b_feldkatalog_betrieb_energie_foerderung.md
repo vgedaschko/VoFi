@@ -6,15 +6,16 @@
 | **Dokument** | `docs/spec/01b_feldkatalog_betrieb_energie_foerderung.md` |
 | **Teil von** | Spec 01 (Feldkatalog). Teil A (`docs/spec/01a_…`): Szenario, Projekt, Gebäude, Maßnahmen/Capex, Ersatzinvestitionen, Finanzierungsinstrumente, Konten, Restwert, globale Defaults und Profile. Teil C (`docs/spec/01c_…`): Stochastik-Overlay, Bibliothekseinträge, Szenario-Sets, Referenzszenarien S1–S5. |
 | **Vertragsbasis** | Spec 00 (`docs/spec/00_kernvertraege.md`, `contract_version = "1.0.0"`, `schema_version = 1`) |
-| **Stand / Rechtsstand** | 26.10.2026 (Review-Runde 3) / Rechtsstand 25.10.2026 |
+| **Stand / Rechtsstand** | 26.10.2026 (Review-Runde 3; Runde 4 „Restbefunde“ eingearbeitet, Abschnitt 12) / Rechtsstand 25.10.2026 |
 | **Status** | Entwurf zur Integration. Verbindlich für WS-E (Typen `rent_path`, `operating_cost`, `property_tax`, `energy_cost`, `co2_cost`, `tenant_costs`, `pv`, `imputed_rent`; `rules-mietrecht.R`, `rules-co2kostaufg.R`), WS-E2 (Expander `unit_groups`, `energy`, `funding`, `household`; Typen `grant`, `tax_credit_35c`; `rules-funding.R`), WS-A (Element-Defaults `item_defaults` und Ableitungsregeln `rule:unit_group_defaults`, `rule:carrier_defaults`, `rule:approval_timing`, `rule:approval_probability`, `rule:tax_credit_defaults`, Abschnitte 5.5 und 7.1), WS-L (Bibliotheksnutzlast `funding/*`, `prices/energy_*`, `costs/bewirtschaftung_*`), WS-B (Validierungsregeln), WS-C, WS-D und WS-G (lesen die abgeleiteten Felder `funding.<f>.approval_timing` und `.approval_probability`; Zusageschlüssel, Entscheidungsknoten in `vofi_build()`), WS-D2/WS-H (Eingangsdaten der Mieter- und Haushaltssicht) |
 | **Grundlagen** | Spec 00 §§ 3, 4.3, 4.7, 4.9–4.12, 5, 6, 7, 8.2, 9.11, 10.9, 11.6, 12, 16.3, 17.3, 17.5 (Stand Runde 3, Beschlüsse R-66 bis R-109, Namens- und Eigentumsentscheidungen N-01 bis N-31); Teil C §§ 1.9, 2.7, 3.4–3.6 (Nutzlast der Bibliothekseinträge); Konzept §§ 3.5–3.9, 11.2 (F13, F14, F15, F16), 11.3 (B1–B3, B7, B8, B12), Review-Protokoll; Memo 02 §§ 1.6–1.9, 2, 3, 4, 5 (insb. § 5.8), 9; Memo 03 §§ 2, 3, 7, 8, 9, 11; Memo 04 § 1.2; Memo 06 §§ 3.2, 3.4, 8; Memo 07 §§ 1, 4, 5.4; `docs/recherche/prototypen/vofi_referenz/mietpfad_ref.py` |
 
 > **Lesehinweis.** Teil B legt Felder, Defaults, Algorithmen und Ledger-Zeilen der Erlös-, Bewirtschaftungs-, Energie-
 > und Fördertypen fest. Er bewegt sich **innerhalb** der Strukturen von Spec 00 und ändert sie nicht. Wo Spec 00 eine
 > Lücke lässt, steht hier eine Übergangslösung, und Abschnitt 10 enthält den zugehörigen Änderungsantrag
-> (`S01B-nn`). Die Anträge S01B-01 bis S01B-13 sind in Runde 3 entschieden (Spec 00 § 17.5.1, R-85 bis R-109) und
-> hier eingearbeitet; Abschnitt 11 protokolliert die Überarbeitung. Alle Prüfwerte in den Testabschnitten sind mit
+> (`S01B-nn`). Die Anträge S01B-01 bis S01B-13 sind in Runde 3 entschieden (Spec 00 § 17.5.1, R-85 bis R-109),
+> S01B-14 in Runde 4 (Spec 00 § 17.6.2, R-111); alle sind hier eingearbeitet. Die Abschnitte 11 und 12 protokollieren
+> die Überarbeitung. Alle Prüfwerte in den Testabschnitten sind mit
 > einer unabhängigen skalaren Python-Referenz nach diesem Dokument nachgerechnet (Toleranz 0,01 EUR bzw. 1e-6 bei
 > Raten); wo sie Memo 02 oder Memo 07 entnommen sind, ist die Konzept-Korrektur (F13, F14) eingearbeitet.
 
@@ -403,8 +404,9 @@ Aliase (Eingabe): `erhaltung`, `instandsetzung` → `none`; `energetisch` → `b
 ### 1.6 Expander `unit_groups` (Mietteil; WS-E2, `R/expand-unit-groups.R`, order 20)
 
 1. **Implizite Gruppe.** Ist `unit_groups` leer und `perspective = selbstnutzer`, legt die Ableitungsregel
-   `rule:unit_group_defaults` (5.5) die Gruppe `main` als Domänenelement an (`n_units` = `building.n_units`,
-   `living_area_m2` = `building.living_area_m2`, `owner_occupied = true`); `item_defaults` wirkt dann auch auf sie.
+   `rule:unit_group_defaults` (5.5) die Gruppe `main` als Domänenelement an (`n_units: {ref: building.n_units}`,
+   `living_area_m2: {ref: building.living_area_m2}`, `owner_occupied = true`; Bezüge statt Kopien, N-08a);
+   `item_defaults` wirkt dann auch auf sie.
    Der Expander legt keine Domänenelemente an (Spec 00 § 4.12 Nr. 1). Ist `unit_groups` leer bei anderen
    Perspektiven, entstehen keine Mietkomponenten (I).
 2. **Je vermietete Gruppe g** (`owner_occupied = false`) entsteht `u_<g>_rent` (Typ `rent_path`, `label` = Label der
@@ -930,7 +932,7 @@ sowie n = 2 und n = 7 mit identischen Zeilen (Spec 00 § 2.8 Nr. 8). Testdateien
 | `vacancy_opex_scope` | `enum` | `cold` | Wert |
 | `growth`, `opex_growth` | `value` (path) | 0, 0 | ref |
 | `base_date` | `timing` | Preisstand | Wert |
-| `from`, `to` | `timing` | Token `completion`, `end_date` | `rent_start`/`rent_end` der Gruppe (bei Selbstnutzer-Neubau: Token `completion`) |
+| `start_event`, `to` | `timing` | Token `completion`, `end_date` | `rent_start`/`rent_end` der Gruppe (bei Selbstnutzer-Neubau: Token `completion`); Name nach Spec 00 § 4.9, R-110 |
 | `owner_occupied` | `logical` | `false` | Wert |
 | `rent_component` | `ref` | `null` | `u_<g>_rent` (vermietete Gruppe) |
 | `perspective_tax` | `enum` `deductible`, `nondeductible` | `deductible` | `nondeductible` bei `selbstnutzer` |
@@ -939,7 +941,7 @@ sowie n = 2 und n = 7 mit identischen Zeilen (Spec 00 § 2.8 Nr. 8). Testdateien
 
 ```text
 I   <- ctx$index_year(growth, base_date);  Io <- ctx$index_year(opex_growth, base_date)
-ov  <- ctx$shift_overlap(from, shift_from, to);  D <- by_period(delta)
+ov  <- ctx$shift_overlap(start_event, shift_start, to);  D <- by_period(delta)
 v   <- rent_component ? ctx$component(rent_component)$aux$vacant_share : 0          # n x (T+1)
 Rr  <- rent_component ? Σ Zeilen rent + levy_* der Mietkomponente : 0            # Sollmiete
 admin          = −(admin_per_unit · n_units + admin_per_parking · n_parking) · I · D · ov
@@ -1106,7 +1108,7 @@ Marktnamen oder Wert). Trägerfelder ohne Angabe kommen aus `rule:carrier_defaul
 
 | YAML-Pfad (`energy.<zustand>.`) | Typ | Einheit | Default (Quelle) | Pflicht | Validierung | Bedeutung | Memo |
 |---|---|---|---|---|---|---|---|
-| `from` | timing | – | `before`: `valuation_date` (fest); `after` und `stages`: Fertigstellung von `measure`, ohne `measure` Token `completion` | `stages`: ja, wenn `measure` fehlt | E `before.from` ≠ Stichtag; E Zustände nicht streng zeitlich geordnet | Beginn des Zustands; ein Zustand gilt bis zum Beginn des nächsten **aktiven** Zustands (3.4) | Konzept 3.8 |
+| `start_event` | timing | – | `before`: `valuation_date` (fest); `after` und `stages`: Fertigstellung von `measure`, ohne `measure` Token `completion` | `stages`: ja, wenn `measure` fehlt | E `before.start_event` ≠ Stichtag; E Zustände nicht streng zeitlich geordnet; E `validation.library.ref_not_id` bei einem Schlüssel `from` (Spec 00 § 4.9, R-110) | Beginn des Zustands; ein Zustand gilt bis zum Beginn des nächsten **aktiven** Zustands (3.4) | Konzept 3.8 |
 | `measure` | chr (Maßnahmen-id) | – | `null` | nein | E unbekannt; E dieselbe Maßnahme in zwei Zuständen | Zustand beginnt mit Fertigstellung der Maßnahme; Verschiebung `measures.<k>.delay_months`; Aktivierungsfaktor a_k (0.8) | Spec 00 3.9, 4.12 Nr. 7 |
 | `consumption_basis` | enum `measured`, `demand` | – | `before`: `measured`, wenn `consumption_kwh` (bzw. `building.consumption_kwh`) gesetzt ist, sonst `demand`; übrige: `demand` | nein | E `measured` außerhalb `before`; W `before` mit `demand` („Verbrauchsdaten dringend empfohlen“, B7) | Basis der Energiemenge | Konzept 3.8, B7 |
 | `consumption_kwh` | map Träger → value | kWh/a (Abrechnungseinheit) | (A) `building.consumption_kwh` (Spec 00 § 4.3.4, Erdgas H_s) | bedingt (`measured`) | E Träger nicht in `carrier_shares`; E fehlt | gemessener Endenergieverbrauch für Heizung und Warmwasser (3-Jahres-Mittel, witterungsbereinigt) | 03 §7.1 |
@@ -1119,7 +1121,7 @@ Marktnamen oder Wert). Trägerfelder ohne Angabe kommen aus `rule:carrier_defaul
 | `jaz_plan` | num (**det.**) | – | `null` = `ctx$value_base("energy.<zustand>.jaz")` (Spec 00 R-70) | nein | E Overlay- oder Designziel; I `null` bei Wärmepumpe mit Umlage („Plan-JAZ = Basisfall-JAZ angenommen“) | **Plan-JAZ** des Nachweises nach VDI 4650; steuert ausschließlich § 559f (1.9.1) | Spec 00 4.3.6b; Konzept 3.5 |
 | `heat_pump_carrier` | chr (Träger-id) | – | (A) einziger Träger der Klasse `power_hp` in `carrier_shares`; sonst `null` | nein | E mehrere `power_hp`-Träger ohne Angabe; E Träger nicht in `carrier_shares` | Träger, auf den `jaz` wirkt (Wärmepumpe); bei Klasse `power` nur ausdrücklich | – |
 | `flow_temperature_c` | num (det.) | °C | `null`; geerbt | nein | W > 75 bei Wärmepumpe | Vorlauftemperatur (Ausnahme § 559f bei ≤ 55 °C) | 07 §1.2 |
-| `installation_date` | date | – | `before`: 1. Januar von `building.heating_existing.installation_year`; Zustand, der `carrier_shares` bzw. `heating_carrier` selbst setzt (neue Heizung): Fertigstellung von `measure` ohne Verschiebung (ohne `measure`: `from`); sonst geerbt | bedingt (fossiler Träger in `after`/`stages`) | E fehlt bei fossilem Träger | Einbaudatum der Heizung (§ 43 GModG, § 5a CO2KostAufG, Bio-Treppe, Alterung) | Konzept 3.8 |
+| `installation_date` | date | – | `before`: 1. Januar von `building.heating_existing.installation_year`; Zustand, der `carrier_shares` bzw. `heating_carrier` selbst setzt (neue Heizung): Fertigstellung von `measure` ohne Verschiebung (ohne `measure`: `start_event`); sonst geerbt | bedingt (fossiler Träger in `after`/`stages`) | E fehlt bei fossilem Träger | Einbaudatum der Heizung (§ 43 GModG, § 5a CO2KostAufG, Bio-Treppe, Alterung) | Konzept 3.8 |
 | `section43` | lgl | – | (A) Regel `co2_section43` (3.7.4) | nein | W abweichend von der Ableitung | neue Gas-/Öl-/Flüssiggasheizung nach § 43 GModG (Bio-Treppe, § 5a, keine 15-%-Pauschale § 559e); `false` bei Erfüllungsoption (Hybrid, Solarthermie) | 02 §3.2, §4.1 |
 | `emergency_replacement` | lgl | – | `false` (T) | nein | I `true` bei Einbau nach 2027-12-31 (wirkungslos) | Einbau wegen irreparablen Ausfalls höchstens 12 Monate vor dem 01.01.2028: § 5a erst nach 12 Monaten (Teil C `s5a.transition`, Qualität C) | 02 §3.2 |
 | `service_eur_pa` | value | EUR/a (netto bzw. `price_basis` des ersten Wärmeträgers) | 0 (T); geerbt | nein | W `validation.maintenance.service_double_energy`, wenn > 0 und für `measure` dieses Zustands eine Komponente `m_<measure>_maint` (Teil A, `effects.maintenance.share_of_cost_pa`) existiert („Wartung doppelt? Instandhaltungssatz der Maßnahme umfasst nur die Instandsetzung“, X-10) | **Wartung** der Wärmeerzeugung, Schornsteinfeger (umlagefähig); Zuordnung zum Segment des größten Wärmeanteils. Abgrenzung (X-10): Die Wartung gehört hierher (bzw. zu `energy.pv.opex_*`), die Instandsetzung zum Instandhaltungssatz der Maßnahme in Teil A (`effects.maintenance.share_of_cost_pa`, nur Instandsetzung) | 07 S4 |
@@ -1136,7 +1138,7 @@ Fehlt in einem Zustand eines der Felder `demand_kwh`, `carrier_shares`/`heating_
 `efficiency_by_carrier`, `jaz`, `jaz_plan`, `heat_pump_carrier`, `flow_temperature_c`, `installation_date` (nur ohne
 neue Heizung, 3.2.2), `section43`, `service_eur_pa`, `efficiency_degradation_pa`, `extra_consumption`, gilt der Wert des
 zeitlich vorangehenden Zustands. Der Expander erzeugt dafür **Bezüge auf den Pfad des definierenden Zustands** (z. B.
-`{ref: energy.before.efficiency}`), keine Kopien. `from`, `measure`, `consumption_basis`, `consumption_kwh` und
+`{ref: energy.before.efficiency}`), keine Kopien. `start_event`, `measure`, `consumption_basis`, `consumption_kwh` und
 `emergency_replacement` werden nicht vererbt.
 
 #### 3.2.4 Performance Gap `energy.performance_gap` und weitere Felder
@@ -1144,7 +1146,7 @@ zeitlich vorangehenden Zustands. Der Expander erzeugt dafür **Bezüge auf den P
 | YAML-Pfad | Typ | Einheit | Default (Quelle) | Pflicht | Validierung | Bedeutung | Memo |
 |---|---|---|---|---|---|---|---|
 | `energy.performance_gap.prebound_factor` | value | – | 0,7 (G, `item_defaults."energy.performance_gap"`; Konzept 3.8 „Prebound-Default“, Bibliothek PERT 0,5/0,7/1,0) | nein | W ausdrücklich gesetzt (Herkunft ≠ `global`) oder Overlay-Ziel bei `before.consumption_basis = measured` („entfällt“, Teil C `prebound_with_measured`) | Verbrauch/Bedarf **vor** der Maßnahme, nur bei `before.consumption_basis = demand` (B7) | 04 §1.2; B7 |
-| `energy.performance_gap.rebound_factor` | value | – | 1,0 (G; Bibliothek PERT 0,9/1,1/1,4) | nein | W < 0,8 oder > 1,6; W `validation.energy.rebound_base_differs`, wenn ein Overlay-Eintrag auf diesen Pfad einen Modus ≠ Basiswert hat („Basisfall 1,0, MC-Modus 1,1: Ist der Rebound im Bedarf schon enthalten? Sonst `rebound_factor: 1.1` setzen“, F-15) | Verbrauch/Bedarf **nach** der Maßnahme, auf `demand_kwh` jedes Folgezustands (B7). **Konvention (F-15):** `demand_kwh` eines Folgezustands ist die erwartete Nutzwärme **einschließlich** Nutzerverhalten nach der Maßnahme (wie in S1–S5); deshalb ist der Default 1. Ist `demand_kwh` ein reiner Rechenbedarf (GEG-Nachweis, Bedarfsausweis), setzt der Nutzer `rebound_factor` auf den Bibliotheksmodus 1,1 | 04 §1.2; B7 |
+| `energy.performance_gap.rebound_factor` | value | – | 1,0 (G; Bibliothek: Vorlage `rebound` PERT 0,82/1,0/1,27 mit Modus 1,0; `rebound_calculated` PERT 0,9/1,1/1,4 nur zur Basis 1,1, Teil C § 2.7) | nein | W < 0,8 oder > 1,6; W `validation.energy.rebound_base_differs`, wenn ein Overlay-Eintrag auf diesen Pfad einen Modus ≠ Basiswert hat („Basisfall 1,0, MC-Modus 1,1: Ist der Rebound im Bedarf schon enthalten? Sonst `rebound_factor: 1.1` setzen“, F-15) | Verbrauch/Bedarf **nach** der Maßnahme, auf `demand_kwh` jedes Folgezustands (B7). **Konvention (F-15):** `demand_kwh` eines Folgezustands ist die erwartete Nutzwärme **einschließlich** Nutzerverhalten nach der Maßnahme (wie in S1–S5); deshalb ist der Default 1. Ist `demand_kwh` ein reiner Rechenbedarf (GEG-Nachweis, Bedarfsausweis), setzt der Nutzer `rebound_factor` auf den Bibliotheksmodus 1,1 | 04 §1.2; B7 |
 | `energy.performance_gap.realisation_factor` | value | – | 1 (Spec 00) | nein | W < 0,3 oder > 1,2; I ≠ 1 zusammen mit `rebound_factor` ≠ 1 („doppelte Abschläge?“) | einfacher Realisierungsfaktor auf die rechnerische Einsparung (D8) | 04 §1.2 |
 | `energy.co2_landlord_share_reduction` | value (share) | – | 0 (G, `item_defaults."energy"`) | nein | W 0 bei `building.denkmal` oder `project.municipality.milieuschutz` („§ 9 prüfen, Faktor 0,5“) | Kürzung des Vermieteranteils nach § 9 CO2KostAufG (Teil C `s9.reduction_factor` 0,5, Qualität C) | 02 §3.1 |
 | `energy.co2_hardship_5d` | lgl | – | `false` (G) | nein | W `true` (Voraussetzungen nur über Sekundärquelle belegt, Teil C `s5d`) | Härtefall § 5d (Kleinvermieter): Stufenmodell statt § 5a | 02 §3.2 |
@@ -1212,7 +1214,7 @@ liefert je Lauf und Monat das Gewicht w_s(i, m) ∈ {0, 1} eines Zustands:
 
 ```text
 Zustände in zeitlicher Ordnung s_0, s_1, …, s_J  (s_0 = before bzw. bei Neubau der erste Zustand)
-start_j(i) = mi(from_j) + sh_j(i);  sh_j = round(measures.<measure_j>.delay_months) bzw. beim Token completion
+start_j(i) = mi(start_event_j) + sh_j(i);  sh_j = round(measures.<measure_j>.delay_months) bzw. beim Token completion
              round(Parameter construction_delay_months der Komponente) (= {ref: project.construction_delay_months},
              3.6.1; Spec 00 § 3.9); round = floor(x + 0,5)
 a_j(i)     = act(measure_j) (Aktivierungsfaktor 0.8); 1 ohne Maßnahme
@@ -1227,7 +1229,7 @@ Jahressumme ist rasterunabhängig (F10).
 
 ### 3.5 Expander `energy` (WS-E2, `R/expand-energy.R`, order 30)
 
-1. **Zustandsfolge.** Zustände nach `from` ordnen (`before` zuerst; Gleichstand = E). Vererbung nach 3.2.3 als Bezüge.
+1. **Zustandsfolge.** Zustände nach `start_event` ordnen (`before` zuerst; Gleichstand = E). Vererbung nach 3.2.3 als Bezüge.
 2. **Segmente.** Je Zustand s und Träger c ∈ `carrier_shares_s` ∪ {Träger von `extra_consumption_s`} eine Komponente
    `e_<s>_<c>_cost` (Typ `energy_cost`); für Träger mit `emission_factor_kg_kwh > 0` zusätzlich `e_<s>_<c>_co2` (Typ
    `co2_cost`). ids > 40 Zeichen sind E mit Vorschlag kürzerer Zustands- bzw. Träger-ids.
@@ -1587,7 +1589,7 @@ PV-Varianten konservativ (Abschnitt 9).
 - `h_equity` (Typ `equity`, im Block `financing`): `amount_eur = {ref: household.savings_eur}`, `date =
   valuation_date`; nur wenn `savings_eur` gesetzt ist und kein anderer `equity`-Baustein existiert.
 - `h_contrib` (Typ `equity`): `contributions_pa = {expr: "household.contribution_month_eur * 12"}`,
-  `from`/`to` = `contribution_from`/`contribution_to`; nur wenn gesetzt.
+  `start_event`/`to` = `contribution_from`/`contribution_to`; nur wenn gesetzt.
 - Belastungs-Hilfszeilen entstehen **nicht**: Die Haushaltskennzahlen wählen Zeilen über das Kategoriemerkmal
   `burden` (Spec 00 § 7.6, § 12.3); `current_rent_month_eur` geht nur in `monthly_burden_construction` ein.
 
@@ -1595,7 +1597,7 @@ PV-Varianten konservativ (Abschnitt 9).
 
 Parameter: `area_m2` (number, `{ref: unit_groups.<g>.living_area_m2}`), `rent_eur_m2_month` (value, ref auf
 `imputed_rent_eur_m2_month`), `growth` (value, `{ref: unit_groups.<g>.imputed_rent_growth}`), `base_date` (timing,
-`valuation_date` + 12 Monate), `from` (timing, Bestand `valuation_date`, Neubau Token `completion`), `to`.
+`valuation_date` + 12 Monate), `start_event` (timing, Bestand `valuation_date`, Neubau Token `completion`), `to`.
 `value = area_m2 · rent_eur_m2_month · 12 · index_year(growth, base_date) · delta · overlap`; Zeile `value`
 (project/`imputed_rent`/`imputed_benefit`, T, +); `grid_invariant = TRUE`. Nur für den Vergleich „Kaufen oder
 Mieten“; in Variantenvergleichen gleicher Gebäude hebt sie sich auf (I).
@@ -1642,7 +1644,7 @@ WS-E; `test-expand-household.R` (H-1, WS-E2).
 | E-9 (Leerstandshelfer) | RP-4 mit `vacancy_rate` 0,03, `lease_up_months` 0; RP-10 (Lease-up 4) | `rp_vacancy_share` = `aux$vacant_share` der Mietkomponente (1e-12) |
 | E-10 (Aktivierung) | E-5 mit `measures.<k>.active` = (1, 0) in zwei Läufen | Lauf 1 wie E-5; Lauf 2: Gas 280.000 kWh in allen Jahren, Strom 0 |
 | E-11 (Trägerdefaults, `test-scenario-layers.R`, WS-A) | `energy.carriers: {gas: {}, pellets: {}, kohle: {price_eur_kwh: 0.09}}`, Rechtsstand 2026-10-25 | `gas`: `class` gas, `price_eur_kwh` `{ref: market.energy_price.gas}` (Herkunft `global#item_defaults.energy.carriers`), `network_fee_eur_kwh` `{ref: market.energy_network_fee.gas}`, `emission_factor_kg_kwh` 0,1814, `ghg_factor_kg_kwh` 0,21672 (Herkunft `rule:carrier_defaults` bzw. Bibliotheks-id), `vat_rate` 0,19; `pellets`: `biomass`, Netzentgelt 0, EF 0, THG 0,020, `vat_rate` 0,19; `kohle`: E (`class` fehlt bei nicht kanonischer id); mit `class: coal`: THG 0,400, EF 0 mit W |
-| E-12 (Rebound-Konvention) | E-4 mit Overlay `rebound` (PERT 0,9; 1,1; 1,4) auf `energy.performance_gap.rebound_factor`, Basiswert 1,0 | W `validation.energy.rebound_base_differs`; mit `rebound_factor: 1.1` keine Meldung |
+| E-12 (Rebound-Konvention) | E-4 mit Overlay `rebound_calculated` (PERT 0,9; 1,1; 1,4) auf `energy.performance_gap.rebound_factor`, Basiswert 1,0; dazu Overlay `rebound` (PERT 0,82; 1,0; 1,27) | W `validation.energy.rebound_base_differs`; mit `rebound_factor: 1.1` keine Meldung; Vorlage `rebound` (Modus 1,0): keine Meldung |
 | TC-1 (Mieter vorher/nachher) | 1.000 m² vermietet, kein Leerstand; `before` Gas 150.000 kWh_Hs, Arbeitspreis netto 0,0634, Netzentgelt 0,0257, EF 0,18, CO₂ 65 €/t (konstant); `after` ab 2028-01-01: Wärmepumpe 20.000 kWh, 0,21 €/kWh netto | Stufe 27,0 kg/m²·a → 40 %. 2027: `energy` = `energy_pre` = 17.157,42 (15.904,35 + 0,6 · 2.088,45); 2028: `energy` 4.998,00, `energy_pre` 17.157,42; `saving_eur_m2_month` 2028 1,013285 |
 | TC-2 (ohne Vorzustand) | Neubau, nur `after` | Zeile `energy_pre` fehlt; `warm_rent_change_prepost` = NA (`no_tenant_data`) |
 | PV-1 (S3-T6) | 30 kWp, 900 kWh/kWp, Eigenverbrauch 0,30, `market.feed_in_tariff.partial_le10kwp` 0,0770, `partial_10_40kwp` 0,0666 | Satz 0,0700667; Einspeisung 18.900 kWh → `feed_in` 1.324,26 EUR/a; mit `degradation_pa` 0,003 im 2. Jahr: 1.320,29 |
@@ -1708,12 +1710,12 @@ Ebene: **[L]** Nutzlast des Bibliothekseintrags (überschreibbar), **[S]** Szena
 | `measures` | ids | – | – | ja (außer `rent_binding`) | E unbekannte Maßnahme; E leer | geförderte Maßnahmen [S] | Spec 00 4.3.7 |
 | `unit_groups` | ids | – | alle Gruppen | nein | E unbekannt | Wohnungsgruppen (WE-Zahl der Deckel, Selbstnutzung, Mietbindung) [S] | – |
 | `applicant` | enum:applicant | – | (A) aus der Perspektive: `wu_kommunal` → `kommunales_unternehmen`, `wu_genossenschaft` → `genossenschaft`, `wu_privat` → `unternehmen`, `kleinvermieter` → `privatperson_vermieter`, `selbstnutzer` → `privatperson` | nein | W nicht in `eligibility.applicants` (Oberbegriff `privatperson` nach 4.3.1) | Antragsteller [S] | 02 §5.8 |
-| `application_date` | date | – | `project.application_date` (Spec 00) | nein | O; W nach dem frühesten Maßnahmentermin bei `application_before_start` | Antragsdatum: Gültigkeit, Degression, Einkommensbasis [S] | Spec 00 4.3.7 |
-| `approved` | value (0/1) | – | 1 (Spec 00) | nein | E Wert ∉ {0, 1} | Zusage je Lauf; Ziel des automatischen Bernoulli-Schlüssels (Spec 00 § 11.6 Nr. 4) bzw. eines Overlay-Eintrags [S] | Spec 00 9.11 |
+| `application_date` | date | – | `project.application_date` (Spec 00) | nein | O; W „förderschädlicher Vorhabenbeginn“ nach dem frühesten Termin der Maßnahmen des Instruments bei `application_before_start`, außer bei ausdrücklichem `approval_timing: before_start` (eine Meldung je Instrument, R-111) | Antragsdatum: Gültigkeit, Degression, Einkommensbasis [S] | Spec 00 4.3.7 |
+| `approved` | value (0/1) | – | 1 (G, `item_defaults."funding"`; Spec 00 § 4.3.7; als Domänenblatt nötig für Overlay-Ziel, Bezüge und Set `foerderstopp`, 0.3) | nein | E Wert ∉ {0, 1} | Zusage je Lauf; Ziel des automatischen Bernoulli-Schlüssels (Spec 00 § 11.6 Nr. 4) bzw. eines Overlay-Eintrags [S] | Spec 00 9.11 |
 | `approval_probability` | value (share) | – | (AR) `rule:approval_probability` (5.5; S01B-13 entschieden mit Änderung, R-86): Basiswert b = `{ref: funding.<f>.budget_risk.approval_probability}` bzw. 1 ohne `budget_risk`; bei `application_date` ≥ 2031-01-01 `{expr: "<b> * funding.<f>.availability_after_2030"}`, sonst b | nein | W < 0,5; I Overlay auf `approved` vorhanden („automatischer Schlüssel entfällt“) | Zusagewahrscheinlichkeit [L/S]; liest `smp_plan()` als Basisfallwert (Spec 00 § 11.6 Nr. 4) | 07 §4.0; Konzept 4.2 |
 | `availability_after_2030` | value (share) | – | 0,7 (G, `item_defaults."funding"`; Memo 07 § 4.0, D) | nein | E > 1 | Verfügbarkeit des Programms nach 2030; wirkt nur über `approval_probability` bei Antrag ab 2031 (N-09; Overlay-Vorlage `processes/funding_risks_2026`, `use: availability_after_2030`) [S] | 07 §4.0 |
 | `application_before_start` | lgl | – | (B) | nein | – | Programmbedingung „Antrag vor Vorhabenbeginn“ [L] | Konzept 3.9 |
-| `approval_timing` | enum `auto`, `before_start`, `after_start` | – | `auto`; aufgelöst durch (AR) `rule:approval_timing` (5.5): `before_start`, wenn `application_date` ≤ frühester Termin der Maßnahmen **des Instruments**, sonst `after_start` | nein | W `after_start` bei `application_before_start = true` („förderschädlicher Vorhabenbeginn“) | Zeitpunkt der Zusage relativ zum Baubeginn (4.9); alle Verbraucher (Expander, Validierung, `smp_plan()`, `vofi_build()`) lesen nur den aufgelösten Code [S] | Spec 00 4.3.7 |
+| `approval_timing` | enum `auto`, `before_start`, `after_start` | – | `auto`; aufgelöst durch (AR) `rule:approval_timing` (5.5): `before_start`, wenn `application_date` ≤ frühester Termin der Maßnahmen **des Instruments**, sonst `after_start`; Instrument ohne Maßnahmen: frühester Termin aller Maßnahmen der Variante (Spec 00 § 4.3.7, R-111) | nein | W „förderschädlicher Vorhabenbeginn“ nur bei `application_before_start = true` und einem Antrag nach dem frühesten Termin der Maßnahmen des Instruments (gleichbedeutend mit `auto` → `after_start`; Meldung von `application_date`); ein ausdrückliches `after_start` bei rechtzeitigem Antrag („Zusage erst nach Vorhabenbeginn“, Beginn auf eigenes Risiko) meldet nichts; ein ausdrückliches `before_start` erklärt den Vorhabenbeginn nach dem Antrag (z. B. wenn der Termin einer Maßnahme mit `year` nur den Zahlungsansatz zum 1. Januar beschreibt, Teil C S3 V2) und unterdrückt die W (R-111) | Zeitpunkt der Zusage relativ zum Baubeginn (4.9); alle Verbraucher (Expander, Validierung, `smp_plan()`, `vofi_build()`) lesen nur den aufgelösten Code [S] | Spec 00 4.3.7 |
 | `fallback_variant` | chr (Varianten-id) | – | `null` | nein | E nach Spec 00 § 9.11 Nr. 1 | Ausweichvariante; macht ein `before_start`-Instrument zum Entscheidungsknoten [S] | Spec 00 9.11 |
 | `on_reject` | enum `balance`, `drop_measures` | – | `balance` (G, `item_defaults."funding"`) | nein | I gesetzt bei Entscheidungsknoten („wirkungslos“) | Lücke über den Ausgleich bzw. Wegfall der geförderten Maßnahmen (0.8) [S] | Spec 00 9.11 |
 | `payout_delay_months` | value (number ≥ 0) | Monate | 0 (G, `item_defaults."funding"`; Spec 00 § 9.11 Nr. 7); `tax_credit`: 12 (AR, `rule:tax_credit_defaults`; Spec 00 § 10.9) | nein | E < 0 | zusätzlicher Auszahlungsverzug je Lauf, stochastisch zulässig (Teil C `payout_delay`); verschiebt den Termin nach R-98 (4.5, 4.8) [S] | Konzept B12 |
@@ -1734,7 +1736,7 @@ Ebene: **[L]** Nutzlast des Bibliothekseintrags (überschreibbar), **[S]** Szena
 | `repayment_grant.cut_share` | value (share) | – | 0 (Spec 00 § 8.2) | nein | E > 1 | Kürzung bzw. Rückforderung bei verfehltem Nachweis, stochastisch zulässig (Teil C `repayment_grant_cut`, B12) [S] | Konzept B12 |
 | `construction_supervision` | map {`repayment_grant_share`, `cap_efh_eur`, `cap_mfh_per_unit_eur`, `cap_mfh_total_eur`} | – | (B) | nein | – | Baubegleitung als Teil der Zusage [L] | 02 §5.3 |
 | `construction_support_eur` | value | EUR | 0 | nein | W über dem Deckel („gekappt“) | Kosten der Baubegleitung, die der Kredit mitfinanziert [S] | 07 S1 |
-| `interest_subsidy` | map {`subsidized_amount_eur` value, `rate_reduction_pa` value, `years` int, `from` timing} | – | (B)/(S); `from` = früheste Fertigstellung | bedingt (`interest_subsidy`) | E fehlt | Zinsverbilligung als laufender Zuschuss [L/S] | 02 §5.8 |
+| `interest_subsidy` | map {`subsidized_amount_eur` value, `rate_reduction_pa` value, `years` int, `start_event` timing} | – | (B)/(S); `start_event` = früheste Fertigstellung (R-110) | bedingt (`interest_subsidy`) | E fehlt | Zinsverbilligung als laufender Zuschuss [L/S] | 02 §5.8 |
 | `rent_binding` | map {`rent_eur_m2_month` value, `increase_pa` value, `years` int} | – | (B)/(S) | bedingt (`rent_binding`) | E fehlt | Mietbindung (1.6 Nr. 6) [L/S] | 02 §5.7 |
 | `rent_law` | map {`grant_counts_as`, `loan_counts_as`, `enables`, `reference_rate_pa`} | – | (B); sonst `grant_counts_as: zuschuss_559a_abs1`, `loan_counts_as: zinsverbilligung_559a_abs2`, `reference_rate_pa: {ref: market.mortgage_rate}` | nein | – | mietrechtliche Wirkung (4.10) [L/S] | Konzept F14 |
 | `cumulation` | map {`exclusive_with`, `combinable_with`, `requires`, `max_total_share`} | – | (B) | nein | 4.11 | Kumulierung [L] | 02 §5.8 |
@@ -1930,7 +1932,7 @@ Ausgleich bzw. `topup` (Spec 00 § 8.7), bei `on_reject: drop_measures` entfalle
 
 Typ `recurring` (Spec 00 § 7.12): `amount_eur` = `{expr: "funding.<f>.interest_subsidy.subsidized_amount_eur *
 funding.<f>.interest_subsidy.rate_reduction_pa * funding.<f>.approved * <a>"}` (a = pmax der Aktivierungsfaktoren),
-`growth` 0, `from` = `interest_subsidy.from`, `to` = `from` + `years`, `category: operating_subsidy` (Abschnitt
+`growth` 0, `start_event` = `interest_subsidy.start_event`, `to` = `start_event` + `years`, `category: operating_subsidy` (Abschnitt
 `grants`, `tax_category: subsidy_operating`). Die Annahme eines konstanten verbilligten Betrags ist eine Näherung; ein
 tilgungsabhängiger Verlauf braucht `custom_series` (I).
 
@@ -1986,7 +1988,9 @@ Bauzeitverzug); Deckelung durch `expected_income_tax_eur_pa` bzw. fehlendes Feld
 
 1. **Zeitpunkt.** Die Ableitungsregel `rule:approval_timing` (WS-A, 5.5) löst `auto` bzw. ein fehlendes Feld vor den
    Expandern auf: `before_start`, wenn `application_date` ≤ frühester Termin (`date`, `year` als 1. Januar bzw.
-   erster Termin von `payment_schedule`, ohne Verschiebung) der Maßnahmen des Instruments, sonst `after_start`. Der
+   erster Termin von `payment_schedule`, ohne Verschiebung) der Maßnahmen des Instruments, sonst `after_start`; ein
+   Instrument ohne Maßnahmen (z. B. `rent_binding`) bezieht sich auf den frühesten Termin aller Maßnahmen der Variante,
+   ohne Maßnahmen gilt `before_start` (Spec 00 § 4.3.7, R-111; S01B-14 angenommen). Der
    Expander, die Validierung (WS-B), `smp_plan()` (WS-C) und `vofi_build()` (WS-D) lesen nur den aufgelösten Code
    (Spec 00 § 4.3.7, R-86, N-07); eine Registry-Regel `fund_approval_timing` gibt es nicht.
 2. **Entscheidungsknoten.** `before_start` und `fallback_variant` gesetzt: Der Expander validiert die Bedingungen von
@@ -2056,7 +2060,7 @@ Testdateien (N-18): `test-type-flow-grant.R`, `test-type-flow-tax-credit-35c.R`,
 | F-6b (Antragsteller, F-02) | KfW 458 (`applicants: [privatperson, weg]`), Perspektive `kleinvermieter` (`applicant` = `privatperson_vermieter`), vermietete Gruppe, Wärmepumpe 32.000, Ölkessel | berechtigt (Oberbegriff `privatperson`); nur Grundförderung 0,30 (Boni verlangen `unit.owner_occupied`) → 0,30 · 28.000 = 8.400,00; KfW 297 (`owner_occupied: required`): W „nicht berechtigt“ |
 | F-7 (S1-T3, KfW 261 EH 70 EE + WPB) | 24 WE, Kredit investiv 1.264.000 + Baubegleitung 36.000 (Deckel 40.000), Basissatz `ee` 0,00, Bonus WPB 0,10, Fertigstellung 2027-10-01, `repayment_grant.payout.lag_months` 3 (wie S1) | `amount_eur` 1.300.000; `repayment_grant.share` 0,1110769; Gutschrift 144.400,00 zum Termin 2028-01-01 → t = 1 (Periode 2027), dieselbe Periode wie F-1; mit dem Bibliothekswert `lag_months` 6: Termin 2028-04-01 → Periode 2028; `approved` 0: keine Auszahlung, keine Gutschrift; `cut_share` 0,5: 72.200,00 |
 | F-8 (§ 35c) | Fertigstellung 2028-06-01, `payout_delay_months` 12 (Default aus `rule:tax_credit_defaults`) | Termine 2030-01-01 / 2031-01-01 / 2032-01-01 → Perioden 2029 / 2030 / 2031 (t = 3, 4, 5). K 80.000: 5.600 / 5.600 / 4.800; K 250.000: 14.000 / 14.000 / 12.000; mit `expected_income_tax_eur_pa` 4.000: 4.000 / 4.000 / 4.000 (W); Energieberatung 2.000 (K 80.000): 6.600 / 5.600 / 4.800; `prior_credit_used_eur` 30.000 (K 250.000): 10.000 / 0 / 0; Fertigstellung durch Verzug 2030-02-01: 0 (W) |
-| F-9 (Zeitpunkt, Knoten) | Antrag 2026-11-01, erster Maßnahmentermin des Instruments 2027-03-01, `fallback_variant: ohne_foerderung` | `rule:approval_timing` → `before_start` (Herkunft `rule:approval_timing`), Entscheidungsknoten; Basisfall Zweig 1; Set `foerderstopp`: Zweig 0 (Ergebnis der Ausweichvariante); Antrag 2027-06-01: `after_start` und W (`application_before_start`); Stufensanierung (S4): Instrument einer späteren Stufe mit Antrag vor deren erstem Termin → `before_start`, auch wenn frühere Maßnahmen der Variante vorher beginnen |
+| F-9 (Zeitpunkt, Knoten) | Antrag 2026-11-01, erster Maßnahmentermin des Instruments 2027-03-01, `fallback_variant: ohne_foerderung` | `rule:approval_timing` → `before_start` (Herkunft `rule:approval_timing`), Entscheidungsknoten; Basisfall Zweig 1; Set `foerderstopp`: Zweig 0 (Ergebnis der Ausweichvariante); Antrag 2027-06-01: `after_start` und W (`application_before_start`); Stufensanierung (S4): Instrument einer späteren Stufe mit Antrag vor deren erstem Termin → `before_start`, auch wenn frühere Maßnahmen der Variante vorher beginnen (S4 V1 `bafa_2030`, `kfw358_2030`, `kfw358_2033`: `before_start`, keine W); ausdrückliches `after_start` mit Antrag vor dem Termin (S4 `bafa_2033`): einfache Ziehung, keine W; Instrument `rent_binding` ohne Maßnahmen, Antrag 2027-06-01, früheste Maßnahme der Variante 2027-03-01: `after_start`; Variante ohne Maßnahmen: `before_start`; Antrag 2027-01-15 nach dem Termin 2027-01-01 einer Maßnahme mit `year: 2027` und ausdrücklichem `before_start` (S3 V2): keine W (R-111) |
 | F-10 (`drop_measures`) | einfache Ziehung, `approved` = (1, 0) in zwei Läufen | Lauf 2: a_m = 0 → `grant_<m>` 0, Zustand `after` inaktiv (E-10), `levy_<m>` 0 (RP-15), Kosten 0 (Teil A) |
 | F-11 (`balance`) | wie F-10 mit `on_reject: balance` | Lauf 2: Zuschuss 0, Kosten unverändert, Umlage nach § 559 (RP-12) |
 | F-12 (Kumulierung) | § 35c und KfW 458 für dieselbe Maßnahme; § 35c und `funding/kfw_261_eh70` (Kette auf `kfw_261_wg_kredit_2026`); § 35c und ein Instrument ohne `from` mit `program_code: "458"`; KfW 358 ohne 458 bzw. BAFA | E; E (`from:`-Kette, N-12); E (`program_code`); W |
@@ -2176,7 +2180,7 @@ Abbildung siehe 3.7.4.
   Jahresdeckel `cap_i` (4.8); fehlende Felder: Werte des Gesetzes (0,07/0,07/0,06; 0,20; 40.000; 0,50).
 - Zusagezeitpunkt und Zusagewahrscheinlichkeit sind keine Registry-Regeln mehr (5.5, N-07).
 
-### 5.5 Ableitungsregeln dieses Teils (WS-A, `R/scenario-layers.R`; Spec 00 § 4.7, R-86, N-07, N-08)
+### 5.5 Ableitungsregeln dieses Teils (WS-A, `R/scenario-layers.R`; Spec 00 § 4.7, R-86, N-07, N-08, N-08a)
 
 Ableitungsregeln laufen in `vofi_resolve()` nach Schicht 8 und den Ableitungsregeln von Teil A (§ 1.4, insbesondere
 `rule:dates`, `rule:building_aggregates`, `rule:measure_catalog`, `rule:cost_from_kg`), **vor** `item_defaults` (7.1)
@@ -2189,9 +2193,9 @@ Ergebnis braucht, liest das Domänenblatt (WS-B, WS-C, WS-D, WS-E, WS-E2, WS-G).
 
 | Regel | Zielfelder | Ableitung |
 |---|---|---|
-| `rule:unit_group_defaults` | `unit_groups` (implizite Gruppe), je Gruppe g: `owner_occupied`, `rent_regime`, `vacancy_rate`, `rent_default_rate`, `lease_up_months`, `operating.admin_per_unit_eur_pa`, `operating.admin_per_parking_eur_pa`, `operating.nonrecoverable_share_of_rent` | (0) `unit_groups` leer, `project.perspective = selbstnutzer` und `building` vorhanden: Element `main` mit `n_units` = `building.n_units`, `living_area_m2` = `building.living_area_m2` (deterministische Werte), `owner_occupied: true` (1.6 Nr. 1). (1) `owner_occupied` fehlt → `true` bei `selbstnutzer`, sonst `false`. (2) `owner_occupied = true`: `rent_regime: owner_occupied`, `vacancy_rate: 0`, `rent_default_rate: 0`, `operating.admin_per_unit_eur_pa: 0`, `operating.admin_per_parking_eur_pa: 0`, `operating.nonrecoverable_share_of_rent: 0` (N-08). (3) vermietete Gruppe bei `perspective = wu_genossenschaft`: `rent_regime: cooperative_fee` (N-08). (4) vermietete Gruppe mit `rent_regime: bound_social` oder in `unit_groups` eines Instruments `instrument_type: rent_binding`: `operating.admin_per_unit_eur_pa` und `operating.admin_per_parking_eur_pa` aus `bctx$lib("costs/bewirtschaftung_ii_bv_2026")` (`admin_per_unit_eur_pa` 372,46, `admin_per_garage_eur_pa` 48,58; Herkunft = Bibliotheks-id). (5) vermietete Gruppe bei `project_type` ∈ {`neubau`, `erwerb_neubau`}: `lease_up_months: 3` (Memo 03 § 11). Alle übrigen Gruppenwerte, auch `vacancy_rate: 0.025` für vermietete Gruppen, kommen aus `item_defaults."unit_groups"`. (4) und (5) ergänzen N-08 um von `rent_regime` bzw. `project_type` abhängige Werte, die bisher Expander bzw. Profil trugen |
+| `rule:unit_group_defaults` | `unit_groups` (implizite Gruppe), je Gruppe g: `owner_occupied`, `rent_regime`, `vacancy_rate`, `rent_default_rate`, `lease_up_months`, `operating.admin_per_unit_eur_pa`, `operating.admin_per_parking_eur_pa`, `operating.nonrecoverable_share_of_rent` | (0) `unit_groups` leer, `project.perspective = selbstnutzer` und `building` vorhanden: Element `main` mit `n_units: {ref: building.n_units}`, `living_area_m2: {ref: building.living_area_m2}` (Bezüge statt Kopien, R-86), `owner_occupied: true` (1.6 Nr. 1). (1) `owner_occupied` fehlt → `true` bei `selbstnutzer`, sonst `false`. (2) `owner_occupied = true`: `rent_regime: owner_occupied`, `vacancy_rate: 0`, `rent_default_rate: 0`, `operating.admin_per_unit_eur_pa: 0`, `operating.admin_per_parking_eur_pa: 0`, `operating.nonrecoverable_share_of_rent: 0` (N-08). (3) vermietete Gruppe bei `perspective = wu_genossenschaft`: `rent_regime: cooperative_fee` (N-08). (4) vermietete Gruppe mit `rent_regime: bound_social` oder in `unit_groups` eines Instruments `instrument_type: rent_binding`: `operating.admin_per_unit_eur_pa` und `operating.admin_per_parking_eur_pa` aus `bctx$lib("costs/bewirtschaftung_ii_bv_2026")` (`admin_per_unit_eur_pa` 372,46, `admin_per_garage_eur_pa` 48,58; Herkunft = Bibliotheks-id). (5) vermietete Gruppe bei `project_type` ∈ {`neubau`, `erwerb_neubau`}: `lease_up_months: 3` (Memo 03 § 11). Alle übrigen Gruppenwerte, auch `vacancy_rate: 0.025` für vermietete Gruppen, kommen aus `item_defaults."unit_groups"`. (0), (4) und (5) ergänzen N-08 um von Perspektive, `rent_regime` bzw. `project_type` abhängige Werte, die sonst Expander bzw. Profil trügen; vom Integrator bestätigt als N-08a (Spec 00 § 17.5.3, R-118) |
 | `rule:carrier_defaults` | je Träger c: `class`, `network_fee_eur_kwh`, `emission_factor_kg_kwh`, `ghg_factor_kg_kwh` | `class` aus der kanonischen id (3.2.1; sonst keine Ableitung, E in WS-B). `network_fee_eur_kwh: {ref: market.energy_network_fee.<c>}`, falls der Marktpfad nach Schicht 8 existiert, sonst 0. `emission_factor_kg_kwh` und `ghg_factor_kg_kwh` nach Trägerklasse aus `bctx$legal("emission_factors_co2cost")` bzw. `bctx$legal("emission_factors_geg")` (Tabelle 3.2.1; Werte, Herkunft = gewählte Bibliotheks-id). Thema inaktiv: Faktor 0 und W („Emissionsfaktoren nicht verfügbar“). Preise, USt, Fortschreibung, CO₂-Preis und Bio-Mehrkosten kommen aus `item_defaults."energy.carriers"` |
-| `rule:approval_timing` | je Instrument f: `approval_timing` | `auto` bzw. fehlend → `before_start`, wenn `application_date` (Instrument, sonst `project.application_date`) ≤ frühester Termin der Maßnahmen von `funding.<f>.measures` (`date`; `year` als 1. Januar; erster Termin von `payment_schedule`; ohne Verschiebung), sonst `after_start`; ohne Maßnahmen (`rent_binding`) `before_start`. Ausdrückliche Codes bleiben (4.9 Nr. 1) |
+| `rule:approval_timing` | je Instrument f: `approval_timing` | `auto` bzw. fehlend → `before_start`, wenn `application_date` (Instrument, sonst `project.application_date`) ≤ frühester Termin der Maßnahmen von `funding.<f>.measures` (`date`; `year` als 1. Januar; erster Termin von `payment_schedule`; ohne Verschiebung), sonst `after_start`; Instrument ohne Maßnahmen (`rent_binding`): frühester Termin aller Maßnahmen der Variante, ohne Maßnahmen `before_start` (Spec 00 § 4.3.7, R-111). Ausdrückliche Codes bleiben (4.9 Nr. 1) |
 | `rule:approval_probability` | je Instrument f: `approval_probability` | fehlt: b = `{ref: funding.<f>.budget_risk.approval_probability}`, wenn der Pfad (meist über `from:`) existiert, sonst 1; bei `application_date` ≥ 2031-01-01 `{expr: "<b> * funding.<f>.availability_after_2030"}` (Ausdruck mit dem Bezug bzw. der Zahl 1; `availability_after_2030` füllt danach `item_defaults."funding"` mit 0,7), sonst b (S01B-13; Spec 00 § 4.3.7) |
 | `rule:tax_credit_defaults` | je Instrument f mit `instrument_type: tax_credit`: `payout_delay_months` | fehlt → 12 (Zahlung im Dezember des Folgejahres, Termin (Y+2)-01-01; Spec 00 § 10.9). Für alle übrigen Instrumente setzt `item_defaults."funding"` 0 |
 
@@ -2213,14 +2217,14 @@ Laufspezifische Verschiebungen wirken nur über die genannten Felder; alle übri
 | Typ | verschobene Termine | Quelle der Verschiebung |
 |---|---|---|
 | `rent_path` | `rent_start` (Token `completion`), Fertigstellung mc_k, Erklärung und Wirksamkeit me_k, Arbeitsbeginn, OVM-Zuschlag, Kürzungsbeginn | `project.construction_delay_months` bzw. `measures.<k>.delay_months` |
-| `operating_cost`, `property_tax`, `imputed_rent` | `from` (Token `completion`), `occupancy_from`, `after_completion_from` | `project.construction_delay_months` |
+| `operating_cost`, `property_tax`, `imputed_rent` | `start_event` (Token `completion`), `occupancy_from`, `after_completion_from` | `project.construction_delay_months` |
 | `energy_cost`, `co2_cost` (über `en_state_weights`) | Beginn der Zustände | `measures.<measure>.delay_months` bzw. Parameter `construction_delay_months` (= `{ref: project.construction_delay_months}`); § 43-Status, Einbaudatum für § 5a und Bio-Treppe bleiben deterministisch (Basisfall) |
 | `pv` | `commissioning_date`, Ende der Vergütung | `measures.<energy.pv.measure>.delay_months` |
 | `tenant_costs` | keine eigenen (folgt den Segmenten) | – |
 | `grant` | Auszahlungstermin (Datum nach R-98, `ctx$shift_period()`) | `measures.<m>.delay_months` (Ereignis `completion_proof`) und `funding.<f>.payout_delay_months` |
 | `tax_credit_35c` | Abschluss (Veranlagungsjahre), Zahlungstermin (R-98) | `measures.<m>.delay_months`, `funding.<f>.payout_delay_months` |
 | Förderkredite `f_<f>_loan` | keine (Zeitparameter `deterministic_only`, Spec 00 § 8.1 Nr. 2, R-47) | – |
-| `f_<f>_subsidy` (`recurring`) | `from` mit Token `completion` | `project.construction_delay_months` |
+| `f_<f>_subsidy` (`recurring`) | `start_event` mit Token `completion` | `project.construction_delay_months` |
 
 Masken entstehen über `ctx$shift_months()`, `ctx$shift_overlap()` bzw. `ctx$shift_period()`; Verschiebungen werden
 auf ganze Monate gerundet (0.4) und sind ≥ 0 (Validierungsfehler sonst; ein Termin, der je Lauf auch früher liegen
@@ -2236,17 +2240,20 @@ Tilgungszuschüsse der Förderkredite bleiben terminfest (R-47).
 Die Felddefaults dieses Teils stehen unter dem reservierten Wurzelschlüssel `item_defaults` von `global.yaml`
 (nur dort zulässig, Spec 00 § 4.2 Fußnote ³). Die Map ist die Vereinigung mit den Vorlagen von Teil A (§ 2.2); je Pfad
 gibt es genau einen Schlüssel (bei `"building"` vereinigt WS-A die Felder beider Teile in einer Vorlage). Eine
-Vorlage füllt erst nach Schicht 7 fehlende Blätter; Variantenoperationen `set`/`replace` auf solche Blätter verlangen
-deshalb, dass die Basis den Pfad selbst trägt (Spec 00 § 4.11; z. B. `building.efficiency_standard_after: none` in S1,
-X-03). Anwendung nach Schicht 8 und den Ableitungsregeln (5.5), vor den Expandern: für jedes
+Vorlage füllt erst nach Schicht 7 fehlende Blätter; `replace` und `remove` auf solche Blätter verlangen deshalb, dass
+die Basis den Pfad selbst trägt; `set` und `overrides` dürfen sie setzen, wenn das Elternelement existiert und das Blatt
+ein Feld der Vorlage bzw. der Feldtabellen ist (Spec 00 § 4.11, R-112). S1 trägt `building.efficiency_standard_after:
+none` dennoch ausdrücklich in der Basis (X-03). Anwendung nach Schicht 8 und den Ableitungsregeln (5.5), vor den Expandern: für jedes
 **vorhandene** Element einer Sammlung bzw. für jeden **vorhandenen** optionalen Block gilt `element <-
 deep_merge(vorlage, element)` (das Element gewinnt), in aufsteigender Pfadtiefe (`energy` vor `energy.carriers` und
 `energy.performance_gap`); `{id}` in `ref`-/`expr`-Pfaden steht für die Element-id (in YAML als Zeichenkette zu quoten, z. B. `{ref: "market.energy_price.{id}"}`, weil `{` sonst eine Flow-Map öffnet); `from:` in einer Vorlage wird vor
 ihrer Anwendung aufgelöst (Herkunft = Bibliotheks-id). Herkunft sonst `source_type = "global"`, `entry =
 "global#item_defaults.<pfad>"`. Optionale Blöcke (`energy`, `energy.pv`, `energy.performance_gap`,
-`building.property_tax`) entstehen durch `item_defaults` nicht neu (N-05); die einzige Ausnahme ist der leere Teilbaum
-`performance_gap: {}` in der Vorlage `energy`, der den Block anlegt, sobald `energy` existiert, damit die
-Strukturfaktoren immer als Domänenblätter (Overlay-Ziele) vorhanden sind.
+`building.property_tax`) entstehen durch `item_defaults` nicht neu (N-05). Ausnahmen sind Teilbäume, die eine Vorlage
+selbst enthält (Spec 00 § 4.7, R-118): der leere Teilbaum `performance_gap: {}` in der Vorlage `energy`, der den Block
+anlegt, sobald `energy` existiert, damit die Strukturfaktoren immer als Domänenblätter (Overlay-Ziele) vorhanden sind,
+und `maintenance` in der Vorlage `building` (Teil A § 3.3: `building.maintenance` mit `enabled: true` in jedem Szenario
+mit `building`).
 
 ```yaml
 item_defaults:
@@ -2276,7 +2283,7 @@ item_defaults:
       hardship_share: 0
       interest_subsidy_in_559e: true
       kuerzung_558_5: true
-      # Auslegungen ohne Eintrag: Rechtsstand (legal/mietrecht.interpretation, 1.3)
+      # Auslegungen ohne Eintrag: Defaults aus dem Thema mietrecht, Teilbaum interpretation (legal/mietrecht_2026; 1.3, Spec 00 § 4.10, R-116)
     operating:
       admin_per_unit_eur_pa: {from: costs/bewirtschaftung_immowertv_2026, use: admin_per_unit_or_efh_eur_pa}   # 367 (N-03)
       admin_per_parking_eur_pa: {from: costs/bewirtschaftung_immowertv_2026, use: admin_per_garage_eur_pa}    # 48 (N-03)
@@ -2313,6 +2320,7 @@ item_defaults:
     tax_exempt: auto
     vat_zero_rate_attested: false
   "funding":                        # approval_timing/-probability: rule:approval_*; tax_credit-Verzug: rule:tax_credit_defaults
+    approved: 1                     # Spec 00 § 4.3.7; Domänenblatt (Ziel des Zusageschlüssels, Bezüge wie S4 kfw358_2033)
     on_reject: balance
     approval_timing: auto           # dokumentiert den Default; rule:approval_timing löst vorher auf
     payout_delay_months: 0
@@ -2329,11 +2337,8 @@ item_defaults:
     serial_renovation: false
     isfp_available: false
 
-scenario_sets:                      # gewöhnlicher Block (kein item_default), Label nach Teil C § 4.2 (N-22)
-  foerderstopp:
-    label: "Förderstopp: keine Förderzusage"
-    description: "Alle Förderinstrumente ohne Zusage (Konzept B12). Bei Entscheidungsknoten realisiert der Basisfall die Ausweichvariante (Spec 00 §9.11 Nr. 3)."
-    set: {funding.*.approved: 0}
+# scenario_sets (gewöhnlicher Block, kein item_default): Inhalt ausschließlich nach Teil C § 4.2 (einzige Quelle,
+#   N-22, R-118), u. a. foerderstopp „Förderstopp: keine Förderzusage“ mit set: {funding.*.approved: 0}
 ```
 
 Die früheren Schlüssel `unit_groups_defaults`, `energy_defaults`, `funding_defaults`, `building_defaults` und
@@ -2355,7 +2360,7 @@ Sammlungselementen (Spec 00 § 4.7, R-76); die perspektivabhängigen Werte setzt
 
 ### 7.2 Szenario-Set und Pflichtsensitivität
 
-- `foerderstopp` wie 7.1 (Spec 00 § 4.11, Konzept B12); Wirkung 4.9 Nr. 6.
+- `foerderstopp` nach Teil C § 4.2 (einzige Quelle, N-22, R-118; Spec 00 § 4.11, Konzept B12); Wirkung 4.9 Nr. 6.
 - Pflichtsensitivität „mit 2045-Stufe“ (Konzept § 5.5, Teil C § 4.4): `{id: stufe_2045, path:
   project.pending_reforms, add: stufe_2045, label: "mit 2045-Stufe (100 % klimaneutraler Brennstoff ab 2045)"}` in
   `analysis.mandatory_sensitivities` aller Profile (Teil A). Sie wird **immer gerechnet**; ohne Zustand mit `section43
@@ -2484,21 +2489,21 @@ Bibliothek (Qualität, `release`) bzw. die Auslegungsfelder in `unit_groups.<g>.
     1,70 EUR/m² (D). Der Wert ist ein MFH-Mittel einschließlich Gebäudeversicherung; für Selbstnutzer eines EFH ist er
     meist zu hoch und kann mit einer eigenen Kostenkomponente doppelt zählen (F-11; W `owner_opex_double`). Offen:
     eigener Selbstnutzer-Default (über eine Ergänzung von `rule:unit_group_defaults`, Entscheidung Integrator, weil
-    N-08 den Regelinhalt festlegt) oder ausdrückliche Angabe in S4/S5 (Teil C).
+    N-08 den Regelinhalt festlegt) oder ausdrückliche Angabe in S4/S5 (Teil C). **Entschieden (Runde 4, N-08a):** kein
+    eigener Selbstnutzer-Default in v1; ausdrückliche Angabe (S4, S5 mit 0, Teil C F-11), W `owner_opex_double` bleibt.
 19. **Genossenschaft:** Nutzungsentgelt nach §§ 558 ff., Befreiungsgrenzen § 5 Abs. 1 Nr. 10 KStG, PV-Verrechnung an
     Mitglieder (B3).
 20. ~~**Warmmietenneutral:** Bezugsjahr der Ersparnis und Basis „vermietete Fläche“~~ – **erledigt** (S01B-08 →
     R-102, S01B-03 → R-101).
-21. **Energiepreis-Basisfall (F-08):** Der deterministische Pfad schreibt das 12-Monats-Mittel mit Trend fort, die MC
-    kehrt zum Normalpreis zurück (Heizöl im Jahr 6 rund −28 %). Entscheidung und Umsetzung bei Teil C (Bibliothek,
-    `p_norm`, `quantile_path()`; Spec 00 § 17.3 Nr. 8 c); Teil B liest den Pfad unverändert (3.2.5).
-22. **Rebound-Konvention (F-15):** `demand_kwh` der Folgezustände enthält den Rebound (Default 1,0); die
-    Bibliotheksvorlage `rebound` (Modus 1,1) passt nur zu reinem Rechenbedarf. Abstimmung mit Teil C, ob die Vorlage
-    einen Modus 1,0 (Abweichungsfaktor) erhält; bis dahin W `rebound_base_differs` (3.2.4).
-23. **Zusagezeitpunkt (S01B-14):** Bezug „frühester Termin der Maßnahmen **des Instruments**“ statt „der Variante“
-    (Spec 00 § 4.3.7); für Stufensanierungen (S4) fachlich nötig.
-24. **Holzpellets (F-16):** 19 % USt seit 2024 als Default; Brennholz/Scheitholz (7 %) nur ausdrücklich. Teil C rechnet
-    `vat_rate.pellets`, `p0`, `p_norm` und den Prüffall neu.
+21. ~~**Energiepreis-Basisfall (F-08)**~~ – **erledigt** (Teil C § 2.4, § 3.6, OP-19; Spec 00 § 17.3 Nr. 8 c): Der
+    Basisfall ist der Erwartungspfad der Mean-Reversion; Teil B liest den Pfad unverändert (3.2.5).
+22. ~~**Rebound-Konvention (F-15)**~~ – **erledigt** (Teil C F-15): `demand_kwh` der Folgezustände enthält den
+    Rebound (Default 1,0); die Vorlage `rebound` hat den Modus 1,0, `rebound_calculated` (Modus 1,1) gilt nur für
+    reinen Rechenbedarf; W `rebound_base_differs` bleibt für abweichende Overlays (3.2.4, E-12).
+23. ~~**Zusagezeitpunkt (S01B-14)**~~ – **erledigt** (Runde 4, R-111): Bezug „frühester Termin der Maßnahmen **des
+    Instruments**“, ohne Maßnahmen der Variante (Spec 00 § 4.3.7; 4.2, 4.9 Nr. 1, 5.5, F-9).
+24. ~~**Holzpellets (F-16)**~~ – **erledigt** (Teil C OP-08): 19 % USt seit 2024 als Default; Brennholz/Scheitholz
+    (7 %) nur ausdrücklich; `vat_rate.pellets`, `p0`, `p_norm` und Prüffall in Teil C neu gerechnet.
 25. **Grundsteuer optional (X-16):** Ohne Angabe in `building.property_tax` entsteht keine Komponente (I bzw. W);
     bei Selbstnutzern trägt eine eigene Kostenkomponente die Grundsteuer (S5).
 
@@ -2526,7 +2531,7 @@ eingearbeitet ist; die frühere Übergangslösung entfällt jeweils.
 | S01B-11 | § 4.12 Nr. 7, § 8.2 | Kreditzusage bei teilweisem Wegfall | **entschieden: angenommen** (R-99) | 4.6 |
 | S01B-12 | § 10.9 | Zahlungstermin § 35c, Energieberatung | **entschieden: angenommen**, Termin über R-98 formuliert (`add_months((Y+1)-01-01, payout_delay_months)`) | 4.8 |
 | S01B-13 | § 4.3.7, § 11.6 Nr. 4 | Default `approval_probability` mit Verfügbarkeit nach 2030 | **entschieden: angenommen mit Änderung** (R-86; Ableitungsregel `rule:approval_probability` statt Registry-Regel, Feld `availability_after_2030` (N-09), ohne `budget_risk` Basiswert 1, Faktor 0,7 trotzdem ab 2031) | 4.2, 5.5, 7.1 |
-| **S01B-14** (neu) | § 4.3.7 (`approval_timing: auto`) | Klarstellung: `auto` = `before_start`, wenn `application_date` ≤ frühester Termin der Maßnahmen **des Instruments** (`funding.<f>.measures`), nicht „der Variante“ | Förderrechtlich bezieht sich „Vorhabenbeginn“ auf das geförderte Vorhaben; bei Stufensanierung (S4) wäre ein Instrument einer späteren Stufe sonst immer `after_start` und meldete fälschlich „förderschädlicher Vorhabenbeginn“ | offen (PATCH); Teil B rechnet bis zur Entscheidung nach dem Antrag (4.2, 4.9 Nr. 1, 5.5, F-9) |
+| **S01B-14** (neu) | § 4.3.7 (`approval_timing: auto`) | Klarstellung: `auto` = `before_start`, wenn `application_date` ≤ frühester Termin der Maßnahmen **des Instruments** (`funding.<f>.measures`), nicht „der Variante“ | Förderrechtlich bezieht sich „Vorhabenbeginn“ auf das geförderte Vorhaben; bei Stufensanierung (S4) wäre ein Instrument einer späteren Stufe sonst immer `after_start` und meldete fälschlich „förderschädlicher Vorhabenbeginn“ | **entschieden (Runde 4): angenommen** (Orchestrator-Entscheidung, R-111), ergänzt: Instrument ohne Maßnahmen bezieht sich auf den frühesten Termin aller Maßnahmen der Variante (ohne Maßnahmen `before_start`); W „förderschädlicher Vorhabenbeginn“ nur bei Antrag nach dem Termin; umgesetzt in 4.2, 4.9 Nr. 1, 5.5, F-9 |
 
 Erledigt durch Runde 2 (frühere Anträge dieses Teils): Default der realisierten JAZ als Planwert (jetzt
 `jaz_plan` mit Default Basisfallwert von `jaz`, R-70) und Kennzahlen „Warmmiete vorher/nachher“ sowie „Eigenanteil
@@ -2534,26 +2539,26 @@ nach Förderung“ (`warm_rent_change_prepost`, `own_contribution`, R-83).
 
 ### 10.2 Abstimmungspunkte mit Teil A, Teil C und dem Integrator (keine Änderung an Spec 00)
 
-| Teil | Punkt | Stand Runde 3 |
+| Teil | Punkt | Stand Runde 4 |
 |---|---|---|
 | A | Aktivierungsfaktor a_m als Ausdruck je Maßnahme (0.8); dieselbe Formel im Helfer `act()` | bestätigt; `act()` liest nur Domänenpfade |
 | A | PV-Nullsatz der Maßnahme (3.9.1) | entschieden: `expr`-Knoten aus `rule:measure_catalog` (R-86, X-25) |
-| A | `measures.<k>.kg`, `measure_type` für den KG-Filter und die Berechtigung (4.3.1, 4.4) | offen wie bisher |
-| A | Kredittypen: Belegung der Förderkredite nach 4.6; `draw_schedule` aus Maßnahmen-Zahlungsplänen | offen wie bisher |
+| A | `measures.<k>.kg`, `measure_type` für den KG-Filter und die Berechtigung (4.3.1, 4.4) | abgestimmt: Teil A § 4.1 (`kg` aus dem Katalog, `measure_type`), § 4.2 |
+| A | Kredittypen: Belegung der Förderkredite nach 4.6; `draw_schedule` aus Maßnahmen-Zahlungsplänen | abgestimmt: Teil A § 5.1, § 5.2 (KfW-Varianten, `approved`, `draw_schedule`), Teil B 4.6 |
 | A | Struktur von `global.yaml` | entschieden: `item_defaults` (R-85); Vorlagen dieses Teils in 7.1, Vereinigung mit Teil A § 2.2 |
 | A | `rule:measure_catalog` setzt `modernization_kind: none` bei Erhaltung bzw. Ohnehin-Anteil 1 (X-09); `rule:cost_from_kg` auch für Zahlungspläne mit `unit: eur` (X-28) | entschieden (N-07); Teil B setzt es voraus (1.4, 1.9.1, 4.6) |
 | A | Instandhaltungssatz `effects.maintenance.share_of_cost_pa` nur Instandsetzung, Wartung in `service_eur_pa` bzw. PV-`opex` (X-10) | Teil B: W `service_double_energy` (3.2.2, 3.9.1); Katalogspalte in Teil A |
-| A | Platzhalter `measures.<m>.effects.rent/vacancy/energy` entfallen; Verweis Teil A § 3.4 auf 01b § 3.10 (Haushalt) | an Teil A (X-24 a, b) |
+| A | Platzhalter `measures.<m>.effects.rent/vacancy/energy` entfallen; Verweis Teil A § 3.4 auf 01b § 3.10 (Haushalt) | erledigt in Teil A (Runde 3, 01a § 12.3 X-24 a, b) |
 | C | eigener Eintrag `legal/mietrecht_559f_2026`; Auslegungscodes `proportional`, `flat_before_funds`, `halve_then_funds` | erledigt in Teil C |
 | C | Overlay-Ziel `energy.<zustand>.jaz`; `energy.climate_neutral_2045` entfällt | erledigt in Teil C (X-24 c) |
-| C | Bedingungssymbole der Fördernutzlast nach 4.3.2 (`funding.this.*`, `unit.owner_occupied`, `heating.replaced_fossil_functional`, `taxable_income_adj`); neuer Schalter `child_u18_threshold_shift_per_child` (Default `false`) | an Teil C |
-| C | Fördernutzlasten nach 7.3 (N-01, N-10, N-11, N-12, X-02), Szenarien: S1 `building.efficiency_standard_after: none` in der Basis und `eh70` in V2 (X-03), S5 V2/V2b `facts: {lca_thg: true}`, S2 V2 `{lca_thg: true, qng: true}` (N-10), S1 `rent_law: {procedure: bgb_559}` (N-06), S2 `modernization_kind: none` für Ersatz-WP und Aufzug (X-09) | an Teil C |
-| C | S4/S5: `unit_groups.<g>.operating.recoverable_opex_eur_m2_month` ausdrücklich setzen (z. B. 0, wenn eine eigene Komponente die Nebenkosten trägt; F-11) | an Teil C |
-| C | `s558.excludes_increases` enthält `bgb_560`, das nicht im Vokabular `bgb_procedure` (Spec 00 § 2.11) steht | an Teil C bzw. Integrator (Code ergänzen oder streichen) |
-| C | Energiepreis-Basisfall (F-08), Rebound-Vorlage (F-15), Pellets-USt (F-16), BEHG-Faktor Kohle | an Teil C (9 Nr. 13, 21, 22, 24) |
-| I | `rule:unit_group_defaults` enthält über N-08 hinaus die II.-BV-Verwaltung bei `bound_social` und `lease_up_months: 3` bei Neubau (5.5 Nr. 4, 5), weil beide Werte von Feldern abhängen und sonst nur Profil bzw. Expander sie trügen | Bestätigung durch den Integrator erbeten |
-| I | Enums `heating_system_type` und `carrier_class` + `coal` (8) | Übernahme mit P0-02 |
-| I | Platzhalter `{id}` in Flow-YAML: Die Schreibweise `{ref: market.energy_price.{id}}` (Spec 00 § 4.3.6b, § 4.7) ist kein gültiges YAML (die innere `{` öffnet eine Flow-Map); in `global.yaml` und in den Beispielen von Spec 00 als `{ref: "market.energy_price.{id}"}` bzw. in Blockform schreiben | Hinweis an Integrator und WS-A (PATCH, nur Schreibweise) |
+| C | Bedingungssymbole der Fördernutzlast nach 4.3.2 (`funding.this.*`, `unit.owner_occupied`, `heating.replaced_fossil_functional`, `taxable_income_adj`); neuer Schalter `child_u18_threshold_shift_per_child` (Default `false`) | erledigt in Teil C (Runde 3: Symbole in den Nutzlasten 01c § 3.4; KfW 458 mit `child_u18_threshold_shift_per_child: false`, F-01) |
+| C | Fördernutzlasten nach 7.3 (N-01, N-10, N-11, N-12, X-02), Szenarien: S1 `building.efficiency_standard_after: none` in der Basis und `eh70` in V2 (X-03), S5 V2/V2b `facts: {lca_thg: true}`, S2 V2 `{lca_thg: true, qng: true}` (N-10), S1 `rent_law: {procedure: bgb_559}` (N-06), S2 `modernization_kind: none` für Ersatz-WP und Aufzug (X-09) | erledigt in Teil C (Runde 3, 01c § 9.1, § 9.2) |
+| C | S4/S5: `unit_groups.<g>.operating.recoverable_opex_eur_m2_month` ausdrücklich setzen (z. B. 0, wenn eine eigene Komponente die Nebenkosten trägt; F-11) | erledigt in Teil C (F-11: S4, S5 mit 0) |
+| C | `s558.excludes_increases` enthält `bgb_560`, das nicht im Vokabular `bgb_procedure` (Spec 00 § 2.11) steht | erledigt in Teil C (`bgb_560` gestrichen, `excludes_increases: [bgb_559, bgb_559c, bgb_559e]`, N-06) |
+| C | Energiepreis-Basisfall (F-08), Rebound-Vorlage (F-15), Pellets-USt (F-16), BEHG-Faktor Kohle | erledigt in Teil C (F-08, F-15, F-16; 01c § 9.2); offen nur der BEHG-Faktor Kohle (01c OP-21; 9 Nr. 13) |
+| I | `rule:unit_group_defaults` enthält über N-08 hinaus die II.-BV-Verwaltung bei `bound_social` und `lease_up_months: 3` bei Neubau (5.5 Nr. 4, 5), weil beide Werte von Feldern abhängen und sonst nur Profil bzw. Expander sie trügen | bestätigt (Runde 4): N-08a (Spec 00 § 17.5.3, R-118), einschließlich der impliziten Gruppe `main` mit Bezügen; kein eigener Selbstnutzer-Default für Nebenkosten (9 Nr. 18) |
+| I | Enums `heating_system_type` und `carrier_class` + `coal` (8) | Übernahme mit P0-02 (im Phase-0-Code noch offen, Spec 00 § 17.6.5) |
+| I | Platzhalter `{id}` in Flow-YAML: Die Schreibweise `{ref: market.energy_price.{id}}` (Spec 00 § 4.3.6b, § 4.7) ist kein gültiges YAML (die innere `{` öffnet eine Flow-Map); in `global.yaml` und in den Beispielen von Spec 00 als `{ref: "market.energy_price.{id}"}` bzw. in Blockform schreiben | übernommen (Runde 4, R-118): Spec 00 § 4.3.6b, § 4.7 und N-04 schreiben `{ref: "market.energy_price.{id}"}` |
 
 ---
 
@@ -2660,3 +2665,25 @@ Datenkorrekturen zu X-01, X-03, X-09, X-28, X-32, F-11, F-15 (Bibliotheksvorlage
 Alle übrigen Prüfwerte (RP-*, L-*, O-*, C-*, E-*, TC-*, H-*, F-2 bis F-6a, F-9 bis F-15) sind von den Änderungen nicht
 betroffen: Laufende Wirkungen bleiben beim Monatsindex mi(d), und die Defaultwerte sind unverändert, nur ihr Ort ist
 neu (Ausnahme `vat_rate` der Pellets 0,07 → 0,19, die kein Prüfwert dieses Teils verwendet).
+
+---
+
+## 12. Review-Protokoll Runde 4 (Restbefunde, 26.10.2026)
+
+Grundlage: Spec 00 §17.6 (Befunde K3-01 bis K3-19, Antrag S01B-14, Abstimmungspunkte aus 10.2, Auflösungen R-110
+bis R-119, Ergänzung N-08a). K3-01 und K3-02 folgen Orchestrator-Entscheidungen.
+
+| Punkt | Entscheidung | Umsetzung in Teil B |
+|---|---|---|
+| K3-01 (R-110) | Terminparameter heißen `start_event` | 2.2 (`operating_cost`), 3.2.2 (`energy.<zustand>.start_event`, E bei Schlüssel `from`), 3.2.3, 3.4, 3.5 Nr. 1, 3.10.2, 3.10.3, 4.2 (`interest_subsidy.start_event`), 4.7, 6 |
+| K3-02, S01B-14 (R-111) | angenommen: Bezug Maßnahmen des Instruments, ohne Maßnahmen die der Variante; W „förderschädlicher Vorhabenbeginn“ hängt am Antragsdatum | 4.2 (`application_date`, `approval_timing`), 4.9 Nr. 1, 5.5, F-9 (Fälle S4, S3 V2, `rent_binding`), 9 Nr. 23, 10.1 |
+| K3-05 (R-119) | Statusvermerke aktualisiert | 10.2 (Spalte „Stand Runde 4“), 9 Nr. 21, 22, 24 |
+| K3-09 (R-118) | Teilbäume einer Vorlage entstehen mit ihrem Block | 7.1 |
+| K3-10 (R-118, N-08a) | bestätigt; Schritt (0) mit Bezügen statt Kopien | 1.6 Nr. 1, 5.5, 9 Nr. 18 (kein eigener Selbstnutzer-Default), 10.2 |
+| K3-11 (R-118) | Standard-Sets nur in Teil C §4.2 | 7.1 (Verweis statt Kopie) |
+| K3-16 (R-116) | Auslegungs-Defaults bleiben (R) aus `legal/mietrecht_2026` | 7.1 (Kommentar); 1.3 unverändert |
+| S01A-10 (R-112) | `set`/`overrides` auf Vorlagenfelder zulässig | 7.1 (Kopf) |
+| Zusatzprüfung (R-119) | `approved: 1` als Vorlage; Rebound-Vorlagen nach Teil C §2.7 | 4.2, 7.1; 3.2.4, E-12 |
+
+Prüfwerte: F-9 und E-12 erweitert, alle übrigen unverändert. Phase-0-Nacharbeit aus Sicht von Teil B (Spec 00
+§17.6.5): P0-02 (Enums aus 8, u. a. `carrier_class` mit `coal`, `heating_system_type`) ist im Code noch offen.

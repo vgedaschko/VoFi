@@ -7,7 +7,7 @@
 | **Vertragsversion** | `contract_version = "1.0.0"` (Konstante `VOFI_CONTRACT_VERSION` in `R/contracts.R`) |
 | **Schemaversion Szenario** | `schema_version = 1` |
 | **Stand** | 26.10.2026 |
-| **Status** | **verbindlich** für alle Arbeitspakete (Phase 0 bis 3); Änderungen nur über den Integrator (Abschnitt 1.4); Review Runde 1 eingearbeitet (Abschnitt 17.2); Runde 2 „Abgleich mit dem Konzept“ eingearbeitet (Abschnitt 17.4, R-66 bis R-84); Runde 3 „Feldkatalog-Abgleich“ eingearbeitet (Abschnitt 17.5, R-85 bis R-109; Phase-0-Nacharbeit in 17.5.4) |
+| **Status** | **verbindlich** für alle Arbeitspakete (Phase 0 bis 3); Änderungen nur über den Integrator (Abschnitt 1.4); Review Runde 1 eingearbeitet (Abschnitt 17.2); Runde 2 „Abgleich mit dem Konzept“ eingearbeitet (Abschnitt 17.4, R-66 bis R-84); Runde 3 „Feldkatalog-Abgleich“ eingearbeitet (Abschnitt 17.5, R-85 bis R-109; Phase-0-Nacharbeit in 17.5.4); Runde 4 „Restbefunde“ eingearbeitet (Abschnitt 17.6, R-110 bis R-119; Phase-0-Nacharbeit gesamt in 17.6.5) |
 | **Grundlage** | Orchestrator-Entscheidungen D1–D14; Recherche-Memos 01, 02, 04, 05, 06, 07 (`docs/recherche/`); Prototypen `docs/recherche/prototypen/`; Konzept `docs/Konzept.md` einschließlich §11.2 (F1–F21), §11.3 (Annahmen bis zur Antwort des Auftraggebers) und Konzept-Review-Protokoll |
 | **Folgedokument** | Spec 01 = Feldkatalog in `docs/spec/01a_*.md`, `01b_*.md`, `01c_*.md` (Felder der Domänenblöcke, Typparameter im Detail, Defaults). Spec 01 darf diese Verträge konkretisieren, aber nicht ändern. |
 
@@ -141,7 +141,7 @@
 | Rechtsstand | `project.legal_state` | Datum | Auswahl von Regeln und Bibliothekseinträgen (4.10) |
 | anhängige Reform | `project.pending_reforms` | Codes | Schalter, Standard leer (D10) |
 | Parameterbibliothek, Eintrag | `library`, `entry` | Dateien | ein Eintrag je Datei, id = relativer Pfad (4.9) |
-| Bibliotheksverweis | `from:` | Wertform | 4.9 |
+| Bibliotheksverweis | `from:` (Schlüssel ausschließlich dafür reserviert; Termin- und Ereignisparameter heißen `start_event`, R-110) | Wertform | 4.9 |
 | Element-Defaults | `item_defaults` (nur `global.yaml`) | reservierter Schlüssel | Vorlage je Sammlung bzw. optionalem Block, nach Schicht 8 und den Ableitungsregeln unter jedes vorhandene Element gemischt (Element gewinnt; 4.7, R-85) |
 | Ableitungsregel | `rule:<name>` (WS-A, `R/scenario-layers.R`) | Funktion | setzt nach Schicht 8 und vor `item_defaults` und den Expandern fehlende Domänenblätter aus anderen Feldern (Werte, Codes, Bezugs- und Ausdrucksknoten); keine Registry-Regel (4.7, R-86) |
 | Perspektive | `project.perspective` | Code | `wu_kommunal`, `wu_genossenschaft`, `wu_privat`, `kleinvermieter`, `selbstnutzer` (R-08) |
@@ -341,7 +341,7 @@ WS-H in `R/methods-*.R`). Ein Agent ändert ausschließlich Dateien seines Paket
 | `inst/extdata/library/VERSION` | WS-L | Bibliotheksstand `JJJJ.MM.n` (4.9, R-80) |
 | `tests/testthat/test-library.R` | WS-L | Datentest der Bibliothek: Eintragsschema (4.9), Freigabe (4.10), Codes der Nutzlasten ⊆ Vokabulare (2.11), alle `from`/`use`-Verweise lösen auf (R-89, R-104) |
 | `tests/testthat/test-profiles.R` | WS-A | Datentest von `global.yaml` und Profilen: reservierte Schlüssel, Profilpfade (R-76), alle `from`/`use`-Verweise lösen auf (4.7, R-85) |
-| `tests/testthat/test-mc-statistics.R` | WS-C (Sampler-Teil) und WS-G (`test-mc-results.R`) | getrennte Dateien |
+| `tests/testthat/test-mc-statistics.R` | WS-C (Sampler-Teil); WS-G prüft die MC-Auswertung in `test-mc-stats.R` und `test-mc.R` (Namensregel `test-<R-datei>.R`, R-104, R-119) | getrennte Dateien |
 | `vignettes/*` | Phase 3 (Integrator vergibt) | |
 | `bench/bench_engine.R` | WS-D | |
 | `bench/bench_mc.R` | WS-G | |
@@ -514,10 +514,14 @@ vofi_inform(key, ..., .class = NULL)                                # Meldung, n
   Vermerke wie „unabhängig vom Restwert“); NA-Begründungen stehen **ausschließlich** unter `vocab.na_reasons.*`.
 - **Validierungsmeldungen (R-104):** alle in `inst/labels/de/validation.yaml` (WS-B), Schlüssel
   `validation.<block>.<code>`; `<block>` ist der oberste Szenarioblock (`project`, `building`, `measures`,
-  `unit_groups`, `energy`, `funding`, `financing`, `accounts`, `residual_value`, `analysis`, `stochastic`, …) bzw.
-  `library`, `variants`, `scenario_set`, `profile`, `quantity`, `maintenance`, `acquisition`; blockübergreifende Meldungen
+  `unit_groups`, `energy`, `funding`, `financing`, `accounts`, `analysis`, `stochastic`, …) bzw. einer der
+  Sondernamensräume `library`, `variants`, `scenario_set`, `profile`, `quantity`, `maintenance`, `acquisition`,
+  `residual` (alle Meldungen zum Block `residual_value`, zum Typ `residual_value` und zum Expander `residual`, z. B.
+  `validation.residual.rnd_target`; einen Namensraum `validation.residual_value.*` gibt es nicht) und `expr`
+  (Ausdrucksparser `R/expr.R`, z. B. `validation.expr.path_missing`) (R-117); blockübergreifende Meldungen
   haben die Form `validation.<code>` (bestehend: `validation.not_number`, `validation.unknown_key`,
-  `validation.tax_module_blocked`, `validation.reference_variant_missing`, `validation.profile_path_forbidden`).
+  `validation.tax_module_blocked`, `validation.reference_variant_missing`, `validation.profile_path_forbidden`; neu
+  `validation.ref_target_missing`, 4.5 Regel 2, R-115).
   Andere Namensräume (z. B. `validation.b.*`) und andere Dateien (z. B. `inst/i18n/*`) gibt es nicht.
 - **Pflichtschlüssel je Typ:** `label`, `description`, `params.<p>.label` für jeden Parameter, `rows.<r>` für jede
   deklarierte Zeile bzw. jedes Zeilenmuster (Flows, Instrumente, Aktionen; Muster 5.2), `params.<p>.help` SOLL.
@@ -569,7 +573,7 @@ nur der Eingabe-Normalisierung (R-07, R-09, R-34); die Trennung von Codes und Te
   nicht.
 - `enums.yaml`: die Enums aus Spec 01 Teil A §8.1 und Teil B §8, dazu
   `federal_state: {codes: [BW, BY, BE, BB, HB, HH, HE, MV, NI, NW, RP, SL, SN, ST, SH, TH]}` (Schlüssel von
-  `legal/grunderwerbsteuer`),
+  `rates` im Thema `grunderwerbsteuer`, Eintrag `legal/grunderwerbsteuer_2026`),
   `levy_procedure: {codes: [auto, bgb_559, bgb_559c, bgb_559e], aliases: {"559": bgb_559, "559c": bgb_559c, "559e":
   bgb_559e}, default: auto}` (Aliase auch für die als Zahl gelesene Eingabe `559`),
   `bgb_procedure: {codes: [bgb_557a, bgb_557b, bgb_558, bgb_559, bgb_559b, bgb_559c, bgb_559e]}` (Verfahrenscodes in
@@ -845,7 +849,8 @@ ctx$shift_months(from, months, to = NULL)  # -> n x M_T 0/1-Matrix der aktiven M
   Kessels), wird als früherer Basistermin mit nichtnegativer Verschiebung modelliert (Referenzszenario S4, R-105).
   Verschobene Einmalzahlungen folgen 3.4 (R-98).
 - Parameter der Art `timing` akzeptieren zusätzlich das Token `completion` (= `grid$completion_date`); es ist der
-  Default aller Flow-Termine „ab Fertigstellung“ (z. B. `recurring.from`). `ctx$timing(spec, name)` liefert
+  Default aller Flow-Termine „ab Fertigstellung“ (z. B. `recurring.start_event`; Termin- und Ereignisparameter heißen
+  nie `from`, 4.9, R-110). `ctx$timing(spec, name)` liefert
   `list(date = Date, shift = double n-Vektor)`: `shift` = Wert von `project.construction_delay_months`, wenn der
   Parameter das Token `completion` trägt, sonst 0. Ausdrückliche Daten werden nicht verschoben. Dadurch trifft ein
   Overlay-Ziel auf `project.construction_delay_months` alle betroffenen Komponenten (Memo 04:
@@ -1018,7 +1023,7 @@ der Heizung für § 5a CO2KostAufG), `performance_gap` (Map, **Strukturmodell** 
 Verbrauchsdaten entfällt der Vorher-Faktor), optional `realisation_factor` (value, Default 1; einfacher
 Realisierungsfaktor, D8)), `pv` (Map, Spec 01). Weitere Zustände stehen in `stages` (Map nach id, ids ≤ 12 Zeichen).
 Trägerfelder ohne Angabe kommen aus `global.yaml#item_defaults.energy.carriers` (z. B. `price_eur_kwh: {ref:
-market.energy_price.{id}}`) und aus `rule:carrier_defaults` (Trägerklasse, Faktoren aus `legal/*`, Netzentgelt nur bei
+"market.energy_price.{id}"}`, in Flow-Notation gequotet, 4.7) und aus `rule:carrier_defaults` (Trägerklasse, Faktoren aus `legal/*`, Netzentgelt nur bei
 vorhandenem Marktnamen) (4.7, R-85, R-86). Der Energie-Expander erzeugt je Zustand und Träger eigene Komponenten
 (7.10, R-90).
 
@@ -1033,7 +1038,12 @@ b; R-86), `availability_after_2030` (share, Default 0.7 über `global.yaml#item_
 Programms nach 2030, Memo 07 §4.0), `payout_delay_months`
 (number ≥ 0, stochastisch zulässig, 3.9), weitere Felder nach Memo 02 §5.8 (Spec 01). § 35c EStG ist
 `instrument_type: tax_credit` (R-11). **Zusagerisiko (9.11, R-71):** `approval_timing` (enum `auto`, `before_start`,
-`after_start`; `auto` = `before_start`, wenn `application_date` ≤ frühester Termin der Maßnahmen der Variante; der Code
+`after_start`; `auto` = `before_start`, wenn `application_date` ≤ frühester Termin der Maßnahmen **des Instruments**
+(`funding.<f>.measures`; `date`, `year` als 1. Januar bzw. erster Termin eines Zahlungsplans, jeweils ohne
+Verschiebung), sonst `after_start`; ist das Instrument mit keiner Maßnahme verknüpft (z. B. `rent_binding`), gilt der
+früheste Termin aller Maßnahmen der Variante, ohne Maßnahmen `before_start` (R-111); `after_start` bedeutet „Zusage erst
+nach Vorhabenbeginn“, „förderschädlicher Vorhabenbeginn“ meldet die Validierung nur bei einem Antrag nach dem frühesten
+Termin der Maßnahmen des Instruments und ohne ausdrückliches `before_start` (Spec 01 Teil B §4.2); der Code
 `auto` wird vor den Expandern durch `rule:approval_timing` (WS-A, 4.7, R-86) aufgelöst, sodass alle Verbraucher – Expander,
 Validierung, `smp_plan()` (11.6 Nr. 4), `vofi_build()` (9.11) – nur `before_start` bzw. `after_start` lesen),
 `fallback_variant` (Varianten-id, Default `NULL`; macht ein `before_start`-Instrument zum **Entscheidungsknoten**),
@@ -1131,8 +1141,8 @@ stochastic:
                  auto_funding_approval: true,
                  convergence: {rel_halfwidth_mean: 0.005, abs_halfwidth_prob: 0.01}}
   parameters:   {<key>: {target: <pfad>, label: <de>, dist: <verteilung>, <parameter>, base: <optional>,
-                         apply: replace | multiply | add, from: <optional>}}
-  processes:    {<key>: {target: <pfad>, label: <de>, type: <prozess>, <parameter>, from: <optional>}}
+                         apply: replace | multiply | add, from: <bibliotheks-id>}}
+  processes:    {<key>: {target: <pfad>, label: <de>, type: <prozess>, <parameter>, from: <bibliotheks-id>}}
   correlations: {parameters: [[<key_a>, <key_b>, <rho_spearman>]], shocks: [[<proc_a>, <proc_b>, <rho>]]}
 ```
 
@@ -1194,14 +1204,14 @@ wertet Knoten im Laufkontext aus (6.3). Typen sehen nie Rohformen.
 | Reihe je Periode | `[v0, v1, …, vT]` (Länge exakt T+1) | `list(kind = "series_t", values)` | path |
 | Reihe je Kalenderjahr | `{series: {2027: 0.028, 2028: 0.022}, fill: locf, before: first}` | `list(kind = "series_year", years, values, fill, before)` | path; Spalte j = Wert für `year[j]`; `fill` ∈ `locf`, `zero`, `linear`; `before` ∈ `first`, `zero` |
 | Stützstellen | `{years: [2026, 2030, 2045], values: [60, {ref: shared.co2_2030}, 200], interpolate: linear}` | `list(kind = "points", years, values = list(<knoten>), interpolate)` | path; linear (bzw. `step`) über Kalenderjahre, außerhalb konstant; Elemente von `values` dürfen skalare Knoten sein (Regel 4) |
-| Zahlungsplan (einmalig) | `{schedule: {2027-01-01: 100000, 2030: 50000}}` | `list(kind = "schedule", dates, amounts)` | path: Betrag in Periode `grid_period_of(date)`; Jahre nach 3.4; Beträge dürfen selbst `value` sein |
+| Zahlungsplan (einmalig) | `{schedule: {2027-01-01: 100000, 2030: 50000}, unit: eur}` | `list(kind = "schedule", dates, amounts, unit)` | path: Betrag in Periode `grid_period_of(date)`; Jahre nach 3.4; Beträge dürfen selbst `value` sein; `unit` ∈ `eur` (Default: Beträge), `share` (Anteile mit Summe 1 an einem Gesamtbetrag, den der Typ bestimmt, z. B. `measures.<m>.payment_schedule`, `draw_schedule` 8.2; R-119) |
 | Bezug | `{ref: market.rent_growth, scale: 1, offset: 0, floor: -.inf, cap: .inf, anchor: null}` | `list(kind = "ref", path, scale, offset, floor, cap, anchor)` | Shape des Ziels; ohne `anchor`: `pmin(pmax(x * scale + offset, floor), cap)`; mit `anchor` a (Zahl): `pmin(pmax(a + scale * (x - x[, 1]) + offset, floor), cap)`, d. h. der Wert folgt dem Pfad x mit festem Abstand, und der Startwert (Spalte 1 = t0) ist a (Habenzins im MC passend zum deterministischen Wert, Konzept F18/A2, R-76) |
 | Wachstum | `{start: 7.2, growth: {ref: market.rent_growth}, base_date: null, real: false, index: calendar_year}` | `list(kind = "growth", start, growth, base_date, real, index)` | path: `index: calendar_year` (Default): `start * grid_index_year(g, base_date)` (Kalenderjahreswert, je Kalenderjahr konstant, R-62; wie Prozesse in Kalenderjahren, 11.7); `index: period_end`: `start * grid_index(g, base_date)` (Stichtagswert zum Periodenende, nur für Bestandsgrößen wie einen Marktwertpfad, z. B. Orakel (c)); `base_date` Default = Preisstand (`price_base_year`); `real: true` → nominal g = (1+g)(1+π) − 1 mit π = `market.inflation`. Stichtagsgrößen, die ein Typ selbst fortschreibt, bildet er über `ctx$index()` (R-91) |
 | Ausdruck | `{expr: "building.living_area_m2 * 150"}` | `list(kind = "expr", text, ast)` | sichere, vektorisierte Auswertung (Regel 5); Symbole mit Punkt = Pfade |
 | Mengenbezug | `{value: 14, per: m2_living_area}` | `list(kind = "quantity", value, per)` | `value × Bezugsgröße`; `per` ∈ `total`, `unit`, `m2_living_area`, `m2_net_floor_area`, `m2_component:<bauteil>`, `parking`, `kw`, `kwp`, `kwh`; Bezugsgröße zuerst am Bezugsobjekt (Parameter der Komponente bzw. Element des Domänenblocks), dann aus `building`: `unit` → `n_units`, `m2_living_area` → `living_area_m2`, `m2_net_floor_area` → `net_floor_area_m2` (A_N), `m2_component:<b>` → `component_areas_m2.<b>`, `parking` → `n_parking`, `kw`/`kwp`/`kwh` → gleichnamiges Feld des Bezugsobjekts (R-91) |
 | Verteilung (Kurzform) | `{dist: pert, min: …, mode: …, max: …, base: …}` | wird beim Normalisieren ins Overlay verschoben (Schlüssel = Zielpfad); am Ort bleibt `const` mit Basiswert | scalar |
 | Automatisch | `auto` bzw. `topup` | `list(kind = "auto", mode = "auto")` bzw. `mode = "topup"` | nur bei Parametern mit `allow_auto = TRUE` (8.7): `auto` = Betrag aus dem Basisfall, fest in allen Läufen; `topup` = Nachfinanzierung je Lauf (R-69) |
-| Bibliotheksverweis | `{from: prices/co2_paths_2026, use: scenarios.mittel, …}` | wird in Schicht 3 aufgelöst (4.9), kein Knoten | – |
+| Bibliotheksverweis | `{from: prices/co2_price_paths_2026, use: scenarios.mittel, …}` | wird in Schicht 3 aufgelöst (4.9), kein Knoten. `from` ist **ausschließlich** der Bibliotheksverweis; sein Wert ist eine Bibliotheks-id (Muster 4.9), Termine heißen `start_event` (R-110) | – |
 
 Regeln:
 
@@ -1209,6 +1219,14 @@ Regeln:
 2. Bezüge und Ausdrücke dürfen keine Zyklen bilden (Validierung Ebene 3) und **nie auf endogene Größen** (Konten,
    Steuern, Ledger-Zeilen) zeigen. Zulässige Ziele: Blätter der Blöcke `project`, `building`, `household`,
    `unit_groups`, `measures`, `energy`, `funding`, `components`, `financing`, `market`, `residual_value`, `shared`.
+   **Auflösung bei Bedarf (R-115):** Ein Bezug bzw. ein Pfadsymbol eines Ausdrucks muss nur auflösen, wenn sein Knoten
+   gelesen wird. Die Validierung (Ebene 3, WS-B) prüft Ziele und Zyklen in den Parametern der erzeugten Komponenten
+   und Instrumente, in den Blättern, auf die diese (transitiv) verweisen, und in den Domänenblättern, die Expander und
+   Ableitungsregeln auswerten; ein offenes Ziel dort ist E `validation.ref_target_missing` (Ausdrücke:
+   `validation.expr.path_missing`). Bezüge in Teilbäumen, die nach der gewählten Methode bzw. einem Schalter niemand
+   liest (z. B. `residual_value.income_value.land_value_eur` aus `global.yaml` bei `method: zero` oder in einem
+   Szenario ohne `building`, Teilbäume mit `enabled: false`), bleiben unaufgelöst und ungeprüft; zur Laufzeit ist ein
+   gelesener offener Bezug `engine.ref_missing` (`vofi_error_contract`).
 3. `{ref: …}` auf ein Ziel, auf das ein Prozess des Overlays zeigt, liefert in der MC dessen n × (T+1)-Pfad.
 4. **Knoten als Elemente** (R-64): Die Elemente von `values` in `points` und `series_t` sowie die Werte von `series`
    in `series_year` dürfen Zahlen oder skalare Knoten (`const`, `ref`, `expr`) sein. Jedes Element wird als n-Vektor
@@ -1298,12 +1316,16 @@ und dürfen daneben diese reservierten Wurzelschlüssel tragen (4.2 Fußnote ³)
    `components`, `energy.carriers`, `energy.stages`, `building.elements`), wird für jedes vorhandene Element
    `element <- deep_merge(vorlage, element)` gesetzt (das Element gewinnt, einschließlich der Werte, die es über
    `from:` aus der Bibliothek und über die Ableitungsregeln erhalten hat). Ist der Pfad ein **optionaler Block** (`building`, `household`, `energy`,
-   `energy.pv`, `energy.performance_gap`, `energy.before`, `energy.after`, `building.property_tax`,
-   `building.maintenance`), gilt dasselbe nur, wenn der Block existiert; Defaults optionaler Blöcke stehen deshalb
+   `energy.pv`, `energy.performance_gap`, `energy.before`, `energy.after`, `building.property_tax`), gilt dasselbe nur,
+   wenn der Block existiert. Teilbäume, die eine Vorlage selbst enthält, entstehen mit ihrem Block (R-118): Die Vorlage
+   `item_defaults.building` enthält `maintenance` (mit `enabled: true`), daher entsteht `building.maintenance` in jedem
+   Szenario mit `building` (Spec 01 Teil A §3.3); ebenso `performance_gap: {}` in der Vorlage `energy` (Teil B §7.1),
+   das danach die Vorlage `item_defaults."energy.performance_gap"` füllt. Defaults optionaler Blöcke stehen deshalb
    **nur** hier und nie als gewöhnlicher Block in `global.yaml` (sonst entstünde der Block in jedem Szenario, z. B. in
    den Orakeln ohne `building`). Vorlagen werden in aufsteigender Pfadtiefe angewandt (`energy` vor
    `energy.carriers`). Der Platzhalter `{id}` in Pfaden von `ref`- und `expr`-Knoten der Vorlage wird durch die
-   Element-id ersetzt (z. B. `price_eur_kwh: {ref: market.energy_price.{id}}`). Herkunft `source_type = "global"`,
+   Element-id ersetzt (z. B. `price_eur_kwh: {ref: "market.energy_price.{id}"}`; in Flow-Notation MUSS ein Pfad mit
+   `{id}` gequotet werden, weil `{` sonst eine Flow-Map öffnet, R-118). Herkunft `source_type = "global"`,
    `layer = 1`, `entry = "global#item_defaults.<pfad>"`. `from:`-Verweise in einer Vorlage werden vor ihrer Anwendung
    nach den Regeln von Schicht 3 aufgelöst (4.9; Herkunft dann `entry` = Bibliotheks-id, Gültigkeitsprüfung zum
    Rechtsstand der Variante).
@@ -1321,7 +1343,13 @@ Elemente hinzufügen). Sie setzen nur **fehlende** Domänenblätter oder lösen 
 `funding.<f>.approval_timing`); ein fehlendes Feld behandeln sie wie `auto`. Sie schreiben Werte, Codes, `ref`- oder
 `expr`-Knoten (Bezüge dürfen auf Blätter zeigen, die erst `item_defaults` füllt), **nie** aus overlay-fähigen
 numerischen Blättern berechnete Konstanten (analog 4.12 Nr. 5); deterministische Termine, Codes, Flags und
-`bctx$legal()`-/`bctx$lib()`-Werte dürfen sie auswerten. Sie sind deterministisch und ziehen keine Zufallszahlen.
+`bctx$legal()`-/`bctx$lib()`-Werte dürfen sie auswerten. **Ausnahme (R-113):** Einen **Enum-Code** (Feld ohne
+Overlay- und Designfähigkeit, 4.12 Nr. 5 (a)) dürfen sie auch aus Basisfallwerten numerischer Blätter ableiten
+(`bctx$value_base()`, n = 1, Stand der Schichten 0–8 und der bereits gelaufenen Regeln; Blätter, die erst
+`item_defaults` füllt, gelten als fehlend); Herkunft `rule:<name>`. Ein Overlay auf ein dabei gelesenes Blatt ändert
+den Code nicht; die Regel meldet die Ableitung als Hinweis (I). Beispiel: `rule:measure_catalog` setzt
+`modernization_kind: none` bei einem Ohnehin-Anteil von 1 im Basisfall (Spec 01 Teil A §4.5.1 Nr. 6). Sie sind
+deterministisch und ziehen keine Zufallszahlen.
 Herkunft `source_type = "type_default"`, `layer = 0`, `entry = "rule:<name>"` bzw. die Bibliotheks-id, aus der der
 Wert stammt. Ableitungsregeln sind **keine** Registry-Regeln (Art `rule`, 5.3); ein Paket, das ihr Ergebnis braucht,
 liest das abgeleitete Domänenblatt. Die Regelliste mit Name, Zielfeld und Ableitung legt Spec 01 fest (Teil A §1.4,
@@ -1360,7 +1388,8 @@ is_value_form <- function(x, path = "") {                     # R/utils-merge.R 
   #      series_year {series*, fill, before}              points {years*, values*, interpolate}
   #      schedule {schedule*, unit}                       growth {start*, growth*, base_date, real, index}
   #      quantity {value*, per*}                          dist {dist*, base, <Verteilungsparameter>}
-  #      from {from*, use, ...} (Bibliotheksverweis, wird in Schicht 3 aufgelöst)
+  #      from {from*, use, ...} (Bibliotheksverweis, wird in Schicht 3 aufgelöst) – NUR wenn der Wert von from eine
+  #      Bibliotheks-id nach 4.9 ist; sonst ist x keine Wertform und der Schlüssel from ein Validierungsfehler (R-110)
 }
 ```
 
@@ -1369,7 +1398,8 @@ is_value_form <- function(x, path = "") {                     # R/utils-merge.R 
   Ganzes. Eine Override-Map, die keine Wertform ist (z. B. `{fill: zero}` oder `{scale: 2}`), wird in eine
   Basis-Wertform gemischt. Ein Kreditbaustein mit dem Parameter `start` (8.2) ist keine Wachstumsform, weil weitere
   Schlüssel vorhanden sind bzw. die Schema-Art des Pfads entscheidet; `overrides: {financing: {bank: {start: 2028}}}`
-  mischt also nur den Termin.
+  mischt also nur den Termin. Termin- und Ereignisparameter heißen nie `from` (R-110): `overrides: {components: {r:
+  {start_event: 2028}}}` mischt den Beginn eines `recurring`-Bausteins; eine Map `{from: 2028}` wäre ein Fehler.
 - Schicht 8 auf einen Pfad, der Ziel eines Overlay-Eintrags ist, macht diesen Pfad für den Lauf deterministisch
   (Overlay-Bindung entfällt, `vofi_inform`). Dasselbe gilt für `set`/`replace` einer Variante (Schicht 7) auf ein
   Overlay-Ziel, sofern die Variante den Overlay-Eintrag nicht selbst neu setzt. Varianten und Sets dürfen
@@ -1437,9 +1467,23 @@ Spec 01 Teil C §3.1 fest.
 weitere lokale Schlüssel neben `from` und `use` sind dann ein Validierungsfehler (R-87). Die Herkunft erhält `entry`,
 `valid_from`, `valid_to`, `as_of`, `accessed`, `quality` (bzw. die Stufe aus `quality_detail`).
 
+- **`from` ist reserviert (R-110):** Der Schlüssel `from` bezeichnet in allen Dateien (Szenario, Defaults, Profile,
+  Bibliothek, Overlay, Varianten- und Set-Operationen) **ausschließlich** den Bibliotheksverweis. Sein Wert MUSS eine
+  Bibliotheks-id sein (Muster `^[a-z][a-z0-9_]*(/[a-z0-9_]+)+$`, erster Teil = Ordner der Bibliothek, z. B.
+  `funding/kfw_261_eh55`). Termin- und Ereignisparameter heißen `start_event` (z. B. `recurring.start_event`,
+  `equity.start_event`, `building.maintenance.start_event`, `energy.<zustand>.start_event`,
+  `funding.<f>.interest_subsidy.start_event`; Werte unverändert: Datum, Jahr oder Token `completion`, 3.9); `to`,
+  Schlüssel wie `occupancy_from` und die Formalargumente interner R-Funktionen (`grid_overlap()`, `ctx$overlap()`,
+  `ctx$shift_overlap()`, `ctx$shift_months()`; keine YAML-Schlüssel) bleiben. Eine Map mit dem Schlüssel `from`, dessen Wert keine Bibliotheks-id ist
+  (z. B. `from: completion`, `from: 2027-10-01`), ist der Validierungsfehler `validation.library.ref_not_id` mit dem
+  Hinweis „Termine heißen `start_event`“; eine id nach dem Muster ohne Eintrag ist E (unbekannter Eintrag). Typen
+  dürfen keine Parameter `from` oder `use` deklarieren (Registrierungsfehler C3, 5.6).
 - **Nutzlasten von `processes/*`** dürfen eine Map mehrerer Overlay-Vorlagen sein (Auswahl mit `use:`) bzw. eine
   Sequenz von Korrelationspaaren (ersetzt die lokale Liste nach der Regel oben) (R-87, 4.3.15). R-13 (ein Eintrag je
-  Datei) bleibt unberührt.
+  Datei) bleibt unberührt. Overlay-Einträge (`stochastic.parameters.<key>`, `stochastic.processes.<key>`) sind Maps
+  nach 4.3.15, keine Wertformen: Eine Vorlage als Nutzlast (z. B. `{dist: pert, …}`) wird **unter** die lokalen
+  Schlüssel (`target`, `label`, `apply`, …) gemischt (lokal gewinnt, Spec 01 Teil C §1.1 Nr. 6); die Regel „Wertform
+  ersetzt den Knoten, lokale Zusatzschlüssel sind ein Fehler“ gilt dort nicht (Klarstellung Runde 4, R-119).
 - **Verweise außerhalb von Schicht 3:** `from:`-Verweise in Operationen von Varianten und Szenario-Sets (`add`, `set`,
   `replace`, `overrides`) und in `item_defaults` werden nach der jeweiligen Operation mit denselben Regeln aufgelöst
   (4.7, 4.11; Herkunft Schicht 7 bzw. 1 mit `entry`).
@@ -1470,7 +1514,13 @@ Konzept 5.4, R-80).
   (`quality_detail`) unter der Eintragsstufe liegt (C oder D in einem A/B-Eintrag), MUSS dieser Teil ein eigener
   `legal/*`-Eintrag mit eigenem `topic` sein (z. B. `mietrecht_559f`), damit die Freigaberegel greift. Teile, die nur
   auf ausdrückliche Nutzerangabe wirken (Schalter wie § 5b-Neubau, § 5d-Härtefall, Havarie-Übergang § 5a), sind
-  ausgenommen.
+  ausgenommen. Ebenfalls ausgenommen sind **Auslegungs- und Modellannahmen**, die Spec 01 als Default eines
+  Nutzerfelds dokumentiert (Quelle (R) der Feldtabelle; z. B. `mietrecht.interpretation.*` als Defaults von
+  `unit_groups.<g>.rent_law.drittmittel_attribution`, `.flat_559e_order`, `.hp_reduction_order`, `.section43_flat`
+  und `s558.funding_deduction_duration_grant_years` als Default von `.kuerzung_grant_years`, Teil B §1.3): Sie bleiben
+  im Eintrag, tragen ihre Stufe in `quality_detail`, erscheinen mit dieser Stufe in der Herkunft (4.8) und im
+  Annahmenprotokoll (Spec 01 Teil C §3.2) und werden durch eine Nutzerangabe ersetzt. Im Gesetz bestimmte Sätze,
+  Beträge, Fristen und Kappungen fallen nicht unter diese Ausnahme (R-116).
 - **Gültigkeitsende und Fortgeltung (R-88):** `valid_to` wird nur gesetzt, wenn die Rechtsquelle tatsächlich endet
   (Außerkrafttreten, Programmende, Befristung). Gelten Werte bis zu einer Neufassung fort (z. B. Emissionsfaktoren
   GEG Anlage 9), trägt der Eintrag `valid_to: null` und in `notes` den Prüfpunkt der
@@ -1487,7 +1537,7 @@ variants:
     label: "<deutsch>"             # Pflicht
     description: "<deutsch>"
     extends: base                  # Default base; Kette erlaubt, Zyklus = Fehler
-    set:     {<pfad>: <wert>}      # Pfad MUSS in der Elternvariante existieren; Maps werden gemischt
+    set:     {<pfad>: <wert>}      # Pfad MUSS in der Elternvariante existieren (Vorlagen-/Regelfelder: R-112); Maps werden gemischt
     replace: {<pfad>: <wert>}      # Pfad MUSS existieren; Teilbaum wird ersetzt
     add:     {<sammlung>.<id>: {...}}   # id DARF NICHT existieren
     remove:  [<pfad>, ...]         # Pfad MUSS existieren
@@ -1495,6 +1545,13 @@ variants:
 ```
 
 - Ausführungsreihenfolge je Variante: Eltern auflösen → `remove` → `replace` → `set` → `overrides` → `add`.
+- **Existenz von Vorlagen- und Regelfeldern (R-112):** Für `set` und `overrides` (nicht für `replace` und `remove`)
+  gilt ein Pfad auch dann als vorhanden, wenn sein Elternelement existiert und das Blatt ein Feld der Feldtabellen von
+  Spec 01 bzw. der Vorlage in `item_defaults` ist, das erst eine Ableitungsregel oder `item_defaults` füllt (z. B.
+  `measures.wp.cost_factor`, `measures.wp.useful_life_years`, `building.maintenance.rate_eur_m2_pa`,
+  `funding.<f>.approval_probability`). Der gesetzte Wert ist ein Blatt der Schicht 7 und bleibt erhalten, weil
+  Ableitungsregeln und Vorlagen nur fehlende Blätter füllen. Ein Pfad, der weder existiert noch ein solches Feld ist,
+  bleibt ein Fehler. Dasselbe gilt für die Operationen von Szenario-Sets (innerhalb ihrer zulässigen Blöcke).
 - **Bibliotheksverweise in Operationen (R-87):** `from:`-Verweise in `add`, `set`, `replace` und `overrides` von
   Varianten und Szenario-Sets werden nach der Operation mit den Regeln von Schicht 3 aufgelöst (4.9; Herkunft
   Schicht 7, `entry`). So kann eine investive Variante ein Förderinstrument `{from: funding/…}` hinzufügen.
@@ -1741,7 +1798,7 @@ normalisiert sie selbst (`node_normalize()`), setzt Defaults (Schicht 0) ein und
 | | `simulate` | `simulate(par, z, u, years, linked)` → n × length(years); `par`: Liste, Elemente Skalar oder n-Vektor (unsichere Prozessparameter); `z`: n × (length(years) − 1) Standardnormal-Schocks oder `NULL`; `u`: n × `n_uniforms` oder `NULL`; `linked`: benannte Liste n × length(years); Attribut `"scenario"` (integer n) optional |
 | | `expected` | `expected(par, years)` → numeric(length(years)) bei Punktparametern |
 | | `n_shocks`, `n_uniforms` | `n_shocks(par)` → 0 oder 1; `n_uniforms(par)` → integer ≥ 0; beide hängen **nur von der Struktur** ab (z. B. „`noise` vorhanden“), nie von Parameterwerten, damit Stromzuordnung und Plan-Hash von Variantenparametern unabhängig sind (R-93) |
-| | `quantile_path` (optional) | `quantile_path(par, years, p)` → numeric(length(years)): Randquantil der Ausgabe je Jahr zum Niveau p ∈ (0, 1) bei Punktparametern; geschlossen nach Spec 01 Teil C §4.3 für `ar1`, `linked_ar1`, `vasicek` (mit `floor`), `mr_trend`, `gbm`, `scenario_mix`, `iid`; `fixed_path` hat keine. Prozesse ohne `quantile_path` sind keine Kandidaten des Sets „vorsichtig“ (R-95) |
+| | `quantile_path` (optional) | `quantile_path(par, years, p)` → numeric(length(years)): Randquantil der Ausgabe je Jahr zum Niveau p ∈ (0, 1) bei Punktparametern; geschlossen nach Spec 01 Teil C §4.3 für `ar1`, `linked_ar1`, `vasicek` (mit `floor`), `mr_trend`, `gbm`, `scenario_mix`, `iid`; `fixed_path` hat keine. Prozesse ohne `quantile_path` sind keine Kandidaten des Sets „vorsichtig“ (R-95). Bei Prozessen mit `linked` übergibt der Aufrufer (`smp_design()`, `cmp_cautious()`) in `par$.base = list(type, par, rho)` Typ, Punktparameter und Schockkorrelation des Basisprozesses (bei verketteten Prozessen rekursiv mit dessen `.base`); Elementnamen von `par` mit führendem Punkt sind reserviert. Ist kein geschlossener Quantilpfad möglich (z. B. `linked_ar1` ohne Gaußbasis), liefert die Funktion `rep(NA_real_, length(years))`; der Prozess ist dann weder Kandidat noch Designspalte (I `validation.scenario_set.quantile_path_unavailable`, R-114) |
 | `kpi` | `compute` | `compute(core, ctx)` → `vofi_kpi_value` (12.1) |
 | | `unit`, `shape`, `rv_variant`, `higher_is_better`, `mc_default`, `requires` | `unit` ∈ units.yaml; `shape` `"scalar"`/`"series"`; `rv_variant` lgl; `higher_is_better` lgl oder `NA`; `mc_default` lgl; `requires` ⊆ `c("opportunity", "market_value", "household_income", "living_area", "tenant_data")` |
 | `tax` | `constructor` | `constructor(params, spec)` → Modulobjekt (10.2) |
@@ -1851,7 +1908,7 @@ Die Testhelfer in `tests/testthat/helper-*.R` (15.1) sind dünne Hüllen um dies
 |---|---|---|
 | C1 | alle | Namensmuster, Eindeutigkeit, gültige Art, Version ganzzahlig |
 | C2 | alle | Pflichtfunktionen vorhanden, exakte Formals |
-| C3 | alle | Parameterschema gültig; keine reservierten Metafeldnamen (4.3.8) als Parameter; `example` erfüllt das Schema; `domain_reads` ⊆ zulässige Blöcke (5.2) |
+| C3 | alle | Parameterschema gültig; keine reservierten Metafeldnamen (4.3.8) und keine Parameter `from`, `use` (Bibliotheksverweis, 4.9, R-110); `example` erfüllt das Schema; `domain_reads` ⊆ zulässige Blöcke (5.2) |
 | C4 | alle | Labels vorhanden: `types.<kind>.<name>.label`, `.description`, je Parameter `.params.<p>.label`, je Zeile bzw. Zeilenmuster `.rows.<r>` (Nutzertypen: Literale) |
 | F1 | flow | `build(example)` liefert `vofi_flows` für alle n und beide Raster |
 | F2 | flow | jede Zeile `dim == c(n, T + 1)`, `storage.mode == "double"`, nur endliche Werte |
@@ -1862,7 +1919,7 @@ Die Testhelfer in `tests/testthat/helper-*.R` (15.1) sind dünne Hüllen um dies
 | F7 | flow, instrument, kpi, rule | **Batch-Invarianz:** Lauf i eines Batches mit n = 7 ist identisch (≤ 1e-12 relativ) zum Einzellauf (n = 1) mit den Ziehungen von Lauf i |
 | F8 | flow, instrument, action, kpi, expander | **kein RNG:** `.Random.seed` vor und nach dem Aufruf identisch |
 | F9 | flow | Zeilen der Kategorien `residual_value`, `sale_cost` sind nur in Spalte T+1 ungleich 0 |
-| F10 | flow mit `grid_invariant = TRUE` | Summe der Perioden je Kalenderjahr auf dem Raster `mixed` = Jahreswert auf dem Raster `annual` (1e-9 relativ), für alle Kalenderjahre, die beide Raster vollständig abdecken; auch mit Wachstum ≠ 0 (Kalenderjahresindex, 3.6). Das `example` MUSS rasterabhängige Termin-Defaults (z. B. `from = completion_date`) explizit setzen |
+| F10 | flow mit `grid_invariant = TRUE` | Summe der Perioden je Kalenderjahr auf dem Raster `mixed` = Jahreswert auf dem Raster `annual` (1e-9 relativ), für alle Kalenderjahre, die beide Raster vollständig abdecken; auch mit Wachstum ≠ 0 (Kalenderjahresindex, 3.6). Das `example` MUSS rasterabhängige Termin-Defaults (z. B. `start_event = completion_date`, R-110) explizit setzen |
 | I1 | instrument | `init`/`step` über t = 0…T auf beiden Rastern; `flows`/`memo`/`stocks` vollständig, n-Vektoren |
 | I2 | instrument | Vorzeichen: `draw ≥ 0`, übrige Flüsse ≤ 0, Merkzeilen ≥ 0, `balance ≥ -stock_abs` |
 | I3 | instrument | Bestandsfortschreibung: B_t = B_{t−1} + D_t − T_t − TB_t − ST_t − TZ_t (D_t Nennbetrag) |
@@ -1875,7 +1932,7 @@ Die Testhelfer in `tests/testthat/helper-*.R` (15.1) sind dünne Hüllen um dies
 | P1 | process | `simulate()` liefert n × length(years); Spalte 1 = Startwert |
 | P2 | process | σ = 0 bzw. entartete Parameter: `simulate()` == `expected()` (1e-12) |
 | P3 | process | Mittelwert der Simulation innerhalb 4 SE von `expected()`, wo definiert |
-| P4 | process mit `quantile_path` | monoton nicht fallend in p; σ = 0: `quantile_path(par, years, p) == expected(par, years)` (1e-12); empirisches p-Quantil der Simulation je Jahr innerhalb 4 SE (R-95) |
+| P4 | process mit `quantile_path` | monoton nicht fallend in p; σ = 0: `quantile_path(par, years, p) == expected(par, years)` (1e-12); empirisches p-Quantil der Simulation je Jahr innerhalb 4 SE (R-95). Bei Prozessen mit `linked`: Aufruf mit `par$.base` aus `example$.base` (Fall `linked_ar1` auf `ar1`-Basis) und empirischer Vergleich mit der gemeinsamen Simulation von Basis- und abhängigem Prozess; `NA` nur ohne Gaußbasis zulässig (R-114) |
 | K1 | kpi | `compute(core, ctx)` mit `core <- reg_example_core(n = 7L)` und zugehörigem `ctx` liefert `vofi_kpi_value` mit n Werten; NA nur mit Code aus `na_reasons.yaml` |
 | T1 | tax | Modul mit Nullparametern liefert den Vor-Steuer-VoFi exakt (10.10) |
 
@@ -2008,7 +2065,7 @@ liefert `list(kind = "expr", text, ast)`; R-91). Ziehungen gibt es im Build nich
 `scn_bctx(spec, grid)` in `R/scenario-layers.R` (WS-A); die Knotenkonstruktoren stehen in `R/values-normalize.R`
 (WS-A). `rule()`/`legal()` nur auf deterministische Eingaben (4.12 Nr. 5). `value_base()` dient ausschließlich
 deterministischen Ableitungen nach 4.12 Nr. 5 (a) (Gewichte von `draw_schedule`, Anzeige-Tags wie `measure_id`,
-Registerfelder); ein Ergebnis von `value_base()` als Wert eines overlay-fähigen Parameters ist ein Vertragsverstoß.
+Registerfelder, Enum-Codes der Ableitungsregeln nach 4.7, R-113); ein Ergebnis von `value_base()` als Wert eines overlay-fähigen Parameters ist ein Vertragsverstoß.
 
 ---
 
@@ -2276,7 +2333,7 @@ Bestände folgen in `stocks` in der Reihenfolge Kredite (k), `od_balance`, `odp_
 
 | Steuer | Abbildung | Typ / Kategorie | Tags |
 |---|---|---|---|
-| Grunderwerbsteuer | Satz je Bundesland aus `legal/grunderwerbsteuer` (Gültigkeit), Bemessung Kaufpreis bzw. Gegenleistung (Schalter `uniform_contract` bezieht die Bauleistung ein), Freigrenze 2.500 €, Zeitpunkt Erwerb | `acquisition_cost` (Regel `rule_grest`) | `is_tax = "grunderwerbsteuer"`, `tax_category = acquisition_ancillary`, `asset_id` |
+| Grunderwerbsteuer | Satz je Bundesland aus dem Thema `grunderwerbsteuer` (Eintrag `legal/grunderwerbsteuer_2026`; Gültigkeit und Freigabe 4.10), Bemessung Kaufpreis bzw. Gegenleistung (Schalter `uniform_contract` bezieht die Bauleistung ein), Freigrenze 2.500 €, Zeitpunkt Erwerb | `acquisition_cost` (Registry-Regel `grest`, N-19) | `is_tax = "grunderwerbsteuer"`, `tax_category = acquisition_ancillary`, `asset_id` |
 | Grundsteuer | Jahresbetrag (direkt oder Messbetrag × Hebesatz) mit Fortschreibung; beim Vermieter umlagefähig, **kostenwirksam** nur im Leerstandsanteil, in der Bauphase und bei Selbstnutzung | `property_tax` | `is_tax = "grundsteuer"`; umgelegter Teil nur als Merkzeile `tenant_operating_cost` |
 | Umsatzsteuer | Bestandteil der Bruttokosten | `vat_rate` je Zeile | `is_tax = "umsatzsteuer"` nur für reine USt-Zeilen (v2) |
 
@@ -2287,15 +2344,15 @@ Orakeln und Referenzszenarien benutzt. Ihre Parameter sind Teil dieses Vertrags.
 
 | Typ | Art / Block | Parameter (Art, Default) | Zeilen |
 |---|---|---|---|
-| `equity` | flow, im Block `financing` | `amount_eur` (amount, 0; einmalige Einlage), `date` (timing, `valuation_date`), `contributions` (schedule, Beträge ≥ 0), `contributions_pa` (value, Jahresbetrag, 0), `withdrawals` (schedule, Beträge ≥ 0), `withdrawals_pa` (value, 0), `from`/`to` (timing, `valuation_date`/`end_date`; nur für `*_pa`) | `in` (equity/`equity_in`), `out` (equity/`equity_out`, negativ gebucht) |
+| `equity` | flow, im Block `financing` | `amount_eur` (amount, 0; einmalige Einlage), `date` (timing, `valuation_date`), `contributions` (schedule, Beträge ≥ 0), `contributions_pa` (value, Jahresbetrag, 0), `withdrawals` (schedule, Beträge ≥ 0), `withdrawals_pa` (value, 0), `start_event`/`to` (timing, `valuation_date`/`end_date`; nur für `*_pa`; R-110) | `in` (equity/`equity_in`), `out` (equity/`equity_out`, negativ gebucht) |
 | `custom_series` | flow | `values` (value, Shape path: **Periodenbeträge ohne Δ-Skalierung**, Pflicht), `section` (enum `project`/`grants`/`memo`, `project`), `category` (Kategorie des Abschnitts, `custom`), `tax_category` (nicht `principal`), `cash` (in `memo` stets `FALSE`), `kind`, `unit` (Defaults der Kategorie) | `value` |
-| `recurring` | flow | `amount_eur` (amount ≥ 0, Shape scalar, Jahresbetrag in Preisen von `base_date`, Pflicht), `growth` (value, 0), `base_date` (timing, Preisstand nach `project.price_base_year`), `from` (timing, Token `completion`), `to` (timing, `end_date`), `category` (Kategorie der Abschnitte `project`/`grants`, `other_cost`), `direction` (enum `inflow`/`outflow`, nur bei ±-Kategorien), `tax_category` | `value` = ± `amount_eur` · `index_year(growth, base_date)` · Δ_t · `shift_overlap(from, shift, to)` (Kalenderjahresindex, 3.6; Verschiebung, 3.9); `grid_invariant = TRUE` |
+| `recurring` | flow | `amount_eur` (amount ≥ 0, Shape scalar, Jahresbetrag in Preisen von `base_date`, Pflicht), `growth` (value, 0), `base_date` (timing, Preisstand nach `project.price_base_year`), `start_event` (timing, Token `completion`; R-110), `to` (timing, `end_date`), `category` (Kategorie der Abschnitte `project`/`grants`, `other_cost`), `direction` (enum `inflow`/`outflow`, nur bei ±-Kategorien), `tax_category` | `value` = ± `amount_eur` · `index_year(growth, base_date)` · Δ_t · `shift_overlap(start_event, shift, to)` (Kalenderjahresindex, 3.6; Verschiebung, 3.9); `grid_invariant = TRUE` |
 
 Wachstum wird bei `recurring` ausschließlich über `growth` angegeben (eine Wachstumsform in `amount_eur` ist ein
 Validierungsfehler). Der Index ist innerhalb eines Kalenderjahres konstant (R-62); damit ist die Jahressumme auf jedem
 kalenderjahrbündigen Raster identisch (F10), auch bei Wachstum ≠ 0. Beispiel Orakel (b): `amount_eur: 14000`,
 `growth: 0.02`, `base_date: 2028-01-01`, `category: rent` ergibt 14.000 · 1,02^(t−1) für t = 1…10. Prüfwert F10
-(`amount_eur: 14000`, `growth: 0.02`, `base_date` = Stichtag 2027-01-01, `from` = Stichtag): Jahressumme 2027 auf dem
+(`amount_eur: 14000`, `growth: 0.02`, `base_date` = Stichtag 2027-01-01, `start_event` = Stichtag): Jahressumme 2027 auf dem
 Raster `annual` und auf dem Raster `mixed` jeweils 14.280,00 (eine Indexierung zum Periodenende ergäbe auf `mixed`
 14.157,09). Ohne ausdrückliche Kategorie meldet die Validierung für `wu_*` einen Hinweis („Kategorie `other_cost`
 angenommen“); `other_cost` ist NOI-relevant (7.6).
@@ -3362,8 +3419,9 @@ Bedeutung der Spalten (R-94, R-95):
   Schritt 1) gilt wie in der MC (bei `multiply` ist x der Faktor, bei `add` der Zuschlag). Bei Kurzformen ist der
   Schlüssel der Zielpfad und `apply = replace`, beide Lesarten stimmen überein.
 - **Prozessparameter** `<proc>.<param>`: erzeugt je Zeile den Pfad `expected(par_zeile, years)`.
-- **Prozessschlüssel** `<proc>` mit Wert p ∈ (0, 1): setzt den Pfad `quantile_path(par, years, p)` (5.3); Prozesse
-  ohne `quantile_path` sind keine Designspalten.
+- **Prozessschlüssel** `<proc>` mit Wert p ∈ (0, 1): setzt den Pfad `quantile_path(par, years, p)` (5.3; bei
+  Prozessen mit `linked` mit `par$.base`, R-114); Prozesse ohne `quantile_path` bzw. mit Rückgabe `NA` sind keine
+  Designspalten (I `validation.scenario_set.quantile_path_unavailable`).
 Zeile 1 ist der Basisfall. Ein Tornado mit k Parametern ist **ein** Lauf mit n = 1 + 2k Zeilen (Memo 04 §7.1). Werte
 für `low`/`high`: Default P10/P90 der Overlay-Verteilung des Ziels, sonst Basis × (1 ∓ `delta`). Basisfallgrößen
 (`auto`-Beträge, `ctx$param_base()`, `ctx$component_base()`) bleiben in Design-Läufen fest (R-69, R-70). Eine
@@ -3984,7 +4042,7 @@ Für alle Beispielszenarien und Orakel deterministisch sowie für **alle** Läuf
 | MC-Ergebnisse | Replikat-SE mit R = n_sim / `block_size` (Kennzeichnung „grob“ bei R < 10), Quantile, ES, Konvergenz, `keep_runs`, Kompositum und bedingte Statistik (9.11) | WS-G |
 | Vergleich, Ampel, Zielwertsuche | Orakel (g) und V1; Vergleichbarkeit trotz ungleicher Nachschüsse; Referenzpflicht im Bestand (12.3a); Ampel-Fälle je Basis (`mc`, `cautious`, `base_only`), Restwertregel und K.-o.-Deckel (12.9); Set „vorsichtig“ = ungünstige Tornado-Werte; `vofi_solve()` mit Schwellen-Ziel, Monotonieprüfung und `incremental_return` (12.8) | WS-G |
 | Bestand und Restwertpfad | Prüffall Sacheinlage (9.5); `dscr_min` vs. `dscr_min_new` mit Bestandsdarlehen; `payback_time` mit `residual_path` (W_t) und ohne Restwert; RW_T(method) = Restwertzeilen in T (4.12 Nr. 8) | WS-T, WS-D2, WS-E |
-| Eingabe | YAML-Handler (4.6), Deep-Merge, `~`, `.replace`, `from:`-Ketten und Zyklen, Gültigkeitswarnungen, Varianten-Existenzprüfungen, Expander-Referenzen, Round-Trip YAML ↔ XLSX, Vorlage = generierte Vorlage | WS-A, WS-A2 |
+| Eingabe | YAML-Handler (4.6), Deep-Merge, `~`, `.replace`, `from:`-Ketten und Zyklen, `from` nur mit Bibliotheks-id (R-110: `components.r: {type: recurring, from: completion}` und `building.maintenance: {from: 2028-01-01}` → `validation.library.ref_not_id` mit Hinweis `start_event`; `overrides: {components: {r: {start_event: 2028}}}` mischt den Termin), Existenz von Vorlagen- und Regelfeldern (R-112, Teil A XM13), Gültigkeitswarnungen, Varianten-Existenzprüfungen, Expander-Referenzen, Round-Trip YAML ↔ XLSX, Vorlage = generierte Vorlage | WS-A, WS-A2 |
 | Validierung | jede Meldung in `validation.yaml` wird mindestens einmal ausgelöst | WS-B |
 | Labels | jeder in `R/` verwendete Schlüssel (`lbl("…")`, `msg("…")`, `vofi_abort("…")`) existiert; jede Typdatei hat ihre Pflichtlabels | I |
 | ASCII | Code-Token aller Dateien in `R/` sind ASCII: `utils::getParseData(parse(f, keep.source = TRUE))`, geprüft werden alle Token außer `COMMENT` (insbesondere `STR_CONST`, `SYMBOL`, `SYMBOL_FUNCTION_CALL`); deutsche Kommentare und roxygen-Doku sind erlaubt (2.7 Nr. 1). Ergänzend muss `R CMD check` die Prüfung „non-ASCII characters“ bestehen | I |
@@ -4166,6 +4224,16 @@ Spec 01; Einzelnachweis in 17.5):
 | R-107 | Pflichtsensitivitäten | S01C-09 | `value` darf eine Wertform sein und ersetzt den Knoten einschließlich `anchor`; `delta` wirkt bei `anchor` auf den Anker; Ausführung als Override in Schicht 8 (4.3.14) |
 | R-108 | Komponenten-Zeitwert | F-09 | ohne Indexierung nominaler Buchwert der letzten Investition × Restanteil, mit Indexierung zusätzlich Baupreisindex; Prüfwert RV8 = 82.853,16 (4.12 Nr. 8; Spec 01 Teil A §6.7) |
 | R-109 | Abgelehnte Anträge | S01A-08 (Umlenkung von Overlay-Zielen), S01C-15 (`shared` in Szenario-Sets) | keine stille Umlenkung (Pfad-Identität, R-16): Ziel auf abgeleitetes `cost_eur` bzw. auf `remaining_life_years` bei Methode ≠ `manual` ist ein Validierungsfehler mit Vorschlag des Ersatzziels; Szenario-Sets bleiben auf die Umfeldpfade beschränkt, szenarioeigener `market`-Pfad als Muster (4.11) |
+| R-110 | `from:` und Termine | K3-01 (Endprüfung: `from` zugleich Bibliotheksverweis und Terminparameter von `recurring`, `equity`, `building.maintenance`, `energy.<zustand>`, `interest_subsidy`; S2, S5 und Anhang B bei wörtlicher Umsetzung von 4.9 nicht ladbar) | **Orchestrator-Entscheidung:** `from` ist ausschließlich der Bibliotheksverweis, sein Wert eine Bibliotheks-id nach `^[a-z][a-z0-9_]*(/[a-z0-9_]+)+$`; alle Termin- und Ereignisparameter `from` heißen `start_event` (Werte unverändert; `to`, `*_from`-Felder, Formalargumente interner R-Funktionen wie `ctx$shift_overlap(from, months, to)` und der Regelname `rule:maintenance_from` bleiben); `{from: <keine id>}` = E `validation.library.ref_not_id` mit Hinweis auf `start_event`; `is_value_form` erkennt `from` nur mit id; C3 verbietet Parameter `from`/`use` (3.9, 4.5, 4.7, 4.9, 5.6, 7.12, Anhang B; P0-11, P0-12) |
+| R-111 | Bezugstermin von `approval_timing: auto` | K3-02, S01B-14 (Spec 00: Maßnahmen der Variante, Teil B: Maßnahmen des Instruments; S4 V1 `bafa_2030`, `kfw358_*`) | **Orchestrator-Entscheidung:** frühester Termin der Maßnahmen **des Instruments** (`funding.<f>.measures`; `date`, `year` = 1. Januar, erster Termin eines Zahlungsplans, ohne Verschiebung); Instrument ohne Maßnahmen: frühester Termin aller Maßnahmen der Variante, ohne Maßnahmen `before_start`; W „förderschädlicher Vorhabenbeginn“ nur bei einem Antrag nach diesem Termin und ohne ausdrückliches `before_start` (ein ausdrückliches `before_start` erklärt den Vorhabenbeginn nach dem Antrag, z. B. wenn `year` nur den Zahlungsansatz zum 1. Januar beschreibt, S3 V2); kein W bei ausdrücklichem `after_start` mit rechtzeitigem Antrag (Zusage erst nach Vorhabenbeginn, S4 `bafa_2033`) (4.3.7; Teil B §4.2, §4.9, §5.5) |
+| R-112 | Existenz von Vorlagen- und Regelfeldern | S01A-10 | `set` und `overrides` von Varianten und Sets (nicht `replace`/`remove`): ein Pfad gilt als vorhanden, wenn sein Elternelement existiert und das Blatt ein Feld der Feldtabellen von Spec 01 bzw. der `item_defaults`-Vorlage ist; der gesetzte Wert ist ein Blatt der Schicht 7 und bleibt, weil Regeln und Vorlagen nur fehlende Blätter füllen (4.11; P0-13) |
+| R-113 | Codes aus Basisfallwerten | S01A-11, X-09 | Ableitungsregeln dürfen einen Enum-Code (ohne Overlay- und Designfähigkeit) aus Basisfallwerten numerischer Blätter über `bctx$value_base()` ableiten (Schichten 0–8 und bereits gelaufene Regeln, n = 1); Herkunft `rule:<name>`; Overlays auf gelesene Blätter ändern den Code nicht (Hinweis); nie numerische Overlay-Blätter (4.7, 6.4) |
+| R-114 | Quantilpfad verknüpfter Prozesse | S01C-16 | `par$.base = list(type, par, rho)` für Prozesse mit `linked` (rekursiv), Elementnamen mit führendem Punkt reserviert; Rückgabe `NA` = kein Kandidat des Sets „vorsichtig“ und keine Designspalte (I `validation.scenario_set.quantile_path_unavailable`); P4 mit Fall `linked_ar1` auf `ar1`-Basis (5.3, 5.6, 11.11; P0-14) |
+| R-115 | Bezüge in ungelesenen Teilbäumen | K3-15 (`global.yaml`: `residual_value.<methode>.land_value_eur: {ref: building.land_value_eur}` auch in Szenarien ohne `building`) | Bezüge und Ausdruckssymbole lösen nur auf, wenn ihr Knoten gelesen wird; WS-B prüft Ziele in Komponenten- und Instrumentparametern, deren transitiven Zielen und den von Expandern und Ableitungsregeln ausgewerteten Domänenblättern (E `validation.ref_target_missing` bzw. `validation.expr.path_missing`); Teilbäume, die nach Methode bzw. Schalter niemand liest, bleiben ungeprüft (4.5 Regel 2, 2.10) |
+| R-116 | Freigabe je Teil: Auslegungsannahmen | K3-16 (`mietrecht.interpretation.*` und `s558.funding_deduction_duration_grant_years` mit Stufe D im A-Eintrag `legal/mietrecht_2026`) | Variante (a): Auslegungs- und Modellannahmen, die Spec 01 als Default eines Nutzerfelds dokumentiert, sind von der Pflicht zum eigenen `legal/*`-Eintrag ausgenommen; Stufe über `quality_detail` in Herkunft und Annahmenprotokoll; im Gesetz bestimmte Sätze, Beträge, Fristen und Kappungen nicht (4.10) |
+| R-117 | Validierungsnamensräume | K3-07, 01a OP-16 (N-17, N-20 verwenden `validation.residual.*`) | Sondernamensräume `residual` (Block `residual_value`, Typ `residual_value`, Expander `residual`; kein `validation.residual_value.*`) und `expr` (Ausdrucksparser, wie in Phase 0 umgesetzt); neuer blockübergreifender Schlüssel `validation.ref_target_missing` (2.10) |
+| R-118 | Defaults-Dateien (Ergänzung zu R-85, R-86) | K3-08, K3-09, K3-10, K3-11; Abstimmungspunkte 01b §10.2 | (a) Teilbäume einer Vorlage entstehen mit ihrem Block: `building.maintenance` (mit `enabled: true`) in jedem Szenario mit `building`, `energy.performance_gap` mit `energy`; `building.maintenance` ist kein eigener optionaler Block; (b) Pfade mit `{id}` in Flow-Notation quoten (`{ref: "market.energy_price.{id}"}`); (c) `rule:unit_group_defaults` umfasst die implizite Gruppe `main` (Bezüge), die II.-BV-Verwaltung bei `bound_social` bzw. Mietbindung und `lease_up_months: 3` bei Neubau (N-08a); (d) Inhalt der Standard-Sets nur in Spec 01 Teil C §4.2 (N-22) (4.7, 17.5.3) |
+| R-119 | Redaktionelle Restbefunde und Bereinigungen | K3-03 … K3-06, K3-12 … K3-14, K3-17 … K3-19, S01C-17; Zusatzprüfung Runde 4 (17.6.3) | Statusvermerke in Teil A (OP-16 bis OP-18, OP-20, §8.2, X-19), Teil B (§9 Nr. 18, 21–24, §10.1, §10.2) und 17.3 Nr. 1, Nr. 8 (c), (d) aktualisiert; `grest` und `legal/grunderwerbsteuer_2026` (7.11, 2.11), `prices/co2_price_paths_2026` (4.5), `test-mc-stats.R` (2.4), `unit` in der Zahlungsplanform (4.5), Merkzeile `repayment_grant` mit `measure_id` oder `funding_id` (Teil A §5.4), S4 V1 `energy.stages` über `replace`, Verweise N-07/N-09 auf Teil B §5.5, S5-Kommentar zum Horizont; zusätzlich Overlay-Vorlagen unter lokale Schlüssel gemischt (4.9), `approved: 1` in `item_defaults."funding"` (N-04, Teil B §7.1), Anhang B mit `building.land_value_eur`, Rebound-Vorlagen in Teil B nach Teil C §2.7, `quality_detail` von `legal/mietrecht_2026` um `s558.funding_deduction_duration_loan` ergänzt |
 
 ---
 
@@ -4179,6 +4247,7 @@ Spec 01; Einzelnachweis in 17.5):
 | 1.0.0 | 25.10.2026 | Überarbeitung nach Review Runde 1 (49 Befunde, 17.2); vor dem Einfrieren in Phase 0, daher ohne Versionssprung. Neue Auflösungen R-60 bis R-65 | alle |
 | 1.0.0 | 25.10.2026 | **Runde 2: Abgleich mit Konzept** (Konzept §11.1–11.3 und Konzept-Review-Protokoll; 21 Abgleichpunkte, 17.4); vor dem Einfrieren in Phase 0, daher ohne Versionssprung. Neue Auflösungen R-66 bis R-84; R-02 und R-14 ersetzt; Signaturänderungen in 14 Nr. 12, 15, 19, 20, 21 | alle; Schwerpunkte WS-D, WS-G, WS-D2, WS-C, WS-F, WS-E/E2, WS-A, WS-L, WS-T, Spec 01 |
 | 1.0.0 | 26.10.2026 | **Runde 3: Feldkatalog-Abgleich** (37 Änderungsanträge S01A-01–09, S01B-01–13, S01C-01–15 und 19 Befunde mit Spec-00-Bezug aus der Konsistenzprüfung von Spec 01; 17.5): 35 Anträge angenommen (davon 17 mit Änderung), 2 abgelehnt (S01A-08, S01C-15). Neue Auflösungen R-85 bis R-109; verbindliche Namens- und Eigentumsentscheidungen N-01 bis N-31 (17.5.3). Vor dem Einfrieren, daher ohne Versionssprung; die Änderungen sind additiv (MINOR/PATCH) bis auf den Vokabularbestand `measure_types` und die Auswertung der Wachstumsform, die bereits geschriebenen Phase-0-Code betreffen (**Phase-0-Nacharbeit**, 17.5.4) | I (Phase-0-Nacharbeit), WS-A, WS-B, WS-C, WS-D, WS-E, WS-E2, WS-F, WS-G, WS-L, WS-S, WS-T, Spec 01 A–C |
+| 1.0.0 | 26.10.2026 | **Runde 4: Restbefunde** (Endprüfung nach Runde 3: 2 major- und 17 minor-Befunde K3-01–K3-19, 5 neue Änderungsanträge S01A-10, S01A-11, S01B-14, S01C-16, S01C-17 und 3 Abstimmungspunkte; 17.6): alle 19 Befunde übernommen (K3-01 und K3-02 nach Orchestrator-Entscheidung, K3-15 und K3-16 in der vom Integrator gewählten Variante), alle 5 Anträge angenommen (S01A-10, S01A-11, S01C-16 mit Änderung). Neue Auflösungen R-110 bis R-119, Ergänzung N-08a. Vor dem Einfrieren, daher ohne Versionssprung; für bereits geschriebenen Code inkompatibel ist nur die Umbenennung des Terminparameters `from` → `start_event` (R-110); Phase-0-Nacharbeit gesamt (P0-01–P0-14) in 17.6.5 | I (Phase-0-Nacharbeit), WS-A, WS-B, WS-C, WS-E, WS-E2, WS-G, WS-L, WS-S, Spec 01 A–C |
 
 ### 17.2 Review-Befunde Runde 1 (zwei adversariale Reviews: Linse „finanz“ F-nn, Linse „software“ S-nn)
 
@@ -4253,7 +4322,7 @@ F-12, F-21, S-09, S-20), 0 abgelehnt.
    `performance_gap` (Strukturmodell), `funding.<id>.{approval_timing, fallback_variant, on_reject}`,
    PV-Begünstigungsattribut, Modus „warmmietenneutral“ in `rent_law`; Parameter `existing`, `installment_eur`,
    `rank`, `approved`, `repayment_grant.cut_share` der Kredittypen; Sets `foerderstopp` und `vorsichtig` in
-   `global.yaml`.
+   `global.yaml`. – **Erledigt** durch Spec 01 Teile A–C (Runde 3, 17.5; Restbefunde Runde 4, 17.6).
 2. **Option „Zinsen mit der Rate“** (`interest_payment`, F-12) und stochastische Kredittermine bleiben v2 (R-47);
    damit verschiebt ein Bauzeitverzug Bereitstellungszinsen in v1 nicht (dokumentierte Grenze zu Konzept 4.2).
 3. ~~Rate der eigenen Fehlbeträge der Unterlassungsalternative~~ – **erledigt** durch R-81 (Regelzins s bei
@@ -4271,11 +4340,14 @@ F-12, F-21, S-09, S-20), 0 abgelehnt.
    (9.11 Nr. 1); mehrstufige Entscheidungsbäume sind v2.
 8. **Neu aus Runde 3:** (a) Maßnahmentyp `sonnenschutz` (sommerlicher Wärmeschutz, BAFA-förderfähig) ist in v1 kein
    Katalogcode (N-01); Aufnahme als 38. Code nur über einen Antrag von Teil A mit Katalogzeile. (b) Automatische
-   Blockerweiterung bis zum Konvergenzkriterium (`converged`) ist v1.1 (R-97). (c) Energiepreis-Basisfall: Ob der
-   deterministische Pfad dem Erwartungswert des `mr_trend` folgt (Mean-Reversion zum Normalpreis, Befund F-08 von
-   Teil B/C), entscheidet Teil C mit der Bibliothek; Spec 00 stellt dafür `p_norm` und `quantile_path()` bereit (R-95).
-   (d) Regel `mr_levy_allowed`: Abbildung `bgb_559c` → `bgb_559` für die Ausschlussprüfung nach § 557a (N-06) ist
-   fachlich durch Teil B zu bestätigen.
+   Blockerweiterung bis zum Konvergenzkriterium (`converged`) ist v1.1 (R-97). (c) ~~Energiepreis-Basisfall~~ – **erledigt** (S01C-17,
+   R-119): Teil C hat entschieden, dass der deterministische Pfad dem Erwartungspfad der Mean-Reversion folgt (Spec 01
+   Teil C §2.4, §3.6, OP-19; Referenzszenarien mit `p_norm: base`); 11.9 bleibt richtig (der deterministische Wert ist
+   wegen des unsicheren Trends nicht der MC-Erwartungswert). (d) ~~Abbildung `bgb_559c` → `bgb_559` in
+   `mr_levy_allowed`~~ – **erledigt**: fachlich bestätigt in Teil B §5.2; der Freigabevermerk der Rechtsprüfung bleibt
+   Prüfpunkt von `legal/mietrecht_2026` (Teil C OP-22).
+9. **Neu aus Runde 4:** keine neuen offenen Punkte in Spec 00; die Umbenennung `from` → `start_event` und die übrigen
+   codewirksamen Entscheidungen stehen als Phase-0-Nacharbeit in 17.6.5 (P0-11 bis P0-14).
 
 ### 17.4 Runde 2: Abgleich mit dem Konzept (Einzelnachweis)
 
@@ -4394,12 +4466,13 @@ Die Bearbeiter der Teile A–C übernehmen diese Festlegungen wörtlich; bei Wid
 | N-01 | Maßnahmentypen (X-01, F-03) | einzige Quelle: 37 Codes Teil A §4.2. KfW 458 (vererbt an 459): `eligibility.measure_types: [heizung_waermepumpe_luft, heizung_waermepumpe_sole, heizung_pelletkessel, heizung_fernwaerme, heizungsverteilung]`. BAFA Hülle: `[daemmung_fassade, daemmung_dach_steil, daemmung_dach_flach, daemmung_oberste_geschossdecke, daemmung_kellerdecke, fenster, aussentueren]`. `sonnenschutz`, `heizung_tausch`, `daemmung_dach`, `daemmung_ogd`, `aussentuer` gibt es nicht | 01c §3.4; 01b §4.3.1 (unverändert E) |
 | N-02 | II. BV (X-05a) | Bibliotheks-id `costs/bewirtschaftung_ii_bv_2026` | 01a §2.2, §3.3, §8.2 |
 | N-03 | ImmoWertV-Bewirtschaftung (X-05b, F-17) | `use`-Schlüssel der Bibliothek gelten: `admin_per_unit_or_efh_eur_pa`, `admin_per_garage_eur_pa` | 01b §7.1 |
-| N-04 | Defaults von Teil B (X-06) | `unit_groups_defaults` → `item_defaults."unit_groups"`; `energy_defaults.carriers` → `item_defaults."energy.carriers"` (mit `price_eur_kwh: {ref: market.energy_price.{id}}`, `co2_price_eur_t`, `bio_premium_eur_kwh` als Bezüge); `energy_defaults.performance_gap` → `item_defaults."energy.performance_gap"`; `energy_defaults.pv` → `item_defaults."energy.pv"`; übrige `energy_defaults.*` → `item_defaults."energy"`; `funding_defaults` → `item_defaults."funding"` (`on_reject: balance`, `approval_timing: auto`, `payout_delay_months: 0`, `availability_after_2030: 0.7`); `payout_delay_months_tax_credit` → `rule:tax_credit_defaults` (12 bei `instrument_type: tax_credit`); `building_defaults.property_tax` → `item_defaults."building.property_tax"`; `scenario_sets.foerderstopp` bleibt gewöhnlicher Block. 01b §7.2 (Profiltabelle) entfällt (Inhalt N-08). `network_fee_eur_kwh` „falls der Marktname existiert“ → `rule:carrier_defaults` | 01b §7.1, §7.2, §1.2, §2.2, §3.2.1 (Spalten (G)/(P)); 01a §2.1, §2.2 (Datei = Vereinigung) |
+| N-04 | Defaults von Teil B (X-06) | `unit_groups_defaults` → `item_defaults."unit_groups"`; `energy_defaults.carriers` → `item_defaults."energy.carriers"` (mit `price_eur_kwh: {ref: "market.energy_price.{id}"}` – in Flow-Notation gequotet, R-118 –, `co2_price_eur_t`, `bio_premium_eur_kwh` als Bezüge); `energy_defaults.performance_gap` → `item_defaults."energy.performance_gap"`; `energy_defaults.pv` → `item_defaults."energy.pv"`; übrige `energy_defaults.*` → `item_defaults."energy"`; `funding_defaults` → `item_defaults."funding"` (`on_reject: balance`, `approval_timing: auto`, `payout_delay_months: 0`, `availability_after_2030: 0.7`; Runde 4: zusätzlich `approved: 1` als Domänenblatt, R-119); `payout_delay_months_tax_credit` → `rule:tax_credit_defaults` (12 bei `instrument_type: tax_credit`); `building_defaults.property_tax` → `item_defaults."building.property_tax"`; `scenario_sets.foerderstopp` bleibt gewöhnlicher Block. 01b §7.2 (Profiltabelle) entfällt (Inhalt N-08). `network_fee_eur_kwh` „falls der Marktname existiert“ → `rule:carrier_defaults` | 01b §7.1, §7.2, §1.2, §2.2, §3.2.1 (Spalten (G)/(P)); 01a §2.1, §2.2 (Datei = Vereinigung) |
 | N-05 | Defaults optionaler Blöcke (R-85) | Felder von `building`, `household`, `energy` (z. B. `building_id`, `building.maintenance`) stehen nur unter `item_defaults."building"` usw., nie als gewöhnlicher Block in `global.yaml`; Profile setzen keine Elementfelder | 01a §2.2 |
-| N-06 | Mietrechtliche Verfahrenscodes (X-08) | `levy_procedure` = `auto`, `bgb_559`, `bgb_559c`, `bgb_559e` (Aliase `559`, `559c`, `559e`, auch als Zahl gelesen); Bibliothekslisten (`s557a.excludes`, `s558.excludes_increases`, `rent_law.enables`) nur mit `bgb_procedure`-Codes; `mr_levy_allowed` vergleicht innerhalb der `bgb_`-Familie, `bgb_559c` zählt bei der Ausschlussprüfung als `bgb_559` (fachlich zu bestätigen, 17.3 Nr. 8 d); S1: `rent_law: {procedure: bgb_559}` | 01b §1.4, §1.9.2, §5.1, §8; 01c §3.5, S1 |
-| N-07 | Ableitungsregeln (R-86, X-07) | Eigentümer WS-A (`R/scenario-layers.R`); Namen: Teil A `rule:tax_regime`, `rule:report_mode`, `rule:dates`, `rule:price_base_year`, `rule:project_id`, `rule:tenant_view`, `rule:building_aggregates`, `rule:first_occupancy`, `rule:measure_catalog` (inkl. PV-USt nach 7.10 und `modernization_kind: none` bei Erhaltung bzw. Ohnehin-Anteil 1, X-09), `rule:cost_from_kg` (inkl. `payment_schedule` mit `unit: eur`, X-28), `rule:maintenance_from`; Teil B `rule:unit_group_defaults`, `rule:carrier_defaults`, `rule:approval_timing`, `rule:approval_probability`, `rule:tax_credit_defaults`. Die Registry-Regeln `fund_approval_probability`, `fund_approval_timing` entfallen; Expander, Validierung, Sampler und `vofi_build()` lesen `funding.<f>.approval_timing` bzw. `.approval_probability` | 01a §1.4; 01b §4.2, §4.9, §5.1, §5.4 (neuer Unterabschnitt „Ableitungsregeln“) |
+| N-06 | Mietrechtliche Verfahrenscodes (X-08) | `levy_procedure` = `auto`, `bgb_559`, `bgb_559c`, `bgb_559e` (Aliase `559`, `559c`, `559e`, auch als Zahl gelesen); Bibliothekslisten (`s557a.excludes`, `s558.excludes_increases`, `rent_law.enables`) nur mit `bgb_procedure`-Codes; `mr_levy_allowed` vergleicht innerhalb der `bgb_`-Familie, `bgb_559c` zählt bei der Ausschlussprüfung als `bgb_559` (fachlich bestätigt, Teil B §5.2; 17.3 Nr. 8 d erledigt); S1: `rent_law: {procedure: bgb_559}` | 01b §1.4, §1.9.2, §5.1, §8; 01c §3.5, S1 |
+| N-07 | Ableitungsregeln (R-86, X-07) | Eigentümer WS-A (`R/scenario-layers.R`); Namen: Teil A `rule:tax_regime`, `rule:report_mode`, `rule:dates`, `rule:price_base_year`, `rule:project_id`, `rule:tenant_view`, `rule:building_aggregates`, `rule:first_occupancy`, `rule:measure_catalog` (inkl. PV-USt nach 7.10 und `modernization_kind: none` bei Erhaltung bzw. Ohnehin-Anteil 1, X-09), `rule:cost_from_kg` (inkl. `payment_schedule` mit `unit: eur`, X-28), `rule:maintenance_from`; Teil B `rule:unit_group_defaults`, `rule:carrier_defaults`, `rule:approval_timing`, `rule:approval_probability`, `rule:tax_credit_defaults`. Die Registry-Regeln `fund_approval_probability`, `fund_approval_timing` entfallen; Expander, Validierung, Sampler und `vofi_build()` lesen `funding.<f>.approval_timing` bzw. `.approval_probability` | 01a §1.4; 01b §4.2, §4.9, §5.1, §5.5 („Ableitungsregeln“; Verweis in Runde 4 berichtigt, R-119). Der Regelname `rule:maintenance_from` bleibt; sein Zielfeld heißt `building.maintenance.start_event` (R-110) |
 | N-08 | `rule:unit_group_defaults` (X-06) | `owner_occupied` fehlt → `true` bei `project.perspective = selbstnutzer`, sonst `false`; bei `owner_occupied = true`: `rent_regime: owner_occupied`, `vacancy_rate: 0`, `rent_default_rate: 0`, `operating.admin_per_unit_eur_pa: 0`, `operating.admin_per_parking_eur_pa: 0`, `operating.nonrecoverable_share_of_rent: 0`; bei `wu_genossenschaft` und vermieteter Gruppe: `rent_regime: cooperative_fee`; alle übrigen Gruppenwerte aus `item_defaults."unit_groups"` (z. B. `vacancy_rate: 0.025`) | 01b §1.2, §2.2 |
-| N-09 | Verfügbarkeit nach 2030 (S01B-13) | Feld `funding.<f>.availability_after_2030` (statt `funding_defaults.post2030_availability`); die Overlay-Vorlage in `processes/funding_risks_2026` heißt `availability_after_2030` (statt `availability_post2030`) | 01b §4.2, §5.4; 01c §1.9, §2.1, §2.7 |
+| N-08a | `rule:unit_group_defaults`, Ergänzung (Runde 4, R-118; Abstimmungspunkt 01b §10.2) | zusätzlich zu N-08 (Reihenfolge 01b §5.5): (0) `unit_groups` leer, `selbstnutzer` und `building` vorhanden → Gruppe `main` mit `owner_occupied: true`, `n_units: {ref: building.n_units}`, `living_area_m2: {ref: building.living_area_m2}` (Bezüge statt Kopien, R-86); (4) vermietete Gruppe mit `rent_regime: bound_social` bzw. in `unit_groups` eines Instruments `instrument_type: rent_binding` → `operating.admin_per_unit_eur_pa`, `operating.admin_per_parking_eur_pa` aus `costs/bewirtschaftung_ii_bv_2026` (`admin_per_unit_eur_pa` 372,46, `admin_per_garage_eur_pa` 48,58; Konstanten aus `bctx$lib()`, Herkunft = Bibliotheks-id); (5) vermietete Gruppe bei `project_type` ∈ {`neubau`, `erwerb_neubau`} → `lease_up_months: 3`. Kein eigener Selbstnutzer-Default für `recoverable_opex_eur_m2_month` (ausdrückliche Angabe, W `owner_opex_double`; 01b §9 Nr. 18) | 01b §1.6 Nr. 1, §5.5 |
+| N-09 | Verfügbarkeit nach 2030 (S01B-13) | Feld `funding.<f>.availability_after_2030` (statt `funding_defaults.post2030_availability`); die Overlay-Vorlage in `processes/funding_risks_2026` heißt `availability_after_2030` (statt `availability_post2030`) | 01b §4.2, §5.5 (Verweis in Runde 4 berichtigt); 01c §1.9, §2.1, §2.7 |
 | N-10 | Fakten der Neubauförderung (X-04, F-06) | zwei Symbole: `facts.lca_thg` (Bedingung `conditions.lca_thg: required`, ersetzt `lca_qng_plus_thg`; Grundförderung) und `facts.qng` (nur Deckel `*_qng`); S5 V2/V2b `facts: {lca_thg: true}`, S2 V2 `facts: {lca_thg: true, qng: true}` | 01b §4.3.1, §4.3.2, §4.4; 01c kfw_297/298/300, S2, S5 |
 | N-11 | Kreditanteil (X-17) | einheitlich `loan.max_share_of_eligible_costs` | 01c kfw_358/359; 01b §4.6 |
 | N-12 | Kumulierung (X-18, F-20) | `cumulation.exclusive_with` gilt gegen die ganze `from:`-Kette und `program_code`; `estg_35c.exclusive_with` um KfW 358/359 ergänzt | 01b §4.11; 01c `funding/estg_35c` |
@@ -4407,12 +4480,12 @@ Die Bearbeiter der Teile A–C übernehmen diese Festlegungen wörtlich; bei Wid
 | N-14 | Energiekomponenten (R-90) | `e_<s>_<c>_cost`, `e_<s>_<c>_co2`; Zustands-ids `before`, `after`, `stages.<s>` (≤ 12 Zeichen); Träger-ids ≤ 20 | 01b §3.1, §3.5 |
 | N-15 | Trägercodes und Marktpreise (X-32, R-103) | kanonisch: `gas`, `gas_mfh`, `oil`, `lpg`, `power`, `power_mfh`, `heatpump_power`, `heatpump_power_mfh`, `district_heating`, `pellets`; für **jeden** ein `market.energy_price.<c>` in `global.yaml` und `prices/energy_prices_2026` (`lpg`, `power_mfh` ergänzen, Qualität C/D); `market.energy_network_fee.gas`, `.gas_mfh` mit `growth: {ref: shared.network_fee_growth_<c>}` und `shared.network_fee_growth_gas`, `_gas_mfh` (0.03) in `global.yaml` wie in den Referenzszenarien | 01a §2.2 (`market`, `shared`); 01b §3.2.1; 01c §2.4, §3.6 |
 | N-16 | Marktnamen (S01C-07) | zusätzlich `operating_cost_growth`, `bund_yield_10y`, `mortgage_spread`, `feed_in_tariff.{partial_le10kwp, partial_10_40kwp, partial_40_100kwp, full_le10kwp}`, `vacancy_fluctuation`; der PV-Default-Ausdruck nutzt `partial_40_100kwp` (X-24 d) | 01a §2.2; 01b §3.9.1; 01c §1.9.1 |
-| N-17 | Validierungsschlüssel (X-23) | `validation.<block>.<code>` in `inst/labels/de/validation.yaml` (WS-B); `validation.b.*` → z. B. `validation.unit_groups.ovm_missing`; neue Schlüssel `validation.accounts.liquidity_unchecked`, `validation.measures.cost_derived`, `validation.residual.rnd_target` | 01a §9; 01b §0.3, §8; 01c §1.11 |
+| N-17 | Validierungsschlüssel (X-23) | `validation.<block>.<code>` in `inst/labels/de/validation.yaml` (WS-B); `validation.b.*` → z. B. `validation.unit_groups.ovm_missing`; neue Schlüssel `validation.accounts.liquidity_unchecked`, `validation.measures.cost_derived`, `validation.residual.rnd_target` (`residual` ist der Namensraum des Blocks `residual_value`, 2.10, R-117) | 01a §9; 01b §0.3, §8; 01c §1.11 |
 | N-18 | Testdateien (X-22) | `test-<R-datei>.R`: `test-type-flow-capex.R`, `test-type-flow-replacement.R`, `test-type-flow-maintenance.R`, `test-type-flow-residual-value.R`, `test-type-inst-loan-core.R` usw.; Datentests `test-library.R` (WS-L), `test-profiles.R` (WS-A); Set „vorsichtig“ in `R/compare.R` (`cmp_cautious()`) | 01a §4.6.6, §4.10.3, §4.11.5, §5.6, §6.7; 01b §1.15 ff.; 01c §4.3 |
 | N-19 | Regelsignaturen (X-21) | `grest(basis_eur, federal_state, rate, P)` ohne Defaults (P = Nutzlast `grunderwerbsteuer`, vom Typ übergeben), `returns: sim`; `mr_levy_allowed`, `co2_section43`: `returns: value`; Aufrufe mit allen Formals (01b §1.6 Nr. 4) | 01a §4.8, §7; 01b §1.6, §5.1 |
 | N-20 | Overlay-Ziele (S01A-08 abgelehnt) | Kostenrisiko auf `measures.<id>.cost_factor` bzw. `project.construction_cost_factor`, RND-Zuschlag auf `residual_value.income_value.remaining_life_offset_years`; ein Ziel `measures.<id>.cost_eur` bei `cost_kg` bzw. `remaining_life_years` bei Methode ≠ `manual` ist E mit Vorschlag (`validation.measures.cost_derived`, `validation.residual.rnd_target`); Hinweis „Umlenkung, S01A-08“ streichen | 01a §4.6.1, §6.1, OP-13; 01c §1.9 |
 | N-21 | Szenario-Sets (S01C-15 abgelehnt) | keine `shared.*`-Pfade in Sets; Muster „szenarioeigener `market`-Pfad, auf den das Domänenfeld per `ref` zeigt“ | 01c §4.1, §5 |
-| N-22 | Label `foerderstopp` (X-24 f) | maßgeblich ist 01c §4.2 („Förderstopp: keine Förderzusage“) | 01a §2.2; 01b §7.1 |
+| N-22 | Label `foerderstopp` (X-24 f) | maßgeblich ist 01c §4.2 („Förderstopp: keine Förderzusage“). **Runde 4 (R-118):** 01c §4.2 ist die einzige Quelle des Inhalts aller Standard-Sets in `global.yaml` (`foerderstopp`, `vorsichtig` mit `exclude: []`, übrige Sets); 01a §2.2 und 01b §7.1 verweisen nur | 01a §2.2; 01b §7.1; 01c §4.2 |
 | N-23 | Höchstlängen der ids (X-20) | Maßnahmen und Bauteile ≤ 29, Gruppen ≤ 25, Förderinstrumente ≤ 30, Zustände ≤ 12, Träger ≤ 20 (4.4 Nr. 2) | 01a §4.5.2 Nr. 1; 01b §1.2, §3.2.2, §4.2 |
 | N-24 | Komponenten-Zeitwert (F-09) | `indexed: false` = nominaler Buchwert; RV8 = 82.853,16 | 01a §6.3.7, §6.7 |
 | N-25 | Annuitätendarlehen (X-13, F-10) | τ + `term_years` zulässig (I „Schlusstilgung bei Fälligkeit“), E nur τ + `installment_eur`; `keep_term` nach `shorten_term` mit effektiver Restzahl (8.6): L1 und S1-T8 neu rechnen | 01a §5.2, §5.6; 01c S1, S5 |
@@ -4427,6 +4500,8 @@ Die Bearbeiter der Teile A–C übernehmen diese Festlegungen wörtlich; bei Wid
 
 Version bleibt 1.0.0. Die folgenden Punkte ändern Dateien, die in Phase 0 bereits angelegt sind; sie sind vor dem
 Einfrieren (1.4 Nr. 4) und vor Welle 1 zu erledigen. Nicht betroffen sind Signaturen exportierter Funktionen (14).
+Die konsolidierte Liste einschließlich der Punkte aus Runde 4 (P0-11 bis P0-14) und des Stands im Code steht in
+17.6.5.
 
 | Nr. | Datei(en) | Änderung | Art | Grund |
 |---|---|---|---|---|
@@ -4440,6 +4515,117 @@ Einfrieren (1.4 Nr. 4) und vor Welle 1 zu erledigen. Nicht betroffen sind Signat
 | P0-08 | `R/registry.R`, `R/registry-testkit.R` | optionales Feld `domain_reads` (flow, instrument; C3 prüft Codes); optionale Prozessfunktion `quantile_path(par, years, p)` (C2-Formals, Prüfung P4); `returns: value` bei Regeln (Batch-Prüfung wie `params`) | additiv | R-93, R-95 |
 | P0-09 | `R/scenario-layers.R` | Rückfallwerte der Schichten 1–2: Felder optionaler Blöcke (z. B. `building.building_id`) nur, wenn der Block existiert (`item_defaults`-Semantik), damit Szenarien ohne `building` keinen Block erhalten; abgeleitete Projekt-Defaults mit Herkunft `entry = "rule:<name>"`; Reihenfolge Ableitungsregeln → `item_defaults` → Expander | Verhalten | R-85, R-86 |
 | P0-10 | `R/expr.R` (Minimalfassung) | Codes und Wahrheitswerte als Operanden nur in `==`, `!=`, `%in%`, `!`, `&`, `\|` (Fehler sonst), Ergebnis 0/1 | Präzisierung | R-91 |
+
+
+### 17.6 Runde 4: Restbefunde der Endprüfung (Einzelnachweis)
+
+Geprüft wurden die Restbefunde der Endprüfung nach Runde 3 (K3-01 bis K3-19: 2 major, 17 minor), die fünf neuen
+Änderungsanträge der Teile (S01A-10, S01A-11, S01B-14, S01C-16, S01C-17) und drei Abstimmungspunkte, jeweils mit der
+Bewertung des Prüfers (Spalte „Prüfer“). Für K3-01 und K3-02 gelten **Orchestrator-Entscheidungen** (verbindlich).
+Alle übrigen Punkte hat der Integrator entschieden; maßgeblich war die Empfehlung des Prüfers, soweit sie nicht mit
+festgelegten Auflösungen kollidiert. Die Version bleibt 1.0.0 (vor dem Einfrieren). Neue Auflösungen: R-110 bis R-119
+(16.3), Ergänzung N-08a (17.5.3).
+
+#### 17.6.1 Befunde
+
+| Nr. | Schwere | Entscheidung | Umsetzung | R |
+|---|---|---|---|---|
+| K3-01 | major | übernommen nach **Orchestrator-Entscheidung**: `from` bleibt ausschließlich Bibliotheksverweis; alle Termin- und Ereignisparameter `from` heißen `start_event` (gleiche Werte); `{from: <keine id>}` ist ein Validierungsfehler mit Hinweis auf `start_event` | Spec 00 1.5, 3.9, 4.3.15 (Platzhalter), 4.5, 4.7 (`is_value_form`, Deep-Merge), 4.9 (Regel, id-Muster, `validation.library.ref_not_id`), 5.6 C3, 7.12 (`equity`, `recurring`, Prüfwert F10), 15.6, Anhang B; Teil A 0.3 (JB), 1.4, 2.2, 3.3, 4.5, 4.11, 4.12 (E1), 4.14; Teil B 2.2, 3.2.2, 3.2.3, 3.4, 3.5, 3.10, 4.2 (`interest_subsidy.start_event`), 4.7, 6; Teil C S2 `stellplaetze`, S5 `grundsteuer_versicherung`, `lueftungsfilter` (`start_event: completion`) | R-110 |
+| K3-02 | major | übernommen nach **Orchestrator-Entscheidung**: Bezug = frühester Termin der Maßnahmen des Instruments (S01B-14), ohne verknüpfte Maßnahmen frühester Termin der Maßnahmen der Variante | Spec 00 4.3.7; Teil B 4.2, 4.9 Nr. 1, 5.5, F-9, 9 Nr. 23, 10.1; Teil C S4-Kommentare, X-31. S4 V1 verhält sich wie beabsichtigt: `bafa_2030` (Antrag 2029-12-01, Termin 2030-01-01) → `before_start` ohne W, ebenso `kfw358_2030`, `kfw358_2033`; `bafa_2033` bleibt ausdrücklich `after_start` (einfache Ziehung) und meldet nach der präzisierten W-Regel nichts. Ergänzend S3 V2 `kfw459` ausdrücklich `before_start` (Antrag 2027-01-15 nach dem Kostenansatz `year: 2027`, sonst falsche W; Ergebnis unverändert) | R-111 |
+| K3-03 | minor | übernommen | Teil A 5.4 (`measure_id` oder `funding_id` Pflicht, Förderkredite mit `funding_id`) | R-119 |
+| K3-04 | minor | übernommen | Teil A 8.2, OP-20 geschlossen, 12.3 X-19 | R-119 |
+| K3-05 | minor | übernommen | Teil B 10.2 (Spalte „Stand Runde 4“; offen nur BEHG-Faktor Kohle, Teil C OP-21), 9 Nr. 21, 22, 24 | R-119 |
+| K3-06 | minor | übernommen | 17.3 Nr. 8 (c), (d) erledigt | R-119 |
+| K3-07 | minor | übernommen (Prüfer-Variante: Sondernamensraum statt Umbenennung) | 2.10 (`residual`, zusätzlich `expr` wie im Phase-0-Code); Teil A 9, OP-16 geschlossen | R-117 |
+| K3-08 | minor | übernommen | 4.3.6b, 4.7 Nr. 3 (Quoting-Regel), N-04; Teil A 2.1; Teil C S1-Kommentar | R-118 |
+| K3-09 | minor | übernommen (`maintenance` als Teil der Vorlage `building`) | 4.7 Nr. 3 (`building.maintenance` aus der Liste der optionalen Blöcke gestrichen, Regel „Teilbäume einer Vorlage entstehen mit ihrem Block“); Teil A 2.1, 3.3; Teil B 7.1 | R-118 |
+| K3-10 | minor | übernommen (bestätigt als N-08a; Schritt (0) mit Bezügen statt Kopien) | 17.5.3 N-08a; Teil B 1.6 Nr. 1, 5.5, 9 Nr. 18, 10.2 | R-118 |
+| K3-11 | minor | übernommen (Eigentümer Teil C §4.2) | N-22; Teil A 2.1, 2.2 und Teil B 7.1 verweisen statt zu kopieren; Teil C 4.2 mit `exclude: []` (wie 4.11); Teil A 12.2 berichtigt | R-118 |
+| K3-12 | minor | übernommen | 7.11 (Thema `grunderwerbsteuer`, Eintrag `legal/grunderwerbsteuer_2026`, Regel `grest`), 2.11 | R-119 |
+| K3-13 | minor | übernommen | 4.5 (`prices/co2_price_paths_2026`) | R-119 |
+| K3-14 | minor | übernommen | 2.4 (`test-mc-stats.R`, `test-mc.R`) | R-119 |
+| K3-15 | minor | übernommen (Prüfer-Variante 1: Bezüge nur in gelesenen Blättern prüfen) | 4.5 Regel 2, 2.10 (`validation.ref_target_missing`); Teil A 6.1, 9; Anhang B mit `building.land_value_eur` (Methode `income_value` liest den Bodenwert) | R-115 |
+| K3-16 | minor | übernommen (Variante a: Ausnahme für dokumentierte Auslegungs-Defaults; kein Umbau der Nutzlast) | 4.10; Teil C `legal/mietrecht_2026` (`quality_detail` um `s558.funding_deduction_duration_loan` ergänzt, Kommentar); Teil B 7.1 Kommentar | R-116 |
+| K3-17 | minor | übernommen | 4.5 Zahlungsplan (`unit` ∈ `eur`, `share`; Knoten trägt `unit`, wie in Phase 0 umgesetzt) | R-119 |
+| K3-18 | minor | übernommen | Teil C S4 V1: `energy.stages` unter `replace` statt `remove` + `add` | R-119 |
+| K3-19 | minor | übernommen | Teil C S5-Kommentar (Horizont aus `global.yaml#by_project_type`); N-07, N-09 (Teil B §5.5) | R-119 |
+
+#### 17.6.2 Änderungsanträge und Abstimmungspunkte
+
+| Nr. | Prüfer | Entscheidung | Begründung | Änderung in Spec 00 | R | SemVer |
+|---|---|---|---|---|---|---|
+| S01A-10 | accept_modified | angenommen mit Änderung (wie Prüfer) | Varianten müssen Vorlagen- und Regelfelder (z. B. `measures.wp.cost_factor`) gezielt setzen können; die Übergangsregel über die Elternmap war schwer erkennbar. Beschränkt auf `set`/`overrides`, weil `replace`/`remove` einen vorhandenen Teilbaum voraussetzen | 4.11, 15.6 | R-112 | MINOR; Phase-0-Nacharbeit P0-13 |
+| S01A-11 | accept_modified | angenommen mit Änderung (wie Prüfer) | Der Code `modernization_kind: none` bei Ohnehin-Anteil 1 ist deterministisch und gehört ins Maßnahmenregister; Ausnahme (a) des Expandertests. Nur Enum-Codes, nie numerische Overlay-Blätter | 4.7, 6.4 | R-113 | PATCH |
+| S01B-14 | accept | angenommen (Orchestrator-Entscheidung), ergänzt um den Rückfall für Instrumente ohne Maßnahmen und die präzisierte W-Regel | „Vorhabenbeginn“ meint das geförderte Vorhaben; spätere Stufen (S4) erhielten sonst `after_start` und eine falsche W | 4.3.7 | R-111 | PATCH |
+| S01C-16 | accept_modified | angenommen mit Änderung (wie Prüfer) | `quantile_path()` braucht für `linked_ar1` Typ, Punktparameter und Schockkorrelation der Basis; Signatur bleibt, reservierter Listeneintrag `.base`; `NA` = kein Kandidat (vorsichtig, wie Teil C OP-23) | 5.3, 5.6 P4, 11.11 | R-114 | PATCH; Phase-0-Nacharbeit P0-14 |
+| S01C-17 | accept | angenommen | Teil C hat den Energiepreis-Basisfall entschieden; 11.9 bleibt richtig | 17.3 Nr. 8 (c), (d) | R-119 | PATCH |
+| 01b §10.2 `rule:unit_group_defaults` | accept | angenommen, ergänzt (Schritt (0) mit Bezügen statt Kopien, R-86; kein eigener Selbstnutzer-Default für Nebenkosten) | Die Werte hängen von Perspektive, `rent_regime` bzw. `project_type` ab und gehören nach R-86 in eine Ableitungsregel | 17.5.3 N-08a | R-118 | PATCH |
+| 01b §10.2 `{id}`-Quoting | accept | angenommen | `{ref: market.energy_price.{id}}` ist in Flow-Notation kein gültiges YAML | 4.3.6b, 4.7 Nr. 3, N-04 | R-118 | PATCH |
+| 01a OP-16 (`validation.residual.*`) | accept_modified | angenommen mit Änderung (wie Prüfer) | N-17 und N-20 verwenden `residual` bereits; Sondernamensraum statt Umbenennung in vier Dokumenten | 2.10 | R-117 | PATCH |
+
+Summe: 5 Anträge angenommen (S01A-10, S01A-11 und S01C-16 mit Änderung, S01B-14 ergänzt), 3 Abstimmungspunkte
+übernommen; kein Antrag abgelehnt.
+
+#### 17.6.3 Weitere Bereinigungen (Zusatzprüfung des Integrators)
+
+1. `funding.<f>.approved: 1` steht jetzt in `item_defaults."funding"` (Teil B 7.1, 4.2; N-04): Das Feld ist Ziel des
+   Zusageschlüssels, Bezugsziel (S4 `kfw358_2033.approved: {ref: funding.bafa_2033.approved}`) und Ziel des Sets
+   `foerderstopp`; als bloßer Schema-Default existierte das Blatt im aufgelösten `vofi_spec` nicht (Teil B 0.3: solche
+   Defaults sind (G) oder (AR)).
+2. Overlay-Vorlagen als Nutzlast eines `from:`-Verweises werden unter die lokalen Schlüssel eines Overlay-Eintrags
+   gemischt; die Regel „Wertform ersetzt den Knoten“ (R-87) gilt dort nicht (4.9; deckungsgleich mit 4.3.15 und
+   Teil C §1.1 Nr. 6).
+3. W „förderschädlicher Vorhabenbeginn“ hängt am Antragsdatum: Sie entsteht nur bei einem Antrag nach dem frühesten
+   Termin der Maßnahmen des Instruments; ein ausdrückliches `after_start` mit rechtzeitigem Antrag (S4 `bafa_2033`)
+   löst sie nicht aus, ein ausdrückliches `before_start` (Vorhabenbeginn nach dem Antrag, S3 V2 `kfw459`) unterdrückt
+   sie (R-111).
+4. Teil B: Rebound-Vorlagen an Teil C §2.7 angeglichen (Default-Spalte 3.2.4, Prüffall E-12, 9 Nr. 22); 9 Nr. 18
+   entschieden (kein eigener Selbstnutzer-Default für `recoverable_opex_eur_m2_month`, ausdrückliche Angabe, W bleibt).
+5. Anhang B mit `building.land_value_eur`; Glossar 1.5 und Schemaplatzhalter in 4.3.15 (`from: <bibliotheks-id>`);
+   Prüffälle zu R-110 und R-112 in 15.6; 17.3 Nr. 1 als erledigt vermerkt.
+6. Nicht umbenannt (R-110): `to`, Felder mit Suffix `_from` (`occupancy_from`, `after_completion_from`,
+   `contribution_from`), der Regelname `rule:maintenance_from` und die Formalargumente interner R-Funktionen
+   (`grid_overlap(grid, from, to)`, `ctx$overlap()`, `ctx$shift_overlap(from, months, to)`, `ctx$shift_months()`).
+
+#### 17.6.4 Prüfergebnis (Wiederholung der Prüfskripte der Endprüfung)
+
+Skripte der Endprüfung (`…/scratchpad/spec01-review/fin/`) in einer an die neuen Zeilennummern angepassten Kopie
+(`…/scratchpad/r4check/`) und ergänzt um `r4checks.py`, `tables.py`:
+
+| Prüfung | Ergebnis |
+|---|---|
+| YAML-Teile (`blocks.py`, `dupkeys.py`) | 93 Teile parsen mit PyYAML; keine doppelten Schlüssel |
+| Bibliotheks-ids (`libids.py`) | 69 Einträge, jeder mindestens zweimal genannt; die in der Endprüfung gemeldeten unbekannten ids sind berichtigt (K3-12, K3-13, Teil B 7.1); verbleibende Treffer des Skripts sind Wildcard-Angaben in Prosa und eine URL in einer Quellenangabe |
+| `from`/`use` (`resolve.py`, `r4checks.py`) | 105 `from`-Schlüssel: jeder Wert ist eine Bibliotheks-id nach R-110 und existiert (Spec-00-Schemanotation ausgenommen); alle `use`-Pfade lösen auf; kein Terminparameter `from` mehr in YAML oder Prosa (Formalargumente interner R-Funktionen ausgenommen) |
+| Identifier-Diff (`known.py`, `match.py`, Backtick-Tokens) | Feldmuster der Feldtabellen unverändert bis auf genau die drei Terminfelder (Gebäude-Instandhaltung, Komponenten, Energiezustände), die jetzt `start_event` heißen; Feldprüfung der Szenarien (S1–S5, `grob_lehrbuch_a`, Anhang A/B) bis auf Zeilennummern identisch zur Endprüfung; entfernte Tokens nur die beabsichtigten (alter Terminparameter, alter Regelname der GrESt, alte Testdatei, alte Schlüssel der Erwerbsnebenkosten, ungequotete `{id}`-Form) |
+| Bezüge, Varianten, Overlay-Ziele (`refs.py`, `varops.py`, `targets.py`, `r4checks.py`) | alle `set`/`replace`/`remove`-Pfade existieren; alle Overlay-Ziele existieren (S4 V1 `jaz_s2`, `jaz_s3` jetzt auch in der Simulation der Operationen); mit angewandten `item_defaults` und R-115 kein offener Bezug (vorher `funding.bafa_2033.approved`, Anhang B `building.land_value_eur`); `refs.py` der Endprüfung wendet `item_defaults` nicht an und meldet `funding.bafa_2033.approved` deshalb weiter (erwartet) |
+| Zusagezeitpunkt (`timing.py`, `r4checks.py`) | alle Instrumente in S1–S5 und Anhang B nach R-111 wie beabsichtigt; keine W „förderschädlicher Vorhabenbeginn“; ein Entscheidungsknoten (S2 `kfw298`) |
+| Tabellen und Inline-Code (`tables.py`) | Spaltenzahl aller Tabellenzeilen gleich der Kopfzeile; gerade Zahl von Backticks je Absatz bzw. Zeile |
+| Maßnahmentypen (`mtcmp.py`) | 37 Typen in Teil A §4.2 und `costs/massnahmentypen_2026` weiterhin identisch |
+
+#### 17.6.5 Phase-0-Nacharbeit (gesamt)
+
+Konsolidierte Liste für den Integrator: P0-01 bis P0-10 aus 17.5.4 (Runde 3) und P0-11 bis P0-14 aus Runde 4. Alle
+Punkte sind vor dem Einfrieren (1.4 Nr. 4) und vor Welle 1 zu erledigen; Signaturen exportierter Funktionen (14) sind
+nicht betroffen. Spalte „Stand“ = Lesesicht des Phase-0-Codes in `R/`, `inst/`, `tests/` am 26.10.2026 (grep, ohne
+Testlauf); „vorhanden“ heißt, dass die Änderung im Code angelegt ist, die Abnahme durch `R CMD check` steht aus.
+
+| Nr. | Datei(en) | Änderung | Art | Grund | Stand |
+|---|---|---|---|---|---|
+| P0-01 | `inst/vocab/measure_types.yaml`, `inst/labels/de/vocab.yaml`, `tests/testthat/test-vocab.R` | 23 vorläufige Codes durch die 37 Codes aus Teil A §4.2 ersetzen; Labels `vocab.measure_types.*`; Test auf `heizung_waermepumpe_luft` | inkompatibel (Vokabular) | R-89, X-01 | vorhanden (37 Codes, Test Z. 76–79) |
+| P0-02 | `inst/vocab/enums.yaml`, `inst/labels/de/vocab.yaml` | Enums `levy_procedure` (Aliase), `bgb_procedure`, `overlay_apply`, `growth_index`, `mc_preset`, `quantity_per` + `m2_net_floor_area`, `parking`, `rule_returns` + `value`; dazu die Enums aus Teil A §8.1 und Teil B §8 | additiv | R-89, R-91, R-93, R-94, R-97 | **teilweise**: R-89-ff.-Enums vorhanden; es fehlen die Enums aus Teil A §8.1 (u. a. `building_type`, `maintenance_basis`, `remaining_life_method`, `income_basis`) und Teil B §8 (u. a. `carrier_class` mit `coal`, `heating_system_type`, `levy_mode`, `increase_policy`) |
+| P0-03 | `inst/vocab/na_reasons.yaml`, Labels | `no_liquidity_limit` | additiv | R-101 | vorhanden |
+| P0-04 | `R/utils-merge.R` (`utl_value_form_keys()`), `tests/testthat/test-utils-merge.R` | Wachstumsform mit optionalem Schlüssel `index` | additiv | R-91 | vorhanden |
+| P0-05 | `R/values-normalize.R` | `node_growth(…, index = "calendar_year")`, `node_growth_raw()` liest `index`; `node_expr(text)` | additiv | R-91 | vorhanden |
+| P0-06 | `R/values-resolve.R` | `res_growth()` mit Kalenderjahresindex als Default (**Verhaltensänderung**); `res_quantity()` mit Abbildung `per` → Feld; `res_draw()` mit `apply`; `res_expr()` mit `setting`-Semantik | Verhalten + additiv | R-91, R-94 | vorhanden |
+| P0-07 | `R/engine-context.R` | `ctx$rows(id, section, category, tax_category, measure_id = NULL, local_row = NULL)` | additiv | R-93 | vorhanden |
+| P0-08 | `R/registry.R`, `R/registry-testkit.R` | `domain_reads` (C3), `quantile_path()` (C2, P4), `returns: value` | additiv | R-93, R-95 | vorhanden (P4-Erweiterung für `linked` siehe P0-14) |
+| P0-09 | `R/scenario-layers.R` | Rückfallwerte optionaler Blöcke nur bei vorhandenem Block; Herkunft `rule:<name>`; Reihenfolge Ableitungsregeln → `item_defaults` → Expander | Verhalten | R-85, R-86 | vorhanden |
+| P0-10 | `R/expr.R` | Codes und Wahrheitswerte nur in `==`, `!=`, `%in%`, `!`, `&`, `\|` | Präzisierung | R-91 | vorhanden |
+| P0-11 | `R/type-flow-recurring.R`, `R/type-flow-equity.R`, `inst/labels/de/types/flow/recurring.yaml`, `inst/labels/de/types/flow/equity.yaml`, `tests/testthat/test-scenario-variants.R` (Z. 11, 91–92), `tests/testthat/test-values-resolve.R` (Z. 74), `tests/testthat/test-batch-invariance.R` (Z. 47, 50), `tests/testthat/test-utils-merge.R` (Z. 62–79) | Terminparameter `from` → `start_event` in `recurring` (Default Token `completion`) und `equity` (`*_pa`): Parameterschema, `ctx$timing(spec, "start_event")`, `example`, Labels `params.start_event` und Hilfetexte („Zeitraum start_event bis to“); Testfälle mit `from` als Termin auf `start_event` umstellen | **inkompatibel** (Parametername) | R-110 | offen (Code verwendet `from`) |
+| P0-12 | `R/utils-merge.R` (`utl_value_form_kind()`), `R/scenario-layers.R` (`scn_is_library_ref()`, `scn_check_library()`), `R/registry-testkit.R` (C3), `inst/labels/de/validation.yaml`, `tests/testthat/test-utils-merge.R` (Z. 46, 52, 69–71, 76), `tests/testthat/test-scenario-variants.R` (Z. 94–96) | Bibliotheksverweis nur mit id nach `^[a-z][a-z0-9_]*(/[a-z0-9_]+)+$` (bisher: Wert enthält `/`); Map mit `from` ohne gültige id → `vofi_error_validation` mit `validation.library.ref_not_id` und Hinweis auf `start_event` (Label neu); C3: Parameter `from`, `use` verboten; Tests: `{from: completion}`, `{from: 2030}` sind Fehler, nicht Termine | Verhalten | R-110 | offen (Heuristik „enthält `/`“, `from` als Termin zugelassen) |
+| P0-13 | `R/scenario-variants.R` (`var_apply_ops()`, `must_exist()`), `tests/testthat/test-scenario-variants.R` | Existenzprüfung von `set`/`overrides` (Varianten und Sets): Pfad gilt als vorhanden, wenn das Elternelement existiert und das Blatt ein Feld der Schema-Feldliste (WS-B, Spec 01) bzw. der `item_defaults`-Vorlage ist; `replace`/`remove` unverändert; Testfälle nach Teil A XM13 | Verhalten (lockerer) | R-112 | offen (strenge Prüfung `path_exists()`) |
+| P0-14 | `R/registry-testkit.R` (`reg_check_process()`, `reg_check_quantile_path()`) | P4 für Prozesse mit `linked`: `par$.base` aus `example$.base` übergeben, Basisprozess im Prüfkit simulieren und als `linked` einspeisen, empirischer Vergleich mit der gemeinsamen Simulation; `NA` nur ohne Gaußbasis zulässig; Elementnamen mit führendem Punkt nicht als Parameter prüfen | additiv | R-114 | offen (P4 ohne `.base`, `linked` als konstante Pfade) |
 
 ---
 
@@ -4482,7 +4668,7 @@ project:
   federal_state: NW
   reference_variant: ohnehin
 grid: {construction_months: 9, construction_step_months: 1}
-building: {building_type: MFH, construction_year: 1972, n_units: 18, living_area_m2: 1250,
+building: {building_type: MFH, construction_year: 1972, n_units: 18, living_area_m2: 1250, land_value_eur: 630000,
            component_areas_m2: {roof: 520, facade: 1400, windows: 260}}
 unit_groups:
   standard: {n_units: 18, living_area_m2: 1250, rent_eur_m2_month: 7.20, rent_regime: paragraph_558}
@@ -4495,7 +4681,7 @@ funding:
   kfw261: {from: funding/kfw_261_eh55, measures: [huelle, waermepumpe], amount_eur: 1200000}
 components:
   stellplaetze: {type: recurring, label: "Stellplatzmiete", category: operating_income,
-                 amount_eur: 7200, growth: {ref: market.inflation}, from: 2027-10-01}
+                 amount_eur: 7200, growth: {ref: market.inflation}, start_event: 2027-10-01}
 financing:
   ek:   {type: equity, amount_eur: 400000}
   bank: {type: annuity_loan, amount_eur: auto, rate_pa: 0.039, initial_repayment_pa: 0.02,
