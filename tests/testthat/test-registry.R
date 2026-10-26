@@ -22,7 +22,7 @@ helper_flow_def <- function(name = "tk_einnahme", ...) {
   )
 }
 
-test_that("vofi_param: artabhängige Defaults (5.4)", {
+test_that("vofi_param: artabh\u00e4ngige Defaults (5.4)", {
   p <- vofi_param("rate", required = TRUE)
   expect_s3_class(p, "vofi_param")
   expect_identical(c(p$min, p$max), c(-0.1, 1))
@@ -46,7 +46,7 @@ test_that("vofi_param: artabhängige Defaults (5.4)", {
   expect_true(vofi_param("amount", allow_auto = TRUE, deterministic_only = TRUE)$allow_auto)
 })
 
-test_that("vofi_param: Fehler bei unzulässigen Angaben", {
+test_that("vofi_param: Fehler bei unzul\u00e4ssigen Angaben", {
   er <- "vofi_error_registry"
   expect_error(vofi_param("zahl"), class = er)
   expect_error(vofi_param("rate", allow_auto = TRUE), class = er)
@@ -133,7 +133,7 @@ test_that("Nutzertypen brauchen ein label-Literal", {
   expect_error(vofi_register_type(d), class = "vofi_error_registry")
 })
 
-test_that("statische Vertragsprüfung C1-C3 bei der Registrierung", {
+test_that("statische Vertragspr\u00fcfung C1-C3 bei der Registrierung", {
   local_registry()
   er <- "vofi_error_registry"
   bad_name <- helper_flow_def("Tk-Name")
@@ -218,7 +218,7 @@ test_that("Discovery-Namen je Art (5.1)", {
   expect_identical(reg_discovery_name(mk("tax", "none")), "typedef_tax_none")
 })
 
-test_that("reg_discover registriert typedef_* und prüft die Namen", {
+test_that("reg_discover registriert typedef_* und pr\u00fcft die Namen", {
   local_registry()
   env <- new.env()
   env$typedef_tk_d <- function() helper_flow_def("tk_d")

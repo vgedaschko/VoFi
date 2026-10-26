@@ -1,9 +1,9 @@
 # Code-Token aller Dateien in R/ sind ASCII (Integrator; Spec 00 Abschnitte 2.7 Nr. 1, 15.6).
 # Geprüft werden alle Token außer COMMENT; deutsche Kommentare und roxygen-Doku sind erlaubt.
 
-test_that("Code-Token in R/ sind ASCII (Quelltext, falls verfügbar)", {
+test_that("Code-Token in R/ sind ASCII (Quelltext, falls verf\u00fcgbar)", {
   rdir <- testthat::test_path("..", "..", "R")
-  skip_if_not(dir.exists(rdir), "Quelltext R/ nicht verfügbar (installiertes Paket)")
+  skip_if_not(dir.exists(rdir), "Quelltext R/ nicht verf\u00fcgbar (installiertes Paket)")
   files <- list.files(rdir, pattern = "\\.[Rr]$", full.names = TRUE)
   expect_true(length(files) > 10L)
   for (f in files) {
@@ -24,7 +24,7 @@ test_that("Code-Token in R/ sind ASCII (Quelltext, falls verfügbar)", {
   }
 })
 
-test_that("Symbole der Funktionskörper im Namensraum sind ASCII (installiertes Paket)", {
+test_that("Symbole der Funktionsk\u00f6rper im Namensraum sind ASCII (installiertes Paket)", {
   # Zeichenketten dürfen zur Laufzeit Nicht-ASCII enthalten, wenn sie im Quelltext als
   # Unicode-Escape stehen ("\\u20ac"); geprüft werden hier nur Bezeichner.
   ns <- asNamespace("vofi")

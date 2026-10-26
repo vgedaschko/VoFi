@@ -46,11 +46,11 @@ mock_context <- function(grid, spec, draws = NULL, components = list(),
       } else if (is.numeric(node)) {
         node
       } else {
-        stop("Attrappe: Knoten nicht auflösbar: ", path)
+        stop("Attrappe: Knoten nicht aufl\u00f6sbar: ", path)
       }
     }
     if (shape == "scalar") {
-      if (is.matrix(v)) stop("zeitabhängig")
+      if (is.matrix(v)) stop("zeitabh\u00e4ngig")
       as.double(rep_len(v, n))
     } else if (is.matrix(v)) v else grid_by_sim(grid, v, n)
   }
@@ -112,7 +112,7 @@ findings_of <- function(name, kind = NULL) {
   reg_check_type(reg_get(r$kind, r$name), reg_source(r$kind, r$name))
 }
 
-test_that("Prüfraster und Prüfspezifikation", {
+test_that("Pr\u00fcfraster und Pr\u00fcfspezifikation", {
   ga <- reg_test_grid("annual")
   gm <- reg_test_grid("mixed")
   expect_identical(ga$T, 6L)
@@ -153,7 +153,7 @@ test_that("Beispielkomponente und Fake-Ziehungen", {
   expect_identical(reg_collection(eq), "financing")
 })
 
-test_that("vofi_check_type: gültiger Zahlungstyp besteht C1-C4 und F1-F10", {
+test_that("vofi_check_type: g\u00fcltiger Zahlungstyp besteht C1-C4 und F1-F10", {
   local_registry()
   local_testkit_mocks()
   vofi_register_type(flow_def())
@@ -165,7 +165,7 @@ test_that("vofi_check_type: gültiger Zahlungstyp besteht C1-C4 und F1-F10", {
   expect_type_contract("tk_income")
 })
 
-test_that("vofi_check_type: Verstöße werden erkannt", {
+test_that("vofi_check_type: Verst\u00f6\u00dfe werden erkannt", {
   local_registry()
   local_testkit_mocks()
   vofi_register_type(flow_def("tk_sign", category = "other_cost"))
@@ -233,7 +233,7 @@ test_that("C4: fehlende Labels eingebauter Typen", {
   expect_match(f$message[f$check == "C4"], "types.flow.tk_builtin.label", fixed = TRUE)
 })
 
-test_that("Abhängigkeiten über example$.deps", {
+test_that("Abh\u00e4ngigkeiten \u00fcber example$.deps", {
   local_registry()
   local_testkit_mocks()
   vofi_register_type(flow_def("tk_base", grid_invariant = FALSE))
@@ -260,7 +260,7 @@ test_that("Kreditinstrument: I1-I4, F7, F8", {
   local_registry()
   local_testkit_mocks()
   inst <- vofi_type(
-    name = "tk_bullet", kind = "instrument", label = "Endfällig",
+    name = "tk_bullet", kind = "instrument", label = "Endf\u00e4llig",
     labels = list(description = "d", params = list(amount_eur = "Betrag", rate_pa = "Zins"),
                   rows = list()),
     params = list(amount_eur = vofi_param("amount", required = TRUE, deterministic_only = TRUE),
@@ -395,7 +395,7 @@ test_that("Prozess: P1-P3", {
   expect_true(all(c("P1", "P2", "P3") %in% f$check))
 })
 
-test_that("synthetisches core: vertragsgemäß und konsistent", {
+test_that("synthetisches core: vertragsgem\u00e4\u00df und konsistent", {
   core <- reg_example_core(7L, 6L)
   expect_s3_class(core$ledger, "vofi_ledger")
   expect_identical(core$n, 7L)

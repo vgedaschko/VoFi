@@ -139,7 +139,7 @@ expect_no_rng <- function(expr) {
   before <- reg_rng_state()
   force(expr)
   testthat::expect(identical(before, reg_rng_state()),
-                   "Der Ausdruck verändert .Random.seed.")
+                   "Der Ausdruck ver\u00e4ndert .Random.seed.")
   invisible(TRUE)
 }
 

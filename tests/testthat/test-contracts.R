@@ -30,7 +30,7 @@ test_that("vofi_row: Defaults der Kategorie", {
   expect_true(is.double(ri$values))
 })
 
-test_that("vofi_row: zulässige Angaben und Zusatzfelder", {
+test_that("vofi_row: zul\u00e4ssige Angaben und Zusatzfelder", {
   r <- vofi_row("cost_vat19", -m3(), "project", "capex", tax_category = "capex_expensable",
                 asset_id = "b1", measure_id = "m1", vat_rate = 0.19, is_tax = "umsatzsteuer",
                 program = "beg", label = "Kosten", spread_years = 3)

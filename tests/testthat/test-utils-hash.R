@@ -1,6 +1,6 @@
 # Tests für R/utils-hash.R (Integrator).
 
-test_that("stable_hash: deterministisch, inhaltsabhängig", {
+test_that("stable_hash: deterministisch, inhaltsabh\u00e4ngig", {
   x <- list(a = 1, b = list(c = "x", d = as.Date("2027-01-01")))
   h <- stable_hash(x)
   expect_match(h, "^[0-9a-f]{32}$")

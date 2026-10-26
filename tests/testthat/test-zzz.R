@@ -13,7 +13,7 @@ test_that(".onLoad: Kataloge geladen, Optionen gesetzt", {
   expect_setequal(names(reg_state$types), reg_kinds())
 })
 
-test_that(".onLoad überschreibt gesetzte Optionen nicht", {
+test_that(".onLoad \u00fcberschreibt gesetzte Optionen nicht", {
   local_vofi_options(vofi.chunk_size = 400L)
   ns <- asNamespace("vofi")
   old_types <- reg_state$types

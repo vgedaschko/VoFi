@@ -1,6 +1,6 @@
 # Tests der gemeinsamen Testfixtures (Integrator; Spec 00 Abschnitt 15.1).
 
-test_that("example_result: vertragsgemäß, Orakel (a)", {
+test_that("example_result: vertragsgem\u00e4\u00df, Orakel (a)", {
   r <- example_result()
   expect_s3_class(r, "vofi_result")
   expect_s3_class(r$ledger, "vofi_ledger")
@@ -25,7 +25,7 @@ test_that("example_result: vertragsgemäß, Orakel (a)", {
                      "dep_balance", "tax_liability", "net_position"))
 })
 
-test_that("example_core: vertragsgemäß", {
+test_that("example_core: vertragsgem\u00e4\u00df", {
   core <- example_core()
   expect_identical(core$n, 7L)
   expect_true(all(helper_invariants(core$ledger)$ok))

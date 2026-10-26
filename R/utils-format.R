@@ -55,7 +55,7 @@ fmt_eur <- function(x, digits = 0) {
   x <- suppressWarnings(as.double(x))
   out <- fmt_num(x, digits)
   ok <- !is.na(x)
-  out[ok] <- paste0(out[ok], " €")
+  out[ok] <- paste0(out[ok], " \u20ac")
   enc2utf8(out)
 }
 

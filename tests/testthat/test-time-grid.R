@@ -18,7 +18,7 @@ test_that("G1 Jahresraster: 2027-01-01, H = 30, C = 0", {
   expect_identical(g$year, c(2027L, 2027:2056))
 })
 
-test_that("G2 Neubau jährlich: H = 40, C = 24", {
+test_that("G2 Neubau j\u00e4hrlich: H = 40, C = 24", {
   g <- vofi_time_grid("2027-01-01", 40, construction_months = 24)
   expect_identical(g$T, 40L)
   expect_identical(g$phase[1:4], c("construction", "construction", "construction", "operation"))
@@ -76,7 +76,7 @@ test_that("G5 Betrieb ab Fertigstellung", {
   expect_identical(g$end_date, as.Date("2057-01-01"))
 })
 
-test_that("Raster: Fehler bei ungültigen Eingaben", {
+test_that("Raster: Fehler bei ung\u00fcltigen Eingaben", {
   expect_error(vofi_time_grid("2027-01-15", 10), class = "vofi_error_input")
   expect_error(vofi_time_grid("2027-13-01", 10), class = "vofi_error_input")
   expect_error(vofi_time_grid("2027-01-01", 10, construction_step_months = 2),
@@ -102,7 +102,7 @@ test_that("Raster: start_year bestimmt years; festes Horizontende bei abweichend
   expect_identical(a$end_date, b$end_date)
 })
 
-test_that("Stichtag außerhalb Januar: Kalenderausrichtung und Labels", {
+test_that("Stichtag au\u00dferhalb Januar: Kalenderausrichtung und Labels", {
   g <- vofi_time_grid("2027-04-01", 3, construction_months = 0, construction_step_months = 1)
   expect_identical(g$months, c(0L, 9L, 12L, 12L, 3L))
   expect_identical(g$label[2], "04-12/2027")
@@ -168,7 +168,7 @@ test_that("grid_index: Meldung, wenn Jahreswerte vor dem Stichtag fehlen", {
                  "market.x")
 })
 
-test_that("grid_index_year: Orakel (b) und Prüfwert F10 (3.6, 7.12)", {
+test_that("grid_index_year: Orakel (b) und Pr\u00fcfwert F10 (3.6, 7.12)", {
   g <- vofi_time_grid("2027-01-01", 10)
   iy <- grid_index_year(g, 0.02, base_date = as.Date("2028-01-01"))
   expect_equal(iy[1, -1], 1.02^((2:11) - 2))
@@ -200,7 +200,7 @@ test_that("grid_overlap: Anteile der Monate je Periode", {
   expect_equal(grid_overlap(ga), c(0, rep(1, 6)))
 })
 
-test_that("Monatsauflösung: grid_months, to_periods, to_months", {
+test_that("Monatsaufl\u00f6sung: grid_months, to_periods, to_months", {
   gm <- reg_test_grid("mixed")
   mt <- grid_months(gm)
   expect_identical(nrow(mt), 72L)

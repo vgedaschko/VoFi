@@ -12,7 +12,7 @@ test_that("vofi_abort: Klassen, Felder, Text aus dem Katalog", {
   expect_false(grepl("[[", conditionMessage(e), fixed = TRUE))
 })
 
-test_that("vofi_abort: Default-Klasse für core.not_implemented, Aufruf", {
+test_that("vofi_abort: Default-Klasse f\u00fcr core.not_implemented, Aufruf", {
   f <- function() vofi_abort("core.not_implemented", fun = "f")
   e <- tryCatch(f(), error = identity)
   expect_s3_class(e, "vofi_error_not_implemented")
@@ -36,7 +36,7 @@ test_that("vofi_warn und vofi_inform", {
   expect_silent(vofi_inform("core.index_before_assumed", path = "market.x"))
 })
 
-test_that("nur zulässige Bedingungsklassen", {
+test_that("nur zul\u00e4ssige Bedingungsklassen", {
   expect_error(vofi_abort("core.file_missing", path = "x", .class = "vofi_error_foo"),
                class = "vofi_error_contract")
   expect_error(vofi_warn("core.file_missing", path = "x", .class = "vofi_error_input"),
@@ -51,7 +51,7 @@ test_that("nur zulässige Bedingungsklassen", {
     "vofi_warning_correlation", "vofi_warning_memory", "vofi_message"))
 })
 
-test_that("fehlender Schlüssel: strikt Fehler, sonst [[key]]", {
+test_that("fehlender Schl\u00fcssel: strikt Fehler, sonst [[key]]", {
   local_vofi_options(vofi.strict_labels = FALSE)
   e <- tryCatch(vofi_abort("core.gibt_es_nicht"), error = identity)
   expect_identical(conditionMessage(e), "[[core.gibt_es_nicht]]")

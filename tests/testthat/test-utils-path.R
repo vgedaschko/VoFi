@@ -30,7 +30,7 @@ test_that("path_get, path_exists, path_set, path_remove", {
   expect_null(path_get(list(ab = 1), "a"))
 })
 
-test_that("path_leaves: Wertformen und Sequenzen sind Blätter", {
+test_that("path_leaves: Wertformen und Sequenzen sind Bl\u00e4tter", {
   x <- list(market = list(inflation = list(series = list(`2027` = 0.02), fill = "locf"),
                           energy_price = list(gas = 0.1, power = 0.3)),
             project = list(pending_reforms = c("a", "b"), empty = list()))

@@ -11,7 +11,7 @@ test_that("%||%, utl_sort, utl_suggest", {
   expect_identical(utl_suggest_text("qqqqqq", c("a")), "")
 })
 
-test_that("ids, Prüfungen, Datumswerte", {
+test_that("ids, Pr\u00fcfungen, Datumswerte", {
   expect_identical(utl_is_id(c("bank", "kfw_261", "Bank", "a__b", "1a", strrep("a", 41))),
                    c(TRUE, TRUE, FALSE, FALSE, FALSE, FALSE))
   expect_true(utl_is_whole(3))

@@ -14,7 +14,7 @@ test_that("stream_hash und stream_seed (exakt nach 11.3)", {
   expect_error(stream_seed(2147483647, "x"), class = "vofi_error_input")
 })
 
-test_that("with_stream: reproduzierbar, Nutzerzustand bleibt unverändert", {
+test_that("with_stream: reproduzierbar, Nutzerzustand bleibt unver\u00e4ndert", {
   withr::local_seed(42)
   before <- .Random.seed
   kind_before <- RNGkind()

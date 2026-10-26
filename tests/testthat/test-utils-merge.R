@@ -12,7 +12,7 @@ test_that("deep_merge: Maps rekursiv, Skalare und Sequenzen ersetzen", {
   expect_identical(deep_merge(list(a = 1), "x"), "x")
 })
 
-test_that("deep_merge: ~ löscht, .replace ersetzt, Wertformen ersetzen ganz", {
+test_that("deep_merge: ~ l\u00f6scht, .replace ersetzt, Wertformen ersetzen ganz", {
   base <- list(a = 1, b = list(c = 2, d = 3))
   ov <- list(a = NULL)
   expect_identical(names(deep_merge(base, ov)), "b")
@@ -33,7 +33,7 @@ test_that("deep_merge: ~ löscht, .replace ersetzt, Wertformen ersetzen ganz", {
   expect_identical(credit$bank$rate_pa, 0.03)
 })
 
-test_that("is_value_form: strukturell genau eine Wertform, schemagestützt mit kind_of", {
+test_that("is_value_form: strukturell genau eine Wertform, schemagest\u00fctzt mit kind_of", {
   expect_true(is_value_form(list(ref = "market.x", scale = 2)))
   expect_true(is_value_form(list(expr = "a.b * 2")))
   expect_true(is_value_form(list(series = list(`2027` = 1), fill = "locf")))
