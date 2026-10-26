@@ -32,8 +32,7 @@ vofi_validate <- function(x, variant = NULL, min_severity = c("info", "warning",
     for (v in vars) {
       spec <- tryCatch(vofi_resolve(x, variant = v), error = function(e) e)
       if (inherits(spec, "error")) {
-        out[[length(out) + 1L]] <- val_finding("error", "validation.resolve_failed", "",
-                                               variant = v, detail = conditionMessage(spec))
+        out[[length(out) + 1L]] <- val_resolve_finding(spec, v)
       } else {
         out <- c(out, val_spec(spec, v))
       }
@@ -58,6 +57,27 @@ val_finding <- function(severity, code, path, ..., layer = NA_integer_,
              location = NA_character_, message = msg(code, path = path, ...),
              layer = as.integer(layer), variant = as.character(variant),
              stringsAsFactors = FALSE)
+}
+
+#' Befund zu einem Fehler beim Auflösen einer Variante
+#'
+#' Validierungsfehler mit eigenem Schlüssel `validation.*` (z. B.
+#' `validation.library.ref_not_id`, 4.9, R-110) erscheinen unter diesem Code; alle übrigen
+#' Fehler als `validation.resolve_failed` mit dem Meldungstext.
+#' @param cond Fehlerobjekt.
+#' @param variant Variante.
+#' @noRd
+val_resolve_finding <- function(cond, variant) {
+  key <- cond$key
+  if (inherits(cond, "vofi_error_validation") && utl_is_string(key) &&
+        startsWith(key, "validation.")) {
+    args <- cond$args %||% list()
+    return(do.call(val_finding, c(list("error", key, args$path %||% ""),
+                                  args[setdiff(names(args), "path")],
+                                  list(variant = variant))))
+  }
+  val_finding("error", "validation.resolve_failed", "", variant = variant,
+              detail = conditionMessage(cond))
 }
 
 #' Befunde binden
@@ -160,7 +180,7 @@ val_domain_fields <- function(spec, add) {
 }
 
 #' Unbekannte Wurzelschlüssel der Laufzeit-Overrides (Schicht 8, 4.2)
-#' @param overrides Overrides in Baumform (nach [scn_overrides_tree()]).
+#' @param overrides Overrides in Baumform (nach `scn_overrides_tree()`).
 #' @return Liste von Befunden.
 #' @noRd
 val_overrides_structure <- function(overrides) {

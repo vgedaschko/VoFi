@@ -33,6 +33,22 @@ utl_value_form_keys <- function() {
   )
 }
 
+#' Muster einer Bibliotheks-id (4.9, R-110)
+#'
+#' Erster Teil = Ordner der Bibliothek, danach mindestens ein weiterer Teil, z. B.
+#' `funding/kfw_261_eh55` oder `prices/co2_price_paths_2026`.
+#' @return Zeichenkette (regulärer Ausdruck).
+#' @noRd
+utl_library_id_pattern <- function() "^[a-z][a-z0-9_]*(/[a-z0-9_]+)+$"
+
+#' Ist `x` eine Bibliotheks-id nach `utl_library_id_pattern()`?
+#' @param x Objekt.
+#' @return `TRUE`/`FALSE`.
+#' @noRd
+utl_is_library_id <- function(x) {
+  utl_is_string(x) && grepl(utl_library_id_pattern(), x)
+}
+
 #' Sammlungen nach id (4.4 Nr. 1, 4.7 `item_defaults`): ihre Einträge sind nie Wertformen
 #' @noRd
 utl_merge_collections <- function() {
@@ -42,10 +58,11 @@ utl_merge_collections <- function() {
 
 #' Strukturelle Pfadart für die Wertformerkennung (Default von `kind_of`, 4.7)
 #'
-#' Einträge der Sammlungen (z. B. `components.<id>`, `financing.<id>`) sind nie Wertformen,
-#' auch wenn sie Schlüssel wie `from` (Termin von `recurring` bzw. `equity`, 7.12) tragen. Die
-#' Regel greift nur bei absoluten Pfaden ab der Szenariowurzel; für Teilbäume (`path = ""`)
-#' bleibt es bei der strukturellen Prüfung. Oberste Blöcke behandelt [scn_kind_of()].
+#' Einträge der Sammlungen (z. B. `components.<id>`, `funding.<id>`) sind nie Wertformen,
+#' auch wenn sie einen Bibliotheksverweis mit lokalen Schlüsseln tragen (z. B.
+#' `funding.kfw: {from: funding/kfw_261_eh55, amount_eur: ...}`, 4.9). Die Regel greift nur bei
+#' absoluten Pfaden ab der Szenariowurzel; für Teilbäume (`path = ""`) bleibt es bei der
+#' strukturellen Prüfung. Oberste Blöcke behandelt `scn_kind_of()`.
 #' @param path Pfad.
 #' @return `"map"` bzw. `NA_character_` (strukturelle Prüfung).
 #' @noRd
@@ -72,12 +89,10 @@ utl_value_form_kind <- function(x) {
   }, logical(1))
   if (sum(hit) != 1L) return(NA_character_)
   form <- names(forms)[hit]
-  # Bibliotheksverweis nur mit einer id der Form <bereich>/<eintrag> (4.9); {from: 2030} bzw.
-  # {from: completion} ist ein Termin, keine Wertform
-  if (identical(form, "from") && !(is.character(x[["from"]]) && length(x[["from"]]) == 1L &&
-                                     grepl("/", x[["from"]], fixed = TRUE))) {
-    return(NA_character_)
-  }
+  # Bibliotheksverweis nur mit einer Bibliotheks-id (4.9, R-110); {from: 2030} bzw.
+  # {from: completion} ist keine Wertform, sondern ein Validierungsfehler (Termine heissen
+  # start_event, scn_check_library())
+  if (identical(form, "from") && !utl_is_library_id(x[["from"]])) return(NA_character_)
   form
 }
 
@@ -87,12 +102,12 @@ utl_value_form_kind <- function(x) {
 #'    den Arten `value`, `amount`, `rate`, `share`, `number`, `schedule`; bei diesen Arten wird
 #'    zusätzlich die Struktur geprüft (eine Teil-Map wie `{fill: zero}` ist keine Wertform und
 #'    wird gemischt).
-#' 2. Ohne Aussage von `kind_of` gilt die strukturelle Pfadart [utl_default_kind_of()]:
-#'    Sammlungseinträge (`components.<id>`, `financing.<id>`, ...) sind nie Wertformen (Schutz
-#'    vor `{from: 2030}` als Teil-Override eines Eintrags).
+#' 2. Ohne Aussage von `kind_of` gilt die strukturelle Pfadart `utl_default_kind_of()`:
+#'    Sammlungseinträge (`components.<id>`, `financing.<id>`, ...) sind nie Wertformen (ein
+#'    Teil-Override eines Eintrags wird gemischt).
 #' 3. Sonst strukturell: `x` ist eine Map, deren Namen vollständig in der Schlüsselmenge genau
 #'    einer Wertform liegen und deren Pflichtschlüssel enthalten; ein Bibliotheksverweis `from`
-#'    braucht eine id mit `/` (4.9).
+#'    braucht eine Bibliotheks-id nach `utl_library_id_pattern()` (4.9, R-110).
 #' @param x Objekt.
 #' @param path Pfad des Knotens (für `kind_of`).
 #' @param kind_of `NULL` oder `function(path)` -> Parameterart bzw. `NULL`/`NA`, wenn der Pfad
@@ -117,7 +132,7 @@ is_value_form <- function(x, path = "", kind_of = NULL) {
 #' @param base Basis.
 #' @param override Override.
 #' @param path aktueller Pfad.
-#' @param kind_of optional, siehe [is_value_form()].
+#' @param kind_of optional, siehe `is_value_form()`.
 #' @return gemischtes Objekt.
 #' @noRd
 deep_merge <- function(base, override, path = "", kind_of = NULL) {

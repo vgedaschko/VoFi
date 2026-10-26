@@ -1,6 +1,7 @@
 # Zahlungstyp recurring: laufender Jahresbetrag mit Kalenderjahresindex (WS-E, Spec 00 7.12).
 # Phase-0-Minimalfassung, Eigentuemer: WS-E. Wert = +/- amount_eur * index_year(growth,
-# base_date) * Delta_t * shift_overlap(from, shift, to) (R-62, 3.9); grid_invariant = TRUE.
+# base_date) * Delta_t * shift_overlap(start_event, shift, to) (R-62, 3.9); grid_invariant = TRUE.
+# Terminparameter start_event (nie from: from ist der Bibliotheksverweis, 4.9, R-110).
 # Offen fuer WS-E: validate() (Wachstumsform in amount_eur, direction gegen das Vorzeichen der
 # Kategorie, Hinweis "Kategorie other_cost angenommen" fuer wu_*).
 
@@ -23,7 +24,7 @@ typedef_recurring <- function() {
       # Jahresrate: Art rate (Pruefung > 1 nach 4.6) mit Shape scalar oder path (7.12)
       growth = vofi_param("rate", default = 0, shapes = c("scalar", "path")),
       base_date = vofi_param("timing"),
-      from = vofi_param("timing", default = "completion"),
+      start_event = vofi_param("timing", default = "completion"),
       to = vofi_param("timing", grid_default = "end_date"),
       category = vofi_param("string", default = "other_cost"),
       direction = vofi_param("enum", values = "vocab:direction"),
@@ -44,7 +45,8 @@ typedef_recurring <- function() {
       bd <- typ_timing_date(ctx, spec, "base_date",
                             as.Date(sprintf("%04d-01-01", as.integer(pby) + 1L)))
       idx <- ctx$index_year(ctx$param(spec, "growth", "path"), bd)
-      fr <- ctx$timing(spec, "from") %||% list(date = g$valuation_date, shift = rep(0, ctx$n))
+      fr <- ctx$timing(spec, "start_event") %||%
+        list(date = g$valuation_date, shift = rep(0, ctx$n))
       to <- typ_timing_date(ctx, spec, "to", NULL)
       v <- sign * ctx$param(spec, "amount_eur") * idx * ctx$by_period(g$delta) *
         ctx$shift_overlap(fr$date, fr$shift, to)
@@ -54,6 +56,6 @@ typedef_recurring <- function() {
       vofi_flows(do.call(vofi_row, args))
     },
     example = list(type = "recurring", amount_eur = 14000, growth = 0.02,
-                   base_date = "2027-01-01", from = "2027-01-01", category = "rent")
+                   base_date = "2027-01-01", start_event = "2027-01-01", category = "rent")
   )
 }

@@ -44,10 +44,10 @@ batch_scenario <- function(block_size = 7L, n_sim = 7L, degenerate = FALSE, extr
                  values = list(schedule = list("2027-01-01" = -100000))),
       rent = list(type = "recurring", label = "Miete", category = "rent", amount_eur = 9000,
                   growth = list(ref = "market.rent_growth"), base_date = as.Date("2027-01-01"),
-                  from = as.Date("2027-01-01")),
+                  start_event = as.Date("2027-01-01")),
       opex = list(type = "recurring", label = "Kosten", category = "operating_cost",
                   direction = "outflow", amount_eur = 1500, base_date = as.Date("2027-01-01"),
-                  from = as.Date("2027-01-01"))
+                  start_event = as.Date("2027-01-01"))
     ),
     financing = list(
       ek = list(type = "equity", amount_eur = 40000),

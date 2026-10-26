@@ -207,7 +207,7 @@ eng_build_chain <- function(names_chain) {
 #' `analysis.kpis: default` bedeutet den Kennzahlensatz des Perspektiven-Profils (Spec 01 Teil A
 #' 1.5); solange die Profile fehlen (WS-A, Welle 2), gelten in Phase 0 alle registrierten
 #' Kennzahlen. Der Filter nach `requires` folgt nach dem Basisfall-Vorlauf
-#' ([eng_filter_kpis_requires()]).
+#' (`eng_filter_kpis_requires()`).
 #' @noRd
 eng_build_kpis <- function(spec) {
   sel <- spec$analysis$kpis

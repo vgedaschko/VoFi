@@ -5,7 +5,7 @@
 #' Invarianten pruefen (9.7)
 #'
 #' Phase-0-Minimalfassung, Eigentümer: WS-D.
-#' @param core core aus [eng_balance()].
+#' @param core core aus `eng_balance()`.
 #' @param stop_on_error bei Verstoß `vofi_error_engine` signalisieren.
 #' @return Data Frame `invariant`, `max_dev`, `tol`, `ok`.
 #' @noRd

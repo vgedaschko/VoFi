@@ -21,6 +21,8 @@ chain_order: "'{path}': die erste Aktion muss {first} sein, die letzte {last}; j
 tax_module_unknown: "Unbekanntes Steuermodul '{value}' ('{path}').{suggestion}"
 tax_module_blocked: "Das Steuermodul '{value}' ist für die Perspektive bzw. das Steuerregime gesperrt ('{path}', Perspektive {perspective})."
 kpi_unknown: "Unbekannte Kennzahl '{value}' in '{path}'.{suggestion}"
+library:
+  ref_not_id: "'{path}': Der Schlüssel from ist ausschließlich der Bibliotheksverweis; '{value}' ist keine Bibliotheks-id (Muster <ordner>/<eintrag>, z. B. funding/kfw_261_eh55). Termine heißen start_event (z. B. start_event: {value})."
 expr:
   syntax: "Ausdruck '{text}' ist nicht lesbar. {detail}"
   symbol: "Ausdruck '{text}': '{symbol}' ist kein Pfad (Pfade enthalten einen Punkt, z. B. building.living_area_m2)."

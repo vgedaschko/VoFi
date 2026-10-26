@@ -571,7 +571,7 @@ new_ledger_rows <- function(key, section, category, tax_category = NULL, cash = 
 }
 
 #' Ledger-Objekt bauen
-#' @param rows Data Frame aus [new_ledger_rows()].
+#' @param rows Data Frame aus `new_ledger_rows()`.
 #' @param values benannte Liste n x (T+1)-Matrizen in der Reihenfolge `rows$key`.
 #' @param n,T Läufe und letzter Periodenindex (Default: aus den Matrizen).
 #' @return Objekt der Klasse `vofi_ledger`.

@@ -286,7 +286,7 @@ utl_grid_labels <- function(date_start, date_end, months) {
 #' Periode eines Datums
 #'
 #' `date == valuation_date` ergibt t = 0; `date > valuation_date` ergibt
-#' t = min{t >= 1 : date <= date_end[t]}; nach dem Horizontende `NA`; vor dem Stichtag `NA` mit
+#' `t = min{t >= 1 : date <= date_end[t]}`; nach dem Horizontende `NA`; vor dem Stichtag `NA` mit
 #' Attribut `"before"` (logischer Vektor, `TRUE` an diesen Stellen).
 #' @param grid `vofi_grid`.
 #' @param date `Date`-Vektor (oder ISO-Zeichenketten).
@@ -308,7 +308,7 @@ grid_period_of <- function(grid, date) {
 #' Periode einer Jahresangabe (Jahr Y bedeutet den 1. Januar Y)
 #' @param grid `vofi_grid`.
 #' @param year ganze Zahl(en).
-#' @return integer (siehe [grid_period_of()]).
+#' @return integer (siehe `grid_period_of()`).
 #' @noRd
 grid_period_of_year <- function(grid, year) {
   grid_period_of(grid, as.Date(sprintf("%04d-01-01", as.integer(year))))
@@ -395,7 +395,7 @@ grid_per_period <- function(grid, x_pa) {
 #' Kalenderjahresraten (für Kalenderjahresindex und Vorlauf)
 #'
 #' Rate des Kalenderjahres Y >= Jahr(Stichtag) = Wert von g in der ersten Periode j >= 2 mit
-#' year[j] == Y (sonst die Periode, die den 1. Januar Y enthält; jenseits des Rasters die letzte
+#' `year[j] == Y` (sonst die Periode, die den 1. Januar Y enthält; jenseits des Rasters die letzte
 #' Spalte). Jahre vor dem Stichtagsjahr: Attribut `"annual_before"` (n x k, Spaltennamen =
 #' Jahre), sonst `g[, 1]` mit Meldung `core.index_before_assumed`.
 #' @return n x length(yrs).
@@ -435,7 +435,7 @@ utl_calendar_rates <- function(grid, g, before, yrs, path = NULL) {
   out
 }
 
-#' Niveau-Funktion über Kalenderjahre (Bezug: 1. Januar von yrs[1])
+#' Niveau-Funktion über Kalenderjahre (Bezug: 1. Januar von `yrs[1]`)
 #' @return Funktion `level(date)` -> n-Vektor.
 #' @noRd
 utl_calendar_level <- function(rates, yrs) {
@@ -460,7 +460,7 @@ utl_calendar_level <- function(rates, yrs) {
 
 #' Kumulierter Index zum Periodenende (Bestandsgrößen, Preise an Stichtagen)
 #'
-#' I_t = I_{t-1} * (1 + g[, t+1])^delta_t. `base_date = NULL`: I_0 = 1. `base_date` vor dem
+#' `I_t = I_{t-1} * (1 + g[, t+1])^delta_t`. `base_date = NULL`: I_0 = 1. `base_date` vor dem
 #' Stichtag: I_0 = Vorlauf über die Kalenderjahre zwischen `base_date` und Stichtag (Teiljahre
 #' geometrisch anteilig, Jahreswerte aus Attribut `"annual_before"`, sonst `g[, 1]` mit Meldung).
 #' `base_date` nach dem Stichtag: I_t = I*_t / I*(base_date), geometrisch interpoliert innerhalb
@@ -504,10 +504,10 @@ grid_index <- function(grid, g, base_date = NULL) {
 
 #' Kalenderjahresindex für laufende Jahresbeträge (R-62)
 #'
-#' Spalte j = Indexstand am Ende des Kalenderjahres year[j] (am (year[j] + 1)-01-01) bezogen auf
+#' Spalte j = Indexstand am Ende des Kalenderjahres `year[j]` (am `(year[j] + 1)-01-01`) bezogen auf
 #' `base_date` (Default: Stichtag); Spalte 1 (t0) = Wert des Stichtagsjahres. Innerhalb eines
 #' Kalenderjahres ist der Index konstant. Jahresrate des Kalenderjahres Y = Wert von g in der
-#' ersten Periode j >= 2 mit year[j] == Y.
+#' ersten Periode j >= 2 mit `year[j] == Y`.
 #' @inheritParams grid_index
 #' @return n x (T+1).
 #' @noRd
@@ -532,7 +532,7 @@ grid_index_year <- function(grid, g, base_date = NULL) {
 #'
 #' Ein Datum, das kein Monatserster ist, wird auf den folgenden Monatsersten gerundet; Ergebnis
 #' ist die ganze Zahl der Monate vom Stichtag bis zu diesem Monatsersten (`-Inf`/`Inf` bleiben).
-#' @param pos Monatsposition aus [grid_month_pos()].
+#' @param pos Monatsposition aus `grid_month_pos()`.
 #' @noRd
 utl_month_ceiling <- function(pos) ceiling(pos - 1e-9)
 
@@ -624,7 +624,7 @@ grid_to_months <- function(grid, x, how = c("repeat", "spread")) {
   out
 }
 
-#' Prozessmatrix in Kalenderjahren -> n x (T+1) (Spalte j = Wert des Jahres year[j])
+#' Prozessmatrix in Kalenderjahren -> n x (T+1) (Spalte j = Wert des Jahres `year[j]`)
 #' @param grid `vofi_grid`.
 #' @param x_year n x length(years).
 #' @return n x (T+1).
@@ -649,7 +649,7 @@ grid_map_years <- function(grid, x_year) {
 #' @noRd
 utl_round_shift <- function(months) floor(as.double(months) + 0.5)
 
-#' Periode von date + months[i] Monaten je Lauf
+#' Periode von `date + months[i]` Monaten je Lauf
 #' @param grid `vofi_grid`.
 #' @param date Datum (Länge 1).
 #' @param months n-Vektor der Verschiebung in Monaten (wird gerundet).
@@ -663,9 +663,9 @@ grid_shift_period <- function(grid, date, months) {
   out
 }
 
-#' Monatsanteil jeder Periode in [from + months[i], to) je Lauf
+#' Monatsanteil jeder Periode in `[from + months[i], to)` je Lauf
 #'
-#' Monatsweise wie [grid_overlap()] (R-98): Beginn und Ende werden auf den folgenden
+#' Monatsweise wie `grid_overlap()` (R-98): Beginn und Ende werden auf den folgenden
 #' Monatsersten gerundet; identisch zu `grid_to_periods(grid_shift_months()) / months`.
 #' @param grid `vofi_grid`.
 #' @param from Datum (Länge 1).
@@ -691,7 +691,7 @@ grid_shift_overlap <- function(grid, from, months, to = NULL) {
   out
 }
 
-#' 0/1-Matrix der aktiven Monate (Monat m aktiv, wenn sein Beginn in [from + months[i], to) liegt)
+#' 0/1-Matrix der aktiven Monate (Monat m aktiv, wenn sein Beginn in `[from + months[i], to)` liegt)
 #' @inheritParams grid_shift_overlap
 #' @return n x M_T.
 #' @noRd

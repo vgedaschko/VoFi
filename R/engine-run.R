@@ -99,7 +99,7 @@ eng_run_chunk <- function(model, blocks, seed, mode = c("mc", "deterministic", "
 #' @param store `"full"` (Ledger aller Läufe) oder `"kpi"`.
 #' @param return_paths Namen der zurückzugebenden Pfade (9.2).
 #' @param kpis `NULL` (alle Kennzahlen des Modells) oder Teilmenge.
-#' @return Liste wie [eng_run_chunk()].
+#' @return Liste wie `eng_run_chunk()`.
 #' @noRd
 eng_run_draws <- function(model, draws = NULL, store = "full", return_paths = character(),
                           kpis = NULL) {

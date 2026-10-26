@@ -49,4 +49,24 @@
   - `recurring.growth` als Rate (Prüfung > 1), `vofi_library_paths()` umgesetzt.
   - Testhelfer und Fixtures an die Engine-Struktur angeglichen, Stub-Liste `vofi_stubs()`,
     Batch-Tests auf Identität und N = T+1, `.lintr` ohne `cyclocomp_linter`.
-
+* Phase-0-Nacharbeit gesamt (Spec 00 17.6.5, Runden 3 und 4):
+  - P0-02: alle Enums aus Spec 01 Teil A 8.1 und Teil B 8 (u. a. `building_type`,
+    `component_area`, `maintenance_basis`, `carrier_class` mit `coal`, `heating_system_type`,
+    `levy_mode`, `increase_policy`, `applicant`, `energy_class`) sowie die Enums der
+    Feldtabellen von Teil A–C (u. a. `kg700_basis`, `effect_start`, `legal_status`) mit
+    deutschen Labels; Aliase von `modernization_kind` (`erhaltung`, `heizung`, ...).
+  - P0-11 (**inkompatibel**, R-110): Terminparameter `from` von `recurring` und `equity` heißt
+    `start_event`.
+  - P0-12 (R-110): `from` ist ausschließlich der Bibliotheksverweis; nur ein Wert nach
+    `^[a-z][a-z0-9_]*(/[a-z0-9_]+)+$` ist ein Verweis, sonst Validierungsfehler
+    `validation.library.ref_not_id` (Hinweis auf `start_event`, auch in `vofi_validate()`);
+    Registrierung (C3) verbietet Typparameter `from` und `use`.
+  - P0-13 (R-112): `set` und `overrides` von Varianten und Sets dürfen Felder setzen, die erst
+    Ableitungsregeln, Typ-Defaults oder `item_defaults` füllen (Feld der Feldtabelle bzw.
+    Vorlage bei vorhandenem Elternelement); `replace`/`remove` bleiben streng; `~` in
+    `overrides` entfernt das Blatt.
+  - P0-14 (R-114): Prüfkit P4 für Prozesse mit `linked` mit `example$.base`
+    (simulierter Basisprozess, korrelierte Schocks, `NA` nur ohne Gaußbasis); Weyl-Permutationen
+    des Prüfkits für k > 10 unabhängig.
+  - Dokumentation: Verweise auf interne Themen und Klammerausdrücke als Code formatiert
+    (keine Warnungen „Could not resolve link“ unter roxygen2 8.x).

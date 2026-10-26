@@ -106,7 +106,7 @@ utl_lbl_text <- function(key, args = list(), .default = NULL) {
   utl_fill_placeholders(text, args, key)
 }
 
-#' Meldungstext (identisch zu [lbl()], Name für Meldungen)
+#' Meldungstext (identisch zu `lbl()`, Name für Meldungen)
 #' @inheritParams lbl
 #' @noRd
 msg <- function(key, ...) lbl(key, ...)

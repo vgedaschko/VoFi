@@ -158,7 +158,7 @@ scn_profile_fallback_paths <- function() {
 
 #' `defaults_meta` der internen Rückfallwerte (4.7 Nr. 1, 13.1 `meta$defaults`, R-85)
 #'
-#' Phase 0: Die Werte aus [scn_layer_defaults()] stehen für `global.yaml` und das Profil der
+#' Phase 0: Die Werte aus `scn_layer_defaults()` stehen für `global.yaml` und das Profil der
 #' Perspektive, bis WS-A die Dateien liefert; dann tritt deren `defaults_meta` an diese Stelle.
 #' @param perspective Perspektive bzw. `NULL`.
 #' @return Liste `global` (und `profile`, wenn die Perspektive bekannt ist).
@@ -175,7 +175,7 @@ scn_defaults_meta <- function(perspective = NULL) {
 
 #' Knotenbewusstes Mischen zweier Schichten (4.7)
 #'
-#' Wie [deep_merge()], zusätzlich gelten normalisierte Knoten (`list(kind = ...)`) und
+#' Wie `deep_merge()`, zusätzlich gelten normalisierte Knoten (`list(kind = ...)`) und
 #' Wertformen auf der Override-Seite als Blätter; eine Teil-Map ohne Wertform (z. B.
 #' `{fill: zero}`, `{scale: 2}`) wird in einen Basisknoten gemischt.
 #' @noRd
@@ -326,7 +326,7 @@ scn_type_defaults <- function(x, layers, types) {
 #' Art eines Pfads für die Erkennung von Wertformen (4.7 Nr. 1)
 #'
 #' Oberste Blöcke und Einträge der Sammlungen (z. B. `components.<id>`) sind nie Wertformen,
-#' auch wenn sie Schlüssel wie `from` (Termin von `recurring`) tragen.
+#' auch wenn sie einen Bibliotheksverweis mit lokalen Schlüsseln tragen (4.9).
 #' @return `"map"` bzw. `NA_character_` (strukturelle Prüfung).
 #' @noRd
 scn_kind_of <- function(path) {
@@ -334,17 +334,34 @@ scn_kind_of <- function(path) {
   utl_default_kind_of(path)
 }
 
-#' Ist `x` ein Bibliotheksverweis `{from: <id>, ...}` (id mit Schrägstrich, 4.9)?
+#' Ist `x` ein Bibliotheksverweis `{from: <id>, ...}`?
+#'
+#' Nur mit einer Bibliotheks-id nach `utl_library_id_pattern()` (4.9, R-110).
 #' @noRd
 scn_is_library_ref <- function(x) {
-  is_map(x) && !node_is(x) && utl_is_string(x[["from"]]) && grepl("/", x[["from"]], fixed = TRUE)
+  is_map(x) && !node_is(x) && utl_is_library_id(x[["from"]])
 }
 
-#' Bibliotheksverweise sind in Phase 0 noch nicht auflösbar (Schicht 3, WS-A)
+#' Schlüssel `from` prüfen (4.9, R-110); Bibliotheksverweise sind in Phase 0 noch nicht auflösbar
+#'
+#' `from` ist ausschließlich der Bibliotheksverweis: Eine Map mit dem Schlüssel `from`, dessen
+#' Wert keine Bibliotheks-id ist (z. B. `from: completion`, `from: 2027-10-01`), ist der
+#' Validierungsfehler `validation.library.ref_not_id` (Termine heißen `start_event`). Ein
+#' gültiger Verweis wird in Schicht 3 aufgelöst (WS-A; Phase 0: `vofi_error_not_implemented`).
+#' @param x Teilbaum (Rohform bzw. teilweise normalisiert).
+#' @param path Pfad von `x`.
+#' @return `invisible(TRUE)`.
 #' @noRd
 scn_check_library <- function(x, path = "") {
   if (is_map(x) && length(x) > 0L && !node_is(x)) {
-    if (scn_is_library_ref(x)) scn_unsupported(paste0("from: (", path, ")"))
+    if (utl_has_name(x, "from")) {
+      if (!utl_is_library_id(x[["from"]])) {
+        vofi_abort("validation.library.ref_not_id", path = path_join(path, "from"),
+                   value = utl_collapse(format(x[["from"]])),
+                   .class = "vofi_error_validation")
+      }
+      scn_unsupported(paste0("from: (", path, ")"))
+    }
     for (nm in names(x)) scn_check_library(x[[nm]], path_join(path, nm))
   }
   invisible(TRUE)

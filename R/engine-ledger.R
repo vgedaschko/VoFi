@@ -6,7 +6,7 @@
 
 #' Zeilen an einen Ledger anhängen
 #' @param led `vofi_ledger` oder `NULL`.
-#' @param rows Data Frame aus [new_ledger_rows()].
+#' @param rows Data Frame aus `new_ledger_rows()`.
 #' @param values benannte Liste n x (T+1).
 #' @return `vofi_ledger` (sortiert nach `order`, stabil).
 #' @noRd

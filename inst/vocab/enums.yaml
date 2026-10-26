@@ -2,7 +2,9 @@
 # Aliase dienen nur der Eingabe-Normalisierung (R-07, R-09, R-34); intern erscheinen nur kanonische
 # Codes. Labels: inst/labels/de/vocab.yaml unter vocab.enums.<name>.<code>.
 # Zusatzfelder einzelner Enums sind maschinelle Regeln (z. B. Abbildungen, Teilmengen).
-# Spec 01 ergaenzt weitere Enums (z. B. building_type, carrier_class); der Integrator uebernimmt sie.
+# Inhalt nach 2.11 (R-89): Enums aus Spec 00, Spec 01 Teil A 8.1 und Teil B 8 sowie die Enums der
+# Feldtabellen von Spec 01 Teil A-C (Abschnitte "Spec 01" unten; Name = Feld- bzw. Enumname der
+# Feldtabelle, P0-02).
 
 # --- Projekt (4.3.2) ---
 perspective:
@@ -96,9 +98,9 @@ funding_choice:
   codes: [keine, beg_zuschuss, beg_kredit, "35c"]
   aliases: {}
   default: keine
-modernization_kind:            # Spec 01 Teil B, Abschnitt 1.4
+modernization_kind:            # Spec 01 Teil B, Abschnitt 1.4 (Aliase der Eingabe ebd.)
   codes: [none, bgb_555b_1, bgb_555b_1a, bgb_555b_2, bgb_555b_3, bgb_555b_4, bgb_555b_4a, bgb_555b_5, bgb_555b_6, bgb_555b_7]
-  aliases: {}
+  aliases: {erhaltung: none, instandsetzung: none, energetisch: bgb_555b_1, heizung: bgb_555b_1a}
   default: none
 rent_regime:
   codes: [paragraph_558, staffel, index, bound_social, cooperative_fee, owner_occupied]
@@ -322,3 +324,195 @@ report_format:
   codes: [html, docx]
   aliases: {}
   default: html
+# --- Spec 01 Teil A, Abschnitt 8.1 (R-89, P0-02) ---
+building_type:                 # Teil A 3.1
+  codes: [EFH, ZFH, DHH, RH, MFH, ETW]
+  aliases: {}
+  default: ~
+component_area:                # Teil A 3.1.1: Bauteilcodes (component_areas_m2, quantity_per m2_component:<b>)
+  codes: [roof, pitched_roof, flat_roof, top_ceiling, facade, windows, doors, basement_ceiling, floor_slab, partition_unheated]
+  aliases: {}
+  default: ~
+payment_profile:               # Teil A 0.3, 4.1, 4.6 (Mittelabflussprofil)
+  codes: [linear, s_curve, front, back]
+  aliases: {}
+  default: linear
+construction_delay_mode:       # Teil A 4.1, 4.6 (Wirkung des Bauzeitverzugs auf die Zahlungen)
+  codes: [none, last, stretch]
+  aliases: {}
+  default: none
+maintenance_basis:             # Teil A 3.3, 4.11; auto nur im Domaenenblock (rule:maintenance_from), share_of_cost nur am Typ
+  codes: [auto, rate, iibv, share_of_cost, none]
+  aliases: {}
+  default: ~
+overdue_policy:                # Teil A 3.2, 4.10 (ueberfaellige Bestandsbauteile)
+  codes: [first_period, valuation, skip]
+  aliases: {}
+  default: first_period
+remaining_life_method:         # Teil A 6.1 (Ertragswert: Restnutzungsdauer)
+  codes: [anlage2, linear, manual]
+  aliases: {}
+  default: anlage2
+income_basis:                  # Teil A 6.1 (Ertragswert: Rohertrag)
+  codes: [forward, trailing]
+  aliases: {}
+  default: forward
+modernization_element:         # Teil A 6.3.3 (ImmoWertV Anlage 2, Modernisierungselemente)
+  codes: [roof_insulation, windows_doors, pipes, heating, facade_insulation, bathrooms, interior, floor_plan]
+  aliases: {}
+  default: ~
+# --- Spec 01 Teil A, weitere Enums der Feldtabellen (P0-02) ---
+kg700_basis:                   # Teil A 4.1, 4.6.1 (Bezugsbasis der Baunebenkosten)
+  codes: [kg300_400, kg200_600]
+  aliases: {}
+  default: kg300_400
+contingency_basis:             # Teil A 4.1, 4.6.1 (Bezugsbasis des Risikozuschlags)
+  codes: [kg200_700, kg200_600]
+  aliases: {}
+  default: kg200_700
+effect_start:                  # Teil A 4.4 (effects.start), 4.6.1 (effect_start)
+  codes: [completion, next_year]
+  aliases: {}
+  default: completion
+path_pre_operation:            # Teil A 6.1 (residual_value.path_pre_operation)
+  codes: [auto, cost, method, zero]
+  aliases: {}
+  default: auto
+income_value_variant:          # Teil A 6.1 (residual_value.income_value.variant)
+  codes: [general, simplified]
+  aliases: {}
+  default: general
+bwk_source:                    # Teil A 6.1 (income_value.bwk.admin_source, .maintenance_source)
+  codes: [model, ledger]
+  aliases: {}
+  default: model
+multiplier_basis:              # Teil A 6.1 (residual_value.multiplier.basis)
+  codes: [net_cold_rent_incl_levy, net_cold_rent]
+  aliases: {}
+  default: net_cold_rent_incl_levy
+life_basis:                    # Teil A 6.1 (residual_value.asset_value.life_basis)
+  codes: [gnd, component]
+  aliases: {}
+  default: gnd
+include_existing:              # Teil A 6.1 (residual_value.component.include_existing); YAML true/false = Code
+  codes: [auto, "true", "false"]
+  aliases: {}
+  default: auto
+# --- Spec 01 Teil B, Abschnitt 8 (P0-02) ---
+increase_policy:               # Teil B 1.2 (Strategie der Mieterhoehungen)
+  codes: [auto, fixed_growth, max, interval, capped]
+  aliases: {}
+  default: auto
+growth_applies_to:             # Teil B 1.2
+  codes: [total, base]
+  aliases: {}
+  default: total
+levy_mode:                     # Teil B 1.3, 1.4 (modernization_levy, rent_law.levy)
+  codes: [auto, none]
+  aliases: {}
+  default: auto
+maintenance_method:            # Teil B 1.4 (rent_law.maintenance_share_method, 1.9.1)
+  codes: [auto, linear_wear, fixed_share, ohnehin, none]
+  aliases: {}
+  default: auto
+hp_exception:                  # Teil B 1.4 (Ausnahme von der Halbierung nach 559f)
+  codes: [auto, none, building_after_1996, flow_temperature]
+  aliases: {}
+  default: auto
+third_party_allocation:        # Teil B 1.3 (Feld drittmittel_attribution); Default aus dem Rechtsstand
+  codes: [full, proportional]
+  aliases: {}
+  default: ~
+s559e_order:                   # Teil B 1.3 (Feld flat_559e_order); Default aus dem Rechtsstand
+  codes: [flat_before_funds, funds_before_flat]
+  aliases: {}
+  default: ~
+s559f_order:                   # Teil B 1.3 (Feld hp_reduction_order); Default aus dem Rechtsstand
+  codes: [halve_then_funds, funds_then_halve]
+  aliases: {}
+  default: ~
+voluntary_cap_mode:            # Teil B 1.3, 1.9.5
+  codes: [fixed, warm_rent_neutral]
+  aliases: {}
+  default: fixed
+vacancy_opex_scope:            # Teil B 2.2
+  codes: [cold, warm]
+  aliases: {}
+  default: cold
+perspective_tax:               # Teil B 2.2 (Typ operating_cost)
+  codes: [deductible, nondeductible]
+  aliases: {}
+  default: deductible
+carrier_class:                 # Teil B 3.2.1 (energy.carriers.<c>.class); coal neu (F-18)
+  codes: [gas, oil, lpg, coal, power, power_hp, district_heating, biomass, other]
+  aliases: {}
+  default: ~
+heating_system_type:           # Teil B 3.2.6 (building.heating_existing.type; F-18)
+  codes: [central, floor, single_room]
+  aliases: {}
+  default: central
+price_includes:                # Teil B 3.2.1
+  codes: [commodity, all]
+  aliases: {}
+  default: commodity
+price_basis:                   # Teil B 3.2.1
+  codes: [net, gross]
+  aliases: {}
+  default: net
+feed_in_mode:                  # Teil B 3.9 (PV)
+  codes: [partial, full]
+  aliases: {}
+  default: partial
+pv_tax_exempt:                 # Teil B 3.9 (PV, Steuerbefreiung 3 Nr. 72 EStG)
+  codes: [auto, "yes", "no"]
+  aliases: {}
+  default: auto
+applicant:                     # Teil B 4.2 (funding.<f>.applicant, eligibility.applicants)
+  codes: [privatperson, privatperson_vermieter, weg, unternehmen, kommunales_unternehmen, genossenschaft, gemeinnuetzig, koerperschaft, contractor]
+  aliases: {}
+  default: ~
+payout_event:                  # Teil B 4.2, 4.5 (funding.<f>.payout.event)
+  codes: [completion_proof, commitment]
+  aliases: {}
+  default: completion_proof
+grant_counts_as:               # Teil B 4.2, 4.10 (funding.<f>.rent_law.grant_counts_as)
+  codes: [zuschuss_559a_abs1, none]
+  aliases: {}
+  default: zuschuss_559a_abs1
+loan_counts_as:                # Teil B 4.2, 4.10 (funding.<f>.rent_law.loan_counts_as)
+  codes: [zinsverbilligung_559a_abs2, none]
+  aliases: {}
+  default: zinsverbilligung_559a_abs2
+repayment_grant_class:         # Teil B 4.2 (funding.<f>.repayment_grant.class)
+  codes: [ee, nh]
+  aliases: {}
+  default: ~
+bonus_mode:                    # Teil B 4.5 (Bonusbasis)
+  codes: [excess_over_threshold, whole_amount]
+  aliases: {}
+  default: excess_over_threshold
+cap_period:                    # Teil B 4.5 (Deckelgruppen)
+  codes: [total, calendar_year]
+  aliases: {}
+  default: total
+rent_phase:                    # Teil B 1.6 (intern, mr_levy_allowed)
+  codes: [p558, staffel, index, bound]
+  aliases: {}
+  default: ~
+efficiency_standard:           # Teil B 3.2.6 (efficiency_standard_after)
+  codes: [eh40, eh55, eh70, eh85, eh_denkmal, none]
+  aliases: {}
+  default: none
+energy_class:                  # Teil B 3.2.6 (energy_class_before, energy_class_after)
+  codes: ["A+", A, B, C, D, E, F, G, H]
+  aliases: {}
+  default: ~
+# --- Spec 01 Teil C (P0-02) ---
+legal_status:                  # Teil C 3.1 (legal_state.status der Bibliothekseintraege)
+  codes: [in_force, enacted, adopted_pending, pending, administrative, derived, market]
+  aliases: {}
+  default: ~
+generate_method:               # Teil C 4.1 (scenario_sets.<s>.generate.method)
+  codes: [cautious]
+  aliases: {}
+  default: cautious

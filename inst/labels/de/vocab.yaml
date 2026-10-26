@@ -624,3 +624,217 @@ enums:
   report_format:
     html: "HTML"
     docx: "Word (DOCX)"
+  # Spec 01 Teil A, Abschnitt 8.1 und Feldtabellen (P0-02)
+  building_type:
+    EFH: "Einfamilienhaus"
+    ZFH: "Zweifamilienhaus"
+    DHH: "Doppelhaushälfte"
+    RH: "Reihenhaus"
+    MFH: "Mehrfamilienhaus"
+    ETW: "Eigentumswohnung"
+  component_area:
+    roof: "Dach gesamt"
+    pitched_roof: "Steildach"
+    flat_roof: "Flachdach"
+    top_ceiling: "oberste Geschossdecke"
+    facade: "Außenwand (opak)"
+    windows: "Fenster"
+    doors: "Außentüren"
+    basement_ceiling: "Kellerdecke"
+    floor_slab: "Bodenplatte"
+    partition_unheated: "Wände gegen unbeheizte Räume"
+  payment_profile:
+    linear: "gleichmäßig"
+    s_curve: "S-Kurve"
+    front: "früh betont"
+    back: "spät betont"
+  construction_delay_mode:
+    none: "keine Wirkung"
+    last: "nur letzte Zahlung verschoben"
+    stretch: "Zahlungsplan gestreckt"
+  maintenance_basis:
+    auto: "automatisch"
+    rate: "Satz je m² Wohnfläche"
+    iibv: "Altersklassen der II. BV"
+    share_of_cost: "Anteil an den Herstellungskosten"
+    none: "keine Instandhaltungspauschale"
+  overdue_policy:
+    first_period: "Ersatz am Ende der ersten Periode"
+    valuation: "Ersatz zum Bewertungsstichtag"
+    skip: "Ersatz entfällt"
+  remaining_life_method:
+    anlage2: "Modernisierungspunkte (ImmoWertV Anlage 2)"
+    linear: "Gesamtnutzungsdauer abzüglich Alter"
+    manual: "feste Angabe"
+  income_basis:
+    forward: "Rohertrag der nächsten 12 Monate"
+    trailing: "Rohertrag der letzten 12 Monate"
+  modernization_element:
+    roof_insulation: "Dacherneuerung mit Wärmedämmung"
+    windows_doors: "Fenster und Außentüren"
+    pipes: "Leitungssysteme"
+    heating: "Heizungsanlage"
+    facade_insulation: "Wärmedämmung der Außenwände"
+    bathrooms: "Bäder"
+    interior: "Innenausbau"
+    floor_plan: "Grundrissgestaltung"
+  kg700_basis:
+    kg300_400: "Kostengruppen 300 und 400"
+    kg200_600: "Kostengruppen 200 bis 600"
+  contingency_basis:
+    kg200_700: "Kostengruppen 200 bis 700"
+    kg200_600: "Kostengruppen 200 bis 600"
+  effect_start:
+    completion: "ab Fertigstellung"
+    next_year: "ab 1. Januar des Folgejahres"
+  path_pre_operation:
+    auto: "automatisch"
+    cost: "aufgelaufene Kosten"
+    method: "gewählte Restwertmethode"
+    zero: "null"
+  income_value_variant:
+    general: "allgemeines Ertragswertverfahren (§ 28 ImmoWertV)"
+    simplified: "vereinfachtes Ertragswertverfahren (§ 29 ImmoWertV)"
+  bwk_source:
+    model: "Modellansatz"
+    ledger: "Zahlungen des Finanzplans"
+  multiplier_basis:
+    net_cold_rent_incl_levy: "Nettokaltmiete einschließlich Modernisierungsumlage"
+    net_cold_rent: "Nettokaltmiete"
+  life_basis:
+    gnd: "Gesamtnutzungsdauer"
+    component: "Nutzungsdauern der Bauteile"
+  include_existing:
+    auto: "automatisch"
+    "true": "einbeziehen"
+    "false": "nicht einbeziehen"
+  # Spec 01 Teil B, Abschnitt 8 und Feldtabellen (P0-02)
+  increase_policy:
+    auto: "automatisch"
+    fixed_growth: "feste Steigerung"
+    max: "bis zur Vergleichsmiete, so früh wie zulässig"
+    interval: "bis zur Vergleichsmiete im festen Abstand"
+    capped: "bis zur Vergleichsmiete mit freiwilliger Obergrenze"
+  growth_applies_to:
+    total: "Gesamtmiete einschließlich Umlagen"
+    base: "nur Basismiete"
+  levy_mode:
+    auto: "rechtlich zulässige Umlage"
+    none: "keine Umlage"
+  maintenance_method:
+    auto: "automatisch"
+    linear_wear: "linearer Verschleiß der ersetzten Bauteile"
+    fixed_share: "fester Anteil"
+    ohnehin: "Ohnehin-Kosten"
+    none: "kein Erhaltungsanteil"
+  hp_exception:
+    auto: "automatisch"
+    none: "keine Ausnahme"
+    building_after_1996: "Gebäude nach 1996"
+    flow_temperature: "Vorlauftemperatur höchstens 55 °C"
+  third_party_allocation:
+    full: "vollständig dem Modernisierungsanteil"
+    proportional: "anteilig"
+  s559e_order:
+    flat_before_funds: "Pauschale vor Drittmittelabzug"
+    funds_before_flat: "Drittmittelabzug vor Pauschale"
+  s559f_order:
+    halve_then_funds: "erst halbieren, dann Drittmittel abziehen"
+    funds_then_halve: "erst Drittmittel abziehen, dann halbieren"
+  voluntary_cap_mode:
+    fixed: "feste Obergrenze"
+    warm_rent_neutral: "warmmietenneutral"
+  vacancy_opex_scope:
+    cold: "kalte Betriebskosten"
+    warm: "Betriebskosten einschließlich Heizkosten"
+  perspective_tax:
+    deductible: "steuerlich abzugsfähig"
+    nondeductible: "steuerlich nicht abzugsfähig"
+  carrier_class:
+    gas: "Erdgas"
+    oil: "Heizöl"
+    lpg: "Flüssiggas"
+    coal: "Kohle"
+    power: "Strom"
+    power_hp: "Wärmepumpenstrom"
+    district_heating: "Fernwärme"
+    biomass: "Biomasse"
+    other: "sonstiger Energieträger"
+  heating_system_type:
+    central: "Zentralheizung"
+    floor: "Etagenheizung"
+    single_room: "Einzelöfen"
+  price_includes:
+    commodity: "nur Arbeitspreis des Energieträgers"
+    all: "Gesamtarbeitspreis"
+  price_basis:
+    net: "netto"
+    gross: "brutto"
+  feed_in_mode:
+    partial: "Teileinspeisung"
+    full: "Volleinspeisung"
+  pv_tax_exempt:
+    auto: "automatisch"
+    "yes": "steuerbefreit"
+    "no": "nicht steuerbefreit"
+  applicant:
+    privatperson: "Privatperson"
+    privatperson_vermieter: "Privatperson (Vermieter)"
+    weg: "Wohnungseigentümergemeinschaft"
+    unternehmen: "Unternehmen"
+    kommunales_unternehmen: "Kommunales Unternehmen"
+    genossenschaft: "Genossenschaft"
+    gemeinnuetzig: "Gemeinnützige Organisation"
+    koerperschaft: "Körperschaft des öffentlichen Rechts"
+    contractor: "Contractor"
+  payout_event:
+    completion_proof: "nach Verwendungsnachweis"
+    commitment: "bei Zusage"
+  grant_counts_as:
+    zuschuss_559a_abs1: "Zuschuss nach § 559a Abs. 1 BGB"
+    none: "ohne mietrechtliche Wirkung"
+  loan_counts_as:
+    zinsverbilligung_559a_abs2: "Zinsverbilligung nach § 559a Abs. 2 BGB"
+    none: "ohne mietrechtliche Wirkung"
+  repayment_grant_class:
+    ee: "Erneuerbare-Energien-Klasse"
+    nh: "Nachhaltigkeitsklasse"
+  bonus_mode:
+    excess_over_threshold: "nur Betrag über der Schwelle"
+    whole_amount: "ganzer Betrag"
+  cap_period:
+    total: "insgesamt"
+    calendar_year: "je Kalenderjahr"
+  rent_phase:
+    p558: "Vergleichsmiete"
+    staffel: "Staffelmiete"
+    index: "Indexmiete"
+    bound: "Mietpreisbindung"
+  efficiency_standard:
+    eh40: "Effizienzhaus 40"
+    eh55: "Effizienzhaus 55"
+    eh70: "Effizienzhaus 70"
+    eh85: "Effizienzhaus 85"
+    eh_denkmal: "Effizienzhaus Denkmal"
+    none: "kein Effizienzhausstandard"
+  energy_class:
+    "A+": "Effizienzklasse A+"
+    A: "Effizienzklasse A"
+    B: "Effizienzklasse B"
+    C: "Effizienzklasse C"
+    D: "Effizienzklasse D"
+    E: "Effizienzklasse E"
+    F: "Effizienzklasse F"
+    G: "Effizienzklasse G"
+    H: "Effizienzklasse H"
+  # Spec 01 Teil C (P0-02)
+  legal_status:
+    in_force: "geltend"
+    enacted: "verkündet, künftig wirksam"
+    adopted_pending: "beschlossen, Zustimmung oder Verkündung ausstehend"
+    pending: "anhängig (Reformschalter)"
+    administrative: "Richtlinie bzw. Merkblatt"
+    derived: "eigene Ableitung"
+    market: "Marktdaten"
+  generate_method:
+    cautious: "ungünstige Werte der stärksten Treiber"

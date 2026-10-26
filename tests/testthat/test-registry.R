@@ -150,6 +150,26 @@ test_that("statische Vertragspr\u00fcfung C1-C3 bei der Registrierung", {
   reserved$params$label <- vofi_param("string")
   e <- tryCatch(vofi_register_type(reserved), error = identity)
   expect_true("C3" %in% e$data$findings$check)
+  # from/use sind dem Bibliotheksverweis vorbehalten (4.9, 5.6 C3, R-110), auch in map-Feldern
+  for (nm in c("from", "use")) {
+    lib <- helper_flow_def()
+    lib$params[[nm]] <- vofi_param("timing")
+    e <- tryCatch(vofi_register_type(lib), error = identity)
+    expect_s3_class(e, er)
+    f <- e$data$findings
+    expect_true(any(f$check == "C3" & grepl(paste0("'", nm, "'"), f$message, fixed = TRUE)),
+                info = nm)
+    expect_match(paste(f$message, collapse = " "), "start_event", fixed = TRUE)
+  }
+  lib_map <- helper_flow_def()
+  lib_map$params$timing <- vofi_param("map", fields = list(from = vofi_param("timing")))
+  e <- tryCatch(vofi_register_type(lib_map), error = identity)
+  expect_true(any(grepl("timing.from", e$data$findings$message, fixed = TRUE)))
+  expect_identical(reg_library_key_params(list(a = vofi_param("number"))), character(0))
+  start_ok <- helper_flow_def("tk_start")
+  start_ok$params$start_event <- vofi_param("timing")
+  start_ok$labels$params$start_event <- "Beginn"
+  expect_silent(vofi_register_type(start_ok))
   no_example <- helper_flow_def()
   no_example$example <- NULL
   expect_error(vofi_register_type(no_example), class = er)

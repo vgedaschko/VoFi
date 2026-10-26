@@ -106,10 +106,10 @@ path_remove <- function(x, path) {
 #' Alle Blattpfade einer Liste
 #'
 #' Blätter sind alle Nicht-Maps (Skalare, Vektoren, Sequenzen, Datumswerte) sowie Wertformen
-#' nach [is_value_form()]. Leere Maps haben keine Blätter.
+#' nach `is_value_form()`. Leere Maps haben keine Blätter.
 #' @param x Liste.
 #' @param path Präfix.
-#' @param kind_of optional `function(path)` -> Parameterart (siehe [is_value_form()]).
+#' @param kind_of optional `function(path)` -> Parameterart (siehe `is_value_form()`).
 #' @return Zeichenvektor der Blattpfade (Reihenfolge der Liste).
 #' @noRd
 path_leaves <- function(x, path = "", kind_of = NULL) {

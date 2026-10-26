@@ -123,6 +123,83 @@ test_that("Enums: Form {codes, aliases, default}", {
                      "multiplier", "exit_yield", "user_value"))
 })
 
+test_that("Enums aus Spec 01 Teil A 8.1, Teil B 8 und den Feldtabellen (P0-02)", {
+  soll <- list(
+    # Teil A 8.1
+    building_type = c("EFH", "ZFH", "DHH", "RH", "MFH", "ETW"),
+    component_area = c("roof", "pitched_roof", "flat_roof", "top_ceiling", "facade", "windows",
+                       "doors", "basement_ceiling", "floor_slab", "partition_unheated"),
+    payment_profile = c("linear", "s_curve", "front", "back"),
+    construction_delay_mode = c("none", "last", "stretch"),
+    maintenance_basis = c("auto", "rate", "iibv", "share_of_cost", "none"),
+    overdue_policy = c("first_period", "valuation", "skip"),
+    remaining_life_method = c("anlage2", "linear", "manual"),
+    income_basis = c("forward", "trailing"),
+    modernization_element = c("roof_insulation", "windows_doors", "pipes", "heating",
+                              "facade_insulation", "bathrooms", "interior", "floor_plan"),
+    federal_state = c("BW", "BY", "BE", "BB", "HB", "HH", "HE", "MV", "NI", "NW", "RP", "SL",
+                      "SN", "ST", "SH", "TH"),
+    # Teil A, weitere Feldtabellen
+    kg700_basis = c("kg300_400", "kg200_600"), contingency_basis = c("kg200_700", "kg200_600"),
+    effect_start = c("completion", "next_year"),
+    path_pre_operation = c("auto", "cost", "method", "zero"),
+    income_value_variant = c("general", "simplified"), bwk_source = c("model", "ledger"),
+    multiplier_basis = c("net_cold_rent_incl_levy", "net_cold_rent"),
+    life_basis = c("gnd", "component"), include_existing = c("auto", "true", "false"),
+    # Teil B 8
+    rent_regime = c("paragraph_558", "staffel", "index", "bound_social", "cooperative_fee",
+                    "owner_occupied"),
+    increase_policy = c("auto", "fixed_growth", "max", "interval", "capped"),
+    growth_applies_to = c("total", "base"), levy_mode = c("auto", "none"),
+    maintenance_method = c("auto", "linear_wear", "fixed_share", "ohnehin", "none"),
+    hp_exception = c("auto", "none", "building_after_1996", "flow_temperature"),
+    third_party_allocation = c("full", "proportional"),
+    s559e_order = c("flat_before_funds", "funds_before_flat"),
+    s559f_order = c("halve_then_funds", "funds_then_halve"),
+    voluntary_cap_mode = c("fixed", "warm_rent_neutral"), vacancy_opex_scope = c("cold", "warm"),
+    perspective_tax = c("deductible", "nondeductible"),
+    carrier_class = c("gas", "oil", "lpg", "coal", "power", "power_hp", "district_heating",
+                      "biomass", "other"),
+    heating_system_type = c("central", "floor", "single_room"),
+    consumption_basis = c("measured", "demand"), price_includes = c("commodity", "all"),
+    price_basis = c("net", "gross"), feed_in_mode = c("partial", "full"),
+    pv_tax_exempt = c("auto", "yes", "no"),
+    applicant = c("privatperson", "privatperson_vermieter", "weg", "unternehmen",
+                  "kommunales_unternehmen", "genossenschaft", "gemeinnuetzig", "koerperschaft",
+                  "contractor"),
+    payout_event = c("completion_proof", "commitment"),
+    grant_counts_as = c("zuschuss_559a_abs1", "none"),
+    loan_counts_as = c("zinsverbilligung_559a_abs2", "none"),
+    repayment_grant_class = c("ee", "nh"), bonus_mode = c("excess_over_threshold", "whole_amount"),
+    cap_period = c("total", "calendar_year"), rent_phase = c("p558", "staffel", "index", "bound"),
+    efficiency_standard = c("eh40", "eh55", "eh70", "eh85", "eh_denkmal", "none"),
+    energy_class = c("A+", "A", "B", "C", "D", "E", "F", "G", "H"),
+    # Teil C
+    legal_status = c("in_force", "enacted", "adopted_pending", "pending", "administrative",
+                     "derived", "market"),
+    generate_method = "cautious"
+  )
+  for (nm in names(soll)) expect_identical(vocab_codes(nm), soll[[nm]], info = nm)
+  defaults <- list(payment_profile = "linear", construction_delay_mode = "none",
+                   overdue_policy = "first_period", heating_system_type = "central",
+                   increase_policy = "auto", levy_mode = "auto", voluntary_cap_mode = "fixed",
+                   efficiency_standard = "none", payout_event = "completion_proof")
+  for (nm in names(defaults)) expect_identical(vocab(nm)$default, defaults[[nm]], info = nm)
+  expect_null(vocab("carrier_class")$default)
+  # Aliase modernization_kind (Teil B 1.4)
+  expect_identical(vocab("modernization_kind")$aliases,
+                   c(erhaltung = "none", instandsetzung = "none", energetisch = "bgb_555b_1",
+                     heizung = "bgb_555b_1a"))
+  expect_warning(mk <- vocab_resolve("modernization_kind", c("heizung", "bgb_555b_4")),
+                 class = "vofi_warning_input")
+  expect_identical(mk, c("bgb_555b_1a", "bgb_555b_4"))
+  expect_identical(vocab_check("carrier_class", "coal"), character(0))
+  expect_identical(lbl("vocab.enums.carrier_class.coal"), "Kohle")
+  expect_identical(lbl("vocab.enums.energy_class.A+"), "Effizienzklasse A+")
+  expect_identical(lbl("vocab.enums.pv_tax_exempt.yes"), "steuerbefreit")
+  expect_identical(lbl("vocab.enums.include_existing.false"), "nicht einbeziehen")
+})
+
 test_that("vocab_check und vocab_resolve: Aliase und unbekannte Codes", {
   # levy_procedure: Alias auch für die als Zahl gelesene Eingabe 559 (2.11)
   expect_warning(r559 <- vocab_resolve("levy_procedure", 559), class = "vofi_warning_input")

@@ -40,7 +40,7 @@ res_draw <- function(rc, path) {
 #' Verknuepfung einer statischen Ziehung mit dem Knotenwert (6.3 Schritt 1, R-94)
 #'
 #' `apply = multiply`: b * x, `apply = add`: b + x mit b = Knotenwert nach Schritt 3 (Shape von
-#' b; x zeilenweise gehoben wie `by_sim()`); Ziele der Art `share` auf [0, 1] begrenzt (Hinweis).
+#' b; x zeilenweise gehoben wie `by_sim()`); Ziele der Art `share` auf `[0, 1]` begrenzt (Hinweis).
 #' @noRd
 res_apply_draw <- function(rc, x, path, stack, node) {
   ap <- attr(x, "apply")
@@ -250,7 +250,7 @@ res_year_values <- function(years, els, target, mode, before, n) {
   out
 }
 
-#' Pfad aus Jahreswerten (Spalte j = Wert des Jahres year[j]) mit Attribut annual_before
+#' Pfad aus Jahreswerten (Spalte j = Wert des Jahres `year[j]`) mit Attribut `annual_before`
 #' @noRd
 res_annual_path <- function(rc, years, els, mode, before) {
   g <- rc$grid

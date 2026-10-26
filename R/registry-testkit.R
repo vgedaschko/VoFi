@@ -19,7 +19,10 @@
 #   (`stage`, `rebalance(extra_out)`, `auto(id)`), siehe reg_engine_env().
 # - Prozesse: simulate() erhaelt die Laufzahl n immer als attr(linked, "n") (auch wenn z und u
 #   NULL sind, n_shocks = n_uniforms = 0); der Sampler (WS-C) uebergibt sie ebenso. P4 prueft
-#   die optionale Funktion quantile_path(par, years, p).
+#   die optionale Funktion quantile_path(par, years, p). Prozesse mit `linked` tragen im
+#   Beispiel `.base = list(type, par, rho)` (Typ, Punktparameter, Schockkorrelation des
+#   Basisprozesses; Elementnamen mit fuehrendem Punkt sind keine Parameter); das Pruefkit
+#   simuliert den Basisprozess (registrierter Typ) und speist ihn als `linked` ein (R-114).
 # - Abhaengigkeiten: der Pruefkontext kennt die deklarierten Abhaengigkeiten der Komponente
 #   (ref-Parameter, Bezuege, after; engine_env$deps); andere Komponenten sind nicht lesbar.
 # - Steuermodule: das `example` eines Steuermoduls MUSS Nullparameter tragen (T1: Zahlung 0).
@@ -261,7 +264,7 @@ reg_test_setup <- function(def, n, grid, draws = NULL, example = NULL) {
 #' @param def `vofi_typedef`.
 #' @param n Anzahl der Läufe.
 #' @param grid `vofi_grid`.
-#' @param draws `NULL` oder `vofi_draws` (z. B. aus [reg_fake_draws()]).
+#' @param draws `NULL` oder `vofi_draws` (z. B. aus `reg_fake_draws()`).
 #' @param example Rohbeispiel (Default `def$example`).
 #' @return `vofi_ctx` aus `eng_context_from_parts()`.
 #' @noRd
@@ -885,10 +888,23 @@ reg_check_action <- function(def, n) {
 # ---------------------------------------------------------------------------------------------
 
 #' Deterministische Permutation (Weyl-Folge, ohne Zufallszahlen)
+#'
+#' Spalte k verwendet den Multiplikator sqrt(p_k) mit der k-ten Primzahl p_k (k <= 168, danach
+#' zyklisch); verschiedene k ergeben damit näherungsweise unabhängige Permutationen.
 #' @noRd
 reg_weyl_perm <- function(n, k) {
-  alpha <- sqrt(c(2, 3, 5, 7, 11, 13, 17, 19, 23, 29)[(k - 1L) %% 10L + 1L]) + (k - 1L) %/% 10L
+  primes <- reg_primes()
+  alpha <- sqrt(primes[(k - 1L) %% length(primes) + 1L])
   order((seq_len(n) * alpha) %% 1)
+}
+
+#' Primzahlen bis 1000 (Sieb, 168 Werte)
+#' @noRd
+reg_primes <- function() {
+  is_p <- rep(TRUE, 1000L)
+  is_p[1L] <- FALSE
+  for (i in 2:31) if (is_p[i]) is_p[seq(i * i, 1000L, by = i)] <- FALSE
+  which(is_p)
 }
 
 #' Vertragstests für Verteilungen
@@ -953,7 +969,9 @@ reg_degenerate <- function(par) {
 #'
 #' Die Laufzahl n steht dem Prozess immer als `attr(linked, "n")` zur Verfügung (auch bei
 #' `n_shocks = n_uniforms = 0` und skalaren Parametern, wenn `z` und `u` `NULL` sind); der Sampler
-#' (WS-C) übergibt sie ebenso.
+#' (WS-C) übergibt sie ebenso. Prozesse mit `linked` erhalten mit `example$.base` (Elementname mit
+#' führendem Punkt, kein Parameter) den simulierten Basisprozess als `linked` und mit ihm
+#' korrelierte Schocks (`reg_process_inputs()`, R-114); ohne `.base` konstante Pfade 0,02.
 #' @noRd
 reg_check_process <- function(def) {
   par <- def$example
@@ -962,28 +980,31 @@ reg_check_process <- function(def) {
   y <- length(years)
   rng <- TRUE
   scores <- stats::qnorm((seq_len(n) - 0.5) / n)
-  make_z <- function(k) {
+  make_z <- function(k, offset = 0L) {
     if (k == 0L) return(NULL)
     z <- matrix(0, n, y - 1L)
-    for (c in seq_len(y - 1L)) z[, c] <- scores[reg_weyl_perm(n, c)]
+    for (c in seq_len(y - 1L)) z[, c] <- scores[reg_weyl_perm(n, c + offset)]
     z
   }
-  make_u <- function(k) {
+  make_u <- function(k, offset = 20L) {
     if (k == 0L) return(NULL)
     u <- matrix(0, n, k)
-    for (c in seq_len(k)) u[, c] <- ((seq_len(n) - 0.5) / n)[reg_weyl_perm(n, c + 20L)]
+    for (c in seq_len(k)) u[, c] <- ((seq_len(n) - 0.5) / n)[reg_weyl_perm(n, c + offset)]
     u
   }
-  linked <- stats::setNames(lapply(def$linked, function(l) matrix(0.02, n, y)), def$linked)
-  attr(linked, "n") <- n
   out <- list()
   sim <- reg_try("P1", {
-    ns <- def$n_shocks(par)
-    nu <- def$n_uniforms(par)
-    r <- reg_no_rng(def$simulate(par, make_z(as.integer(ns)), make_u(as.integer(nu)), years,
-                                 linked))
+    r <- reg_no_rng({
+      inp <- reg_process_inputs(def, par, n, years, make_z, make_u)
+      ns <- def$n_shocks(par)
+      nu <- def$n_uniforms(par)
+      x <- def$simulate(par, reg_corr_shocks(make_z(as.integer(ns)), inp),
+                        make_u(as.integer(nu)), years, inp$linked)
+      list(x = x, nu = nu)
+    })
     rng <- rng && r$rng_ok
-    x <- r$value
+    x <- r$value$x
+    nu <- r$value$nu
     ex <- def$expected(par, years)
     ok <- isTRUE(is.matrix(x) && identical(dim(x), c(n, y)) && is.numeric(x) &&
                    length(ex) == y &&
@@ -999,7 +1020,9 @@ reg_check_process <- function(def) {
     if (sim$ok && isTRUE(sim$nu == 0L)) {
       out[[2L]] <- reg_try("P2", {
         p0 <- reg_degenerate(par)
-        x0 <- def$simulate(p0, make_z(as.integer(def$n_shocks(p0))), NULL, years, linked)
+        inp0 <- reg_process_inputs(def, p0, n, years, make_z, make_u)
+        x0 <- def$simulate(p0, reg_corr_shocks(make_z(as.integer(def$n_shocks(p0))), inp0),
+                           NULL, years, inp0$linked)
         e0 <- def$expected(p0, years)
         ok <- isTRUE(all(abs(x0 - matrix(e0, n, y, byrow = TRUE)) <=
                            1e-12 * pmax(1, abs(matrix(e0, n, y, byrow = TRUE)))))
@@ -1014,8 +1037,7 @@ reg_check_process <- function(def) {
       out[[length(out) + 1L]] <- reg_finding("P3", ok, m3)
     }
     if (sim$ok && is.function(def$quantile_path)) {
-      out[[length(out) + 1L]] <- reg_try("P4", reg_check_quantile_path(def, par, years, sim$x,
-                                                                       linked))
+      out[[length(out) + 1L]] <- reg_try("P4", reg_check_quantile_path(def, par, years, sim$x))
     }
   }
   out[[length(out) + 1L]] <- reg_try("P1", {
@@ -1029,19 +1051,89 @@ reg_check_process <- function(def) {
   reg_bind(out)
 }
 
+#' Eingaben `linked` eines Prozesses im Prüfkit (P1–P4, R-114)
+#'
+#' Ohne `linked` bzw. ohne `par$.base`: konstante Pfade 0,02 je Name in `def$linked`. Mit
+#' `par$.base = list(type, par, rho)`: Der Basisprozess (registrierter Typ `type`) wird mit eigenen
+#' Schocks simuliert (verkettet rekursiv über `par$.base$par$.base`) und unter jedem Namen von
+#' `def$linked` eingespeist; `zb` und `rho` koppeln die Schocks des abhängigen Prozesses
+#' (`reg_corr_shocks()`).
+#' @param def Prozessdefinition.
+#' @param par Parameter (mit `.base`).
+#' @param n Laufzahl.
+#' @param years Kalenderjahre.
+#' @param make_z,make_u Schock- bzw. Uniform-Erzeuger `function(k, offset)`.
+#' @param level Verkettungstiefe (Versatz der Permutationen).
+#' @return `list(linked, zb, rho)`.
+#' @noRd
+reg_process_inputs <- function(def, par, n, years, make_z, make_u, level = 1L) {
+  y <- length(years)
+  b <- par[[".base"]]
+  if (length(def$linked) == 0L || !is.list(b)) {
+    linked <- stats::setNames(lapply(def$linked, function(l) matrix(0.02, n, y)), def$linked)
+    attr(linked, "n") <- n
+    return(list(linked = linked, zb = NULL, rho = 0))
+  }
+  bdef <- reg_get("process", b$type)
+  bpar <- b$par %||% list()
+  inner <- reg_process_inputs(bdef, bpar, n, years, make_z, make_u, level + 1L)
+  zb <- reg_corr_shocks(make_z(as.integer(bdef$n_shocks(bpar)), 40L * level), inner)
+  ub <- make_u(as.integer(bdef$n_uniforms(bpar)), 20L + 40L * level)
+  xb <- bdef$simulate(bpar, zb, ub, years, inner$linked)
+  linked <- stats::setNames(rep(list(xb), length(def$linked)), def$linked)
+  attr(linked, "n") <- n
+  list(linked = linked, zb = zb, rho = as.double(b$rho %||% 0))
+}
+
+#' Schocks mit Korrelation rho an die Schocks des Basisprozesses koppeln (R-114)
+#' @param z eigene Schocks (n × (Y − 1)) oder `NULL`.
+#' @param inp Ergebnis von `reg_process_inputs()`.
+#' @noRd
+reg_corr_shocks <- function(z, inp) {
+  if (is.null(z) || is.null(inp$zb) || isTRUE(inp$rho == 0)) return(z)
+  inp$rho * inp$zb + sqrt(1 - inp$rho^2) * z
+}
+
+#' Hat ein Basisprozess eine Gaußbasis (Spec 01 Teil C 4.3 Nr. 1 c, R-114)?
+#'
+#' `ar1`; `vasicek` ohne Untergrenze (`floor` fehlt bzw. `-Inf`); `linked_ar1` mit Gaußbasis.
+#' @param b `.base`-Eintrag `list(type, par, rho)`.
+#' @noRd
+reg_gauss_base <- function(b) {
+  if (!is.list(b) || !utl_is_string(b$type)) return(FALSE)
+  switch(b$type,
+    ar1 = TRUE,
+    vasicek = is.null(b$par$floor) || isTRUE(as.double(b$par$floor) == -Inf),
+    linked_ar1 = reg_gauss_base(b$par[[".base"]]),
+    FALSE
+  )
+}
+
 #' P4: Quantilpfad monoton in p, entartet = expected(), empirisch innerhalb 4 SE (5.6, R-95)
 #'
 #' Die empirische Prüfung erfolgt auf der Wahrscheinlichkeitsskala: Für q = quantile_path(p) muss
-#' p im Intervall [F_n(q-) - 4 SE, F_n(q) + 4 SE] liegen (SE = sqrt(p (1 - p) / n)); Jahre mit
-#' (nahezu) konstanter Simulation verlangen q = Simulationswert.
+#' p im Intervall `[F_n(q-) - 4 SE, F_n(q) + 4 SE]` liegen (SE = sqrt(p (1 - p) / n)); Jahre mit
+#' (nahezu) konstanter Simulation verlangen q = Simulationswert. Prozesse mit `linked` brauchen
+#' `example$.base`; `quantile_path()` erhält `par$.base`, `x` ist die gemeinsame Simulation von
+#' Basis- und abhängigem Prozess. Die Rückgabe `NA` ist nur ohne Gaußbasis zulässig (R-114).
 #' @param x Simulation n × length(years) aus P1.
 #' @noRd
-reg_check_quantile_path <- function(def, par, years, x, linked) {
+reg_check_quantile_path <- function(def, par, years, x) {
   y <- length(years)
   n <- nrow(x)
+  if (length(def$linked) > 0L && !is.list(par[[".base"]])) {
+    return(reg_finding("P4", FALSE, msg("core.testkit.process_base", name = def$name)))
+  }
   ps <- c(0.05, 0.25, 0.5, 0.75, 0.95)
   r <- reg_no_rng(lapply(ps, function(p) def$quantile_path(par, years, p)))
   q <- r$value
+  all_na <- r$rng_ok && all(vapply(q, function(v) {
+    is.numeric(v) && length(v) == y && all(is.na(v))
+  }, logical(1)))
+  if (all_na) {
+    ok <- length(def$linked) > 0L && !reg_gauss_base(par[[".base"]])
+    return(reg_finding("P4", ok, if (ok) "" else msg("core.testkit.process_na", name = def$name)))
+  }
   shape_ok <- r$rng_ok && all(vapply(q, function(v) {
     is.numeric(v) && length(v) == y && all(is.finite(v))
   }, logical(1)))
@@ -1531,7 +1623,7 @@ reg_assemble_core <- function(inp, grid, rates, p) {
 }
 
 #' Kontext zum synthetischen core (Stufe "kpi", rebalance()-Attrappe, 12.8)
-#' @param core Ergebnis von [reg_example_core()].
+#' @param core Ergebnis von `reg_example_core()`.
 #' @return `vofi_ctx`.
 #' @noRd
 reg_example_ctx <- function(core) {

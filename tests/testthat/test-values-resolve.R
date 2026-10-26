@@ -71,7 +71,7 @@ test_that("Kontext: Formen, Rasterfunktionen, Sperre, rebalance nur in Kennzahle
   expect_error(assign("n", 2L, envir = ctx))
   expect_true(environmentIsLocked(ctx))
   expect_identical(ctx$assets()[[1]]$asset_id, "b1")
-  expect_identical(ctx$timing(list(id = "x", from = "completion"), "from")$date,
+  expect_identical(ctx$timing(list(id = "x", start_event = "completion"), "start_event")$date,
                    ctx$grid$completion_date)
   expect_error(ctx$component("fehlt"), class = "vofi_error_contract")
 })

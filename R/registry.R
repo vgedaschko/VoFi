@@ -225,6 +225,10 @@ reg_static_findings <- function(def) {
       add("C3", "core.registry.param_reserved", name = format(name), param = p)
     }
   }
+  # from/use bezeichnen ausschliesslich den Bibliotheksverweis (4.9, R-110), auch in map-Feldern
+  for (p in reg_library_key_params(params)) {
+    add("C3", "core.registry.param_library_key", name = format(name), param = p)
+  }
   if (anyDuplicated(names(params))) {
     add("C3", "core.registry.params_invalid", name = format(name))
   }
@@ -272,7 +276,10 @@ reg_static_findings <- function(def) {
     }
   } else if (is.list(ex) && length(ex) > 0L && !(kind %in% c("kpi", "expander", "rule"))) {
     allowed <- c(names(params), reg_reserved_fields(), ".deps", ".collection")
-    extra <- setdiff(names(ex), allowed)
+    ex_names <- names(ex)
+    # Prozesse: Elementnamen mit fuehrendem Punkt sind reserviert (z. B. .base, 5.3, R-114)
+    if (identical(kind, "process")) ex_names <- ex_names[!startsWith(ex_names, ".")]
+    extra <- setdiff(ex_names, allowed)
     if (length(extra) > 0L || is.null(names(ex))) {
       add("C3", "core.registry.example_unknown", name = format(name),
           param = utl_collapse(extra))
@@ -298,6 +305,24 @@ reg_static_findings <- function(def) {
                       stringsAsFactors = FALSE))
   }
   do.call(rbind, acc$out)
+}
+
+#' Parameter mit den Namen `from` bzw. `use` (auch Felder von map-Parametern; 4.9, R-110)
+#' @param params benannte Liste von `vofi_param`.
+#' @param prefix Pfad des umgebenden map-Parameters.
+#' @return Zeichenvektor der Parameterpfade.
+#' @noRd
+reg_library_key_params <- function(params, prefix = "") {
+  out <- character(0)
+  for (p in names(params)) {
+    full <- path_join(prefix, p)
+    if (p %in% c("from", "use")) out <- c(out, full)
+    pp <- params[[p]]
+    if (inherits(pp, "vofi_param") && is.list(pp$fields) && !is.null(names(pp$fields))) {
+      out <- c(out, reg_library_key_params(pp$fields, full))
+    }
+  }
+  out
 }
 
 #' Artspezifische Felder prüfen (5.3)

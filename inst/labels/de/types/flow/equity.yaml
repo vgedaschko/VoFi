@@ -13,16 +13,16 @@ params:
     help: "Zahlungsplan {schedule: {Datum: Betrag}} mit Beträgen >= 0."
   contributions_pa:
     label: "Laufende Einlage je Jahr"
-    help: "Jahresbetrag in EUR im Zeitraum from bis to."
+    help: "Jahresbetrag in EUR im Zeitraum start_event bis to."
   withdrawals:
     label: "Entnahmen (Zahlungsplan)"
     help: "Zahlungsplan mit Beträgen >= 0; gebucht als Entnahme."
   withdrawals_pa:
     label: "Laufende Entnahme je Jahr"
-    help: "Jahresbetrag in EUR im Zeitraum from bis to."
-  from:
+    help: "Jahresbetrag in EUR im Zeitraum start_event bis to."
+  start_event:
     label: "Beginn der laufenden Beträge"
-    help: "Default Bewertungsstichtag."
+    help: "Beginn des Zeitraums start_event bis to: Datum, Jahr oder completion (Default Bewertungsstichtag)."
   to:
     label: "Ende der laufenden Beträge"
     help: "Default Horizontende."

@@ -1,5 +1,6 @@
 # Zahlungstyp equity: geplante Einlagen und Entnahmen (WS-E, Spec 00 Abschnitt 7.12).
-# Phase-0-Minimalfassung, Eigentuemer: WS-E. Parameter nach 7.12 vollstaendig; offen fuer WS-E:
+# Phase-0-Minimalfassung, Eigentuemer: WS-E. Parameter nach 7.12 vollstaendig (Beginn der
+# laufenden Betraege: start_event, R-110); offen fuer WS-E:
 # Validierung (Beträge der Zahlungsplaene >= 0) als validate()-Funktion, Hinweis auf
 # Zahlungen nach dem Horizont je Komponente.
 
@@ -27,12 +28,13 @@ typ_one_off <- function(ctx, amount, date, shift) {
   out
 }
 
-#' Jahresbetrag je Periode im Zeitraum [from, to) (Betrag p. a. x Delta x Monatsanteil)
+#' Jahresbetrag je Periode im Zeitraum `[start, to)` (Betrag p. a. x Delta x Monatsanteil)
+#' @param start Termin aus `ctx$timing()` (`date`, `shift`).
 #' @noRd
-typ_per_annum <- function(ctx, spec, name, from, to) {
+typ_per_annum <- function(ctx, spec, name, start, to) {
   x <- ctx$param(spec, name, "path")
   if (is.null(x)) return(ctx$zeros())
-  x * ctx$by_period(ctx$grid$delta) * ctx$shift_overlap(from$date, from$shift, to)
+  x * ctx$by_period(ctx$grid$delta) * ctx$shift_overlap(start$date, start$shift, to)
 }
 
 #' @noRd
@@ -46,7 +48,7 @@ typedef_equity <- function() {
       contributions_pa = vofi_param("value", default = 0, unit = "EUR"),
       withdrawals = vofi_param("schedule", unit = "EUR"),
       withdrawals_pa = vofi_param("value", default = 0, unit = "EUR"),
-      from = vofi_param("timing", grid_default = "valuation_date"),
+      start_event = vofi_param("timing", grid_default = "valuation_date"),
       to = vofi_param("timing", grid_default = "end_date")
     ),
     rows = c("in", "out"),
@@ -55,7 +57,8 @@ typedef_equity <- function() {
       tm <- ctx$timing(spec, "date") %||% list(date = g$valuation_date, shift = rep(0, ctx$n))
       v_in <- typ_one_off(ctx, ctx$param(spec, "amount_eur") %||% rep(0, ctx$n), tm$date,
                           tm$shift)
-      fr <- ctx$timing(spec, "from") %||% list(date = g$valuation_date, shift = rep(0, ctx$n))
+      fr <- ctx$timing(spec, "start_event") %||%
+        list(date = g$valuation_date, shift = rep(0, ctx$n))
       to <- typ_timing_date(ctx, spec, "to", NULL)
       contrib <- ctx$param(spec, "contributions", "path")
       if (!is.null(contrib)) v_in <- v_in + contrib
@@ -69,6 +72,6 @@ typedef_equity <- function() {
       )
     },
     example = list(type = "equity", amount_eur = 40000, contributions_pa = 1200,
-                   withdrawals_pa = 600, from = "2027-01-01")
+                   withdrawals_pa = 600, start_event = "2027-01-01")
   )
 }

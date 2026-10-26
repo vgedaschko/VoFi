@@ -132,7 +132,7 @@ vocab <- function(name) {
 
 #' Codes eines Vokabulars
 #'
-#' @param name Vokabular (siehe [vocab()]); zusätzlich `"categories:<section>"`,
+#' @param name Vokabular (siehe `vocab()`); zusätzlich `"categories:<section>"`,
 #'   `"enums:<enum>"` und `"vocab:<enum>"` (Form aus `vofi_param(values = )`).
 #' @param field bei `"categories"`: Abschnitt; bei `"enums"`: Name des Enums.
 #' @return Zeichenvektor der kanonischen Codes.
@@ -183,8 +183,8 @@ utl_vocab_spec <- function(name, field = NULL) {
 #' Codes prüfen
 #'
 #' Unbekannte Codes ergeben Fehlertexte; Aliase werden mit `vofi_warning_input` gemeldet (die
-#' Auflösung übernimmt [vocab_resolve()]).
-#' @param name Vokabular (siehe [vocab_codes()]).
+#' Auflösung übernimmt `vocab_resolve()`).
+#' @param name Vokabular (siehe `vocab_codes()`).
 #' @param x Zeichenvektor.
 #' @param path Pfad für die Meldung.
 #' @return `character()` oder Fehlertexte (deutsch, über `msg()`).

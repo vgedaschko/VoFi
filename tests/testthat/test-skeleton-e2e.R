@@ -219,8 +219,8 @@ test_that("ctx$setting()/ctx$timing() liefern Defaults inkl. rasterabhaengiger T
   expect_identical(ctx$timing(eq, "to")$date, g$end_date)
   rec <- make_component("recurring", amount_eur = 100, category = "rent", id = "r")
   ctx2 <- make_ctx(2L, grid = g, spec = rec)
-  expect_identical(ctx2$setting(rec, "from"), g$completion_date)
-  expect_identical(ctx2$timing(rec, "from")$shift, c(0, 0))
+  expect_identical(ctx2$setting(rec, "start_event"), g$completion_date)
+  expect_identical(ctx2$timing(rec, "start_event")$shift, c(0, 0))
   bank <- make_component("bullet_loan", amount_eur = 1000, rate_pa = 0.05, term_years = 3,
                          id = "bank")
   ctx3 <- make_ctx(1L, grid = g, spec = bank)

@@ -464,6 +464,149 @@ test_that("Prozess: P1-P3", {
   expect_error(vofi_register_type(qform), class = "vofi_error_registry")
 })
 
+#' AR(1)-Prozess mit Startwert x0 und geschlossenem Quantilpfad (Testtyp)
+tk_ar1_def <- function(name = "ar1") {
+  ar1_exp <- function(par, years) {
+    k <- seq_along(years) - 1
+    par$mu + par$phi^k * (par$x0 - par$mu)
+  }
+  vofi_type(
+    name = name, kind = "process", label = "AR(1)", output = "rate",
+    labels = list(description = "d", params = list(mu = "mu", phi = "phi", sigma = "sigma",
+                                                   x0 = "x0"), rows = list()),
+    params = list(mu = vofi_param("number"), phi = vofi_param("number"),
+                  sigma = vofi_param("number"), x0 = vofi_param("number")),
+    simulate = function(par, z, u, years, linked) {
+      n <- if (is.null(z)) attr(linked, "n") else nrow(z)
+      x <- matrix(par$x0, n, length(years))
+      for (y in seq_along(years)[-1L]) {
+        x[, y] <- par$mu + par$phi * (x[, y - 1L] - par$mu) + par$sigma * z[, y - 1L]
+      }
+      x
+    },
+    expected = ar1_exp,
+    n_shocks = function(par) 1L, n_uniforms = function(par) 0L,
+    validate = function(par) character(0),
+    quantile_path = function(par, years, p) {
+      k <- seq_along(years) - 1
+      ar1_exp(par, years) +
+        stats::qnorm(p) * par$sigma * sqrt((1 - par$phi^(2 * k)) / (1 - par$phi^2))
+    },
+    example = list(mu = 0.02, phi = 0.5, sigma = 0.011, x0 = 0.028)
+  )
+}
+
+#' linked_ar1-artiger Testprozess: g = a + b * base + u (Spec 01 Teil C 1.6.2, 4.3)
+tk_linked_def <- function(name = "tk_linked", rho = 0, quantile = c("ok", "no_base", "na"),
+                          base_type = "ar1") {
+  quantile <- match.arg(quantile)
+  base_exp <- function(par, years) {
+    b <- par[[".base"]]
+    if (!is.list(b)) return(rep(0.02, length(years)))
+    k <- seq_along(years) - 1
+    b$par$mu + b$par$phi^k * (b$par$x0 - b$par$mu)
+  }
+  lin_exp <- function(par, years) {
+    k <- seq_along(years) - 1
+    par$a + par$b * base_exp(par, years) + par$phi^k * par$u0
+  }
+  vofi_type(
+    name = name, kind = "process", label = "verknuepft", output = "rate", linked = "base",
+    labels = list(description = "d", params = list(base = "Basis", a = "a", b = "b",
+                                                   phi = "phi", sigma = "sigma", u0 = "u0"),
+                  rows = list()),
+    params = list(base = vofi_param("string"), a = vofi_param("number"),
+                  b = vofi_param("number"), phi = vofi_param("number"),
+                  sigma = vofi_param("number"), u0 = vofi_param("number")),
+    simulate = function(par, z, u, years, linked) {
+      g <- linked$base
+      uu <- matrix(par$u0, nrow(g), length(years))
+      for (y in seq_along(years)[-1L]) uu[, y] <- par$phi * uu[, y - 1L] + par$sigma * z[, y - 1L]
+      par$a + par$b * g + uu
+    },
+    expected = lin_exp,
+    n_shocks = function(par) 1L, n_uniforms = function(par) 0L,
+    validate = function(par) character(0),
+    quantile_path = function(par, years, p) {
+      b <- par[[".base"]]
+      k <- seq_along(years) - 1
+      if (identical(quantile, "na") || !identical(b$type, base_type)) {
+        return(rep(NA_real_, length(years)))
+      }
+      bp <- b$par
+      vu <- par$sigma^2 * (1 - par$phi^(2 * k)) / (1 - par$phi^2)
+      vb <- bp$sigma^2 * (1 - bp$phi^(2 * k)) / (1 - bp$phi^2)
+      cv <- b$rho * bp$sigma * par$sigma * (1 - (bp$phi * par$phi)^k) / (1 - bp$phi * par$phi)
+      v <- if (identical(quantile, "no_base")) vu else par$b^2 * vb + vu + 2 * par$b * cv
+      lin_exp(par, years) + stats::qnorm(p) * sqrt(v)
+    },
+    example = list(base = "inflation", a = 0.002, b = 0.8, phi = 0.5, sigma = 0.006, u0 = 0,
+                   .base = list(type = base_type,
+                                par = list(mu = 0.02, phi = 0.5, sigma = 0.011, x0 = 0.028),
+                                rho = rho))
+  )
+}
+
+test_that("Prozess mit linked: P4 mit par$.base und simuliertem Basisprozess (R-114, P0-14)", {
+  local_registry()
+  vofi_register_type(tk_ar1_def())
+  f <- findings_of("ar1")
+  expect_true(all(f$ok), info = paste(f$check[!f$ok], f$message[!f$ok]))
+  # ohne und mit Schockkorrelation zur Basis; .base ist kein Parameter (C3)
+  for (rho in c(0, 0.6)) {
+    nm <- paste0("tk_linked_", rho * 10)
+    expect_silent(vofi_register_type(tk_linked_def(nm, rho = rho)))
+    f <- findings_of(nm)
+    expect_true(all(f$ok), info = paste(rho, f$check[!f$ok], f$message[!f$ok]))
+    expect_true(all(c("P1", "P2", "P3", "P4") %in% f$check))
+  }
+  # Basis wird tatsaechlich simuliert: Quantilpfad ohne Basisvarianz faellt in P4 durch
+  vofi_register_type(tk_linked_def("tk_lin_nobase", quantile = "no_base"))
+  f <- findings_of("tk_lin_nobase")
+  expect_false(all(f$ok[f$check == "P4"]))
+  expect_true(all(f$ok[f$check %in% c("P1", "P2", "P3")]))
+  # Beispiel ohne .base: P4 nicht pruefbar (Befund), P1-P3 mit konstanten Pfaden
+  nob <- tk_linked_def("tk_lin_ohne")
+  nob$example[[".base"]] <- NULL
+  vofi_register_type(nob)
+  f <- findings_of("tk_lin_ohne")
+  expect_true(all(f$ok[f$check %in% c("P1", "P2", "P3")]))
+  expect_false(all(f$ok[f$check == "P4"]))
+  expect_match(f$message[f$check == "P4"][1], ".base", fixed = TRUE)
+  # NA nur ohne Gaussbasis zulaessig
+  vofi_register_type(tk_linked_def("tk_lin_na", quantile = "na"))
+  f <- findings_of("tk_lin_na")
+  expect_false(all(f$ok[f$check == "P4"]))
+  vofi_register_type(tk_ar1_def("tk_gbm"))
+  vofi_register_type(tk_linked_def("tk_lin_gbm", base_type = "tk_gbm", quantile = "na"))
+  f <- findings_of("tk_lin_gbm")
+  expect_true(all(f$ok), info = paste(f$check[!f$ok], f$message[!f$ok]))
+  # unbekannter Basistyp: Befund in P1
+  unk <- tk_linked_def("tk_lin_unk")
+  unk$example[[".base"]]$type <- "gibt_es_nicht"
+  vofi_register_type(unk)
+  f <- findings_of("tk_lin_unk")
+  expect_false(all(f$ok[f$check == "P1"]))
+})
+
+test_that("Gaussbasis und Weyl-Permutationen des Pruefkits", {
+  expect_true(reg_gauss_base(list(type = "ar1", par = list())))
+  expect_true(reg_gauss_base(list(type = "vasicek", par = list(r0 = 0.04))))
+  expect_true(reg_gauss_base(list(type = "vasicek", par = list(floor = -Inf))))
+  expect_false(reg_gauss_base(list(type = "vasicek", par = list(floor = 0))))
+  expect_true(reg_gauss_base(list(type = "linked_ar1",
+                                  par = list(.base = list(type = "ar1", par = list())))))
+  expect_false(reg_gauss_base(list(type = "linked_ar1",
+                                   par = list(.base = list(type = "gbm", par = list())))))
+  expect_false(reg_gauss_base(list(type = "gbm")))
+  expect_false(reg_gauss_base(NULL))
+  # k <= 10 unveraendert, verschiedene k ergeben verschiedene Permutationen
+  expect_identical(reg_weyl_perm(50L, 3L), order((seq_len(50L) * sqrt(5)) %% 1))
+  expect_false(identical(reg_weyl_perm(200L, 1L), reg_weyl_perm(200L, 11L)))
+  expect_false(identical(reg_weyl_perm(200L, 1L), reg_weyl_perm(200L, 41L)))
+  expect_length(reg_primes(), 168L)
+})
+
 test_that("Prozess ohne Schocks: n kommt über attr(linked, 'n'); falsche Form ist ein Befund", {
   local_registry()
   fixed <- vofi_type(

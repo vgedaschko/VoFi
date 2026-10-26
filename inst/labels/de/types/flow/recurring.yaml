@@ -11,9 +11,9 @@ params:
   base_date:
     label: "Preisstand"
     help: "Default 1. Januar nach project.price_base_year."
-  from:
+  start_event:
     label: "Beginn"
-    help: "Datum, Jahr oder completion (Default: Fertigstellung)."
+    help: "Beginn des Zeitraums start_event bis to: Datum, Jahr oder completion (Default: Fertigstellung)."
   to:
     label: "Ende"
     help: "Default Horizontende."
