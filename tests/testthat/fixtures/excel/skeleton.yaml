@@ -1,0 +1,17 @@
+# Walking Skeleton (Spec 00, Anhang A). Erwartung: EW = 52.830,80; EW_U = 42.448,32;
+# Endwertdifferenz = 10.382,48; Finanzierungssaldo 0 in jeder Periode.
+schema_version: 1
+meta: {scenario_id: skeleton, title: "Gerüst: Minimalszenario"}
+project: {perspective: wu_privat, project_type: neubau, valuation_date: 2027-01-01, horizon_years: 3}
+components:
+  z: {type: custom_series, label: "Zahlungsfolge", values: [-100000, 30000, 40000, 50000]}
+financing:
+  ek:   {type: equity, amount_eur: 40000}
+  bank: {type: bullet_loan, amount_eur: 60000, rate_pa: 0.05, term_years: 3, payments_per_year: 1}
+accounts:
+  deposit_rate_pa: 0.02
+  overdraft_rate_pa: 0.08
+  overdraft_limit_eur: .inf
+  surplus_order: [od_repay, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+analysis: {kpis: [terminal_value, terminal_value_opp, delta_terminal_value]}
