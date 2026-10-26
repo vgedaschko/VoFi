@@ -227,8 +227,15 @@ test_that("m_maintenance ohne auflösbare Bezugsfläche: Komponente mit I, Bezug
   mt <- r$value$components$m_maintenance
   expect_identical(mt$type, "maintenance")
   expect_identical(mt$area_m2, node_ref("building.maintenance.area_m2"))
-  e <- expect_error(e2_capture(vofi_build(r$value)), class = "vofi_error")
-  expect_identical(e$key, "engine.ref_missing")
+  # Bezugsfehler im Bau: vofi_build() validiert vor dem Aufbau der Knoten (Spec 00 9.1 Stufe 2);
+  # der nicht auflösbare Bezug ist ein E der Validierung (validation.ref_target_missing), daher
+  # bricht der Bau mit engine.validation_failed ab und nicht erst im Lauf (engine.ref_missing)
+  e <- expect_error(e2_capture(vofi_build(r$value)), class = "vofi_error_validation")
+  expect_identical(e$key, "engine.validation_failed")
+  rep <- e$data$report
+  expect_s3_class(rep, "vofi_validation")
+  expect_true(any(rep$severity == "error" & rep$code == "validation.ref_target_missing" &
+                    rep$path == "building.maintenance.area_m2"))
   # mit Fläche bzw. basis none: keine Meldung
   ok <- e2_resolve_full(e2_scenario(building = list(building_type = "MFH", n_units = 4L,
                                                     construction_year = 1970L,
