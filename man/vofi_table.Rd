@@ -16,28 +16,82 @@ vofi_table(
 \arguments{
 \item{x}{Objekt der Klasse \code{vofi_result}, \code{vofi_mc_result} oder \code{vofi_comparison}.}
 
-\item{sim}{Lauf (bei mehreren Läufen).}
+\item{sim}{Lauf (bei mehreren Läufen), siehe Details.}
 
 \item{layout}{\code{"grob"} oder \code{"transposed"}.}
 
 \item{detail}{\code{"standard"} (Summen je Kategorie) oder \code{"full"} (jede Ledger-Zeile).}
 
-\item{periods}{\code{NULL} (alle) oder Auswahl der Perioden.}
+\item{periods}{\code{NULL} (alle) oder Auswahl der Perioden: Zeitpunkte t (0 bis T) oder
+Periodenbezeichnungen wie \code{"2027"}.}
 
-\item{variant}{Variante (bei Vergleichen).}
+\item{variant}{Variante (bei Vergleichen; Default: Referenzvariante).}
 }
 \value{
-Objekt der Klasse \code{vofi_table}.
+Objekt der Klasse \code{vofi_table} mit \code{data} (Data Frame mit \code{row_key}, \code{label},
+\code{section}, \code{level} und einer Spalte je Periode, benannt nach der Periodenbezeichnung),
+\code{layout}, \code{detail}, \code{periods} (Zeitpunkte t), \code{sim}, \code{variant}, \code{format}, \code{rows}
+(Zeilenmetadaten mit den zugehörigen Ledger-Schlüsseln), \code{columns} (Periodenangaben) und
+\code{meta}.
 }
 \description{
-Erzeugt die VoFi-Tabelle im Grob-Layout bzw. transponiert (Spec 00, Abschnitte 7.8, 7.9).
+Erzeugt die VoFi-Tabelle eines Laufs im Grob-Layout (Positionen in Zeilen, Perioden in
+Spalten) bzw. transponiert (Spec 00, Abschnitte 7.8, 7.9, 13.5). Die Reihenfolge folgt dem
+Grob-Layout: Zahlungsfolge der Investition (Anzeige-Summe \code{cf_project} mit den Kategorien als
+Unterzeilen), Zuschüsse (\code{grant_cash}), Eigenkapital, je Kredit Aufnahme, Tilgung,
+Schlusstilgung, Sondertilgung, Sollzinsen und Gebühren, Kontokorrent, Geldanlage, Steuern
+(Ertragsteuern mit dem Vermerk „nicht berücksichtigt“, solange kein Steuermodul aktiv ist),
+Finanzierungssaldo, Bestände (Kredite, Kontokorrent, Geldanlage, offene Steuer,
+Bestandssaldo) und Merkzeilen. Mit und ohne Restwert: Der Restwert steht als eigene
+Unterzeile der Zahlungsfolge; bei vorhandenen Restwertzeilen folgt dem Bestandssaldo die
+Zeile „Bestandssaldo ohne Restwert“ mit dem Endwert ohne Restwert in T (Spec 00,
+Abschnitte 9.4, 12.5).
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Mit \code{detail = "standard"} stehen Summen je Abschnitt und Kategorie (Kredite je Baustein);
+Strafzins-Tranche, Abgeltungsteuer, Fehlbetrag und Nachschuss werden ausgeblendet, wenn sie
+in allen Läufen null sind (Spec 00, Abschnitt 7.7); alle übrigen Zeilen, auch die Merkzeilen
+der Kredite, bleiben stehen, damit die Tabelle stabil ist. Mit \code{detail = "full"} erscheint
+jede Zeile des Zahlungsbuchs mit der Bezeichnung ihrer Komponente.
+
+Bei einer Simulation ist \code{sim} die Laufnummer (Werte aus dem gespeicherten Zahlungsbuch bei
+\code{store = "full"}, sonst mit \code{vofi_sim()} nachgerechnet) oder einer der Werte
+\code{"deterministic"} (Basisfall), \code{"p05"}, \code{"p50"}, \code{"p95"} (gespeicherte Läufe). Ohne Angabe
+von \code{layout} wird ab mehr als 15 Perioden transponiert (Konzept 5.5).
+}
+\examples{
+res <- vofi_run(vofi_build(vofi_read_scenario(vofi_example("skeleton"))))
+tab <- vofi_table(res)
+tab
+vofi_table(res, layout = "transposed", detail = "full")
 }
 \seealso{
 Other Berichten: 
+\code{\link{as.data.frame.vofi_comparison}()},
+\code{\link{as.data.frame.vofi_mc_result}()},
+\code{\link{as.data.frame.vofi_result}()},
+\code{\link{as.data.frame.vofi_sensitivity}()},
+\code{\link{as.data.frame.vofi_table}()},
+\code{\link{format.vofi_comparison}()},
+\code{\link{format.vofi_mc_result}()},
+\code{\link{format.vofi_result}()},
+\code{\link{format.vofi_table}()},
+\code{\link{plot.vofi_comparison}()},
+\code{\link{plot.vofi_mc_result}()},
+\code{\link{plot.vofi_result}()},
+\code{\link{plot.vofi_sensitivity}()},
+\code{\link{print.summary_vofi_comparison}()},
+\code{\link{print.summary_vofi_mc_result}()},
+\code{\link{print.summary_vofi_result}()},
+\code{\link{print.vofi_comparison}()},
+\code{\link{print.vofi_mc_result}()},
 \code{\link{print.vofi_result}()},
+\code{\link{print.vofi_sensitivity}()},
+\code{\link{print.vofi_table}()},
+\code{\link{quantile.vofi_mc_result}()},
+\code{\link{summary.vofi_comparison}()},
+\code{\link{summary.vofi_mc_result}()},
+\code{\link{summary.vofi_result}()},
 \code{\link{vofi_app}()},
 \code{\link{vofi_export_excel}()},
 \code{\link{vofi_household_view}()},

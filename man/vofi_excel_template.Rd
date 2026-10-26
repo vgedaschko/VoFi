@@ -25,6 +25,11 @@ Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
 }
 \seealso{
 Other Einlesen: 
+\code{\link{as.data.frame.vofi_spec}()},
+\code{\link{print.summary_vofi_scenario}()},
+\code{\link{print.vofi_scenario}()},
+\code{\link{print.vofi_spec}()},
+\code{\link{summary.vofi_scenario}()},
 \code{\link{vofi_example}()},
 \code{\link{vofi_library}()},
 \code{\link{vofi_library_paths}()},

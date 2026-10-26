@@ -19,12 +19,11 @@
 \code{invisible(x)}.
 }
 \description{
-Gibt Kopfdaten, die wichtigsten Kennzahlen (Primärkennzahl zuerst) und eine gekürzte
-VoFi-Tabelle (Summen je Abschnitt, Finanzierungssaldo, Bestandssaldo) im deutschen
-Zahlenformat aus.
-}
-\details{
-Phase-0-Minimalfassung (Eigentümer: WS-H).
+Gibt Kopfdaten (Szenario, Variante, Lauf, Stichtag, Horizont, Perspektive), die
+Kopf-Kennzahlen (Primärkennzahl zuerst, jeweils mit und ohne Restwert), eine gekürzte
+VoFi-Tabelle (Summen je Abschnitt, Finanzierungssaldo, Bestandssaldo), Hinweise und das
+Ergebnis der Prüfungen im deutschen Zahlenformat aus (Spec 00, Abschnitt 13.6). Die
+vollständige Tabelle liefert \code{\link[=vofi_table]{vofi_table()}}, alle Kennzahlen \code{\link[=summary]{summary()}}.
 }
 \examples{
 res <- vofi_run(vofi_build(vofi_read_scenario(vofi_example("skeleton"))))
@@ -32,6 +31,30 @@ print(res)
 }
 \seealso{
 Other Berichten: 
+\code{\link{as.data.frame.vofi_comparison}()},
+\code{\link{as.data.frame.vofi_mc_result}()},
+\code{\link{as.data.frame.vofi_result}()},
+\code{\link{as.data.frame.vofi_sensitivity}()},
+\code{\link{as.data.frame.vofi_table}()},
+\code{\link{format.vofi_comparison}()},
+\code{\link{format.vofi_mc_result}()},
+\code{\link{format.vofi_result}()},
+\code{\link{format.vofi_table}()},
+\code{\link{plot.vofi_comparison}()},
+\code{\link{plot.vofi_mc_result}()},
+\code{\link{plot.vofi_result}()},
+\code{\link{plot.vofi_sensitivity}()},
+\code{\link{print.summary_vofi_comparison}()},
+\code{\link{print.summary_vofi_mc_result}()},
+\code{\link{print.summary_vofi_result}()},
+\code{\link{print.vofi_comparison}()},
+\code{\link{print.vofi_mc_result}()},
+\code{\link{print.vofi_sensitivity}()},
+\code{\link{print.vofi_table}()},
+\code{\link{quantile.vofi_mc_result}()},
+\code{\link{summary.vofi_comparison}()},
+\code{\link{summary.vofi_mc_result}()},
+\code{\link{summary.vofi_result}()},
 \code{\link{vofi_app}()},
 \code{\link{vofi_export_excel}()},
 \code{\link{vofi_household_view}()},

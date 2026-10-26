@@ -7,24 +7,85 @@
 vofi_household_view(x, variant = NULL)
 }
 \arguments{
-\item{x}{Objekt der Klasse \code{vofi_result} oder \code{vofi_comparison}.}
+\item{x}{Objekt der Klasse \code{vofi_result} oder \code{vofi_comparison} (auch \code{vofi_mc_result}).}
 
 \item{variant}{\code{NULL} (alle) oder Variante.}
 }
 \value{
-Data Frame.
+Data Frame mit den Attributen \code{summary} und \code{perspective}.
 }
 \description{
-Haushaltssicht: monatliche Belastung des Selbstnutzers (inklusive Bauphase, zusätzlich „ohne
-Tilgung“), Ersparnis, Belastungsquote, Eigenanteil, Nachschüsse, Vermögensamortisation mit
-Zeitwert der Maßnahmen je Jahr; für Kleinvermieter der monatliche Cashflow je Jahr.
+Haushaltssicht (Spec 00, Abschnitte 12.3, 12.6, 14 Nr. 28; Spec 01 Teil B 3.10.4; Konzept
+1.4, 2.5; Memo 07 Paragraf 5.4). Eine Zeile je Variante und Jahr (Bauphase als eigene Zeile
+mit \code{op_year = 0} und \code{phase = "construction"}), Beträge in EUR pro Monat.
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+\strong{Selbstnutzer} (Perspektive \code{selbstnutzer}): Zinsen (\code{interest}), Tilgung (\code{repay}),
+Gebühren (\code{fees}), Energie- und CO2-Kosten (\code{energy}), Einspeiseerlöse und Ersparnisse als
+Gutschrift (\code{energy_income}, negativ), Instandhaltung und Wartung (\code{maintenance}),
+Betriebskosten und Grundsteuer (\code{operating}), sonstige laufende Kosten (\code{other}), die
+monatliche Belastung (\code{burden}, gleich der Kennzahl \code{monthly_burden}) und die Belastung
+„ohne Tilgung“ (\code{burden_ex_repay}, Kostensicht). In der Bauphase kommt die bisherige Miete
+hinzu (\code{current_rent}, „Doppelbelastung“, gleich \code{monthly_burden_construction}). Dazu das
+Nettoeinkommen (\code{income}) und die Belastungsquote (\code{burden_ratio}), bei Vergleichen die
+Ersparnis gegenüber der Referenzvariante (\code{saving}, positiv = Ersparnis) und ihre Summe in
+EUR (\code{cumulative_saving}).
+
+\strong{Kleinvermieter} (alle übrigen Perspektiven): monatlicher Cashflow nach Kapitaldienst
+(\code{cashflow}, positiv = Überschuss, negativ = Zuschuss; gleich der Kennzahl
+\code{monthly_net_cashflow}) mit Mieten (\code{rent}), sonstigen Erlösen (\code{other_income}),
+Zuschüssen (\code{grants}), laufenden Kosten (\code{costs}), Investitionen (\code{investment}), Zinsen,
+Tilgung und Gebühren, bei Vergleichen die Änderung gegenüber der Referenz
+(\code{cashflow_change}).
+
+\strong{Beide:} Nachschüsse des Jahres in EUR (\code{equity_calls}) und die Vermögensdifferenz zur
+Unterlassungsalternative am Jahresende mit Restwertpfad (\code{wealth_diff}; im Haushaltsmodus mit
+dem Zeitwert der Maßnahmen, R-72) bzw. nur aus Guthaben und Schulden (\code{wealth_diff_ex_rv}),
+bei Vergleichen die Vermögensdifferenz gegenüber der Referenzvariante
+(\code{wealth_diff_vs_reference}) und die Markierung der dauerhaften Amortisation (\code{paid_back}).
+
+Das Attribut \code{summary} enthält die Kopfwerte je Variante (\code{item}, \code{label}, \code{value}, \code{unit})
+mit einem Klartext (\code{text}) nach den Regeln für Nicht-Finanzleute: gerundete Monatswerte
+(5 bzw. 10 EUR), Summen auf 100 EUR, Prozent ganzzahlig, Wörter statt Vorzeichen („Sie
+sparen …“, „Sie zahlen … mehr“) und bei Simulationen die Bandbreite in Worten. Die
+Vermögensamortisation steht bei Vergleichen gegenüber der Referenzvariante; bei
+Bestandsprojekten ohne Referenzvariante wird sie nicht ausgewiesen, weil der
+Vermögensvergleich mit der Unterlassung die ohnehin anfallenden Bestandszahlungen enthält
+(Spec 00, Abschnitt 12.3a). Bei Simulationen gilt für die Tabelle der Basisfall.
+}
+\examples{
+res <- vofi_run(vofi_build(vofi_read_scenario(vofi_example("skeleton"))))
+hv <- vofi_household_view(res)
+hv
+attr(hv, "summary")$text
 }
 \seealso{
 Other Berichten: 
+\code{\link{as.data.frame.vofi_comparison}()},
+\code{\link{as.data.frame.vofi_mc_result}()},
+\code{\link{as.data.frame.vofi_result}()},
+\code{\link{as.data.frame.vofi_sensitivity}()},
+\code{\link{as.data.frame.vofi_table}()},
+\code{\link{format.vofi_comparison}()},
+\code{\link{format.vofi_mc_result}()},
+\code{\link{format.vofi_result}()},
+\code{\link{format.vofi_table}()},
+\code{\link{plot.vofi_comparison}()},
+\code{\link{plot.vofi_mc_result}()},
+\code{\link{plot.vofi_result}()},
+\code{\link{plot.vofi_sensitivity}()},
+\code{\link{print.summary_vofi_comparison}()},
+\code{\link{print.summary_vofi_mc_result}()},
+\code{\link{print.summary_vofi_result}()},
+\code{\link{print.vofi_comparison}()},
+\code{\link{print.vofi_mc_result}()},
 \code{\link{print.vofi_result}()},
+\code{\link{print.vofi_sensitivity}()},
+\code{\link{print.vofi_table}()},
+\code{\link{quantile.vofi_mc_result}()},
+\code{\link{summary.vofi_comparison}()},
+\code{\link{summary.vofi_mc_result}()},
+\code{\link{summary.vofi_result}()},
 \code{\link{vofi_app}()},
 \code{\link{vofi_export_excel}()},
 \code{\link{vofi_ledger}()},

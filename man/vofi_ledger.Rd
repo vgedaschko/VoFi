@@ -7,11 +7,12 @@
 vofi_ledger(x, format = c("long", "wide"), sim = NULL, vat = FALSE)
 }
 \arguments{
-\item{x}{Objekt der Klasse \code{vofi_result} oder \code{vofi_mc_result}.}
+\item{x}{Objekt der Klasse \code{vofi_result}, \code{vofi_mc_result} oder \code{vofi_comparison}.}
 
 \item{format}{\code{"long"} oder \code{"wide"}.}
 
-\item{sim}{\code{NULL} (alle Läufe) oder Laufnummern.}
+\item{sim}{\code{NULL} (alle Läufe), Laufnummern oder bei Simulationen \code{"deterministic"},
+\code{"p05"}, \code{"p50"}, \code{"p95"}.}
 
 \item{vat}{Netto und Umsatzsteuer getrennt ausgeben.}
 }
@@ -19,15 +20,58 @@ vofi_ledger(x, format = c("long", "wide"), sim = NULL, vat = FALSE)
 Data Frame.
 }
 \description{
-Liefert das Zahlungsbuch im Long- oder Wide-Format, optional mit Netto und Umsatzsteuer (Spec
-00, Abschnitte 7.4, 7.10).
+Liefert das Zahlungsbuch (Ledger) im Long- oder Wide-Format mit allen Zeilenmerkmalen
+(Spec 00, Abschnitte 7.4, 7.10). Long: eine Zeile je Ledger-Zeile, Lauf und Zeitpunkt mit
+den Spalten \code{key}, \code{label}, \code{section}, \code{category}, \code{tax_category}, \code{cash}, \code{kind}, \code{unit},
+\code{source_id}, \code{source_type}, \code{asset_id}, \code{measure_id}, \code{vat_rate}, \code{sim}, \code{t}, \code{period},
+\code{date_end}, \code{year} und \code{value} (Bruttobetrag). Wide: eine Zeile je Ledger-Zeile und Lauf,
+eine Spalte je Periode. Mit \code{vat = TRUE} werden Netto und Umsatzsteuer verlustfrei aus dem
+Bruttobetrag und dem Umsatzsteuersatz der Zeile abgeleitet (\code{net = value / (1 + vat_rate)},
+\code{vat = value - net}): im Long-Format als Spalten \code{net} und \code{vat}, im Wide-Format als je
+drei Zeilen mit \code{amount} = \code{"gross"}, \code{"net"}, \code{"vat"}. Bei Vergleichen werden die
+Zahlungsbücher aller Varianten mit der Spalte \code{variant} untereinander gestellt (\code{sim} gilt für
+jede Variante).
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Bei einer Simulation ist \code{sim} wie bei \code{\link[=vofi_table]{vofi_table()}} eine Auswahl von Laufnummern oder
+einer der Werte \code{"deterministic"} (Basisfall), \code{"p05"}, \code{"p50"}, \code{"p95"} (gespeicherte
+Läufe); die Spalte \code{sim} enthält die Laufnummer in der Simulation (beim Basisfall \code{NA}). Mit
+gespeichertem Zahlungsbuch (\code{store = "full"}) stammen die Werte daraus, sonst werden die
+gewählten Läufe mit \code{vofi_sim()} nachgerechnet; \code{sim = NULL} (alle Läufe) setzt das
+gespeicherte Zahlungsbuch voraus.
+}
+\examples{
+res <- vofi_run(vofi_build(vofi_read_scenario(vofi_example("skeleton"))))
+head(vofi_ledger(res))
+vofi_ledger(res, format = "wide", vat = TRUE)[1:3, ]
 }
 \seealso{
 Other Berichten: 
+\code{\link{as.data.frame.vofi_comparison}()},
+\code{\link{as.data.frame.vofi_mc_result}()},
+\code{\link{as.data.frame.vofi_result}()},
+\code{\link{as.data.frame.vofi_sensitivity}()},
+\code{\link{as.data.frame.vofi_table}()},
+\code{\link{format.vofi_comparison}()},
+\code{\link{format.vofi_mc_result}()},
+\code{\link{format.vofi_result}()},
+\code{\link{format.vofi_table}()},
+\code{\link{plot.vofi_comparison}()},
+\code{\link{plot.vofi_mc_result}()},
+\code{\link{plot.vofi_result}()},
+\code{\link{plot.vofi_sensitivity}()},
+\code{\link{print.summary_vofi_comparison}()},
+\code{\link{print.summary_vofi_mc_result}()},
+\code{\link{print.summary_vofi_result}()},
+\code{\link{print.vofi_comparison}()},
+\code{\link{print.vofi_mc_result}()},
 \code{\link{print.vofi_result}()},
+\code{\link{print.vofi_sensitivity}()},
+\code{\link{print.vofi_table}()},
+\code{\link{quantile.vofi_mc_result}()},
+\code{\link{summary.vofi_comparison}()},
+\code{\link{summary.vofi_mc_result}()},
+\code{\link{summary.vofi_result}()},
 \code{\link{vofi_app}()},
 \code{\link{vofi_export_excel}()},
 \code{\link{vofi_household_view}()},

@@ -10,22 +10,83 @@ vofi_plot(x, type = NULL, ...)
 \item{x}{Ergebnisobjekt (\code{vofi_result}, \code{vofi_mc_result}, \code{vofi_comparison},
 \code{vofi_sensitivity}).}
 
-\item{type}{Grafiktyp (abhängig von der Klasse von \code{x}).}
+\item{type}{Grafiktyp (abhängig von der Klasse von \code{x}), \code{NULL} = Default.}
 
-\item{...}{weitere Angaben an die Grafikfunktion.}
+\item{...}{weitere Angaben an die Grafikfunktion (\code{sim}, \code{kpi}, \code{row_key}, \code{input}, \code{bins},
+\code{measure}, \code{n}).}
 }
 \value{
 ggplot-Objekt.
 }
 \description{
-Grafiken zu Ergebnis, Simulation, Vergleich und Sensitivität (ggplot2 aus Suggests).
+Grafiken zu Ergebnis, Simulation, Vergleich und Sensitivität (ggplot2 aus Suggests; Spec 00,
+Abschnitte 13.6, 14 Nr. 24; Konzept 5.5). Farben nach der Okabe-Ito-Palette, Beschriftungen
+deutsch, Zahlen im deutschen Format.
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Typen je Klasse (erster Typ = Default):
+\itemize{
+\item \code{vofi_result}: \code{"vermoegen"} (Bestandssaldo, Vermögen mit Restwertpfad und
+Unterlassungsalternative je Periode), \code{"differenz"} (Vermögensdifferenz zur
+Unterlassungsalternative mit und ohne Restwert, Amortisationsmarke), \code{"bestand"}
+(Restschulden, Kontokorrent, Geldanlage), \code{"finanzierung"} (Finanzierungsstruktur:
+Mittelherkunft über den Horizont), \code{"zahlungen"} (gestapelte Ein- und Auszahlungen nach
+Kategorien je Periode), \code{"belastung"} (monatliche Belastung je Jahr bzw. monatlicher
+Cashflow, \code{\link[=vofi_household_view]{vofi_household_view()}}), \code{"warmmiete"} (Warmmiete vorher/nachher,
+\code{\link[=vofi_tenant_view]{vofi_tenant_view()}}). Zusatzargument \code{sim} (Lauf).
+\item \code{vofi_mc_result}: \code{"verteilung"} (Histogramm einer Kennzahl mit Anteil > 0), \code{"fan"}
+(Fächer der Pfad-Quantile einer Zeile, Argument \code{row_key}, Default \code{net_position}),
+\code{"cdf"} (empirische Verteilungsfunktion), \code{"konvergenz"} (laufender Mittelwert mit
+95-\%-Band), \code{"streu"} (Kennzahl gegen eine Eingangsgröße, Argument \code{input}),
+\code{"tornado"} (Rangkorrelationen der Eingangsgrößen mit der Kennzahl). Zusatzargument \code{kpi}
+(Default: Primärkennzahl; bei Bestandsprojekten, deren Primärkennzahl nur ein Vergleich
+liefert, die Endwertdifferenz mit dem Vermerk „enthält Bestandszahlungen“, Spec 00,
+Abschnitt 12.3a).
+\item \code{vofi_comparison}: \code{"endwert"} (Endwertdifferenz je Variante mit und ohne Restwert),
+\code{"differenz"} (Vergleichskennzahl gegen die Referenz mit Wahrscheinlichkeit „besser als
+Referenz“), \code{"cdf"} (Verteilungsfunktionen je Variante: Vergleichskennzahlen wie
+\code{"delta_vs_reference"} aus den Werten je Lauf für jede Variante außer der Referenz, übrige
+Kennzahlen aus den Ergebnissen aller Varianten; Default: Primärkennzahl), \code{"bestand"}
+(Bestandssaldo je Variante), \code{"belastung"} (monatliche Belastung bzw. Cashflow je Variante
+und Jahr). Zusatzargument \code{kpi}.
+\item \code{vofi_sensitivity}: \code{"tornado"}, \code{"spider"}, \code{"balken"} (globale Maße, Argument
+\code{measure}, Default \code{"spearman"}); Default nach der Methode der Analyse.
+}
+}
+\examples{
+\dontshow{if (requireNamespace("ggplot2", quietly = TRUE)) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+res <- vofi_run(vofi_build(vofi_read_scenario(vofi_example("skeleton"))))
+vofi_plot(res)
+vofi_plot(res, type = "zahlungen")
+\dontshow{\}) # examplesIf}
 }
 \seealso{
 Other Berichten: 
+\code{\link{as.data.frame.vofi_comparison}()},
+\code{\link{as.data.frame.vofi_mc_result}()},
+\code{\link{as.data.frame.vofi_result}()},
+\code{\link{as.data.frame.vofi_sensitivity}()},
+\code{\link{as.data.frame.vofi_table}()},
+\code{\link{format.vofi_comparison}()},
+\code{\link{format.vofi_mc_result}()},
+\code{\link{format.vofi_result}()},
+\code{\link{format.vofi_table}()},
+\code{\link{plot.vofi_comparison}()},
+\code{\link{plot.vofi_mc_result}()},
+\code{\link{plot.vofi_result}()},
+\code{\link{plot.vofi_sensitivity}()},
+\code{\link{print.summary_vofi_comparison}()},
+\code{\link{print.summary_vofi_mc_result}()},
+\code{\link{print.summary_vofi_result}()},
+\code{\link{print.vofi_comparison}()},
+\code{\link{print.vofi_mc_result}()},
 \code{\link{print.vofi_result}()},
+\code{\link{print.vofi_sensitivity}()},
+\code{\link{print.vofi_table}()},
+\code{\link{quantile.vofi_mc_result}()},
+\code{\link{summary.vofi_comparison}()},
+\code{\link{summary.vofi_mc_result}()},
+\code{\link{summary.vofi_result}()},
 \code{\link{vofi_app}()},
 \code{\link{vofi_export_excel}()},
 \code{\link{vofi_household_view}()},

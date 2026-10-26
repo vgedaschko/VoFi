@@ -7,22 +7,63 @@
 vofi_tenant_view(x, variant = NULL)
 }
 \arguments{
-\item{x}{Objekt der Klasse \code{vofi_result} oder \code{vofi_comparison}.}
+\item{x}{Objekt der Klasse \code{vofi_result} oder \code{vofi_comparison} (auch \code{vofi_mc_result}).}
 
 \item{variant}{\code{NULL} (alle) oder Variante.}
 }
 \value{
-Data Frame.
+Data Frame mit einer Zeile je Variante und Betriebsjahr.
 }
 \description{
-Nutzerkostensicht: Warmmiete je Jahr und Variante.
+Nutzerkostensicht: Warmmiete je Jahr und Variante in EUR je m² vermieteter Wohnfläche und
+Monat (Spec 00, Abschnitte 12.3, 12.6; Konzept 2.5). Je Betriebsjahr: Nettokaltmiete
+(\code{rent}), Modernisierungsumlage (\code{levy}), sonstige Betriebskosten der Mieter (\code{operating}),
+Heiz- und Warmwasserkosten der Mieter (\code{energy}, nur Mieteranteil), Warmmiete
+(\code{warm_rent}); im Zustand vor der Maßnahme die Heizkosten \code{energy_pre} und die Warmmiete
+\code{warm_rent_pre} (gleiche Miete und Betriebskosten, ohne Umlage), die Änderung
+„vorher/nachher“ (\code{change_prepost} = Umlage + Heizkosten nachher − vorher) und bei
+Vergleichen die Änderung gegenüber der Referenzvariante im selben Jahr
+(\code{change_vs_reference}). Die vermietete Fläche ist die Summe der Wohnungsgruppen ohne
+Selbstnutzung (ohne Gruppen: Wohnfläche des Gebäudes). Fehlende Daten tragen NA mit
+Begründungscode (\code{na_reason}, \code{na_reason_prepost}: \code{no_tenant_data}, \code{no_living_area}). Für
+steuerbefreite Vermietungsgenossenschaften (\code{wu_genossenschaft}) stehen zusätzlich die Quote
+der Nebenerlöse (\code{coop_income_share}), die Hinweisschwelle (\code{coop_threshold}) und der
+Hinweis (\code{coop_warning}) in der Tabelle (Spec 01 Teil B 3.9.3).
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+Bei Simulationen gilt der Basisfall.
+}
+\examples{
+res <- vofi_run(vofi_build(vofi_read_scenario(vofi_example("skeleton"))))
+vofi_tenant_view(res)
 }
 \seealso{
 Other Berichten: 
+\code{\link{as.data.frame.vofi_comparison}()},
+\code{\link{as.data.frame.vofi_mc_result}()},
+\code{\link{as.data.frame.vofi_result}()},
+\code{\link{as.data.frame.vofi_sensitivity}()},
+\code{\link{as.data.frame.vofi_table}()},
+\code{\link{format.vofi_comparison}()},
+\code{\link{format.vofi_mc_result}()},
+\code{\link{format.vofi_result}()},
+\code{\link{format.vofi_table}()},
+\code{\link{plot.vofi_comparison}()},
+\code{\link{plot.vofi_mc_result}()},
+\code{\link{plot.vofi_result}()},
+\code{\link{plot.vofi_sensitivity}()},
+\code{\link{print.summary_vofi_comparison}()},
+\code{\link{print.summary_vofi_mc_result}()},
+\code{\link{print.summary_vofi_result}()},
+\code{\link{print.vofi_comparison}()},
+\code{\link{print.vofi_mc_result}()},
 \code{\link{print.vofi_result}()},
+\code{\link{print.vofi_sensitivity}()},
+\code{\link{print.vofi_table}()},
+\code{\link{quantile.vofi_mc_result}()},
+\code{\link{summary.vofi_comparison}()},
+\code{\link{summary.vofi_mc_result}()},
+\code{\link{summary.vofi_result}()},
 \code{\link{vofi_app}()},
 \code{\link{vofi_export_excel}()},
 \code{\link{vofi_household_view}()},

@@ -7,26 +7,77 @@
 vofi_export_excel(x, path, overwrite = FALSE, sheets = NULL)
 }
 \arguments{
-\item{x}{Ergebnisobjekt.}
+\item{x}{Ergebnisobjekt (\code{vofi_result}, \code{vofi_mc_result}, \code{vofi_comparison},
+\code{vofi_sensitivity}).}
 
 \item{path}{Zieldatei (\code{.xlsx}).}
 
 \item{overwrite}{vorhandene Datei überschreiben.}
 
-\item{sheets}{\code{NULL} (alle) oder Auswahl der Blätter.}
+\item{sheets}{\code{NULL} (alle) oder Auswahl der Blätter (Codes wie oben).}
 }
 \value{
 \code{invisible(path)}.
 }
 \description{
-Exportiert ein Ergebnis nach Excel mit Annahmen, Prüfungen und Saldo-Formel.
+Exportiert ein Ergebnis nach Excel mit Annahmen, Prüfungen und Saldo-Formel (Spec 00,
+Abschnitte 7.10, 14 Nr. 25; Konzept 5.5). Die Arbeitsmappe enthält je nach Klasse:
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+\itemize{
+\item \code{vofi_result}: Übersicht (\code{"overview"}), VoFi im Grob-Layout (\code{"vofi"}) und transponiert
+(\code{"vofi_transposed"}), Kennzahlen mit Restwertbezug, auch je Wohneinheit und je m², wenn
+\code{building.n_units} bzw. \code{building.living_area_m2} gesetzt sind (\code{"kpis"}), Zahlungsbuch mit
+Brutto, Netto und Umsatzsteuer (\code{"ledger"}), Annahmen mit Herkunft (\code{"assumptions"}),
+Prüfungen und Markierungen (\code{"checks"}).
+\item \code{vofi_mc_result}: zusätzlich MC-Statistik (\code{"mc_stats"}), Kennzahlen je Lauf
+(\code{"mc_runs"}) und Pfad-Quantile (\code{"mc_bands"}); VoFi und Zahlungsbuch des Basisfalls.
+\item \code{vofi_comparison}: Übersicht, Kennzahlen je Variante (\code{"variants"}), Vergleich gegen die
+Referenz (\code{"differences"}), Ampel (\code{"traffic_light"}), je Variante eine VoFi-Tabelle
+(\code{"vofi"}), Differenz-VoFi (\code{"diff_vofi"}), Kennzahlen, Zahlungsbuch, Annahmen und
+Prüfungen.
+\item \code{vofi_sensitivity}: Übersicht, Ergebnisse (\code{"sensitivity"}), Parameter
+(\code{"sensitivity_params"}).
+}
+
+In den VoFi-Blättern stehen der Finanzierungssaldo (Summe aller zahlungswirksamen Zeilen der
+Periode) und die Anzeige-Summen „Zahlungsfolge der Investition“ und „Zuschüsse“ als
+Excel-Formeln (\code{SUM}), sodass die Nullsumme in Excel nachgeprüft werden kann. Beträge haben
+das Format \verb{#,##0.00} mit negativen Werten in Rot, Datumswerte \code{TT.MM.JJJJ}.
+}
+\examples{
+res <- vofi_run(vofi_build(vofi_read_scenario(vofi_example("skeleton"))))
+f <- tempfile(fileext = ".xlsx")
+vofi_export_excel(res, f)
+openxlsx::getSheetNames(f)
 }
 \seealso{
 Other Berichten: 
+\code{\link{as.data.frame.vofi_comparison}()},
+\code{\link{as.data.frame.vofi_mc_result}()},
+\code{\link{as.data.frame.vofi_result}()},
+\code{\link{as.data.frame.vofi_sensitivity}()},
+\code{\link{as.data.frame.vofi_table}()},
+\code{\link{format.vofi_comparison}()},
+\code{\link{format.vofi_mc_result}()},
+\code{\link{format.vofi_result}()},
+\code{\link{format.vofi_table}()},
+\code{\link{plot.vofi_comparison}()},
+\code{\link{plot.vofi_mc_result}()},
+\code{\link{plot.vofi_result}()},
+\code{\link{plot.vofi_sensitivity}()},
+\code{\link{print.summary_vofi_comparison}()},
+\code{\link{print.summary_vofi_mc_result}()},
+\code{\link{print.summary_vofi_result}()},
+\code{\link{print.vofi_comparison}()},
+\code{\link{print.vofi_mc_result}()},
 \code{\link{print.vofi_result}()},
+\code{\link{print.vofi_sensitivity}()},
+\code{\link{print.vofi_table}()},
+\code{\link{quantile.vofi_mc_result}()},
+\code{\link{summary.vofi_comparison}()},
+\code{\link{summary.vofi_mc_result}()},
+\code{\link{summary.vofi_result}()},
 \code{\link{vofi_app}()},
 \code{\link{vofi_household_view}()},
 \code{\link{vofi_ledger}()},

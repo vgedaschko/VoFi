@@ -43,6 +43,11 @@ head(attr(sc, "provenance")[, c("path", "layer", "location")])
 }
 \seealso{
 Other Einlesen: 
+\code{\link{as.data.frame.vofi_spec}()},
+\code{\link{print.summary_vofi_scenario}()},
+\code{\link{print.vofi_scenario}()},
+\code{\link{print.vofi_spec}()},
+\code{\link{summary.vofi_scenario}()},
 \code{\link{vofi_example}()},
 \code{\link{vofi_excel_template}()},
 \code{\link{vofi_library}()},

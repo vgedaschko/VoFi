@@ -38,6 +38,7 @@ Other Rechnen:
 \code{\link{as.data.frame.vofi_grid}()},
 \code{\link{print.vofi_draws}()},
 \code{\link{print.vofi_grid}()},
+\code{\link{print.vofi_model}()},
 \code{\link{vofi_opportunity}()},
 \code{\link{vofi_run}()},
 \code{\link{vofi_sim}()},
