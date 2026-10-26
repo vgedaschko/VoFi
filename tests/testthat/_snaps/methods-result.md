@@ -46,7 +46,7 @@
       
       Hinweise
         - Ertragsteuern sind nicht berücksichtigt (Rechnung vor Ertragsteuern, Steuermodul none).
-        - Steuerwarnhinweis: Für Kapitalgesellschaften ohne erweiterte Kürzung (Niveau etwa 30 %) kann die Rechnung vor Ertragsteuern das Ergebnis deutlich verändern. Keine Steuerberatung; Abhilfe: Steuermodul tax_flat, sobald verfügbar.
+        - Steuerwarnhinweis: Für Kapitalgesellschaften ohne erweiterte Kürzung (Niveau etwa 30 %) kann die Rechnung vor Ertragsteuern das Ergebnis deutlich verändern. Keine Steuerberatung; Abhilfe: optionales Steuermodul flat (tax.module: flat, vereinfachte Näherung).
       
       Prüfungen: Finanzierungssaldo 0 in jeder Periode, alle Invarianten erfüllt.
 
@@ -104,7 +104,7 @@
       
       Hinweise
         - Ertragsteuern sind nicht berücksichtigt (Rechnung vor Ertragsteuern, Steuermodul none).
-        - Steuerwarnhinweis: Für Kapitalgesellschaften ohne erweiterte Kürzung (Niveau etwa 30 %) kann die Rechnung vor Ertragsteuern das Ergebnis deutlich verändern. Keine Steuerberatung; Abhilfe: Steuermodul tax_flat, sobald verfügbar.
+        - Steuerwarnhinweis: Für Kapitalgesellschaften ohne erweiterte Kürzung (Niveau etwa 30 %) kann die Rechnung vor Ertragsteuern das Ergebnis deutlich verändern. Keine Steuerberatung; Abhilfe: optionales Steuermodul flat (tax.module: flat, vereinfachte Näherung).
       
       Prüfungen: Finanzierungssaldo 0 in jeder Periode, alle Invarianten erfüllt.
 

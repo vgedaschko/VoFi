@@ -38,6 +38,12 @@ test_that("Hinweise: Steuerwarnhinweise je Regime, Markierungen, Bestandsprojekt
   expect_false(any(grepl("Steuerwarnhinweis", rep_result_notes(x), fixed = TRUE)))
   x$meta$tax_module <- "flat"
   expect_false(lbl("report.notes.tax_none") %in% rep_result_notes(x))
+  # Integrator (Stufe III): mit aktivem tax_flat dessen Vermerk statt des Steuerwarnhinweises
+  # zur Rechnung vor Ertragsteuern (Konzept 3.12, Spec 00 10.7)
+  expect_true(lbl("types.tax.flat.note") %in% rep_result_notes(x))
+  x$meta$tax_regime <- "privat_vermieter"
+  expect_false(any(grepl("Steuerwarnhinweis", rep_result_notes(x), fixed = TRUE)))
+  x$meta$tax_regime <- "wu_kommunal"
   x$flags$shortfall <- TRUE
   x$meta$notes <- c("report.flags.arbitrage", "freier Vermerk")
   n <- rep_result_notes(x)

@@ -15,28 +15,107 @@ vofi_report(
 )
 }
 \arguments{
-\item{x}{Ergebnisobjekt.}
+\item{x}{Ergebnisobjekt (\code{vofi_result}, \code{vofi_mc_result}, \code{vofi_comparison}) oder Liste
+mit einem Ergebnis und ergänzenden Objekten (siehe Details).}
 
-\item{path}{Zieldatei.}
+\item{path}{Zieldatei (Endung \code{.html}; ohne Endung wird \code{.html} ergänzt). Eine vorhandene
+Datei wird überschrieben.}
 
-\item{format}{\code{"html"} oder \code{"docx"}.}
+\item{format}{\code{"html"} oder \code{"docx"} (Freigabe v1.1).}
 
-\item{mode}{\code{"auto"}, \code{"expert"} oder \code{"household"}.}
+\item{mode}{\code{"auto"}, \code{"expert"} (Fachmodus, auch \code{"fach"}) oder \code{"household"}
+(Haushaltsmodus, auch \code{"haushalt"}).}
 
-\item{template}{optional: eigene Berichtsvorlage.}
+\item{template}{optional: \code{"bericht"}, \code{"kurzvorlage"} (bzw. \code{"gremium"}), Pfad einer
+eigenen Rmd-Vorlage oder Liste mit \code{name}, \code{file}, \code{sections}, \code{author}, \code{logo}, \code{css}.}
 
-\item{title}{optional: Titel des Berichts.}
+\item{title}{optional: Titel des Berichts (Default aus dem Szenariotitel).}
 
-\item{open}{Bericht nach dem Erzeugen öffnen.}
+\item{open}{Bericht nach dem Erzeugen im Browser öffnen.}
 }
 \value{
-\code{invisible(path)}.
+\code{invisible(path)} (normalisierter Pfad der erzeugten Datei).
 }
 \description{
-Erzeugt einen HTML-Bericht im Fach- oder Haushaltsmodus (DOCX vorbereitet, Freigabe v1.1).
+Erzeugt einen eigenständigen HTML-Bericht (eine Datei, Grafiken eingebettet) zu einem
+Ergebnis, einer Simulation oder einem Variantenvergleich (Spec 00, Abschnitt 14 Nr. 26;
+Konzept 1.4 und 5.5). Der Bericht wird mit rmarkdown und pandoc erzeugt (Pakete rmarkdown
+und knitr aus Suggests); die Texte sind deutsch, Zahlen stehen im deutschen Format.
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+\strong{Fachmodus} (\code{mode = "expert"}, Wohnungsunternehmen und Genossenschaften): Management
+Summary mit zweistufiger Ampel und Primärkennzahl (mit und ohne Restwert; im Vergleich dazu
+Rendite der Mehrinvestition, Renditekennzahl und Warmmietenänderung je Variante),
+Variantenvergleich (mit Simulation die Wahrscheinlichkeit „besser als Referenz“, ohne
+Simulation „besser bzw. schlechter im Basisfall“), Kennzahlen mit und ohne Restwert (auch je
+WE und je m², bei Vergleichen je Variante), Zeitverläufe, Finanzierung und Förderung mit
+DSCR und LTV und dem Berechtigungs-Check der Förderprogramme (geprüfte Bedingungen, Grund
+einer Nichtberechtigung, offene Prüfpunkte und Ausschlüsse, Antragsdatum und Gültigkeit des
+Programms), Mietersicht (Warmmiete vorher/nachher und gegenüber der Referenz, Rechenweg der
+Modernisierungsumlage „rechnerisch → gekappt → angesetzt“), Energie und CO2, Risiko mit
+MC-Fehler, Sensitivitäten (Pflichtsensitivitäten, kritische Werte, Tornado, Spider, global),
+Annahmenprotokoll mit Herkunft, Bibliotheksständen und Gültigkeitswarnungen (Förderung zum
+Antragsdatum, sonst zum Rechtsstand), VoFi-Tabelle im Grob-Layout, Prüfungen, Methodik und
+Hinweise.
+
+\strong{Haushaltsmodus} (\code{mode = "household"}, Selbstnutzer und Kleinvermieter): das Wichtigste
+in Kürze in Worten („Sie sparen rund … € pro Monat“, gerundet), monatliche Belastung bzw.
+monatlicher Cashflow je Jahr (Wörter statt Vorzeichen: „spart … €“, „… € mehr“, „Überschuss“,
+„Zuschuss“), Eigenanteil, Nachschüsse, Amortisation in Worten, Förderung und Kredite mit
+Förderprüfung, bei Kleinvermietern die zulässige Mieterhöhung durch Modernisierung je
+Wohnung, Risiko in einfachen Worten („In 8 von 10 simulierten Zukünften …“), „Was passiert,
+wenn …“ aus den Pflichtsensitivitäten, die wichtigsten Annahmen (bei Vergleichen die Kredite
+je Variante), ein Glossar und deutlich sichtbare Hinweise.
+
+\code{mode = "auto"} folgt \code{project.report_mode} des Ergebnisses (Perspektive \verb{wu_*}: Fachmodus,
+sonst Haushaltsmodus); \code{"fach"} und \code{"haushalt"} sind gleichbedeutend mit \code{"expert"} bzw.
+\code{"household"}.
+
+\strong{Vorlagen} (\code{template}): \code{NULL} bzw. \code{"bericht"} ist der vollständige Bericht;
+\code{"kurzvorlage"} (gleichbedeutend \code{"gremium"}) die druckfähige Kurzvorlage – im Fachmodus die
+Entscheidungsvorlage mit 2 bis 4 Seiten für Aufsichtsrat, Vertreterversammlung oder Bank
+(Beschlussvorschlag, Investition, Finanzierung und Förderung, Kennzahlen mit und ohne
+Restwert, Restriktionen, die wichtigsten Risiken, Szenariotabelle), im Haushaltsmodus die
+Zusammenfassung mit 1 bis 2 Seiten. Ein Pfad zu einer eigenen Rmd-Datei verwendet diese
+Vorlage; sie erhält die Parameter, die sie in ihrem YAML-Kopf deklariert, aus \code{body}
+(fertiger Markdown-Text des Berichts), \code{report} (Berichtsmodell) und \code{x} (Ergebnis). Eine
+Liste mit den Feldern \code{name} (\code{"bericht"} oder \code{"kurzvorlage"}), \code{file} (eigene Rmd-Datei),
+\code{sections} (Auswahl der Abschnitte), \code{author} (Verfasser, Default \code{meta.author} des
+Szenarios), \code{logo} (Bilddatei für den Kopf) und \code{css} (eigenes Stylesheet) stellt die
+Vorlage ein. Abschnitte (\code{sections}) im Fachmodus: \code{summary}, \code{variants}, \code{kpis},
+\code{timeline}, \code{financing}, \code{tenant}, \code{energy}, \code{risk}, \code{sensitivity}, \code{assumptions},
+\code{vofi_table}, \code{checks}, \code{method}; im Haushaltsmodus: \code{summary}, \code{burden}, \code{variants},
+\code{funding}, \code{risk}, \code{assumptions}, \code{glossary}, \code{vofi_table} (die VoFi-Tabelle ist im
+Haushaltsmodus nur auf Wunsch enthalten); Kurzvorlage im Fachmodus: \code{decision},
+\code{investment}, \code{kpis}, \code{restrictions}, \code{risks}, \code{scenarios}; im Haushaltsmodus: \code{summary},
+\code{burden}, \code{funding}, \code{risk}. Die Hinweise (Haftungs-, Steuer-, Rechts- und Förderhinweis)
+stehen immer am Ende. Abschnitte ohne Daten entfallen (zum Beispiel der Variantenvergleich bei
+einem Einzelergebnis oder Energie und CO2 ohne Energiezahlungen) bzw. nennen den Grund (die
+Mietersicht eines Wohnungsunternehmens ohne Mieterdaten, das Risiko ohne Simulation).
+
+\strong{Pflichtsensitivitäten} (Spec 01 Teil C 4.4) rechnet der Bericht selbst: je Eintrag aus
+\code{analysis.mandatory_sensitivities} ein deterministischer Lauf mit dem Szenario, das das
+Ergebnis bei seiner Auflösung mitführt (bei Vergleichen je Variante gegen die Referenz). Ein
+Ergebnis, das mit Laufzeit-Overrides oder einem Szenario-Set gerechnet wurde oder kein
+Szenario mitführt, nennt die Einträge als „nicht gerechnet“ mit dem Grund.
+
+\strong{Ergänzende Objekte:} Statt eines Ergebnisses darf \code{x} eine Liste sein mit genau einem
+Ergebnis (\code{vofi_result}, \code{vofi_mc_result} oder \code{vofi_comparison}) und optional
+Sensitivitätsanalysen (\code{\link[=vofi_sensitivity]{vofi_sensitivity()}}, Tornado, Spider, global), dem Szenario
+(\code{vofi_scenario}; es hat für die Pflichtsensitivitäten Vorrang) bzw. einer fertigen Tabelle
+der Pflichtsensitivitäten als Element \code{mandatory} sowie Zielwertsuchen (\code{\link[=vofi_solve]{vofi_solve()}}, zum
+Beispiel Break-even und kritische Werte; sie stehen im Abschnitt Sensitivitäten und in der
+Kurzvorlage, das Ergebnis in der Einheit des gesuchten Parameters).
+
+DOCX ist technisch vorbereitet und wird mit Version 1.1 freigegeben (R-25); \code{format = "docx"} meldet deshalb \code{vofi_error_not_implemented}. Die Kurzvorlage ist für den Druck
+gestaltet (Druckansicht des Browsers, PDF über „Drucken“).
+}
+\examples{
+\dontshow{if (interactive()) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+res <- vofi_run(vofi_build(vofi_read_scenario(vofi_example("grob_lehrbuch_a"))))
+datei <- vofi_report(res, file.path(tempdir(), "bericht.html"), mode = "expert")
+vofi_report(res, file.path(tempdir(), "kurzvorlage.html"), template = "kurzvorlage")
+\dontshow{\}) # examplesIf}
 }
 \seealso{
 Other Berichten: 

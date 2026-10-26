@@ -638,6 +638,28 @@ test_that("Pflichtsensitivitäten (Teil C 4.4) auf dem Walking Skeleton", {
   expect_identical(ov3[[1L]], c("a", "stufe_2045"))
 })
 
+test_that("Pflichtsensitivität habenzins_abgeltung mit tax_flat: nicht anwendbar (10.7, CR-7)", {
+  # Integrator (Stufe III): das Profil kleinvermieter setzt accounts.deposit_withholding_tax_share;
+  # zusammen mit tax.module flat wäre das ein Validierungsfehler (Doppelbesteuerung, 10.7), weil
+  # das Modul die Habenzinsen selbst versteuert. Die Sensitivität entfällt mit Status
+  # not_applicable, die übrigen laufen.
+  sc <- wsx_scenario(params = list(rate = 0.3, lag = 0L),
+                     project = list(perspective = "kleinvermieter"))
+  ms <- wsg_quiet(suppressWarnings(cmp_mandatory_sensitivities(sc)))
+  expect_true("habenzins_abgeltung" %in% ms$id)
+  abg <- ms[ms$id == "habenzins_abgeltung", ]
+  expect_identical(abg$status, "not_applicable")
+  expect_true(is.na(abg$value))
+  expect_true(all(ms$status[ms$id != "habenzins_abgeltung"] != "not_applicable"))
+  expect_null(cmp_mandatory_override(list(tax = list(module = "flat")),
+                                     list(path = "accounts.deposit_withholding_tax_share",
+                                          value = 0.26375)))
+  expect_identical(cmp_mandatory_override(list(tax = list(module = "none")),
+                                          list(path = "accounts.deposit_withholding_tax_share",
+                                               value = 0.26375)),
+                   list(accounts.deposit_withholding_tax_share = 0.26375))
+})
+
 test_that("Prüffall R-107 auf einer über vofi_build normalisierten Spezifikation", {
   ref_node <- list(ref = "market.mortgage_rate", anchor = 0.02, floor = 0)
   sc <- wsg_scenario(accounts = list(deposit_rate_pa = ref_node),

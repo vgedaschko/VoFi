@@ -1547,13 +1547,23 @@ cmp_assemble <- function(out, models, setup, comp, cautious, mode, n_sim, seed, 
 #'
 #' `value`: ersetzt den Knoten am Pfad (auch eine Bezugsform mit `anchor`); `delta`: Zahl +
 #' delta bzw. bei einer Bezugsform mit `anchor` der Anker + delta (Kopplung bleibt); `add`:
-#' hängt Codes an eine Liste an.
+#' hängt Codes an eine Liste an. Mit dem Steuermodul `flat` ist eine Sensitivität auf
+#' `accounts.deposit_withholding_tax_share` nicht anwendbar (Spec 00 10.7; das Modul versteuert
+#' die Habenzinsen selbst).
 #' @param spec aufgelöste Spezifikation (Basiswerte).
 #' @param entry Eintrag `{id, path, label, value | delta | add}`.
 #' @return Liste `overrides` (Pfadform) bzw. `NULL` (nicht anwendbar).
 #' @noRd
 cmp_mandatory_override <- function(spec, entry) {
   path <- entry$path
+  # Steuermodul flat versteuert die Habenzinsen selbst (privat getrennt mit Abgeltungssatz,
+  # Unternehmen im Ergebnis; Spec 00 10.7). Eine pauschale Abgeltungsteuer der Konten waere
+  # dort Doppelbesteuerung (Validierungsfehler validation.tax_flat_withholding); die
+  # Pflichtsensitivitaet `habenzins_abgeltung` (Profil kleinvermieter) ist nicht anwendbar.
+  if (identical(path, "accounts.deposit_withholding_tax_share") &&
+        identical(spec$tax$module, "flat")) {
+    return(NULL)
+  }
   node <- path_get(spec, path)
   if (!is.null(entry$value)) return(stats::setNames(list(entry$value), path))
   if (!is.null(entry$add)) {

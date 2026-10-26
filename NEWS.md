@@ -70,3 +70,21 @@
     des Prüfkits für k > 10 unabhängig.
   - Dokumentation: Verweise auf interne Themen und Klammerausdrücke als Code formatiert
     (keine Warnungen „Could not resolve link“ unter roxygen2 8.x).
+* Stufe III (WS-H2, WS-X, Integrator):
+  - `vofi_report()` (WS-H2) ist kein Stub mehr: eigenständiger HTML-Bericht im Fach- und
+    Haushaltsmodus sowie als Kurzvorlage für Gremien (`template = "kurzvorlage"`/`"gremium"`),
+    Ampel, Kennzahlen mit und ohne Restwert, Finanzierung mit Förder-Berechtigungs-Check,
+    Mietersicht mit Rechenweg der Umlage, Risiko, Pflichtsensitivitäten (aus dem mitgeführten
+    Szenario gerechnet), Zielwertsuchen, Annahmenprotokoll, VoFi-Tabelle und Hinweise; DOCX
+    folgt mit v1.1 (`vofi_error_not_implemented`).
+  - Optionales Steuermodul `tax_flat` (WS-X, Spec 00 10.7, Memo 06 6.2):
+    vereinfachte Ertragsteuer-Näherung mit AfA (linear, degressiv, § 7b), § 82b, 15-%-Grenze,
+    Verlustmodus, Veranlagungsverzögerung und Steuer auf den Restwert; Parameter in
+    `inst/params/steuern_DE.yaml`. Standard bleibt `tax_none`; gesperrt für Selbstnutzer und
+    steuerbefreite Rechtsträger. Die Meldung `validation.tax_module_blocked` nennt jetzt den
+    Grund der Sperre.
+  - Pflichtsensitivität `habenzins_abgeltung` ist mit `tax.module: flat` nicht anwendbar
+    (das Modul versteuert die Habenzinsen selbst; sonst Doppelbesteuerung, 10.7).
+  - `vofi_build()`: Overrides auf das Förderinstrument eines Entscheidungsknotens (z. B.
+    `funding.<f>.approved = 0`) wählen den Zweig und werden nicht mehr an die
+    Ausweichvariante weitergereicht (9.11 Nr. 1-3); bisher Validierungsfehler.

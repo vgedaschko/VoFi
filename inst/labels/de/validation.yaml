@@ -53,7 +53,7 @@ chain_action_unknown: "Unbekannte Ausgleichsaktion '{value}' in '{path}'.{sugges
 chain_role: "Die Aktion '{value}' gehört nicht in '{path}'."
 chain_order: "'{path}': die erste Aktion muss {first} sein, die letzte {last}; jede Aktion höchstens einmal, Ränge streng aufsteigend."
 tax_module_unknown: "Unbekanntes Steuermodul '{value}' ('{path}').{suggestion}"
-tax_module_blocked: "Das Steuermodul '{value}' ist für die Perspektive bzw. das Steuerregime gesperrt ('{path}', Perspektive {perspective})."
+tax_module_blocked: "Das Steuermodul '{value}' ist für die Perspektive bzw. das Steuerregime gesperrt ('{path}', Perspektive {perspective}).{reason}"
 tax_flat_withholding: "Steuermodul flat zusammen mit '{path}' > 0 besteuert die Habenzinsen doppelt (Spec 00 10.7)."
 kpi_unknown: "Unbekannte Kennzahl '{value}' in '{path}'.{suggestion}"
 after_unknown: "'{path}': '{value}' ist keine Komponente bzw. kein Finanzierungsbaustein.{suggestion}"

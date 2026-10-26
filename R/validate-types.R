@@ -753,7 +753,8 @@ val_tax <- function(vc) {
   if ((!is.null(def$perspectives) && !(utl_is_string(persp) && persp %in% def$perspectives)) ||
         (spec$project$tax_regime %||% "") %in% (def$blocked_regimes %||% character(0))) {
     val_add(vc, "error", "validation.tax_module_blocked", "tax.module", value = mod,
-            perspective = persp %||% "")
+            perspective = persp %||% "",
+            reason = val_tax_blocked_reason(mod, persp, spec$project$tax_regime))
   }
   w <- val_num(spec$accounts$deposit_withholding_tax_share)
   if (identical(mod, "flat") && length(w) >= 1L && any(w > 0)) {
@@ -761,6 +762,18 @@ val_tax <- function(vc) {
             "accounts.deposit_withholding_tax_share")
   }
   invisible(NULL)
+}
+
+#' Grund der Sperre eines Steuermoduls (CR-5 WS-X)
+#'
+#' Text des Labels `types.tax.<modul>.msg.blocked` (Platzhalter `perspective`, `regime`) mit
+#' führendem Leerzeichen, sonst leer; Platzhalter `reason` von `validation.tax_module_blocked`.
+#' @noRd
+val_tax_blocked_reason <- function(mod, perspective, regime) {
+  key <- paste0("types.tax.", mod, ".msg.blocked")
+  if (!utl_is_string(mod) || !lbl_has(key)) return("")
+  paste0(" ", lbl(key, perspective = if (utl_is_string(perspective)) perspective else "",
+                  regime = if (utl_is_string(regime)) regime else ""))
 }
 
 #' Kennzahlen (9.1 Stufe 9, 12.3)

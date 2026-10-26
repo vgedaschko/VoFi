@@ -8,35 +8,12 @@
 # Hilfen
 # ---------------------------------------------------------------------------------------------
 
-#' UTF-8-Zeichentyp bis zum Ende des Aufrufers (wie in vofi_report(); unter LANG=C sonst
-#' Übersetzungswarnungen bei Texten mit Umlauten)
-local_utf8 <- function(env = parent.frame()) {
-  old <- rep_html_utf8_locale()
-  if (!is.null(old)) withr::defer(Sys.setlocale("LC_CTYPE", old), envir = env)
-  invisible(old)
-}
-
-#' Berichtsmodell ohne Rendern (Kontext wie in vofi_report())
-wsh2_model <- function(x, mode = "auto", template = NULL, title = NULL) {
-  local_utf8()
-  parts <- rep_html_parts(x)
-  mode <- rep_html_mode(mode, parts$main)
-  opts <- rep_html_template(template, mode)
-  rep_html_model(rep_html_context(parts, mode, opts), title)
-}
-
 #' Pandoc-Markdown eines Berichtsmodells (Grafiken in ein temporäres Verzeichnis)
 wsh2_markdown <- function(model, env = parent.frame()) {
   local_utf8()
   dir <- withr::local_tempdir(.local_envir = env)
   rep_html_markdown(model, dir)
 }
-
-#' Ids der Abschnitte eines Modells
-wsh2_ids <- function(model) vapply(model$sections, function(s) s$id, "")
-
-#' Abschnitt eines Modells nach id
-wsh2_section <- function(model, id) model$sections[[match(id, wsh2_ids(model))]]
 
 #' Ergebnis ohne Auflösungszustand (der Bericht rechnet dann keine Pflichtsensitivitäten nach;
 #' für Tests, deren Gegenstand andere Abschnitte sind)
@@ -859,9 +836,7 @@ test_that("Vergleich: P(A besser als B) nur mit Simulation, Rangfolge, Ampel, To
 test_that("Vergleich: Kennzahlen je Variante mit und ohne Restwert, Kopfkennzahlen", {
   local_utf8()
   cmp <- example_comparison()
-  cmp$kpi_table <- rbind(cmp$kpi_table,
-                         data.frame(variant = "a", kpi = "incremental_return", value = 0.0961,
-                                    stringsAsFactors = FALSE))
+  cmp$kpi_table <- rbind(cmp$kpi_table, wsh2_kpi_rows(cmp, "a", "incremental_return", 0.0961))
   m <- wsh2_model(cmp, "expert")
   sec <- wsh2_section(m, "kpis")
   heads <- vapply(Filter(function(b) identical(b$type, "heading"), sec$blocks),
@@ -883,6 +858,11 @@ test_that("Vergleich: Kennzahlen je Variante mit und ohne Restwert, Kopfkennzahl
 test_that("Vergleich: Hinweise der Ampel aus traffic_light$notes bzw. aus den Restriktionen", {
   local_utf8()
   cmp <- example_comparison()
+  # Integrator: die Fixture trägt wie vofi_compare() (WS-G) die Spalte notes; geprüft wird hier
+  # zuerst die Ableitung ohne diese Spalte
+  stored <- cmp$traffic_light$notes
+  expect_identical(rep_html_cmp_tl(cmp, "a")$notes, strsplit(stored, "; ", fixed = TRUE)[[1L]])
+  cmp$traffic_light$notes <- NULL
   tl <- rep_html_cmp_tl(cmp, "a")
   expect_true(all(c("report.traffic.rv_dependent", "report.traffic.no_robustness") %in%
                     tl$notes))
@@ -912,10 +892,9 @@ test_that("Kurzvorlage: Szenariotabelle mit \u0394EW der Set-F\u00e4lle, Referen
   vs$kpis$delta_terminal_value <- base$kpis$delta_terminal_value - 6631.50
   cmp$results[["a@vorsichtig"]] <- vs
   cmp$scenario_sets <- "vorsichtig"
-  add <- data.frame(variant = c("a", "a@vorsichtig", "a@vorsichtig"),
-                    kpi = c("delta_vs_reference", "delta_terminal_value", "delta_vs_reference"),
-                    value = c(2000, vs$kpis$delta_terminal_value, -6631.50),
-                    stringsAsFactors = FALSE)
+  add <- wsh2_kpi_rows(cmp, c("a", "a@vorsichtig", "a@vorsichtig"),
+                       c("delta_vs_reference", "delta_terminal_value", "delta_vs_reference"),
+                       c(2000, vs$kpis$delta_terminal_value, -6631.50))
   cmp$kpi_table <- rbind(cmp$kpi_table, add)
   expect_identical(colnames(cmp$differences$delta_vs_reference), "a")
   expect_equal(rep_html_cmp_delta(cmp, "a@vorsichtig"), -6631.50)

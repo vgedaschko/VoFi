@@ -121,6 +121,41 @@ test_that("Entscheidungsknoten: Ausweichvariante, Zusage im Modell V gleich 1 (9
   expect_equal(r1$ledger$values$ek__in[1L, 1L], 100000)
 })
 
+test_that("Entscheidungsknoten mit Overrides (Schicht 8): Zweig aus dem Schlüssel (9.11 Nr. 1-3)", {
+  # Integrator (Stufe III): vofi_build() reichte die Overrides unverändert an die
+  # Ausweichvariante weiter (9.1 Stufe 9a); Overrides auf funding.<f> legten f dort als
+  # unvollständiges Instrument neu an (Validierungsfehler "instrument_type fehlt"), obwohl F f
+  # nicht enthält (9.11 Nr. 1). Sie gehören zum Knoten und wählen in V den Zweig (Nr. 3).
+  sc <- decision_scenario(approved = 1, p = 0.7)
+  m0 <- vofi_build(sc, overrides = list(funding = list(kfw = list(approved = 0))))
+  expect_identical(m0$decision$branch, 0L)
+  expect_null(m0$decision$fallback$spec$funding$kfw)
+  expect_identical(m0$spec$funding$kfw$approved, node_const(1))
+  # Zusage durch Override gesetzt: deterministisch, kein automatischer Schlüssel (4.7)
+  expect_false("funding.kfw.approved" %in% m0$sampler$static$key)
+  r0 <- vofi_run(m0)
+  expect_identical(r0$decision$branch, 0L)
+  expect_equal(r0$ledger$values$ek__in[1L, 1L], 90000)
+  expect_equal(r0$decision$alternative$ledger$values$ek__in[1L, 1L], 100000)
+  # Pfadform; Zusagewahrscheinlichkeit des Knotens
+  mp <- vofi_build(sc, overrides = list("funding.kfw.approval_probability" = 0.3))
+  expect_equal(mp$decision$p, 0.3)
+  expect_identical(mp$decision$branch, 1L)
+  # übrige Overrides gelten auch für die Ausweichvariante
+  mo <- vofi_build(sc, overrides = list(funding = list(kfw = list(approved = 0)),
+                                        accounts = list(overdraft_rate_pa = 0.1)))
+  expect_identical(mo$decision$fallback$accounts$overdraft_rate_pa, node_const(0.1))
+  expect_identical(mo$accounts$overdraft_rate_pa, node_const(0.1))
+  expect_false(isTRUE(eng_build_state$fallback))
+  expect_null(eng_decision_fallback_overrides(list(funding = list(kfw = list(approved = 0))),
+                                              "kfw"))
+  ov <- list(funding = list(kfw = list(approved = 0), beg = list(approved = 1)),
+             shared = list(x = 1))
+  expect_identical(eng_decision_fallback_overrides(ov, "kfw"),
+                   list(funding = list(beg = list(approved = 1)), shared = list(x = 1)))
+  expect_null(eng_decision_fallback_overrides(NULL, "kfw"))
+})
+
 test_that("Entscheidungsknoten: Fehlerfälle (9.11 Nr. 1)", {
   expect_error(vofi_build(decision_scenario(approved = 0.5)), class = "vofi_error_validation")
   two <- list(kfw = list(instrument_type = "grant", measures = list("m1"),

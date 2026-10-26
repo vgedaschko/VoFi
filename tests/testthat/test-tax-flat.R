@@ -167,6 +167,11 @@ test_that("10.10 Nr. 5: tax_flat lässt sich für Selbstnutzer nicht aktivieren 
   e <- expect_error(wsx_build(sc), class = "vofi_error_validation")
   rep <- e$data$report
   expect_true("validation.tax_module_blocked" %in% rep$code[rep$severity == "error"])
+  # Integrator (CR-5): die Meldung nennt den Grund der Sperre (types.tax.flat.msg.blocked)
+  blocked <- rep$message[rep$code == "validation.tax_module_blocked"][1L]
+  expect_match(blocked, "(Perspektive selbstnutzer, Steuerregime ", fixed = TRUE)
+  expect_match(blocked, "Steuermodul none verwenden", fixed = TRUE)
+  expect_identical(val_tax_blocked_reason("none", "selbstnutzer", NULL), "")
   # Genossenschaft: Default-Regime befreit -> gesperrt; steuerpflichtige eG zulässig
   eg <- wsx_scenario(project = list(perspective = "wu_genossenschaft"))
   expect_error(wsx_build(eg), class = "vofi_error_validation")

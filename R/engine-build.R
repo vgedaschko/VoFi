@@ -134,7 +134,7 @@ eng_build_tax <- function(spec, grid = NULL) {
     (!is.null(def$blocked_regimes) && regime %in% def$blocked_regimes)
   if (blocked) {
     text <- msg("validation.tax_module_blocked", value = name, path = "tax.module",
-                perspective = persp)
+                perspective = persp, reason = val_tax_blocked_reason(name, persp, regime))
     rep_df <- data.frame(
       severity = "error", code = "validation.tax_module_blocked", path = "tax.module",
       location = NA_character_, message = text, layer = NA_integer_,
@@ -243,7 +243,8 @@ eng_build_decision <- function(x, node, overrides, scenario_set) {
   old <- isTRUE(eng_build_state$fallback)
   eng_build_state$fallback <- TRUE
   on.exit(eng_build_state$fallback <- old, add = TRUE)
-  fb <- vofi_build(x, variant = node$fallback_variant, overrides = overrides,
+  fb <- vofi_build(x, variant = node$fallback_variant,
+                   overrides = eng_decision_fallback_overrides(overrides, node$funding_id),
                    scenario_set = scenario_set)
   if (!is.null(fb$spec$funding[[node$funding_id]])) {
     vofi_abort("engine.decision_fallback_has_node", variant = node$fallback_variant,
@@ -251,6 +252,29 @@ eng_build_decision <- function(x, node, overrides, scenario_set) {
   }
   list(funding_id = node$funding_id, key = node$key, p = node$p,
        fallback_variant = node$fallback_variant, fallback = fb, branch = node$branch)
+}
+
+#' Overrides für das Modell der Ausweichvariante (9.1 Stufe 9a, 9.11 Nr. 1, 3)
+#'
+#' Die Ausweichvariante F enthält das Instrument f des Knotens nicht (9.11 Nr. 1). Overrides auf
+#' `funding.<f>` (Zusageschlüssel `approved`, `approval_probability`, ...) gehören zum Knoten:
+#' Sie wählen im Modell der Variante den Zweig (Schicht 8, 9.11 Nr. 3) und wirken in F nicht;
+#' angewendet würden sie f in F als unvollständiges Instrument neu anlegen
+#' (Validierungsfehler). Alle übrigen Overrides gelten unverändert auch für F.
+#' @param overrides Overrides in Baumform (`scn_overrides_tree()`) oder `NULL`.
+#' @param funding_id id des Förderinstruments des Knotens.
+#' @return Overrides ohne `funding.<f>` oder `NULL`.
+#' @noRd
+eng_decision_fallback_overrides <- function(overrides, funding_id) {
+  if (is.null(overrides) || !is_map(overrides[["funding"]])) return(overrides)
+  fu <- overrides[["funding"]]
+  fu <- fu[names(fu) != funding_id]
+  if (length(fu) == 0L) {
+    overrides <- overrides[names(overrides) != "funding"]
+  } else {
+    overrides["funding"] <- list(fu)
+  }
+  if (length(overrides) == 0L) NULL else overrides
 }
 
 #' Enthält die Überschusskette Ü3 (loan_prepay bzw. eine Aktion mit Sondertilgungszeilen)?

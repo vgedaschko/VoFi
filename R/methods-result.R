@@ -131,18 +131,26 @@ rep_align_values <- function(vals) {
 #'
 #' Ertragsteuern „nicht berücksichtigt“ bei `tax_none` (10.6); Steuerwarnhinweis
 #' `report.tax_warning_<regime>` für Kleinvermieter und Kapitalgesellschaften ohne erweiterte
-#' Kürzung (Spec 01 Teil A 1.6, Konzept 3.12); Hinweis zu Nebenerlösen steuerbefreiter
-#' Genossenschaften (Spec 01 Teil B 3.9.3); Vermerk der Endwertdifferenz bei Bestandsprojekten
-#' (12.3a); gesetzte Markierungen (9.8) und Vermerke aus `meta$notes`.
+#' Kürzung (Spec 01 Teil A 1.6, Konzept 3.12), nur bei der Rechnung vor Ertragsteuern; mit einem
+#' aktiven Steuermodul dessen Vermerk `types.tax.<modul>.note` (10.7); Hinweis zu Nebenerlösen
+#' steuerbefreiter Genossenschaften (Spec 01 Teil B 3.9.3); Vermerk der Endwertdifferenz bei
+#' Bestandsprojekten (12.3a); gesetzte Markierungen (9.8) und Vermerke aus `meta$notes`.
 #' @return Zeichenvektor.
 #' @noRd
 rep_result_notes <- function(x, sim = 1L) {
   m <- x$meta
   notes <- character(0)
-  if (identical(m$tax_module %||% "none", "none")) notes <- c(notes, lbl("report.notes.tax_none"))
-  regime <- m$tax_regime %||% NA_character_
-  key <- paste0("report.tax_warning_", regime)
-  if (!is.na(regime) && lbl_has(key)) notes <- c(notes, lbl(key))
+  tm <- m$tax_module %||% "none"
+  if (identical(tm, "none")) {
+    notes <- c(notes, lbl("report.notes.tax_none"))
+    # der Steuerwarnhinweis betrifft die Rechnung vor Ertragsteuern (Konzept 3.12)
+    regime <- m$tax_regime %||% NA_character_
+    key <- paste0("report.tax_warning_", regime)
+    if (!is.na(regime) && lbl_has(key)) notes <- c(notes, lbl(key))
+  } else if (utl_is_string(tm) && lbl_has(paste0("types.tax.", tm, ".note"))) {
+    # aktives Steuermodul: dessen Vermerk (tax_flat: vereinfachte Naeherung, Spec 00 10.7)
+    notes <- c(notes, lbl(paste0("types.tax.", tm, ".note")))
+  }
   if (identical(m$perspective, "wu_genossenschaft")) {
     q <- rep_coop_income_check(x)
     if (!is.null(q) && any(q$warning)) {

@@ -40,8 +40,8 @@ notes:
   coop_income: "Steuerbefreite Vermietungsgenossenschaft: Die Nebenerlöse erreichen {year:raw} einen Anteil von {share:pct} der Erlöse (Hinweisschwelle {threshold:pct}, halbe Befreiungsgrenze nach § 5 Abs. 1 Nr. 10 KStG); die Steuerbefreiung ist zu prüfen."
   primary_existing: "{kpi}: {note}."
 
-tax_warning_privat_vermieter: "Steuerwarnhinweis: Für private Vermieter kann die Rechnung vor Ertragsteuern das Ergebnis und die Rangfolge der Varianten deutlich verändern (AfA, Erhaltungsaufwand, Veräußerungsfrist). Keine Steuerberatung; Abhilfe: Steuermodul tax_flat, sobald verfügbar."
-tax_warning_wu_kapges: "Steuerwarnhinweis: Für Kapitalgesellschaften ohne erweiterte Kürzung (Niveau etwa 30 %) kann die Rechnung vor Ertragsteuern das Ergebnis deutlich verändern. Keine Steuerberatung; Abhilfe: Steuermodul tax_flat, sobald verfügbar."
+tax_warning_privat_vermieter: "Steuerwarnhinweis: Für private Vermieter kann die Rechnung vor Ertragsteuern das Ergebnis und die Rangfolge der Varianten deutlich verändern (AfA, Erhaltungsaufwand, Veräußerungsfrist). Keine Steuerberatung; Abhilfe: optionales Steuermodul flat (tax.module: flat, vereinfachte Näherung)."
+tax_warning_wu_kapges: "Steuerwarnhinweis: Für Kapitalgesellschaften ohne erweiterte Kürzung (Niveau etwa 30 %) kann die Rechnung vor Ertragsteuern das Ergebnis deutlich verändern. Keine Steuerberatung; Abhilfe: optionales Steuermodul flat (tax.module: flat, vereinfachte Näherung)."
 
 flags:
   shortfall: "In mindestens einer Periode wurde ein Nachschuss bzw. Fehlbetrag nötig."

@@ -1523,6 +1523,16 @@ rep_html_cmp_delta <- function(cmp, variant, kpi = "delta_vs_reference") {
   rep_cmp_value(cmp, variant, kpi)
 }
 
+#' Ist ein Fall des Vergleichs eine Referenz (Referenzvariante bzw. `<baseline>@<set>` eines
+#' statischen Szenario-Sets, `meta$cases`)?
+#' @noRd
+rep_html_is_reference <- function(cmp, case) {
+  if (identical(case, cmp$baseline)) return(TRUE)
+  cs <- cmp$meta$cases
+  is.data.frame(cs) && all(c("case", "reference") %in% names(cs)) &&
+    any(cs$case == case & cs$reference == case)
+}
+
 #' Ergebnis eines deterministischen Vergleichs in Worten („besser bzw. schlechter im
 #' Basisfall“)
 #' @noRd
@@ -3591,7 +3601,7 @@ rep_html_sec_scenarios <- function(rc) {
     cmp <- rc$cmp
     k <- "delta_terminal_value"
     for (v in rep_comparison_variants(cmp)) {
-      dvr <- if (identical(v, cmp$baseline)) lbl("report.html.board.reference_row") else
+      dvr <- if (rep_html_is_reference(cmp, v)) lbl("report.html.board.reference_row") else
         rep_fmt_value(rep_html_cmp_delta(cmp, v), "EUR", 0)
       rows[[length(rows) + 1L]] <- c(v, rep_fmt_value(rep_cmp_value(cmp, v, k), "EUR", 0),
                                      rep_fmt_value(rep_cmp_value(cmp, v, paste0(k, "_ex_rv")),

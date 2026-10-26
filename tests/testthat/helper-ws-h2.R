@@ -1,21 +1,51 @@
 # Testhelfer von WS-H2 (HTML-Bericht, vofi_report()).
 #
-# Abhängigkeiten zu anderen Paketen (im Bericht an den Integrator genannt):
-# 1. vofi_report() ist geliefert; bis der Integrator es aus vofi_stubs() (helper-contracts.R)
-#    streicht, nimmt die Hülle unten es aus der Stub-Liste (danach wirkungslos, kann entfallen).
-# 2. vofi_compare(), vofi_mc(), vofi_sensitivity() (WS-G) sind auf diesem Stand Stubs; Vergleiche,
-#    Simulationen und Sensitivitäten entstehen als vertragsgemäße Attrappen (example_mc_result(),
-#    example_comparison(), wsh_comparison(), wsh_sensitivity(), wsh_mc_comparison()).
-#    Pflichtsensitivitäten (cmp_mandatory_sensitivities(), WS-G) werden als Tabelle übergeben.
-# 3. Die Testszenarien von WS-H (wsh_self_scenario(), wsh_tenant_scenario()) brauchen auf diesem
-#    Stand Ergänzungen (Baujahr, Wohnungsgruppe, Bodenwert), weil Validierungsfehler aus dem
-#    Merge WS-E2/WS-H noch offen sind; die Ergänzungen sind auch danach gültig.
+# Abhängigkeiten zu anderen Paketen (Stand nach der Integration Stufe III):
+# 1. vofi_report() ist geliefert und steht nicht mehr in vofi_stubs() (helper-contracts.R); die
+#    frühere Hülle um vofi_stubs() ist entfallen.
+# 2. Die Fixtures example_mc_result(), example_comparison(), wsh_comparison(), wsh_sensitivity()
+#    und wsh_mc_comparison() haben die Struktur der echten WS-G-Objekte
+#    (test-output-real-objects.R); der Bericht mit echten vofi_mc_result-, vofi_comparison-,
+#    vofi_sensitivity- und vofi_solution-Objekten wird in test-report-real-objects.R geprüft.
+# 3. Die Testszenarien von WS-H (wsh_self_scenario(), wsh_tenant_scenario()) werden um Baujahr,
+#    Wohnungsgruppe und Bodenwert ergänzt (für Förder-Check und Ertragswert).
 
-if (!isTRUE(attr(vofi_stubs, "wsh2"))) {
-  vofi_stubs <- local({
-    base_stubs <- vofi_stubs
-    structure(function() setdiff(base_stubs(), "vofi_report"), wsh2 = TRUE)
-  })
+#' UTF-8-Zeichentyp bis zum Ende des Aufrufers (wie in vofi_report(); unter LANG=C sonst
+#' Übersetzungswarnungen bei Texten mit Umlauten); auch für test-report-real-objects.R
+local_utf8 <- function(env = parent.frame()) {
+  old <- rep_html_utf8_locale()
+  if (!is.null(old)) withr::defer(Sys.setlocale("LC_CTYPE", old), envir = env)
+  invisible(old)
+}
+
+#' Berichtsmodell ohne Rendern (Kontext wie in vofi_report(); auch für test-report-real-objects.R)
+wsh2_model <- function(x, mode = "auto", template = NULL, title = NULL) {
+  local_utf8()
+  parts <- rep_html_parts(x)
+  mode <- rep_html_mode(mode, parts$main)
+  opts <- rep_html_template(template, mode)
+  rep_html_model(rep_html_context(parts, mode, opts), title)
+}
+
+#' Ids der Abschnitte eines Modells
+wsh2_ids <- function(model) vapply(model$sections, function(s) s$id, "")
+
+#' Abschnitt eines Modells nach id
+wsh2_section <- function(model, id) model$sections[[match(id, wsh2_ids(model))]]
+
+#' Zeilen der Kennzahltabelle eines Vergleichs in dessen Spaltenstruktur
+#'
+#' Integrator (Stufe III): die Fixture example_comparison() hat seit Stufe II die Spalten von
+#' vofi_compare() (WS-G, u. a. `scenario_set`, `na_reason`); übrige Spalten bleiben NA,
+#' `scenario_set` folgt aus dem Fall `<variante>@<set>`.
+wsh2_kpi_rows <- function(cmp, variant, kpi, value) {
+  add <- data.frame(variant = variant, kpi = kpi, value = value, stringsAsFactors = FALSE)
+  for (cl in setdiff(names(cmp$kpi_table), names(add))) add[[cl]] <- NA
+  if ("scenario_set" %in% names(add)) {
+    add$scenario_set <- ifelse(grepl("@", variant, fixed = TRUE), sub("^[^@]*@", "", variant),
+                               NA_character_)
+  }
+  add[names(cmp$kpi_table)]
 }
 
 #' Bericht erzeugbar? (rmarkdown, knitr, pandoc ab 2.0)

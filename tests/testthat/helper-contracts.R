@@ -242,7 +242,8 @@ vofi_stubs <- function() {
   # Stufe II geliefert und gestrichen: vofi_table, vofi_ledger, vofi_plot, vofi_export_excel,
   # vofi_tenant_view, vofi_household_view (WS-H); vofi_mc, vofi_compare, vofi_sensitivity,
   # vofi_solve (WS-G); vofi_excel_template (WS-A2)
-  c("vofi_report")
+  # Stufe III geliefert und gestrichen: vofi_report (WS-H2)
+  character(0)
 }
 
 #' Test überspringen, solange eine der Funktionen ein Stub ist
