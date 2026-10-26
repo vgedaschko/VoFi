@@ -19,13 +19,14 @@ vofi_build(x, variant = "base", overrides = NULL, scenario_set = NULL)
 Objekt der Klasse \code{vofi_model}.
 }
 \description{
-Baut aus einem Szenario oder einer Spezifikation ein rechenfertiges Modell: Validierung,
-Zeitraster, sortierte Komponenten, Instrumente, Ausgleichsketten, Basisfall-Vorlauf,
-Sampler-Plan, Steuermodul und Kennzahlen (Spec 00, Abschnitt 9.1).
-}
-\details{
-Phase-0-Minimalfassung (Eigentümer: WS-D): ohne Sampler-Plan (WS-C), ohne \code{amount_eur: auto}
-und ohne Entscheidungsknoten.
+Baut aus einem Szenario oder einer Spezifikation ein rechenfertiges Modell (Spec 00,
+Abschnitt 9.1): Auflösung und Validierung, Zeitraster, topologisch sortierte
+Zahlungskomponenten, Kreditinstrumente, Ausgleichsketten, Basisfall-Vorlauf (Kreditbeträge
+\code{amount_eur: auto} werden hier einmal bestimmt und gelten in allen Läufen, R-69),
+Sampler-Plan, Steuermodul und Kennzahlen. Ist ein Förderinstrument ein Entscheidungsknoten
+(\code{approval_timing: before_start} und \code{fallback_variant}, Abschnitt 9.11), wird das Modell der
+Ausweichvariante mitgebaut (\code{model$decision}); im Modell der Variante gilt die Zusage dann
+stets als erteilt.
 }
 \examples{
 model <- vofi_build(vofi_read_scenario(vofi_example("skeleton")))

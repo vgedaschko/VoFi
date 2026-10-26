@@ -17,11 +17,17 @@ vofi_tax_module_simple(name, fun, label = NULL)
 \code{invisible(def)}.
 }
 \description{
-Erzeugt und registriert ein Steuermodul ohne Zustand, das periodenweise rechnet: \code{fun(inputs, params)} liefert die Steuerzahlung der Periode (nur für Experimente; sieht keine endogenen
-Zinsen; Spec 00, Abschnitt 10.2).
+Erzeugt und registriert ein Steuermodul ohne Zustand, das periodenweise rechnet: \code{fun(inputs, params)} liefert die Steuerzahlung der Periode (n-Vektor oder Skalar; positiv = Zahlung). Das
+Modul sieht die Steuer-Eingaben der Periode (Spec 00, Abschnitt 10.4), aber keine endogenen
+Zinsen (dokumentierte Grenze; nur für Experimente, Abschnitt 10.2). \code{tax_init()} liefert
+\code{list()}, \code{tax_finalize()} eine offene Steuer von 0. Die Klasse des Moduls ist
+\code{c("vofi_tax_simple", "tax_<name>", "vofi_tax_module")}; \code{fun} gilt damit auch für Namen,
+zu denen es bereits Methoden gibt.
 }
-\details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+\examples{
+vofi_tax_module_simple("beispiel_einfach", function(inputs, params) 0,
+                       label = "Einfaches Beispielmodul")
+"beispiel_einfach" \%in\% vofi_types("tax")$name
 }
 \seealso{
 Other Erweitern: 

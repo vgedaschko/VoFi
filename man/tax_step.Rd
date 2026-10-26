@@ -3,12 +3,15 @@
 \name{tax_step}
 \alias{tax_step}
 \alias{tax_step.default}
+\alias{tax_step.vofi_tax_simple}
 \alias{tax_step.tax_none}
 \title{Steuer-Hook: Steuer der Periode}
 \usage{
 tax_step(module, t, inputs, interest, state, params)
 
 \method{tax_step}{default}(module, t, inputs, interest, state, params)
+
+\method{tax_step}{vofi_tax_simple}(module, t, inputs, interest, state, params)
 
 \method{tax_step}{tax_none}(module, t, inputs, interest, state, params)
 }
@@ -32,7 +35,12 @@ tax_step(module, t, inputs, interest, state, params)
 \description{
 S3-Generic des Steuer-Hooks (Spec 00, Abschnitte 10.3–10.5). Berechnet die Steuerzahlung der
 Periode t (positiv = Zahlung, negativ = Erstattung); die Engine bucht \code{-payment} in die Zeile
-\code{tax}.
+\code{tax}, Berichtsgrößen (\code{report}) als Merkzeilen \verb{tax_report_<name>}.
+}
+\examples{
+m <- structure(list(name = "none", params = list()), class = c("tax_none", "vofi_tax_module"))
+tax_step(m, 1L, list(), list(exo_soll = c(0, 0), exo_fees = c(0, 0), endo_soll = c(0, 0),
+                             endo_haben = c(10, 20), endo_wht = c(0, 0)), list(), list())
 }
 \seealso{
 Other Erweitern: 

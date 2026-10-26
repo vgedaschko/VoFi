@@ -3,12 +3,15 @@
 \name{tax_finalize}
 \alias{tax_finalize}
 \alias{tax_finalize.default}
+\alias{tax_finalize.vofi_tax_simple}
 \alias{tax_finalize.tax_none}
 \title{Steuer-Hook: offene Steuer am Horizont}
 \usage{
 tax_finalize(module, T, state, terminal_inputs, params)
 
 \method{tax_finalize}{default}(module, T, state, terminal_inputs, params)
+
+\method{tax_finalize}{vofi_tax_simple}(module, T, state, terminal_inputs, params)
 
 \method{tax_finalize}{tax_none}(module, T, state, terminal_inputs, params)
 }
@@ -29,6 +32,10 @@ tax_finalize(module, T, state, terminal_inputs, params)
 \description{
 S3-Generic des Steuer-Hooks (Spec 00, Abschnitte 10.3, 10.5). Liefert die am Horizont offene
 Steuer (\code{payment_T}, positiv = Verbindlichkeit), die den Endwert mindert.
+}
+\examples{
+m <- structure(list(name = "none", params = list()), class = c("tax_none", "vofi_tax_module"))
+tax_finalize(m, 5L, list(), list(residual_value = c(0, 0)), list())
 }
 \seealso{
 Other Erweitern: 

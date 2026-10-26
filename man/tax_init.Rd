@@ -3,12 +3,15 @@
 \name{tax_init}
 \alias{tax_init}
 \alias{tax_init.default}
+\alias{tax_init.vofi_tax_simple}
 \alias{tax_init.tax_none}
 \title{Steuer-Hook: Initialisierung}
 \usage{
 tax_init(module, params, assets, measures, n_sim)
 
 \method{tax_init}{default}(module, params, assets, measures, n_sim)
+
+\method{tax_init}{vofi_tax_simple}(module, params, assets, measures, n_sim)
 
 \method{tax_init}{tax_none}(module, params, assets, measures, n_sim)
 }
@@ -30,6 +33,10 @@ Zustand (Liste).
 S3-Generic des Steuer-Hooks (Spec 00, Abschnitte 10.3, 10.4). Liefert den Anfangszustand des
 Steuermoduls; die Elemente sind n-Vektoren oder Skalare. Die Default-Methode meldet einen
 Fehler der Klasse \code{vofi_error_registry} (keine Methode für das Modul).
+}
+\examples{
+m <- structure(list(name = "none", params = list()), class = c("tax_none", "vofi_tax_module"))
+tax_init(m, list(), list(), list(), 2L)
 }
 \seealso{
 Other Erweitern: 

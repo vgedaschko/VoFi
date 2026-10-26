@@ -15,11 +15,11 @@ vofi_register_tax_module(
 )
 }
 \arguments{
-\item{name}{Name des Moduls.}
+\item{name}{Name des Moduls (\verb{^[a-z][a-z0-9_]*$}).}
 
 \item{constructor}{Funktion \code{constructor(params, spec)}, die das Modulobjekt liefert.}
 
-\item{label}{Anzeigename.}
+\item{label}{Anzeigename (Default: \code{name}).}
 
 \item{perspectives}{\code{NULL} (alle) oder zulässige Perspektiven.}
 
@@ -33,11 +33,20 @@ vofi_register_tax_module(
 \code{invisible(def)}.
 }
 \description{
-Registriert ein Fremd-Steuermodul; es liefert S3-Methoden für \code{\link[=tax_init]{tax_init()}}, \code{\link[=tax_step]{tax_step()}} und
-\code{\link[=tax_finalize]{tax_finalize()}} (Spec 00, Abschnitt 10.2).
+Registriert ein Fremd-Steuermodul als Typ der Art \code{tax} (Spec 00, Abschnitte 5.7, 10.2). Das
+Modul liefert S3-Methoden für \code{\link[=tax_init]{tax_init()}}, \code{\link[=tax_step]{tax_step()}} und \code{\link[=tax_finalize]{tax_finalize()}} zur Klasse
+\verb{tax_<name>}; \code{constructor(params, spec)} erzeugt das Modulobjekt (eine Liste; die Klassen
+\code{c("tax_<name>", "vofi_tax_module")} werden ergänzt, falls sie fehlen). Das Modul erhält die
+Steuer-Eingaben zeilengenau (\code{uses_inputs = TRUE}). Im Szenario wählt \verb{tax.module: <name>}
+das Modul; \code{tax.params} sind seine Parameter (fehlende erhalten den Default aus \code{params}).
+Die Defaults der Parameter MÜSSEN eine Steuer von null ergeben (Vertragstest T1).
 }
-\details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+\examples{
+ctor <- function(params, spec) list(name = "beispiel_steuer", params = params)
+vofi_register_tax_module("beispiel_steuer", ctor, label = "Beispielsteuer",
+                         params = list(rate = vofi_param("share", default = 0)),
+                         overwrite = TRUE)
+"beispiel_steuer" \%in\% vofi_types("tax")$name
 }
 \seealso{
 Other Erweitern: 

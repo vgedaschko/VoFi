@@ -30,11 +30,10 @@ Objekt der Klasse \code{vofi_result} bzw. \code{vofi_mc_result}.
 }
 \description{
 Berechnet den VoFi deterministisch (\code{n_sim = 1}) oder als Monte-Carlo-Simulation (\code{n_sim > 1},
-Delegation an \code{\link[=vofi_mc]{vofi_mc()}}) (Spec 00, Abschnitt 9.2).
-}
-\details{
-Phase-0-Minimalfassung (Eigentümer: WS-D): deterministischer Lauf vollständig; die
-Monte-Carlo-Simulation folgt mit WS-C/WS-G.
+Delegation an \code{\link[=vofi_mc]{vofi_mc()}}) (Spec 00, Abschnitt 9.2). Der deterministische Lauf verwendet die
+Basisfallwerte aller Größen (Schichten 0–5, 7, 8; Abschnitt 11.9). Hat die Variante einen
+Entscheidungsknoten der Förderzusage (Abschnitt 9.11), ist das Ergebnis das des realisierten
+Zweigs; das Ergebnis des anderen Zweigs steht in \code{decision$alternative}.
 }
 \examples{
 res <- vofi_run(vofi_build(vofi_read_scenario(vofi_example("skeleton"))))

@@ -7,18 +7,23 @@
 vofi_opportunity(x)
 }
 \arguments{
-\item{x}{Objekt der Klasse \code{vofi_model} oder \code{vofi_result}.}
+\item{x}{Objekt der Klasse \code{vofi_model} (deterministischer Lauf) oder \code{vofi_result}.}
 }
 \value{
 Objekt der Klasse \code{vofi_result}.
 }
 \description{
 Berechnet die Unterlassungsalternative zu einem Modell oder Ergebnis: gleiche Einlagen
-inklusive Nachschüsse der Investition und gleiche Entnahmen, keine Investition, keine Kredite,
-keine eigenen Nachschüsse (Spec 00, Abschnitt 9.5).
+inklusive der Nachschüsse der Investition und gleiche Entnahmen, keine Investition, keine
+Kredite, keine eigenen Nachschüsse; bei einer Sacheinlage der Verkauf des Bestands zum
+Stichtag (Spec 00, Abschnitt 9.5). Das Ergebnis enthält den vollständigen VoFi der
+Alternative (Abschnitte Eigenkapital, Kontokorrent, Geldanlage, Steuern, Prüfung, Bestände)
+mit der Kennzahl \code{terminal_value} = EW_U.
 }
-\details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+\examples{
+res <- vofi_run(vofi_build(vofi_read_scenario(vofi_example("skeleton"))))
+opp <- vofi_opportunity(res)
+opp$kpis$terminal_value
 }
 \seealso{
 Other Rechnen: 

@@ -7,7 +7,8 @@
 vofi_sim(x, i)
 }
 \arguments{
-\item{x}{Objekt der Klasse \code{vofi_mc_result}.}
+\item{x}{Objekt der Klasse \code{vofi_mc_result} (mit \code{model}, \code{meta$seed} und
+\code{meta$block_size}).}
 
 \item{i}{globale Laufnummer.}
 }
@@ -15,11 +16,17 @@ vofi_sim(x, i)
 Objekt der Klasse \code{vofi_result}.
 }
 \description{
-Rechnet Lauf \code{i} einer Simulation mit vollständiger VoFi-Tabelle nach; das Ergebnis ist
-identisch zum Lauf im Batch (Spec 00, Abschnitt 11.4).
+Rechnet Lauf \code{i} einer Simulation mit vollständiger VoFi-Tabelle nach; nur Block
+b = ⌈i / block_size⌉ wird neu gezogen, das Ergebnis ist identisch zum Lauf im Batch (Spec 00,
+Abschnitt 11.4). Bei einem Entscheidungsknoten (Abschnitt 9.11) ist es das Ergebnis des im
+Lauf realisierten Zweigs (gemeinsame Rohziehungen von Variante und Ausweichvariante).
 }
-\details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+\examples{
+\dontshow{if (interactive()) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+model <- vofi_build(vofi_read_scenario(vofi_example("skeleton")))
+mc <- vofi_mc(model, n_sim = 200, seed = 1)
+vofi_sim(mc, 17)$kpis
+\dontshow{\}) # examplesIf}
 }
 \seealso{
 Other Rechnen: 
