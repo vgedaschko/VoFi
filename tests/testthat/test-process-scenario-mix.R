@@ -109,3 +109,111 @@ test_that("scenario_mix: Validierung und Vertrag", {
   expect_identical(p$validate(c(sm, list(noise = noise_dist))), character(0))
   expect_type_contract("scenario_mix", "process")
 })
+
+test_that("scenario_mix: Prüffall v4 CO2-Korridor 2030 (Spec 01 Teil C 4.3, 2.5)", {
+  p <- wsc_proc("scenario_mix")
+  # processes/co2_price_corridor_2026: 20 gleichgewichtige Quantilpfade q01-q20
+  yrs <- c(2026, 2027, 2028, 2030, 2032, 2035, 2040, 2045, 2050, 2060, 2070)
+  co2 <- rbind(
+    c(65.00, 57.50, 49.33, 60.92, 68.44, 88.11,
+      117.50, 142.75, 168.00, 204.79, 249.63),
+    c(65.00, 59.33, 52.50, 65.25, 74.62, 97.71,
+      130.31, 159.40, 188.49, 229.77, 280.09),
+    c(65.00, 60.59, 54.68, 68.23, 78.87, 104.32,
+      139.13, 170.87, 202.60, 246.97, 301.05),
+    c(65.00, 61.61, 56.46, 70.65, 82.33, 109.69,
+      146.30, 180.19, 214.07, 260.95, 318.10),
+    c(65.00, 62.50, 57.99, 72.75, 85.32, 114.33,
+      152.50, 188.25, 223.99, 273.04, 332.83),
+    c(65.00, 63.29, 59.36, 74.62, 88.00, 118.48,
+      158.04, 195.45, 232.85, 283.84, 346.00),
+    c(65.00, 64.01, 60.63, 76.39, 90.44, 122.27,
+      163.10, 202.02, 240.94, 293.70, 358.02),
+    c(65.00, 64.68, 61.93, 78.23, 92.88, 125.78,
+      167.78, 208.11, 248.43, 302.83, 369.15),
+    c(65.00, 65.32, 63.28, 80.14, 95.41, 129.05,
+      172.21, 213.93, 255.65, 311.64, 379.89),
+    c(65.00, 65.97, 64.69, 82.13, 98.06, 132.22,
+      176.78, 219.98, 263.18, 320.82, 391.08),
+    c(65.00, 66.65, 66.17, 84.23, 100.84, 135.53,
+      181.58, 226.33, 271.08, 330.45, 402.81),
+    c(65.00, 67.38, 67.73, 86.43, 103.77, 139.02,
+      186.63, 233.02, 279.41, 340.60, 415.19),
+    c(65.00, 68.14, 69.38, 88.77, 106.88, 142.72,
+      191.99, 240.11, 288.24, 351.36, 428.31),
+    c(65.00, 68.96, 71.15, 91.27, 110.20, 146.67,
+      197.72, 247.70, 297.68, 362.88, 442.34),
+    c(65.00, 69.84, 73.06, 93.98, 113.79, 150.95,
+      203.91, 255.90, 307.89, 375.31, 457.50),
+    c(65.00, 70.81, 75.16, 96.94, 117.73, 155.63,
+      210.70, 264.88, 319.07, 388.94, 474.12),
+    c(65.00, 71.90, 77.50, 100.25, 122.13, 160.87,
+      218.29, 274.93, 331.58, 404.19, 492.70),
+    c(65.00, 73.15, 80.21, 104.08, 127.22, 166.93,
+      227.07, 286.56, 346.04, 421.82, 514.20),
+    c(65.00, 74.70, 83.54, 108.80, 133.48, 174.38,
+      237.88, 300.86, 363.84, 443.52, 540.65),
+    c(65.00, 76.94, 88.39, 115.65, 142.58, 185.21,
+      253.57, 321.63, 389.69, 475.03, 579.06)
+  )
+  sc <- list()
+  for (k in 1:20) sc[[sprintf("q%02d", k)]] <- list(prob = 0.05, years = yrs, values = co2[k, ])
+  par <- list(scenarios = sc)
+  expect_spec(p$quantile_path(par, 2030, 0.1), "65.25")
+  expect_spec(p$quantile_path(par, 2030, 0.9), "104.08")
+  q <- vapply(c(0.1, 0.9), function(pr) p$quantile_path(par, 2027:2040, pr)[c(4, 14)],
+              numeric(2))
+  expect_spec(q[1, ], c("65.25", "104.08"))
+  expect_spec(q[2, ], c("130.31", "227.07"))
+  # Erwartungspfad (notes der Bibliothek): 84,99 in 2030, 181,65 in 2040
+  expect_spec(p$expected(par, c(2030, 2040)), c("84.99", "181.65"))
+})
+
+test_that("scenario_mix: empirische Quantile der Mischung mit Rauschen = quantile_path (P4)", {
+  p <- wsc_proc("scenario_mix")
+  par <- list(scenarios = list(a = list(prob = 0.2, years = c(2027, 2031), values = c(50, 40)),
+                               b = list(prob = 0.5, years = c(2027, 2031), values = c(60, 90)),
+                               c = list(prob = 0.3, years = c(2027, 2031), values = c(70, 200))),
+              noise = list(phi = 0.5, sigma = 0.15))
+  n <- 20000L
+  yrs <- 2027:2031
+  z <- smp_shocks(5, "shock:co2:1", n, length(yrs) - 1L, "lhs")
+  u <- matrix(smp_uniforms(5, "scen:co2:1", n, "lhs"), ncol = 1L)
+  x <- p$simulate(par, z, u, yrs, structure(list(), n = n))
+  for (pr in c(0.05, 0.25, 0.5, 0.75, 0.95)) {
+    q <- p$quantile_path(par, yrs, pr)
+    for (j in seq_along(yrs)) expect_quantile_near(x[, j], q[j], pr, info = yrs[j])
+  }
+})
+
+test_that("scenario_mix: Quantilpfad mit Rauschen bei Szenariowerten 0 und < 0 (C-03)", {
+  p <- wsc_proc("scenario_mix")
+  # Prüffall des Reviews: a (0,5; Wert 0), b (0,5; Wert 10), Rauschen phi 0, sigma 0,1
+  par <- list(scenarios = list(a = list(prob = 0.5, years = 2027, values = 0),
+                               b = list(prob = 0.5, years = 2027, values = 10)),
+              noise = list(phi = 0, sigma = 0.1))
+  q <- p$quantile_path(par, 2026:2028, 0.7)
+  expect_identical(q[1], 10)
+  expect_equal(q[2:3], rep(10 * exp(-0.005 + stats::qnorm(0.4) * 0.1), 2), tolerance = 1e-9)
+  # Punktmasse in 0: Quantile p <= 0,5 sind 0
+  expect_identical(p$quantile_path(par, 2026:2028, 0.3), c(0, 0, 0))
+  expect_identical(p$quantile_path(par, 2026:2028, 0.5)[2], 0)
+  # Mischung mit negativem, null und positivem Wert gegen die Simulation
+  pm <- list(scenarios = list(m = list(prob = 0.3, years = c(2027, 2030), values = c(-5, -20)),
+                              n = list(prob = 0.2, years = c(2027, 2030), values = c(0, 0)),
+                              p = list(prob = 0.5, years = c(2027, 2030), values = c(5, 30))),
+             noise = list(phi = 0.6, sigma = 0.2))
+  n <- 20000L
+  yrs <- 2027:2030
+  z <- smp_shocks(8, "shock:abg:1", n, length(yrs) - 1L, "lhs")
+  u <- matrix(smp_uniforms(8, "scen:abg:1", n, "lhs"), ncol = 1L)
+  x <- p$simulate(pm, z, u, yrs, structure(list(), n = n))
+  for (pr in c(0.05, 0.2, 0.3, 0.4, 0.5, 0.6, 0.95)) {
+    q <- p$quantile_path(pm, yrs, pr)
+    expect_true(all(is.finite(q)))
+    for (j in seq_along(yrs)) expect_quantile_near(x[, j], q[j], pr, info = yrs[j])
+  }
+  qs <- vapply(c(0.05, 0.25, 0.45, 0.75, 0.95), function(pr) p$quantile_path(pm, yrs, pr)[3], 0)
+  expect_true(all(diff(qs) >= 0))
+  expect_identical(qs[3], 0)
+})

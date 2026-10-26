@@ -22,20 +22,28 @@ smp_block_size <- function(settings, n_sim) {
   r <- settings$replicates
   if (!is.null(r)) {
     r <- as.integer(r)
-    if (n_sim %% r != 0L) {
-      vofi_abort("sampling.n_sim_replicates", n_sim = n_sim, replicates = r,
-                 lower = max(r, (n_sim %/% r) * r), upper = (n_sim %/% r + 1L) * r,
-                 .class = "vofi_error_input")
-    }
+    if (n_sim %% r != 0L) smp_abort_multiple("sampling.n_sim_replicates", n_sim, r)
     return(as.integer(n_sim %/% r))
   }
   m <- as.integer(settings$block_size %||% 200L)
-  if (n_sim %% m != 0L) {
-    vofi_abort("sampling.n_sim_not_multiple", n_sim = n_sim, block_size = m,
-               lower = max(m, (n_sim %/% m) * m), upper = (n_sim %/% m + 1L) * m,
-               .class = "vofi_error_input")
-  }
+  if (n_sim %% m != 0L) smp_abort_multiple("sampling.n_sim_not_multiple", n_sim, m)
   m
+}
+
+#' Fehler „n_sim kein Vielfaches“ mit den nächsten Vielfachen als Vorschlag
+#'
+#' Unteres und oberes Vielfaches von `m` um `n_sim`; ist n_sim < m, gibt es nur einen Vorschlag
+#' (Label `<key>_single`).
+#' @noRd
+smp_abort_multiple <- function(key, n_sim, m) {
+  lower <- (n_sim %/% m) * m
+  upper <- (n_sim %/% m + 1L) * m
+  if (lower < m) {
+    key <- paste0(key, "_single")
+    lower <- upper
+  }
+  vofi_abort(key, n_sim = n_sim, block_size = m, replicates = m, lower = lower, upper = upper,
+             .class = "vofi_error_input")
 }
 
 #' Einstellungen eines Laufs setzen und prüfen (Vorrang der Funktionsargumente, R-97)
@@ -90,7 +98,9 @@ smp_check_sampling <- function(s, m, plan) {
     }
   }
   g <- plan$corr_pearson$parameters
-  if (!is.null(g) && identical(s$copula, "iman_conover")) smp_check_block_size(m, nrow(g))
+  if (!is.null(g) && identical(s$copula, "iman_conover")) {
+    smp_check_block_size(m, nrow(g), s$replicates)
+  }
   invisible(TRUE)
 }
 
@@ -167,8 +177,7 @@ smp_sample <- function(plan, blocks, seed) {
   }
   u <- smp_correlate_static(u0, plan$corr_pearson$parameters, s$copula, seed, blocks, m)
   sc <- list()
-  shocked <- names(procs)[vapply(procs, function(p) p$n_shocks >= 1L, logical(1))]
-  z <- smp_sample_shocks(shocked, plan$corr_pearson$shocks, blocks, m, y, seed, s)
+  z <- smp_sample_shocks(smp_shocked(plan), plan$corr_pearson$shocks, blocks, m, y, seed, s)
   for (p in names(procs)) {
     nu <- procs[[p]]$n_uniforms
     if (nu >= 1L) {
@@ -213,9 +222,7 @@ smp_correlate_static <- function(u0, target, copula, seed, blocks, m) {
     res <- if (identical(copula, "gaussian")) {
       smp_gauss_copula(ub, target)
     } else {
-      sc <- vapply(grp, function(k) smp_ic_scores(seed, k, blocks[i], m), numeric(m))
-      if (!is.matrix(sc)) sc <- matrix(sc, nrow = m)
-      smp_iman_conover(ub, target, sc)
+      smp_iman_conover(ub, target, smp_ic_block_scores(seed, grp, blocks[i], m), blocks[i])
     }
     for (j in seq_along(grp)) u[[grp[j]]][rows] <- res[, j]
   }
@@ -256,9 +263,15 @@ smp_sample_shocks <- function(procs, target, blocks, m, y, seed, s) {
 #'
 #' Quantilfunktionen auf die korrelierten Uniforms (Korrelation auf Uniform-Ebene, R-59),
 #' Prozesse in topologischer Reihenfolge, Abbildung auf das Raster mit `grid_map_years()` und
-#' Pfadmerkmale. Weicht die Korrelation der Variante von der der Rohziehungen ab (Vereinigung
-#' mit abweichenden Angaben), wird die Gruppe aus den unabhängigen Uniforms mit den eigenen
-#' Angaben neu korreliert (CRN eingeschränkt, 11.10 Nr. 2).
+#' Pfadmerkmale. Die Variante übernimmt die korrelierten Uniforms und Schocks der Rohziehungen
+#' (gleicher Schlüssel = gleiche Ziehung, 11.10 Nr. 1), wenn ihre Korrelationsangaben zu denen
+#' der Rohziehungen passen (`smp_corr_compatible()`: gleiche Paare, die Vereinigung darf weitere
+#' Schlüssel enthalten). Nur im Konfliktfall (abweichende Paare, Reparatur der vereinigten
+#' Matrix, andere Copula; `smp_plan_union()` warnt dann mit `vofi_warning_correlation`) wird
+#' die Gruppe der Variante aus denselben Strömen mit ihren eigenen Angaben neu korreliert
+#' (CRN eingeschränkt, 11.10 Nr. 2). Die Schockspalten werden nach Kalenderjahr zugeordnet:
+#' Beginnen die Prozessjahre der Variante später als die der Rohziehungen, beginnt sie bei der
+#' Schockspalte ihres Startjahres.
 #' @param raw `smp_raw` aus `smp_sample()`.
 #' @param plan `smp_plan` der Variante.
 #' @param grid `vofi_grid` der Variante.
@@ -271,28 +284,29 @@ smp_materialize <- function(raw, plan, grid) {
   }
   n <- raw$n
   m <- raw$block_size
-  miss <- setdiff(c(plan$static$key, names(plan$processes)[vapply(plan$processes, function(p) {
-    p$n_shocks >= 1L
-  }, logical(1))]), c(names(raw$u), names(raw$z)))
+  shocked <- smp_shocked(plan)
+  miss <- setdiff(c(plan$static$key, shocked), c(names(raw$u), names(raw$z)))
   if (length(miss) > 0L) {
     vofi_abort("sampling.raw_mismatch", what = utl_collapse(miss), .class = "vofi_error_contract")
   }
+  years <- as.integer(grid$years)
+  off <- smp_year_offset(years, raw$years)
   u <- raw$u
-  tgt <- plan$corr_pearson$parameters
-  if (!identical(tgt, raw$corr$parameters) ||
-        !identical(plan$settings$copula, raw$corr$copula)) {
-    u <- smp_correlate_static(raw$u_indep[plan$static$key], tgt, plan$settings$copula,
-                              raw$seed, raw$blocks, m)
+  if (!smp_corr_compatible(plan$corr_pearson$parameters, raw$corr$parameters,
+                           smp_value_keys(plan), plan$settings$copula, raw$corr$copula)) {
+    u <- smp_correlate_static(raw$u_indep[plan$static$key], plan$corr_pearson$parameters,
+                              plan$settings$copula, raw$seed, raw$blocks, m)
   }
   z <- raw$z
-  if (!identical(plan$corr_pearson$shocks, raw$corr$shocks)) {
+  if (!smp_corr_compatible(plan$corr_pearson$shocks, raw$corr$shocks, shocked)) {
     # abweichende Schockkorrelation der Variante: dieselben Ströme neu erzeugen und mit den
     # eigenen Angaben korrelieren (CRN eingeschränkt, 11.10 Nr. 2)
-    shocked <- names(plan$processes)[vapply(plan$processes, function(p) p$n_shocks >= 1L,
-                                            logical(1))]
     z <- smp_sample_shocks(shocked, plan$corr_pearson$shocks, raw$blocks, m,
                            length(raw$years), raw$seed, raw$settings)
   }
+  # Schockspalten der Variante: Kalenderjahre years[2], years[3], ... (Versatz off)
+  cols <- off + seq_len(max(length(years) - 1L, 0L))
+  z <- lapply(z[intersect(shocked, names(z))], function(zz) zz[, cols, drop = FALSE])
   static <- list()
   decision <- list()
   uu <- list()
@@ -302,13 +316,6 @@ smp_materialize <- function(raw, plan, grid) {
     x <- as.double(def$quantile(u[[k]], plan$static_par[[k]]))
     uu[[k]] <- u[[k]]
     if (identical(plan$static$role[i], "decision")) decision[[k]] <- x else static[[k]] <- x
-  }
-  years <- as.integer(grid$years)
-  if (!identical(years[seq_len(min(length(years), length(raw$years)))],
-                 raw$years[seq_len(min(length(years), length(raw$years)))]) ||
-        length(years) > length(raw$years)) {
-    vofi_abort("sampling.grid_years", years = utl_collapse(range(years)),
-               .class = "vofi_error_contract")
   }
   sim <- smp_simulate_processes(plan, static, z, raw$scen, years, n)
   paths <- lapply(sim$annual, function(a) grid_map_years(grid, a))

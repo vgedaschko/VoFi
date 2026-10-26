@@ -96,3 +96,31 @@ test_that("mr_trend: Validierung und Vertrag", {
                    character(0))
   expect_type_contract("mr_trend", "process")
 })
+
+test_that("mr_trend: E[P_y] bei unsicherem Trend g ~ N(ḡ; sd) aus der Simulation (C-06)", {
+  p <- wsc_proc("mr_trend")
+  n <- 20000L
+  cases <- list(
+    gas_efh = c(0.06329700, 0.05949660, 0.75, 0.08, 0.02, 0.01, 0.06357122, 0.06672547,
+                0.07309457, 0.11235976),
+    heizoel = c(0.09076136, 0.06857460, 0.70, 0.18, 0.02, 0.012, 0.08510985, 0.07947406,
+                0.08478237, 0.13189142),
+    strom = c(0.31816764, 0.30857040, 0.75, 0.04, 0.02, 0.007, 0.32205552, 0.34333351,
+              0.37759403, 0.57048917),
+    fernwaerme = c(0.13331778, 0.12920125, 0.80, 0.07, 0.025, 0.008, 0.13579622, 0.14777943,
+                   0.16640173, 0.27828370),
+    ohne_krise = c(0.0613, 0.0613, 0.75, 0.08, 0.02, 0.01, 0.06252600, 0.06774521,
+                   0.07504800, 0.11576421)
+  )
+  for (nm in names(cases)) {
+    cs <- cases[[nm]]
+    # Trend je Lauf als LHS-Ziehung (Strom par:<proc>.growth:1), Schocks LHS
+    g <- cs[5] + cs[6] * stats::qnorm(smp_uniforms(3, paste0("par:", nm, ".growth:1"), n))
+    z <- smp_shocks(3, paste0("shock:", nm, ":1"), n, 30L, "lhs")
+    x <- p$simulate(list(p0 = cs[1], p_norm = cs[2], phi = cs[3], sigma = cs[4], growth = g),
+                    z, NULL, 2027:2057, structure(list(), n = n))
+    cols <- c(2, 6, 11, 31)
+    se <- apply(x[, cols], 2, stats::sd) / sqrt(n)
+    expect_true(all(abs(colMeans(x[, cols]) - cs[7:10]) <= 4 * se), info = nm)
+  }
+})

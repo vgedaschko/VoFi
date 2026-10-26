@@ -64,11 +64,64 @@ proc_scenario_mix_simulate <- function(par, z, u, years, linked) {
   out
 }
 
+#' Verteilungsfunktion der Mischung mit multiplikativem Log-Rauschen
+#'
+#' Komponente k: X = x_k · L mit ln L ~ N(−v/2, v). x_k > 0: F_k(q) = Φ((ln(q/x_k) + v/2)/√v)
+#' für q > 0, sonst 0; x_k = 0: Punktmasse in 0; x_k < 0: F_k(q) = 1 − Φ((ln(q/x_k) + v/2)/√v)
+#' für q < 0, sonst 1.
+#' @param q Stelle (Skalar).
+#' @param x Stützwerte der Szenarien im Jahr.
+#' @param w Gewichte.
+#' @param v Varianz des Log-Rauschens (> 0).
+#' @noRd
+proc_mix_cdf <- function(q, x, w, v) {
+  sd <- sqrt(v)
+  fk <- numeric(length(x))
+  pos <- x > 0
+  neg <- x < 0
+  if (q > 0) fk[pos] <- stats::pnorm((log(q / x[pos]) + v / 2) / sd)
+  if (q < 0) {
+    fk[neg] <- 1 - stats::pnorm((log(q / x[neg]) + v / 2) / sd)
+  } else {
+    fk[neg] <- 1
+  }
+  fk[x == 0] <- as.double(q >= 0)
+  sum(w * fk)
+}
+
+#' p-Quantil der Mischung mit Rauschen bei Szenariowerten ≤ 0
+#'
+#' Szenarien mit Wert 0 sind Punktmassen in 0 (0 · L = 0), negative Werte gespiegelte
+#' Lognormalverteilungen. Mit P_neg = Σ_{x_k < 0} p_k und P_0 = Σ_{x_k = 0} p_k gilt
+#' F(0−) = P_neg und F(0) = P_neg + P_0: Für P_neg < p ≤ F(0) ist das Quantil 0; sonst die
+#' Nullstelle von F(q) − p links bzw. rechts von 0 (`stats::uniroot`, Toleranz 1e-10), mit den
+#' Komponentenquantilen als äußerer Grenze.
+#' @noRd
+proc_mix_quantile_signed <- function(x, w, v, p) {
+  sd <- sqrt(v)
+  p_neg <- sum(w[x < 0])
+  p_at0 <- p_neg + sum(w[x == 0])
+  ql <- function(a) exp(-v / 2 + stats::qnorm(min(max(a, 1e-15), 1 - 1e-15)) * sd)
+  if (p_neg > 0 && p <= p_neg + 1e-12) {
+    # links von 0: nur negative Komponenten; F(0−) = P_neg >= p (bis auf 1e-12)
+    lo <- min(x[x < 0] * ql(1 - p)) * 1.001
+    f <- function(q) if (q >= 0) max(p_neg - p, 0) else proc_mix_cdf(q, x, w, v) - p
+    return(stats::uniroot(f, c(lo, 0), tol = 1e-10)$root)
+  }
+  if (p <= p_at0 + 1e-12) return(0)
+  # rechts von 0: F(0) = P_neg + P_0 < p
+  hi <- max(x[x > 0] * ql(p)) * 1.001
+  f <- function(q) if (q <= 0) p_at0 - p else proc_mix_cdf(q, x, w, v) - p
+  stats::uniroot(f, c(0, hi), tol = 1e-10)$root
+}
+
 #' Quantilpfad von `scenario_mix` (Spec 01 Teil C 4.3 Nr. 1 c)
 #'
 #' Ohne Rauschen (bzw. mit v_y = 0) je Jahr der Wert x^{(k*)}_y mit den Szenarien je Jahr nach
 #' ihrem Wert sortiert und k* = min{k : P_k ≥ p − 1e-12}; mit Rauschen die Nullstelle von
-#' Σ_k p_k Φ((ln(x/x^{(k)}_y) + v_y/2)/√v_y) = p (`stats::uniroot`, Toleranz 1e-10).
+#' Σ_k p_k Φ((ln(x/x^{(k)}_y) + v_y/2)/√v_y) = p (`stats::uniroot`, Toleranz 1e-10). Szenarien
+#' mit Stützwert 0 bleiben mit Rauschen Punktmassen in 0, negative Stützwerte gespiegelte
+#' Lognormalverteilungen (`proc_mix_quantile_signed()`).
 #' @noRd
 proc_scenario_mix_quantile <- function(par, years, p) {
   s <- proc_scenarios(par, years)
@@ -90,6 +143,10 @@ proc_scenario_mix_quantile <- function(par, years, p) {
     keep <- s$prob > 0
     xs <- x[keep]
     ws <- s$prob[keep]
+    if (any(xs <= 0)) {
+      out[j] <- proc_mix_quantile_signed(xs, ws, v[j], p)
+      next
+    }
     sd <- sqrt(v[j])
     f <- function(q) sum(ws * stats::pnorm((log(q / xs) + v[j] / 2) / sd)) - p
     lo <- min(xs) * exp(-v[j] / 2 + stats::qnorm(min(p, 1 - 1e-15)) * sd) * 0.999

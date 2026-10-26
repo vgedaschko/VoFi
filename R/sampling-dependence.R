@@ -47,31 +47,63 @@ smp_near_pd <- function(r, what = "parameters", eps = 1e-6, warn = TRUE) {
 }
 
 #' Mindestblockgröße für Iman-Conover: m ≥ max(2, d + 1) (Spec 00 11.4)
+#'
+#' Vorschlag nach Spec 01 Teil C 1.7.3: `block_size >= max(2, d + 1)`; im F21-Modus
+#' (`replicates` R gesetzt, m = n_sim/R) stattdessen `n_sim >= R · max(2, d + 1)`.
 #' @param m Blockgröße.
 #' @param d Anzahl der Schlüssel der Korrelationsgruppe.
+#' @param replicates Anzahl der Blöcke im F21-Modus oder `NULL`.
 #' @noRd
-smp_check_block_size <- function(m, d) {
+smp_check_block_size <- function(m, d, replicates = NULL) {
   need <- max(2L, as.integer(d) + 1L)
   if (m < need) {
+    if (!is.null(replicates)) {
+      vofi_abort("sampling.block_too_small_replicates", block_size = m, d = d, min = need,
+                 replicates = as.integer(replicates),
+                 n_min = as.integer(replicates) * need, .class = "vofi_error_input")
+    }
     vofi_abort("sampling.block_too_small", block_size = m, d = d, min = need,
                .class = "vofi_error_input")
   }
   invisible(TRUE)
 }
 
+#' Oberer Cholesky-Faktor von cor(S) oder `NULL`, wenn cor(S) (nahezu) singulär ist
+#'
+#' Singulär heißt: `chol()` scheitert, liefert nicht endliche Werte oder ein Diagonalelement
+#' < 1e-6 (Restvarianz < 1e-12; Q⁻¹ wäre numerisch unbrauchbar).
+#' @param scores Score-Matrix m × d.
+#' @noRd
+smp_ic_chol <- function(scores) {
+  cs <- suppressWarnings(stats::cor(scores))
+  if (anyNA(cs)) return(NULL)
+  q <- tryCatch(chol(cs), error = function(e) NULL)
+  if (is.null(q) || !all(is.finite(q)) || min(diag(q)) < 1e-6) return(NULL)
+  q
+}
+
 #' Iman-Conover in einem Block (Spec 00 11.6 Nr. 2, Spec 01 Teil C 1.7.2)
 #'
 #' T = S Q⁻¹ P mit cor(S) = QᵀQ und Ziel C = PᵀP (obere Cholesky-Faktoren); jede Uniform-Spalte
 #' wird nach den Rängen der entsprechenden Spalte von T umsortiert (`ties.method = "first"`). Die
-#' Wertemenge je Spalte bleibt exakt erhalten (LHS-Schichtung bleibt).
+#' Wertemenge je Spalte bleibt exakt erhalten (LHS-Schichtung bleibt). Ist cor(S) trotz der
+#' Neupermutationen in `smp_ic_block_scores()` singulär, entfällt Q⁻¹ (T = S P; die
+#' Zielkorrelation wird nur näherungsweise erreicht) mit `vofi_warning_correlation`.
 #' @param u Uniform-Matrix m × d des Blocks (Spalten in kanonischer Ordnung).
 #' @param target Pearson-Zielmatrix d × d (repariert).
-#' @param scores Score-Matrix m × d (je Spalte unabhängig permutiert).
+#' @param scores Score-Matrix m × d (je Spalte unabhängig permutiert; Attribut `chol` aus
+#'   `smp_ic_block_scores()` wird übernommen).
+#' @param block Blockindex (Meldung).
 #' @return Matrix m × d.
 #' @noRd
-smp_iman_conover <- function(u, target, scores) {
+smp_iman_conover <- function(u, target, scores, block = NA_integer_) {
   d <- ncol(u)
-  q <- chol(stats::cor(scores))
+  q <- attr(scores, "chol") %||% smp_ic_chol(scores)
+  if (is.null(q)) {
+    vofi_warn("sampling.ic_singular", block = if (is.na(block)) "-" else block,
+              block_size = nrow(u), .class = "vofi_warning_correlation")
+    q <- diag(d)
+  }
   p <- chol(target)
   tm <- scores %*% backsolve(q, diag(d)) %*% p
   out <- u

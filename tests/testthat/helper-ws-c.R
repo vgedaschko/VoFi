@@ -65,3 +65,19 @@ expect_spec <- function(actual, expected, slack = 1.0001) {
                               paste(expected, collapse = " ")))
   invisible(actual)
 }
+
+#' Empirisches p-Quantil einer Stichprobe gegen einen Quantilwert (wie P4 des Prüfkits)
+#'
+#' Zulässig, wenn p in [P(X < q) − 4 SE, P(X ≤ q) + 4 SE] liegt (SE = √(p(1 − p)/n)); damit
+#' sind auch Punktmassen abgedeckt.
+expect_quantile_near <- function(x, q, p, info = NULL) {
+  n <- length(x)
+  se <- sqrt(p * (1 - p) / n)
+  tol <- 1e-9 * max(1, abs(q))
+  lo <- mean(x < q - tol)
+  hi <- mean(x <= q + tol)
+  ok <- is.finite(q) && p >= lo - 4 * se && p <= hi + 4 * se
+  testthat::expect(ok, paste0("p = ", p, ": q = ", format(q, digits = 10), ", P(X < q) = ", lo,
+                              ", P(X <= q) = ", hi, if (!is.null(info)) paste0(" (", info, ")")))
+  invisible(ok)
+}

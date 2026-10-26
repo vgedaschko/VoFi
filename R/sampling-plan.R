@@ -649,7 +649,10 @@ smp_process_entries <- function(procs, grid, base_ctx) {
                  .class = "vofi_error_validation")
     }
     def <- reg_get("process", type)
-    par <- lapply(e[setdiff(names(e), meta)], smp_proc_param_value)
+    pn <- setdiff(names(e), meta)
+    par <- lapply(stats::setNames(pn, pn), function(nm) {
+      smp_proc_param_value(e[[nm]], paste0(key, ".", nm))
+    })
     errs <- def$validate(par)
     if (length(errs) > 0L) {
       vofi_abort("sampling.process_invalid", entry = key, details = utl_collapse(errs, "; "),
@@ -691,11 +694,21 @@ smp_process_entries <- function(procs, grid, base_ctx) {
 }
 
 #' Prozessparameter in kanonische Form (Zahlen als double, Verteilungen kanonisch)
+#' @param v Parameterwert.
+#' @param label Schlüssel für Meldungen (`<proc>.<param>`, bei Map-Feldern
+#'   `<proc>.<param>.<feld>`).
 #' @noRd
-smp_proc_param_value <- function(v) {
-  if (proc_is_dist(v)) return(c(list(dist = v[["dist"]]), dist_canonical(v[["dist"]],
-                                                                         dist_par(v), "")))
-  if (is.list(v) && !is.null(names(v))) return(lapply(v, smp_proc_param_value))
+smp_proc_param_value <- function(v, label) {
+  if (proc_is_dist(v)) {
+    return(c(list(dist = v[["dist"]]), dist_canonical(v[["dist"]], dist_par(v), label)))
+  }
+  if (is.list(v) && !is.null(names(v))) {
+    out <- lapply(seq_along(v), function(i) {
+      smp_proc_param_value(v[[i]], paste0(label, ".", names(v)[i]))
+    })
+    names(out) <- names(v)
+    return(out)
+  }
   if (is.list(v) && all(vapply(v, function(e) is.numeric(e) && length(e) == 1L, logical(1)))) {
     return(as.double(unlist(v)))
   }
@@ -767,6 +780,13 @@ smp_resolve_tokens <- function(key, procs, grid, base_ctx) {
     if (is.numeric(a) && is.numeric(b) && !is.na(start)) {
       p$par$u0 <- x_det - a - b * start
     }
+  }
+  # erneut prüfen: Bedingungen, die validate() beim Token übersprungen hat (z. B. floor <= r0,
+  # p0 > 0, p_norm > 0, endlich), gelten auch für den eingesetzten Basisfallwert
+  errs <- reg_get("process", p$type)$validate(p$par)
+  if (length(errs) > 0L) {
+    vofi_abort("sampling.process_invalid_base", entry = key, target = p$target, value = x_det,
+               details = utl_collapse(errs, "; "), .class = "vofi_error_validation")
   }
   p
 }
@@ -1032,14 +1052,82 @@ smp_plan_correlations <- function(corr, static, processes, prov) {
 # Vereinigung der Pläne (CRN, Spec 00 11.8, 11.10)
 # ---------------------------------------------------------------------------------------------
 
+#' Prozesse eines Plans mit Schocks (`n_shocks >= 1`)
+#' @noRd
+smp_shocked <- function(plan) {
+  procs <- plan$processes
+  names(procs)[vapply(procs, function(p) p$n_shocks >= 1L, logical(1))]
+}
+
+#' Statische Schlüssel eines Plans mit Rolle `value` (korrelierbar)
+#' @noRd
+smp_value_keys <- function(plan) plan$static$key[plan$static$role == "value"]
+
+#' Versatz der Prozessjahre einer Variante in den Jahren der Rohziehungen
+#'
+#' Die Jahre der Variante müssen ein zusammenhängender Ausschnitt der Jahre der Rohziehungen sein
+#' (gleiche Kalenderjahre; die Vereinigung umfasst min(Startjahr) bis max(Endjahr)), sonst
+#' Vertragsfehler.
+#' @return integer(1): Anzahl der Jahre der Rohziehungen vor dem Startjahr der Variante.
+#' @noRd
+smp_year_offset <- function(years, raw_years) {
+  years <- as.integer(years)
+  raw_years <- as.integer(raw_years)
+  off <- if (length(years) > 0L) match(years[1L], raw_years) - 1L else NA_integer_
+  if (is.na(off) || off + length(years) > length(raw_years) ||
+        !identical(years, raw_years[off + seq_along(years)])) {
+    rng <- function(y) if (length(y) > 0L) utl_collapse(range(y)) else "-"
+    vofi_abort("sampling.grid_years", years = rng(years), raw = rng(raw_years),
+               .class = "vofi_error_contract")
+  }
+  as.integer(off)
+}
+
+#' Passt die Korrelationsgruppe einer Variante zu den Rohziehungen? (CRN, 11.10)
+#'
+#' Verträglich, wenn die Zielmatrix der Rohziehungen (Vereinigung), eingeschränkt auf die
+#' Schlüssel der Variante, mit der Zielmatrix der Variante übereinstimmt (nicht genannte Paare
+#' = 0; Toleranz 1e-10). Schlüssel der Vereinigung, die der Variante fehlen, sind ohne Wirkung:
+#' Die Variante verwendet dann die korrelierten Ziehungen der Vereinigung, und derselbe Schlüssel
+#' hat in allen Varianten dieselbe Ziehung. Hat die Variante eine eigene Gruppe, muss außerdem
+#' die Copula übereinstimmen.
+#' @param own Pearson-Zielmatrix der Variante oder `NULL`.
+#' @param union Pearson-Zielmatrix der Rohziehungen oder `NULL`.
+#' @param keys Schlüssel der Variante (statische Größen der Rolle `value` bzw. Prozesse mit
+#'   Schocks).
+#' @param copula,copula_union Copula der Variante bzw. der Rohziehungen (nur `parameters`).
+#' @return `TRUE` oder `FALSE`.
+#' @noRd
+smp_corr_compatible <- function(own, union, keys, copula = NULL, copula_union = NULL) {
+  k <- utl_sort(unique(c(intersect(keys, rownames(union)), rownames(own))))
+  if (length(k) < 2L) return(TRUE)
+  expand <- function(r) {
+    out <- diag(length(k))
+    dimnames(out) <- list(k, k)
+    kk <- intersect(k, rownames(r))
+    if (length(kk) > 0L) out[kk, kk] <- r[kk, kk, drop = FALSE]
+    out
+  }
+  ok <- max(abs(expand(own) - expand(union))) <= 1e-10
+  if (ok && !is.null(own) && !identical(copula, copula_union)) ok <- FALSE
+  ok
+}
+
 #' Pläne mehrerer Varianten vereinigen (CRN)
 #'
 #' Ein Plan über die Vereinigung aller Schlüssel: gleicher Schlüssel mit anderem Ziel bzw.
 #' statisch gegen Prozess ist `vofi_error_validation`; abweichende Ziehungseinstellungen
-#' (`sampling`, `block_size`, `replicates`, `antithetic`) ebenso. Abweichende Korrelationen
-#' (Paare zwischen Schlüsseln, die in beiden Plänen vorkommen) ergeben
+#' (`sampling`, `block_size`, `replicates`, `antithetic`) ebenso. Die Korrelationsgruppe der
+#' Vereinigung enthält die Paare aller Pläne. Fehlt einer Variante nur ein Schlüssel eines
+#' Paars, ist das kein Konflikt: Die Variante übernimmt die korrelierten Ziehungen der
+#' Vereinigung (`smp_materialize()`, gleicher Schlüssel = gleiche Ziehung). Abweichende
+#' Korrelationen (Paare zwischen Schlüsseln, die in beiden Plänen vorkommen, mit verschiedenen
+#' Werten), eine durch die Vereinigung nötige Reparatur oder eine andere Copula ergeben
 #' `vofi_warning_correlation` („CRN eingeschränkt“); die Vereinigung trägt dann die Angaben des
-#' ersten Plans, `smp_materialize()` korreliert je Variante mit ihren eigenen Angaben.
+#' ersten Plans, `smp_materialize()` korreliert die betroffenen Varianten mit ihren eigenen
+#' Angaben. Die Prozessjahre der Vereinigung reichen vom frühesten Startjahr bis zum spätesten
+#' Endjahr; verschiedene Startjahre ergeben ebenfalls `vofi_warning_correlation` (Schocks nach
+#' Kalenderjahr zugeordnet, Startwerte je Variante).
 #' @param plans Liste von `smp_plan`.
 #' @return `smp_plan`.
 #' @noRd
@@ -1103,10 +1191,30 @@ smp_plan_union <- function(plans) {
   processes <- processes[utl_sort(names(processes))]
   corr <- smp_union_correlations(plans, "parameters", static$key[static$role == "value"])
   zc <- smp_union_correlations(plans, "shocks", names(processes))
-  years_list <- lapply(plans, function(p) p$years)
-  years <- years_list[[which.max(lengths(years_list))]]
-  if (length(unique(vapply(years_list, function(y) y[1L], integer(1)))) > 1L) {
-    vofi_warn("sampling.union_start_year", .class = "vofi_warning_correlation")
+  # Varianten, die die korrelierten Ziehungen der Vereinigung nicht übernehmen können
+  # (Reparatur der vereinigten Matrix, andere Copula): CRN eingeschränkt
+  for (what in c("parameters", "shocks")) {
+    if (isTRUE(if (what == "parameters") corr$warned else zc$warned)) next
+    ok <- vapply(plans, function(p) {
+      if (what == "parameters") {
+        smp_corr_compatible(p$corr_pearson$parameters, corr$pearson, smp_value_keys(p),
+                            p$settings$copula, first$settings$copula)
+      } else {
+        smp_corr_compatible(p$corr_pearson$shocks, zc$pearson, smp_shocked(p))
+      }
+    }, logical(1))
+    if (!all(ok)) {
+      vofi_warn("sampling.union_corr_restricted", what = what,
+                .class = "vofi_warning_correlation")
+    }
+  }
+  years_list <- lapply(plans, function(p) as.integer(p$years))
+  starts <- vapply(years_list, function(y) y[1L], integer(1))
+  ends <- vapply(years_list, function(y) y[length(y)], integer(1))
+  years <- seq.int(min(starts), max(ends))
+  if (length(unique(starts)) > 1L) {
+    vofi_warn("sampling.union_start_year", years = utl_collapse(utl_sort(unique(starts))),
+              .class = "vofi_warning_correlation")
   }
   plan <- structure(list(
     settings = first$settings, static = static, static_par = static_par,
@@ -1124,7 +1232,8 @@ smp_plan_union <- function(plans) {
 #' Korrelationen der Vereinigung (Paare aller Pläne; Abweichungen mit Warnung)
 #' @param what `"parameters"` oder `"shocks"`.
 #' @param allowed Schlüssel der Vereinigung.
-#' @return Liste `spearman` (bzw. Schockmatrix), `pearson`, `repaired`.
+#' @return Liste `spearman` (bzw. Schockmatrix), `pearson`, `repaired`, `warned` (Warnung
+#'   wegen abweichender Paare ausgegeben).
 #' @noRd
 smp_union_correlations <- function(plans, what, allowed) {
   pair_list <- lapply(plans, function(p) smp_pairs_of(p$correlations[[what]]))
@@ -1157,10 +1266,11 @@ smp_union_correlations <- function(plans, what, allowed) {
   if (!is.null(pairs)) pairs <- pairs[pairs$a %in% allowed & pairs$b %in% allowed, ,
                                       drop = FALSE]
   m <- smp_corr_from_pairs(pairs)
-  if (is.null(m)) return(list(spearman = NULL, pearson = NULL, repaired = NULL))
+  if (is.null(m)) return(list(spearman = NULL, pearson = NULL, repaired = NULL, warned = warned))
   fix <- smp_near_pd(if (what == "parameters") smp_spearman_to_pearson(m) else m, what,
                      warn = FALSE)
-  list(spearman = m, pearson = fix$matrix, repaired = if (fix$repaired) fix$matrix else NULL)
+  list(spearman = m, pearson = fix$matrix, repaired = if (fix$repaired) fix$matrix else NULL,
+       warned = warned)
 }
 
 #' Paare einer Korrelationsmatrix (obere Hälfte, Werte ≠ 0)

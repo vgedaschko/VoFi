@@ -44,3 +44,16 @@ test_that("iid: Validierung und Vertrag", {
                class = "vofi_error_contract")
   expect_type_contract("iid", "process")
 })
+
+test_that("iid: empirische Jahresquantile der Simulation = quantile_path (PERT(0,5; 1; 2), P4)", {
+  p <- wsc_proc("iid")
+  n <- 20000L
+  yrs <- 2027:2031
+  z <- smp_shocks(13, "shock:vac:1", n, length(yrs) - 1L, "lhs")
+  x <- p$simulate(ds, z, NULL, yrs, structure(list(), n = n))
+  for (pr in c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95)) {
+    q <- p$quantile_path(ds, yrs, pr)
+    expect_identical(q[1], x[1, 1])
+    for (j in 2:length(yrs)) expect_quantile_near(x[, j], q[j], pr, info = yrs[j])
+  }
+})

@@ -73,3 +73,85 @@ test_that("Gauß-Copula, Schockkorrelation und Mindestblockgröße", {
   expect_silent(smp_check_block_size(13L, 12L))
   expect_error(smp_check_block_size(1L, 0L), class = "vofi_error_input")
 })
+
+test_that("Iman-Conover bei kleinen Blöcken: singuläres cor(S) wird neu permutiert (C-02)", {
+  # m = d + 1 = 3: cor(S) ist singulär, wenn beide Spalten gleich oder gespiegelt permutiert sind
+  a <- qnorm(1:3 / 4)
+  expect_null(smp_ic_chol(cbind(a, a)))
+  expect_null(smp_ic_chol(cbind(a, rev(a))))
+  expect_false(is.null(smp_ic_chol(cbind(a, a[c(2, 1, 3)]))))
+  # Neupermutation im Unterstrom ic:<key>:<b>:<k>, Versuch 0 = Strom nach Spec 00 11.3
+  expect_identical(smp_ic_scores(1, "x", 5L, 3L, 0L), smp_ic_scores(1, "x", 5L, 3L))
+  expect_identical(smp_ic_scores(1, "x", 5L, 3L, 2L), with_stream(1, "ic:x:5:2", sample(a)))
+  retry <- vapply(1:100, function(b) {
+    attr(smp_ic_block_scores(1, c("x", "y"), b, 3L), "retry")
+  }, integer(1))
+  expect_true(any(retry > 0L))
+  b1 <- which(retry > 0L)[1L]
+  sc <- smp_ic_block_scores(1, c("x", "y"), b1, 3L)
+  expect_false(is.null(smp_ic_chol(sc)))
+  expect_identical(unname(sc[, "x"]), smp_ic_scores(1, "x", b1, 3L, retry[b1]))
+  expect_identical(sc, smp_ic_block_scores(1, c("x", "y"), b1, 3L))
+  # Ziehung mit m = 3 über 100 Blöcke: kein Abbruch, LHS-Schichtung je Block bleibt
+  g <- make_grid()
+  uni <- function(t) wsc_par(t, "uniform", min = 0, max = 1)
+  st <- list(parameters = list(x = uni("shared.x"), y = uni("shared.y")),
+             correlations = list(parameters = list(list("x", "y", 0.5))))
+  plan <- wsc_plan(st, g, n_sim = 300L, block_size = 3L)
+  expect_silent(dr <- smp_draw(plan, g, 1:100, 1))
+  strata <- function(v) apply(matrix(ceiling(v * 3), nrow = 3), 2, function(s) all(sort(s) == 1:3))
+  expect_true(all(strata(dr$u$x)) && all(strata(dr$u$y)))
+  expect_gt(stats::cor(dr$u$x, dr$u$y, method = "spearman"), 0.3)
+})
+
+test_that("Iman-Conover: Beispiel F21 (d = 6, replicates 10, n_sim 70, Spec 01 Teil C 1.7.3)", {
+  g <- make_grid()
+  keys <- paste0("k", 1:6)
+  pars <- stats::setNames(lapply(keys, function(k) {
+    wsc_par(paste0("shared.", k), "uniform", min = 0, max = 1)
+  }), keys)
+  pairs <- lapply(1:5, function(i) list(keys[i], keys[i + 1L], 0.4))
+  st <- list(parameters = pars, correlations = list(parameters = pairs))
+  plan <- smp_plan(wsc_spec(st, g), g)
+  plan <- suppressMessages(smp_configure(plan, n_sim = 70L, replicates = 10L))
+  expect_identical(plan$settings$replicates, 10L)
+  # Seed 21: in mindestens einem Block ist cor(S) zunächst singulär (vor der Korrektur ein
+  # roher chol-Fehler)
+  retry <- vapply(1:10, function(b) attr(smp_ic_block_scores(21, keys, b, 7L), "retry"),
+                  integer(1))
+  expect_true(any(retry > 0L))
+  expect_silent(dr <- smp_draw(plan, g, 1:10, 21))
+  for (k in keys) {
+    expect_true(all(apply(matrix(ceiling(dr$u[[k]] * 7), nrow = 7), 2,
+                          function(s) all(sort(s) == 1:7))))
+  }
+})
+
+test_that("Iman-Conover: Rückfall ohne Q^-1 bei dauerhaft singulärem cor(S) mit Warnung", {
+  a <- qnorm(1:4 / 5)
+  u <- cbind(c(0.1, 0.3, 0.6, 0.9), c(0.2, 0.4, 0.7, 0.8))
+  target <- matrix(c(1, 0.5, 0.5, 1), 2)
+  expect_warning(res <- smp_iman_conover(u, target, cbind(a, a), block = 7L),
+                 class = "vofi_warning_correlation")
+  for (j in 1:2) expect_identical(sort(res[, j]), sort(u[, j]))
+})
+
+test_that("Mindestblockgröße: Vorschlag je Modus (Spec 01 Teil C 1.7.3, C-07)", {
+  e <- tryCatch(smp_check_block_size(2L, 2L), error = identity)
+  expect_s3_class(e, "vofi_error_input")
+  expect_match(conditionMessage(e), "block_size >= 3", fixed = TRUE)
+  e2 <- tryCatch(smp_check_block_size(6L, 6L, replicates = 10L), error = identity)
+  expect_s3_class(e2, "vofi_error_input")
+  expect_match(conditionMessage(e2), "n_sim >= 70", fixed = TRUE)
+  expect_false(grepl("block_size >=", conditionMessage(e2), fixed = TRUE))
+  # F21-Modus über smp_configure(): n_sim zu klein für die Gruppe
+  g <- make_grid()
+  uni <- function(t) wsc_par(t, "uniform", min = 0, max = 1)
+  st <- list(parameters = list(x = uni("shared.x"), y = uni("shared.y")),
+             correlations = list(parameters = list(list("x", "y", 0.5))))
+  plan <- smp_plan(wsc_spec(st, g), g)
+  e3 <- tryCatch(suppressMessages(smp_configure(plan, n_sim = 20L, replicates = 10L)),
+                 error = identity)
+  expect_s3_class(e3, "vofi_error_input")
+  expect_match(conditionMessage(e3), "n_sim >= 30", fixed = TRUE)
+})

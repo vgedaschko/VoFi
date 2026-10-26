@@ -102,12 +102,45 @@ smp_shocks <- function(seed, name, m, k, sampling = "lhs", antithetic = FALSE) {
 #' Iman-Conover-Scores eines Schlüssels in Block b
 #'
 #' Scores a_i = Φ⁻¹(i/(m + 1)), i = 1…m (van der Waerden), unabhängig permutiert im Strom
-#' `ic:<key>:<b>` (`sample(a)`).
+#' `ic:<key>:<b>` (`sample(a)`). Ist cor(S) des Blocks singulär (bei kleinen Blöcken mit
+#' m nahe d + 1 möglich), permutiert `smp_ic_block_scores()` neu: Versuch k ≥ 1 im Unterstrom
+#' `ic:<key>:<b>:<k>`.
+#' @param retry Nummer des Versuchs (0 = Strom nach Spec 00 11.3).
 #' @return double m-Vektor.
 #' @noRd
-smp_ic_scores <- function(seed, key, b, m) {
+smp_ic_scores <- function(seed, key, b, m, retry = 0L) {
   a <- stats::qnorm(seq_len(m) / (m + 1))
-  with_stream(seed, smp_stream_name("ic", key, b), sample(a))
+  name <- smp_stream_name("ic", key, b)
+  if (retry > 0L) name <- paste0(name, ":", format(as.integer(retry), trim = TRUE))
+  with_stream(seed, name, sample(a))
+}
+
+#' Score-Matrix eines Blocks mit regulärer Korrelationsmatrix
+#'
+#' Spalten in der Ordnung `keys` aus `smp_ic_scores()`; ist cor(S) singulär
+#' (`smp_ic_chol()` liefert `NULL`), folgen deterministisch weitere Versuche aus den
+#' Unterströmen `ic:<key>:<b>:<k>` (k = 1, 2, …, höchstens `max_retry`). Die Ziehungen hängen
+#' damit weiter nur von Seed, Schlüsseln, m und b ab.
+#' @return Matrix m × d (Attribute `retry` = Anzahl der Neupermutationen, `chol` = oberer
+#'   Cholesky-Faktor von cor(S) bzw. `NULL`).
+#' @noRd
+smp_ic_block_scores <- function(seed, keys, b, m, max_retry = 50L) {
+  draw <- function(k) {
+    sc <- vapply(keys, function(key) smp_ic_scores(seed, key, b, m, k), numeric(m))
+    if (!is.matrix(sc)) sc <- matrix(sc, nrow = m)
+    sc
+  }
+  k <- 0L
+  sc <- draw(k)
+  q <- smp_ic_chol(sc)
+  while (is.null(q) && k < max_retry) {
+    k <- k + 1L
+    sc <- draw(k)
+    q <- smp_ic_chol(sc)
+  }
+  attr(sc, "retry") <- k
+  attr(sc, "chol") <- q
+  sc
 }
 
 #' Globale Laufnummern der Blöcke

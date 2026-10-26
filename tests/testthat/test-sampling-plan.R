@@ -173,6 +173,30 @@ test_that("Token base: Start am deterministischen Basisfall (R-95, Spec 01 Teil 
   expect_error(smp_plan(wsc_spec(bad)), class = "vofi_error_validation")
 })
 
+test_that("Token base: erneute Prüfung mit dem eingesetzten Basisfallwert (C-04)", {
+  ev <- "vofi_error_validation"
+  vas <- list(target = "market.mortgage_rate", type = "vasicek", r0 = "base", theta = 0.0375,
+              kappa = 0.12, sigma = 0.007, floor = 0.01)
+  st <- list(processes = list(mortgage_rate = vas))
+  # Basiswert 0,004 unter der Untergrenze 0,01: floor <= r0 verletzt (Spec 01 Teil C 1.6.3)
+  e <- tryCatch(smp_plan(wsc_spec(st, market = list(mortgage_rate = 0.004))), error = identity)
+  expect_s3_class(e, ev)
+  expect_match(conditionMessage(e), "mortgage_rate", fixed = TRUE)
+  expect_match(conditionMessage(e), "base", fixed = TRUE)
+  # Basiswert über der Untergrenze: zulässig
+  expect_identical(smp_plan(wsc_spec(st, market = list(mortgage_rate = 0.02)))$processes$
+                     mortgage_rate$par$r0, 0.02)
+  # Basispreis 0: p0 > 0 (mr_trend, gbm) verletzt
+  gas <- list(target = "market.energy_price.gas", type = "mr_trend", p0 = "base", phi = 0.75,
+              sigma = 0.08)
+  zero <- list(energy_price = list(gas = 0))
+  expect_error(smp_plan(wsc_spec(list(processes = list(gas = gas)), market = zero)), class = ev)
+  gbm <- list(target = "market.energy_price.gas", type = "gbm", p0 = "base", sigma = 0.1)
+  expect_error(smp_plan(wsc_spec(list(processes = list(gas = gbm)), market = zero)), class = ev)
+  pn <- utils::modifyList(gas, list(p0 = 0.1, p_norm = "base"))
+  expect_error(smp_plan(wsc_spec(list(processes = list(gas = pn)), market = zero)), class = ev)
+})
+
 test_that("Plan-Fehler: Typen, Ziele, Kopplungen, Schlüssel", {
   ev <- "vofi_error_validation"
   expect_error(smp_plan(wsc_spec(list(parameters = list(a = list(dist = "uniform", min = 0,

@@ -129,6 +129,46 @@ test_that("Iman-Conover: Rangkorrelation ±0,02 bei n = 20.000 (Blöcke zu 200),
   }
 })
 
+test_that("CRN über Varianten: gleiche Ziehungen, je Variante die eigene Rangkorrelation (11.10)", {
+  g <- make_grid()
+  uni <- function(t) wsc_par(t, "pert", min = 0, mode = 1, max = 5)
+  plan <- function(st) {
+    smp_configure(smp_plan(wsc_spec(st, g), g), n_sim = n_big, block_size = 200L)
+  }
+  blocks <- seq_len(n_big %/% 200L)
+  # A: {a, b} unkorreliert; B: {a, b, c} mit [a, c, 0,7]; C: {a, b} mit [a, b, -0,5]
+  pa <- plan(list(parameters = list(a = uni("shared.a"), b = uni("shared.b"))))
+  pb <- plan(list(parameters = list(a = uni("shared.a"), b = uni("shared.b"),
+                                    c = uni("shared.c")),
+                  correlations = list(parameters = list(list("a", "c", 0.7)))))
+  un <- smp_plan_union(list(pa, pb, pa))
+  raw <- smp_sample(un, blocks, 4711)
+  da <- smp_materialize(raw, pa, g)
+  db <- smp_materialize(raw, pb, g)
+  # identische Varianten: Differenz in jedem Lauf exakt 0 (11.10 Nr. 4)
+  expect_identical(da$static$a - smp_materialize(raw, pa, g)$static$a, rep(0, n_big))
+  # gleicher Schlüssel = gleiche Ziehung, obwohl nur B die Gruppe {a, c} hat
+  expect_identical(da$static$a, db$static$a)
+  expect_identical(da$static$b, db$static$b)
+  expect_lt(abs(stats::cor(db$static$a, db$static$c, method = "spearman") - 0.7), 0.02)
+  expect_lt(abs(stats::cor(da$static$a, da$static$b, method = "spearman")), 0.02)
+  # Konflikt: C weicht für [a, b] ab (Warnung); jede Variante erhält ihre eigene Korrelation
+  pc <- plan(list(parameters = list(a = uni("shared.a"), b = uni("shared.b")),
+                  correlations = list(parameters = list(list("a", "b", -0.5)))))
+  expect_warning(u2 <- smp_plan_union(list(pb, pc)), class = "vofi_warning_correlation")
+  r2 <- smp_sample(u2, blocks, 4711)
+  d2b <- smp_materialize(r2, pb, g)
+  d2c <- smp_materialize(r2, pc, g)
+  expect_lt(abs(stats::cor(d2c$static$a, d2c$static$b, method = "spearman") + 0.5), 0.02)
+  expect_lt(abs(stats::cor(d2b$static$a, d2b$static$b, method = "spearman")), 0.02)
+  expect_lt(abs(stats::cor(d2b$static$a, d2b$static$c, method = "spearman") - 0.7), 0.02)
+  # Ränder je Block in jeder Variante exakt erhalten (gleiche Wertemenge wie unabhängig)
+  for (b in c(1L, 50L, 100L)) {
+    rows <- (b - 1L) * 200L + 1:200
+    expect_identical(sort(d2c$static$a[rows]), sort(da$static$a[rows]))
+  }
+})
+
 test_that("Gauß-Copula: Zielkorrelation näherungsweise, Uniforms in (0, 1)", {
   pars <- list(a = wsc_par("shared.a", "uniform", min = 0, max = 1),
                b = wsc_par("shared.b", "uniform", min = 0, max = 1))
