@@ -1,0 +1,19 @@
+# Testfixture (WS-A): Spec 01 Teil C §3.5 (legal/umsatzsteuer_2026).
+id: legal/umsatzsteuer_2026
+block: legal
+topic: umsatzsteuer
+schema_version: 1
+label: "Umsatzsteuersätze für Bau-, Energie- und PV-Leistungen (Testfixture)"
+source: {document: "UStG §§ 4 Nr. 12, 12 Abs. 1, 2, 3 Nr. 1", url: "https://www.gesetze-im-internet.de/ustg_1980/", publisher: BMJ}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2023-01-01
+valid_to: null
+quality: A
+quality_detail: {pv_zero_rate.above_30kwp: C}
+legal_state: {as_of: 2023-01-01, status: in_force, reference: "UStG"}
+values:
+  standard: 0.19
+  reduced: 0.07
+  pv_zero_rate: {max_kwp_without_proof: 30, above_30kwp: attribute_required}
+  residential_letting_exempt: true

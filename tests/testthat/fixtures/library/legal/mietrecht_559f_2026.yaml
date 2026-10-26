@@ -1,0 +1,16 @@
+# Testfixture (WS-A): Qualität C ohne Freigabe (Spec 01 Teil C §3.5, R-80).
+id: legal/mietrecht_559f_2026
+block: legal
+topic: mietrecht_559f
+schema_version: 1
+label: "§ 559f BGB: Halbierung der Umlagebasis (Testfixture)"
+source: {document: "Memo 07 §1.2", url: "docs/recherche/07_use_cases_referenzszenarien.md", publisher: "Sekundärquelle"}
+as_of: 2026-10-25
+valid_from: 2026-07-29
+valid_to: null
+quality: C
+release: {status: pending, by: null, date: null}
+legal_state: {as_of: 2026-07-29, status: in_force, reference: "§ 559f BGB"}
+values:
+  jaz_threshold: 2.5
+  comparison: ge

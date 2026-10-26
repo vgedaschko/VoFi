@@ -1,0 +1,18 @@
+# Testfixture (WS-A): Spec 01 Teil C §3.7 (costs/bewirtschaftung_ii_bv_2026).
+id: costs/bewirtschaftung_ii_bv_2026
+block: costs
+schema_version: 1
+label: "II. Berechnungsverordnung: Pauschalen ab 01.01.2026 (Testfixture)"
+source: {document: "VdW Bayern, II. BV Anpassung der Pauschalen zum 01.01.2026", url: "https://www.vdwbayern.de/", publisher: "VdW Bayern"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: 2029-01-01
+quality: B
+legal_state: {as_of: 2026-01-01, status: in_force, reference: "II. BV §§ 26, 28, 29"}
+values:
+  admin_per_unit_eur_pa: 372.46
+  admin_per_garage_eur_pa: 48.58
+  maintenance_eur_m2_pa: {lt22y: 11.50, ge22y: 14.58, ge32y: 18.62}
+  maintenance_adjustments_eur_m2_pa: {commercial_heat_supply: -0.31, elevator: 1.63, small_repairs_by_tenant: -1.70}
+  rent_loss_risk_share: 0.02

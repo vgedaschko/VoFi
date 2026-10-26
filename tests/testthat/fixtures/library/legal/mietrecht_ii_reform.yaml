@@ -1,0 +1,17 @@
+# Testfixture (WS-A): Reformeintrag (Thema mietrecht, Reform mietrecht_ii), gekürzt nach Spec 01 Teil C §3.5.
+id: legal/mietrecht_ii_reform
+block: legal
+topic: mietrecht
+schema_version: 1
+label: "Mietrecht II (anhängig, Testfixture)"
+source: {document: "BT-Drs. 21/6807", url: "https://dserver.bundestag.de/", publisher: "Deutscher Bundestag"}
+as_of: 2026-10-25
+valid_from: 2026-07-01
+valid_to: null
+quality: B
+reform: mietrecht_ii
+legal_state: {as_of: 2026-10-25, status: pending, reference: "BT-Drs. 21/6807"}
+from: legal/mietrecht_2026
+values:
+  s559:
+    rate_pa: 0.06

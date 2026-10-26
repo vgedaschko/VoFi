@@ -1,0 +1,19 @@
+# Testfixture (WS-A): Spec 01 Teil C §3.7 (costs/bewirtschaftung_immowertv_2026), valid_to wie im Original.
+id: costs/bewirtschaftung_immowertv_2026
+block: costs
+schema_version: 1
+label: "ImmoWertV Anlage 3: Modellansätze Bewirtschaftungskosten 2026 (Testfixture)"
+source: {document: "OGA Brandenburg, BewKo 2026", url: "https://gutachterausschuss.brandenburg.de/", publisher: "OGA Brandenburg"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: 2027-01-01
+quality: B
+legal_state: {as_of: 2026-01-01, status: in_force, reference: "ImmoWertV 2021 Anlage 3"}
+values:
+  admin_per_unit_or_efh_eur_pa: 367
+  admin_per_condo_eur_pa: 439
+  admin_per_garage_eur_pa: 48
+  maintenance_eur_m2_pa: 14.4
+  maintenance_per_garage_eur_pa: 108
+  rent_loss_risk_share: {residential: 0.02, commercial: 0.04}

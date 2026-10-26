@@ -1,0 +1,16 @@
+# Testfixture (WS-A): Spec 01 Teil C §3.7 (costs/kostenzuschlaege_2026).
+id: costs/kostenzuschlaege_2026
+block: costs
+schema_version: 1
+label: "Baunebenkosten (KG 700) und Risikozuschlag Unvorhergesehenes (Testfixture)"
+source: {document: "Memo 03 §6.1, Memo 02 §1.2; Konzept F19", url: "docs/Konzept.md", publisher: "eigene Ableitung"}
+as_of: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+legal_state: {as_of: 2026-10-25, status: derived, reference: "Konzept F19"}
+values:
+  share_kg700_of_kg300_400: 0.20
+  contingency_share: 0.10
+uncertainty:
+  share_kg700_of_kg300_400: {dist: triangular, min: 0.15, mode: 0.20, max: 0.25}

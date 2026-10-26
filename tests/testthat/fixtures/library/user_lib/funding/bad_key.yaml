@@ -1,0 +1,14 @@
+# Testfixture (WS-A): unzulässiger Wurzelschlüssel title (Spec 00 §4.9, R-88).
+id: funding/bad_key
+block: funding
+schema_version: 1
+label: "Eintrag mit unbekanntem Wurzelschlüssel"
+title: "gibt es nicht"
+source: {document: "Test", publisher: "Test"}
+as_of: 2026-10-01
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+legal_state: {as_of: 2026-10-01, status: derived, reference: "Test"}
+values:
+  instrument_type: grant

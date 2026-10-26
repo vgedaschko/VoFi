@@ -1,0 +1,23 @@
+# Testfixture (WS-A): Spec 01 Teil C §3.5 (legal/emission_factors_geg_anlage9).
+id: legal/emission_factors_geg_anlage9
+block: legal
+topic: emission_factors_geg
+schema_version: 1
+label: "Emissionsfaktoren GEG/GModG Anlage 9 (Testfixture)"
+source: {document: "GModG Anlage 9 (Fassung m. W. v. 01.01.2023)", url: "https://www.buzer.de/Anlage_9_GModG.htm", publisher: "BMJ/buzer.de"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2023-01-01
+valid_to: null
+quality: A
+legal_state: {as_of: 2023-01-01, status: in_force, reference: "GModG Anlage 9"}
+values:
+  heating_oil: 310
+  natural_gas: 240
+  lpg: 270
+  hard_coal: 400
+  lignite: 430
+  wood: 20
+  electricity_grid: 560
+  district_heating_chp: {coal: 300, gas_oil: 180, renewable: 40}
+  district_heating_boiler: {coal: 400, gas_oil: 300, renewable: 60}

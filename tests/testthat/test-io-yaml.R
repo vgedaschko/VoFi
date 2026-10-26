@@ -103,3 +103,55 @@ test_that("Nicht UTF-8-kodierte Datei: eigener Eingabefehler mit Zeile", {
   expect_identical(e$key, "io.not_utf8")
   expect_match(conditionMessage(e), "2", fixed = TRUE)
 })
+
+test_that("Byte-Order-Mark und Locale C: UTF-8 bleibt erhalten (4.6)", {
+  f <- tempfile(fileext = ".yaml")
+  con <- file(f, "wb")
+  writeBin(c(as.raw(c(0xef, 0xbb, 0xbf)), charToRaw(enc2utf8("titel: \"Grün\"\nn: 2\n"))),
+           con)
+  close(con)
+  y <- io_read_yaml_utf8(f)
+  expect_identical(names(y), c("titel", "n"))
+  expect_identical(y$titel, "Grün")
+  y2 <- withr::with_locale(c(LC_CTYPE = "C"), io_read_yaml_utf8(f))
+  expect_identical(y2$titel, "Grün")
+  expect_identical(Encoding(y2$titel), "UTF-8")
+})
+
+test_that("Fundstellen der Schlüssel (Zeilennummern, best effort, 4.8)", {
+  txt <- c("# Kopf", "project:", "  perspective: wu_privat", "  municipality: {a: 1}",
+           "components:", "  - id: z", "    type: custom_series", "    values: [1, 2]",
+           "\"quoted.key\": 3", "accounts:", "  deposit_rate_pa:", "    ref: market.mortgage_rate")
+  loc <- io_yaml_locations(txt)
+  expect_identical(unname(loc["project"]), "Zeile 2")
+  expect_identical(unname(loc["project.perspective"]), "Zeile 3")
+  expect_identical(unname(loc["components.z"]), "Zeile 6")
+  expect_identical(unname(loc["components.z.type"]), "Zeile 7")
+  expect_identical(unname(loc["quoted.key"]), "Zeile 9")
+  expect_identical(io_location_of(loc, "project.municipality.a"), "Zeile 4")
+  expect_identical(io_location_of(loc, "accounts.deposit_rate_pa.ref"), "Zeile 12")
+  expect_identical(io_location_of(loc, "unbekannt.x"), NA_character_)
+  expect_identical(io_location_of(character(0), "a"), NA_character_)
+})
+
+test_that("Schreiben: kürzeste verlustfreie Zahldarstellung, Round-Trip über den Leser (4.6)", {
+  v <- c(0, 12, -3, 0.039, 1 / 3, 1e-12, 123.456, 150000, 3e9, 2.5e20, Inf, -Inf, NA)
+  s <- io_fmt_num(v)
+  expect_identical(s[c(1:3, 8)], c("0", "12", "-3", "150000"))
+  expect_identical(s[7], "123.4560")
+  expect_identical(s[11:13], c(".inf", "-.inf", "~"))
+  expect_true(grepl(".", s[10], fixed = TRUE))
+  x <- list(a = v[1:12], d = as.Date("2027-01-01"), t = TRUE, f = FALSE, s = "März",
+            e = list(), m = list(k = 0.1))
+  f <- tempfile(fileext = ".yaml")
+  io_write_yaml(x, f, header = c("Kopfzeile", "zweite Zeile"))
+  expect_identical(readLines(f, n = 1L, encoding = "UTF-8"), "# Kopfzeile")
+  y <- io_unmark(io_read_yaml_utf8(f))
+  expect_identical(y$a, v[1:12])
+  expect_identical(y$d, "2027-01-01")
+  expect_identical(y$t, TRUE)
+  expect_identical(y$f, FALSE)
+  expect_identical(y$s, "März")
+  expect_identical(y$m$k, 0.1)
+  expect_length(y$e, 0L)
+})

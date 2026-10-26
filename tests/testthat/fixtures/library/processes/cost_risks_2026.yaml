@@ -1,0 +1,17 @@
+# Testfixture (WS-A): Spec 01 Teil C §2.7 (processes/cost_risks_2026), Map mehrerer Vorlagen (use:).
+id: processes/cost_risks_2026
+block: processes
+schema_version: 1
+label: "Kosten- und Terminrisiken (Testfixture)"
+source: {document: "Memo 04 §1.2, Memo 07 §4.0", url: "docs/recherche/04_monte_carlo.md", publisher: "eigene Ableitung"}
+as_of: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+values:
+  overrun_newbuild:   {dist: pert, label: "Baukostenabweichung Neubau (Faktor)", min: 0.95, mode: 1.05, max: 1.35, apply: multiply}
+  overrun_retrofit:   {dist: pert, label: "Baukostenabweichung Sanierung im Bestand (Faktor)", min: 0.95, mode: 1.10, max: 1.50, apply: multiply}
+  overrun_component:  {dist: pert, label: "Kostenabweichung Komponententausch (Faktor)", min: 0.95, mode: 1.00, max: 1.20, apply: multiply}
+  delay_newbuild:     {dist: pert, label: "Bauzeitverzug Neubau (Monate)", min: 0, mode: 2, max: 12}
+  delay_retrofit:     {dist: pert, label: "Bauzeitverzug Sanierung (Monate)", min: 0, mode: 1, max: 6}
+  maintenance_level:  {dist: pert, label: "Instandhaltungsniveau (Faktor)", min: 0.85, mode: 1.0, max: 1.3, apply: multiply}

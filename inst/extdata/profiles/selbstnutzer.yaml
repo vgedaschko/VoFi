@@ -1,0 +1,45 @@
+# Perspektiven-Profil selbstnutzer (Schicht 2, Spec 00 §4.7, R-76; Werte Spec 01 Teil A §2.7).
+# Zulässige Pfade (R-76): accounts.*, analysis.*, residual_value.method, residual_value.sale_cost_share,
+# project.horizon_years, project.report_mode, tax.module, scenario_sets; dasselbe gilt für by_project_type.
+defaults_meta: {kind: profile, id: selbstnutzer, schema_version: 1, as_of: 2026-10-26, quality: D,
+                source: "Konzept A2, A3, A4, B4, F18; Spec 01 Teil A §2.7"}
+project:
+  report_mode: auto                # -> household
+accounts:
+  deposit_rate_pa: {ref: market.mortgage_rate, anchor: 0.025, floor: 0}   # Untergrenze 0 (F-14)
+  overdraft_rate_pa: {ref: market.mortgage_rate, anchor: 0.060}
+  overdraft_limit_eur: 0
+  penalty_spread_pa: 0.02
+  min_liquidity_eur: 0
+  deposit_withholding_tax_share: 0                                   # B4: aus; Pflichtsensitivität
+  deposit_tax_allowance_eur_pa: 0
+  overdraft_flag_threshold_eur: .inf
+  surplus_order: [od_repay, dep_fill_reserve, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, dep_use_reserve, equity_call]
+  prepay: {buffer_eur: 0, min_spread_pa: 0}
+residual_value:
+  method: component                # A3: Bestand mit Einzelmaßnahmen -> Komponenten-Zeitwert (Memo 07 S4)
+  sale_cost_share: 0.03
+tax:
+  module: none                     # tax_flat gesperrt (Spec 00 §10.2)
+analysis:
+  kpis: [terminal_value, terminal_value_opp, delta_terminal_value, roe_mirr, payback_time, payback_year,
+         min_net_liquidity, max_overdraft, max_financing_need, sum_equity_calls, pv_equity_calls,
+         flag_shortfall, flag_limit_breach, flag_reserve_used, withdrawal_equivalent, terminal_value_real,
+         monthly_burden, monthly_burden_y1, monthly_burden_avg10, monthly_burden_construction, burden_ratio_max,
+         own_contribution, pv_subsidies, co2_emissions,
+         restriction_burden, restriction_savings, restriction_liquidity]
+  thresholds: {dscr: 1.2, burden_share: 0.40, warm_rent_increase_eur_m2: 0.50, roe_hurdle: 0.025}
+  restrictions: [burden, savings, liquidity]
+  tenant_view: false
+  rv_path_basis: auto              # -> measures
+  lending_value_haircut: 0.10
+  traffic_light: {green_prob: 0.70, red_prob: 0.40, restriction_prob: 0.30}
+  mandatory_sensitivities:
+    - {id: restwert_null, path: residual_value.method, value: zero, label: "Restwert = 0"}
+    - {id: habenzins_abgeltung, path: accounts.deposit_withholding_tax_share, value: 0.26375, label: "Habenzins nach Abgeltungsteuer (25 % + Soli)"}
+    - {id: stufe_2045, path: project.pending_reforms, add: stufe_2045, label: "mit 2045-Stufe (100 % klimaneutraler Brennstoff ab 2045)"}
+by_project_type:
+  neubau:           {residual_value: {method: asset_value}}       # A3: Sachwert beim Selbstnutzer-EFH (Memo 07 S5)
+  erwerb_neubau:    {residual_value: {method: asset_value}}
+  erwerb_sanierung: {residual_value: {method: market_growth}}     # Kaufpreis bzw. Bestandswert fortgeschrieben

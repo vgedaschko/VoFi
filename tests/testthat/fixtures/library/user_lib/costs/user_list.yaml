@@ -1,0 +1,25 @@
+# Testfixture (WS-A): Listenform einer Nutzerbibliothek (R-13): zwei Einträge in einer Datei.
+- id: costs/user_a
+  block: costs
+  schema_version: 1
+  label: "Nutzereintrag A"
+  source: {document: "eigene Annahme", publisher: "Test"}
+  as_of: 2026-10-01
+  valid_from: 2026-01-01
+  valid_to: null
+  quality: D
+  values:
+    factor: 1.1
+    nested: {x: 1, y: 2}
+- id: costs/user_b
+  block: costs
+  schema_version: 1
+  label: "Nutzereintrag B (Kette auf A)"
+  source: {document: "eigene Annahme", publisher: "Test"}
+  as_of: 2026-10-01
+  valid_from: 2026-01-01
+  valid_to: 2026-06-01
+  quality: C
+  from: costs/user_a
+  values:
+    nested: {y: 3}

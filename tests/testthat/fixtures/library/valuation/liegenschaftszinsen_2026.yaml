@@ -1,0 +1,18 @@
+# Testfixture (WS-A): Spec 01 Teil C §3.8 (valuation/liegenschaftszinsen_2026, gekürzt).
+id: valuation/liegenschaftszinsen_2026
+block: valuation
+schema_version: 1
+label: "Liegenschaftszinssätze Wohnen (Testfixture)"
+source: {document: "OGA Brandenburg Liegenschaftszinssätze 2025", url: "https://gutachterausschuss.brandenburg.de/", publisher: "OGA Brandenburg"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+quality_detail: {references.brandenburg_2023_2025: B}
+legal_state: {as_of: 2026-04-01, status: market, reference: "Grundstücksmarktberichte"}
+values:
+  presets: {a_metropolis: 0.025, large_city: 0.030, mid_city: 0.035, rural_shrinking: 0.045}
+  default_preset: mid_city
+  references:
+    brandenburg_2023_2025: {berliner_umland: 0.032, weiterer_metropolenraum: 0.035, kreisfreie_staedte: 0.028}

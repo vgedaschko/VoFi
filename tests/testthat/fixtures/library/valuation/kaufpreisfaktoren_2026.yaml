@@ -1,0 +1,14 @@
+# Testfixture (WS-A): Spec 01 Teil C §3.8 (valuation/kaufpreisfaktoren_2026).
+id: valuation/kaufpreisfaktoren_2026
+block: valuation
+schema_version: 1
+label: "Kaufpreisfaktoren (Testfixture)"
+source: {document: "OGA Brandenburg und Marktberichte (Memo 03 §10.2)", url: "https://gutachterausschuss.brandenburg.de/", publisher: "OGA Brandenburg; eigene Ableitung"}
+as_of: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+legal_state: {as_of: 2026-10-25, status: market, reference: "Lage-Presets"}
+values:
+  gross_rent_multiplier: 20
+  presets: {a: [25, 32], b: [18, 25], c: [14, 20], d_east_shrinking: [10, 15]}

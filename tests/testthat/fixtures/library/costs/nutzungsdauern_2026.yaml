@@ -1,0 +1,42 @@
+# Testfixture (WS-A): Spec 01 Teil C §3.7 (costs/nutzungsdauern_2026).
+id: costs/nutzungsdauern_2026
+block: costs
+schema_version: 1
+label: "Nutzungsdauern von Bauteilen und Anlagen (Jahre, Testfixture)"
+source: {document: "VDI 2067-1, BBSR/BNB 2017, ImmoWertV 2021 Anlage 1", url: "https://www.nachhaltigesbauen.de/", publisher: "VDI; BBSR"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+quality_detail: {hp_air_water: C, hp_brine_water: C, gas_boiler: C, building_total_immowertv: B}
+legal_state: {as_of: 2026-10-25, status: market, reference: "Richtwerte"}
+values:
+  hp_air_water: 18
+  hp_brine_water: 20
+  borehole: 50
+  gas_boiler: 18
+  pellet_boiler: 20
+  district_heating_substation: 25
+  solar_thermal: 20
+  etics: 40
+  plaster_paint: 15
+  windows: 40
+  windows_wood_alu: 50
+  roof_pitched_covering: 50
+  roof_flat_sealing: 30
+  insulation_roof_ceiling: 50
+  pv_modules: 25
+  pv_inverter: 12
+  battery: 12
+  ventilation_central: 20
+  ventilation_decentral: 15
+  heating_distribution: 40
+  dhw_storage: 20
+  pipes: 40
+  elevator: 25
+  bathrooms: 25
+  electrical: 40
+  building_total_immowertv: 80
+uncertainty:
+  hp_air_water: {dist: triangular, min: 15, mode: 18, max: 22}

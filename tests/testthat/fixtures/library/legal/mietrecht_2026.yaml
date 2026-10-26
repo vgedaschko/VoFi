@@ -1,0 +1,24 @@
+# Testfixture (WS-A): gekürzte Fassung von legal/mietrecht_2026 (Spec 01 Teil C §3.5).
+id: legal/mietrecht_2026
+block: legal
+topic: mietrecht
+schema_version: 1
+label: "Mietrecht BGB, Stand GModG (Testfixture)"
+source: {document: "BGB §§ 536, 555b, 556d-556g, 557a, 557b, 558, 559-559f", url: "https://www.gesetze-im-internet.de/bgb/", publisher: BMJ}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-07-29
+valid_to: null
+quality: A
+quality_detail: {interpretation: D, s558.funding_deduction_duration_grant_years: D}
+legal_state: {as_of: 2026-07-29, status: in_force, reference: "BGB"}
+values:
+  s558:
+    waiting_months: 15
+    cap_share: 0.20
+    funding_deduction_duration_grant_years: 12
+  s559:
+    rate_pa: 0.08
+    cap_eur_m2_month: 3.00
+  interpretation:
+    third_party_allocation: full

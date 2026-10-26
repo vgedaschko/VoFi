@@ -1,0 +1,16 @@
+# Testfixture (WS-A): Kette auf funding/kfw_261_wg_kredit_2026 (Spec 01 Teil C §3.4).
+id: funding/kfw_261_eh55
+block: funding
+schema_version: 1
+label: "BEG WG Kredit 261 – Effizienzhaus 55 (Testfixture)"
+source: {document: "KfW Merkblatt 261 (07/2026)", url: "https://www.kfw.de/", publisher: KfW}
+as_of: 2026-10-25
+valid_from: 2026-07-21
+valid_to: null
+quality: B
+legal_state: {as_of: 2026-07-21, status: administrative, reference: "KfW Merkblatt 261"}
+from: funding/kfw_261_wg_kredit_2026
+values:
+  repayment_grant:
+    base_rates: {ee: 0.15, nh: 0.20}
+  conditions: {efficiency_standard: eh55}

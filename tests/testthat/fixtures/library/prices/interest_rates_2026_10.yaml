@@ -1,0 +1,20 @@
+# Testfixture (WS-A): gekürzte Fassung von prices/interest_rates_2026_10 (Spec 01 Teil C §3.6).
+id: prices/interest_rates_2026_10
+block: market
+schema_version: 1
+label: "Zinsniveaus Oktober 2026 (Testfixture)"
+source: {document: "Deutsche Bundesbank BBIM1; KfW-Konditionenanzeiger 22.10.2026", url: "https://api.statistiken.bundesbank.de/rest/data/", publisher: "Deutsche Bundesbank; KfW"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-08-01
+valid_to: null
+quality: A
+quality_detail: {market.mortgage_rate: A, rates.company_loan_long: D}
+legal_state: {as_of: 2026-10-25, status: market, reference: "Marktdaten"}
+values:
+  market:
+    mortgage_rate: 0.041
+    bund_yield_10y: 0.034
+    mortgage_spread: 0.007
+  rates:
+    company_loan_long: 0.039

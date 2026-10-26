@@ -1,0 +1,13 @@
+# Testfixture (WS-A): Zyklus in der from-Kette (cycle_a -> cycle_b -> cycle_a).
+id: costs/cycle_a
+block: costs
+schema_version: 1
+label: "Zyklus A"
+source: {document: "Test", publisher: "Test"}
+as_of: 2026-10-01
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+from: costs/cycle_b
+values:
+  a: 1
