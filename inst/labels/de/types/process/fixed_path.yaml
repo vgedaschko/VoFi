@@ -1,0 +1,10 @@
+# Labels des Prozesstyps fixed_path (WS-C, Spec 01 Teil C 1.6.8).
+label: "Fester Pfad"
+description: "Deterministischer Pfad in der Monte-Carlo-Simulation (Stresspfad), linear interpoliert und außerhalb der Stützjahre konstant."
+params:
+  years:
+    label: "Stützjahre"
+    help: "streng steigende Kalenderjahre."
+  values:
+    label: "Stützwerte"
+    help: "Werte je Stützjahr in der Einheit des Ziels."

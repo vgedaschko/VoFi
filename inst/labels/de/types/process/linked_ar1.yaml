@@ -1,0 +1,22 @@
+# Labels des Prozesstyps linked_ar1 (WS-C, Spec 01 Teil C 1.6.2).
+label: "Gekoppelter AR(1)-Prozess"
+description: "Strukturelle Kopplung an einen Basisprozess mit AR(1)-Rest: g_y = a + b base_y + u_y (z. B. Mieten, Baupreise, Instandhaltung an der Inflation)."
+params:
+  base:
+    label: "Basisprozess"
+    help: "Schlüssel des Basisprozesses im Overlay."
+  a:
+    label: "Niveau"
+    help: "a (Default 0)."
+  b:
+    label: "Kopplungsfaktor"
+    help: "b (Default 1)."
+  phi:
+    label: "Persistenz des Rests"
+    help: "φ mit |φ| < 1 (Default 0)."
+  sigma:
+    label: "Schock-Standardabweichung des Rests"
+    help: "σ >= 0 (Default 0)."
+  u0:
+    label: "Startrest"
+    help: "u_1 (Default 0; Token base: Start am Basisfallwert des Ziels)."

@@ -1,0 +1,13 @@
+# Labels des Verteilungstyps normal (WS-C, Spec 01 Teil C 1.4.2).
+label: "Normalverteilung"
+description: "Normalverteilung mit Mittelwert und Standardabweichung; für nichtnegative Ziele und Anteile ist truncnorm vorzuziehen."
+params:
+  mean:
+    label: "Mittelwert"
+    help: "Mittelwert μ in der Einheit des Ziels."
+  sd:
+    label: "Standardabweichung"
+    help: "Standardabweichung σ >= 0 (0 ergibt einen festen Wert)."
+validate:
+  mean_invalid: "normal: mean muss eine endliche Zahl sein."
+  sd_invalid: "normal: sd muss eine endliche Zahl >= 0 sein."

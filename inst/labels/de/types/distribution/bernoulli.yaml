@@ -1,0 +1,9 @@
+# Labels des Verteilungstyps bernoulli (WS-C, Spec 01 Teil C 1.4.9).
+label: "Bernoulli-Verteilung"
+description: "Ja/Nein-Ereignis mit Erfolgswahrscheinlichkeit p (Wert 1 mit Wahrscheinlichkeit p), z. B. Förderzusage."
+params:
+  p:
+    label: "Erfolgswahrscheinlichkeit"
+    help: "p in [0, 1]."
+validate:
+  p_invalid: "bernoulli: p muss eine Zahl in [0, 1] sein (erhalten: {value})."

@@ -1,0 +1,45 @@
+# Tests für R/dist-beta.R (WS-C; Spec 01 Teil C 1.4.8).
+
+test_that("beta: Prüffall b1 (mean 0,08, sd 0,05; S1 Härtefallquote)", {
+  d <- wsc_dist("beta")
+  par <- list(mean = 0.08, sd = 0.05)
+  p <- dist_beta_canon(par)
+  expect_equal(c(p$shape1, p$shape2), c(2.2752, 26.1648), tolerance = 1e-12)
+  expect_spec(d$quantile(c(0.1, 0.5, 0.9), par), c("0.025017748", "0.070264881", "0.14811714"))
+  expect_equal(d$moments(par)$mean, 0.08, tolerance = 1e-12)
+  expect_equal(sqrt(d$moments(par)$var), 0.05, tolerance = 1e-12)
+})
+
+test_that("beta: Prüffälle b2, b3 und Modus", {
+  d <- wsc_dist("beta")
+  p2 <- dist_beta_canon(list(mean = 0.03, sd = 0.02))
+  expect_equal(c(p2$shape1, p2$shape2), c(2.1525, 69.5975), tolerance = 1e-12)
+  expect_spec(d$point(list(mean = 0.03, sd = 0.02), "median"), "0.025740945")
+  b3 <- list(shape1 = 2, shape2 = 5, min = 0, max = 10)
+  m <- d$moments(b3)
+  expect_spec(m$mean, "2.8571429")
+  expect_spec(m$var, "2.5510204")
+  expect_equal(d$point(b3, "mode"), 10 * 1 / 5)
+  expect_equal(d$point(list(shape1 = 1, shape2 = 1), "mode"), 0.5)
+  expect_identical(d$point(list(shape1 = 0.5, shape2 = 3), "mode"), 0)
+  expect_identical(d$point(list(shape1 = 3, shape2 = 1), "mode"), 1)
+  expect_identical(d$point(list(shape1 = 0.5, shape2 = 0.7), "mode"), 0)
+  expect_identical(d$point(list(shape1 = 0.7, shape2 = 0.5), "mode"), 1)
+  expect_equal(d$quantile(c(0, 1), b3), c(0, 10))
+})
+
+test_that("beta: Validierung, kanonische Ablage, Vertrag", {
+  d <- wsc_dist("beta")
+  expect_identical(d$validate(list(shape1 = 2, shape2 = 5)), character(0))
+  expect_length(d$validate(list(shape1 = 2, shape2 = 5, mean = 0.3, sd = 0.1)), 1L)
+  expect_length(d$validate(list(shape1 = 2)), 1L)
+  expect_length(d$validate(list(shape1 = -1, shape2 = 2)), 1L)
+  expect_length(d$validate(list(mean = 2, sd = 0.1)), 1L)
+  expect_length(d$validate(list(mean = 0.5, sd = 0.6)), 1L)
+  expect_length(d$validate(list(mean = 0.5, sd = 0.1, min = 1, max = 0)), 1L)
+  expect_length(d$validate(list(mean = 0.5, sd = 0.1, min = -Inf)), 1L)
+  expect_error(d$quantile(0.5, list(shape1 = 1)), class = "vofi_error_input")
+  expect_identical(names(dist_canonical("beta", list(mean = 0.08, sd = 0.05), "k")),
+                   c("shape1", "shape2", "min", "max"))
+  expect_type_contract("beta", "distribution")
+})

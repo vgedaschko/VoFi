@@ -1,0 +1,10 @@
+# Labels des Prozesstyps scenario_mix (WS-C, Spec 01 Teil C 1.6.6).
+label: "Szenariomischung"
+description: "Ein Szenariopfad je Lauf nach Gewichten (z. B. CO2-Korridore), optional mit multiplikativem AR(1)-Log-Rauschen."
+params:
+  scenarios:
+    label: "Szenarien"
+    help: "Map Name -> {prob, years, values}; Ordnung alphabetisch nach Name, Gewichte summieren sich zu 1."
+  noise:
+    label: "Rauschen"
+    help: "optional {phi, sigma}: multiplikatives AR(1)-Log-Rauschen wie bei mr_trend."

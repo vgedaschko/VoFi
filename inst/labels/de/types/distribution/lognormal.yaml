@@ -1,0 +1,35 @@
+# Labels des Verteilungstyps lognormal (WS-C, Spec 01 Teil C 1.4.4).
+label: "Lognormalverteilung"
+description: "Lognormalverteilung, angegeben über genau eine Form: meanlog/sdlog, mean/sd oder median/p90; optional verschoben um shift."
+params:
+  meanlog:
+    label: "Lage (log)"
+    help: "Form a: Mittelwert m des Logarithmus."
+  sdlog:
+    label: "Streuung (log)"
+    help: "Form a: Standardabweichung σ_l >= 0 des Logarithmus."
+  mean:
+    label: "Mittelwert"
+    help: "Form b: Mittelwert von X (> shift)."
+  sd:
+    label: "Standardabweichung"
+    help: "Form b: Standardabweichung von X (>= 0)."
+  median:
+    label: "Median"
+    help: "Form c: Median von X (> shift)."
+  p90:
+    label: "90-%-Quantil"
+    help: "Form c: 90-%-Quantil von X (>= Median)."
+  shift:
+    label: "Verschiebung"
+    help: "s; X - s ist lognormalverteilt (Default 0)."
+validate:
+  forms_multiple: "lognormal: es ist genau eine Form anzugeben (meanlog/sdlog, mean/sd oder median/p90), nicht mehrere."
+  form_missing: "lognormal: keine Form vollständig angegeben (meanlog/sdlog, mean/sd oder median/p90)."
+  shift_invalid: "lognormal: shift muss eine endliche Zahl sein."
+  meanlog_invalid: "lognormal: meanlog muss eine endliche Zahl sein."
+  sdlog_invalid: "lognormal: sdlog muss eine endliche Zahl >= 0 sein."
+  mean_shift: "lognormal: mean muss eine endliche Zahl größer als shift sein."
+  sd_invalid: "lognormal: sd muss eine endliche Zahl >= 0 sein."
+  median_shift: "lognormal: median muss eine endliche Zahl größer als shift sein."
+  p90_median: "lognormal: p90 muss eine endliche Zahl >= median sein."

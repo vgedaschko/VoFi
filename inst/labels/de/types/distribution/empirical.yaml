@@ -1,0 +1,9 @@
+# Labels des Verteilungstyps empirical (WS-C, Spec 01 Teil C 1.4.11).
+label: "Empirische Verteilung"
+description: "Verteilung einer Stichprobe (z. B. eigene Kostenüberschreitungen), linear interpoliert zwischen den Ordnungsstatistiken."
+params:
+  data:
+    label: "Stichprobe"
+    help: "Mindestens 2 endliche Werte (Hinweis bei weniger als 10)."
+validate:
+  data_invalid: "empirical: data muss mindestens 2 endliche Werte enthalten (erhalten: {n:int})."

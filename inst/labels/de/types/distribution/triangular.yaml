@@ -1,0 +1,16 @@
+# Labels des Verteilungstyps triangular (WS-C, Spec 01 Teil C 1.4.6).
+label: "Dreiecksverteilung"
+description: "Dreiecksverteilung mit Minimum, wahrscheinlichstem Wert und Maximum."
+params:
+  min:
+    label: "Minimum"
+    help: "a (<= mode)."
+  mode:
+    label: "Wahrscheinlichster Wert"
+    help: "c (min <= mode <= max)."
+  max:
+    label: "Maximum"
+    help: "b (>= mode)."
+validate:
+  param_invalid: "triangular: {param} muss eine endliche Zahl sein."
+  order: "triangular: es muss min <= mode <= max gelten (erhalten: {min}, {mode}, {max})."

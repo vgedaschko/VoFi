@@ -1,0 +1,16 @@
+# Labels des Prozesstyps ar1 (WS-C, Spec 01 Teil C 1.6.1).
+label: "AR(1)-Prozess"
+description: "Autoregressiver Prozess erster Ordnung in Kalenderjahren (z. B. Inflation, Wachstumsraten): x_y = mu + phi (x_{y-1} - mu) + sigma z_y."
+params:
+  mu:
+    label: "Langfristmittel"
+    help: "μ (Zahl oder Verteilung)."
+  phi:
+    label: "Persistenz"
+    help: "φ mit |φ| < 1."
+  sigma:
+    label: "Schock-Standardabweichung"
+    help: "σ >= 0."
+  x0:
+    label: "Startwert"
+    help: "Wert im Startjahr (Default mu; Token base = Basisfallwert des Ziels)."

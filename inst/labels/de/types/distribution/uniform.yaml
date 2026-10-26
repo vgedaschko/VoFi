@@ -1,0 +1,14 @@
+# Labels des Verteilungstyps uniform (WS-C, Spec 01 Teil C 1.4.5).
+label: "Gleichverteilung"
+description: "Gleichverteilung auf [min, max]."
+params:
+  min:
+    label: "Untergrenze"
+    help: "a (<= max)."
+  max:
+    label: "Obergrenze"
+    help: "b (>= min)."
+validate:
+  min_invalid: "uniform: min muss eine endliche Zahl sein."
+  max_invalid: "uniform: max muss eine endliche Zahl sein."
+  order: "uniform: min ({min}) darf nicht größer als max ({max}) sein."

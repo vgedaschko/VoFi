@@ -1,0 +1,16 @@
+# Labels des Verteilungstyps discrete (WS-C, Spec 01 Teil C 1.4.10).
+label: "Diskrete Verteilung"
+description: "Endlich viele Ausprägungen mit Wahrscheinlichkeiten (Default gleich verteilt)."
+params:
+  values:
+    label: "Ausprägungen"
+    help: "Mindestens ein endlicher Wert, ohne Duplikate."
+  probs:
+    label: "Wahrscheinlichkeiten"
+    help: "Gleiche Länge wie values, >= 0, Summe 1 (Default gleich verteilt)."
+validate:
+  values_invalid: "discrete: values muss mindestens einen endlichen Wert enthalten."
+  values_duplicate: "discrete: values darf keine Duplikate enthalten."
+  probs_length: "discrete: probs hat {n_probs:int} Einträge, values {n_values:int}."
+  probs_negative: "discrete: probs müssen Zahlen >= 0 sein."
+  probs_sum: "discrete: die Summe von probs muss 1 sein (erhalten: {sum:raw})."

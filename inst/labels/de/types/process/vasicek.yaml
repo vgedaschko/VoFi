@@ -1,0 +1,19 @@
+# Labels des Prozesstyps vasicek (WS-C, Spec 01 Teil C 1.6.3).
+label: "Vasicek-Zinsprozess"
+description: "Mean-Reversion-Zinsmodell mit exakter Diskretisierung in Jahresschritten (z. B. Bauzins, Bundrendite); optionale Untergrenze nur der Ausgabe."
+params:
+  r0:
+    label: "Startzins"
+    help: "Zins im Startjahr (Token base = Basisfallwert des Ziels)."
+  theta:
+    label: "Gleichgewichtsniveau"
+    help: "θ."
+  kappa:
+    label: "Rückkehrgeschwindigkeit"
+    help: "κ > 0 (Halbwertszeit ln 2 / κ)."
+  sigma:
+    label: "Volatilität"
+    help: "σ >= 0 (stationäre Standardabweichung σ / √(2κ))."
+  floor:
+    label: "Untergrenze"
+    help: "Untergrenze der Ausgabe (Default -Inf); der Zustand bleibt ungekappt."

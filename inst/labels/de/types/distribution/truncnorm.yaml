@@ -1,0 +1,22 @@
+# Labels des Verteilungstyps truncnorm (WS-C, Spec 01 Teil C 1.4.3).
+label: "Gestutzte Normalverteilung"
+description: "Normalverteilung N(mean, sd) auf das Intervall [lower, upper] beschränkt (Aliase min und max)."
+params:
+  mean:
+    label: "Mittelwert der Mutterverteilung"
+    help: "μ der nicht gestutzten Normalverteilung."
+  sd:
+    label: "Standardabweichung der Mutterverteilung"
+    help: "σ >= 0 der nicht gestutzten Normalverteilung."
+  lower:
+    label: "Untere Schranke"
+    help: "a, Default -Inf (Alias min)."
+  upper:
+    label: "Obere Schranke"
+    help: "b, Default Inf (Alias max)."
+validate:
+  mean_invalid: "truncnorm: mean muss eine endliche Zahl sein."
+  sd_invalid: "truncnorm: sd muss eine endliche Zahl >= 0 sein."
+  bounds_invalid: "truncnorm: lower und upper müssen Zahlen sein."
+  bounds_order: "truncnorm: lower ({lower}) muss kleiner als upper ({upper}) sein."
+  mass_zero: "truncnorm: das Intervall [lower, upper] hat unter N(mean, sd) praktisch keine Masse."
