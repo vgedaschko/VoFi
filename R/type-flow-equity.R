@@ -89,8 +89,9 @@ equity_build <- function(spec, ctx) {
 #' Prüfungen der Komponente equity (Spec 00 7.12, Spec 01 Teil A 4.12, R-68)
 #' @noRd
 equity_validate <- function(spec, scenario) {
-  v <- typ_validator(spec, scenario, "equity")
-  for (f in c("amount_eur", "contributions_pa", "withdrawals_pa")) {
+  v <- typ_validator(spec, scenario, "financing")
+  # amount_eur prüft die Wertegrenze des Schemas (validation.range, min = 0)
+  for (f in c("contributions_pa", "withdrawals_pa")) {
     x <- typ_const(spec[[f]])
     if (!is.null(x) && any(x < 0)) v$add("error", "negative", f, param = f)
   }

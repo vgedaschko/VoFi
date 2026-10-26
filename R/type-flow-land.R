@@ -48,15 +48,26 @@ land_build <- function(spec, ctx) {
 #' Prüfungen der Komponente land (Spec 01 Teil A 4.7)
 #' @noRd
 land_validate <- function(spec, scenario) {
-  v <- typ_validator(spec, scenario, "land")
+  v <- typ_validator(spec, scenario, "measures")
   vd <- typ_valuation_date(scenario)
   d <- typ_spec_date(spec[["date"]])
   if (!is.null(vd) && !is.null(d) && d < vd) {
     v$add("error", "before_valuation", "date", date = d)
   }
-  x <- typ_const(spec[["delay_months"]])
-  if (!is.null(x) && any(x < 0)) v$add("error", "shift_negative", "delay_months")
-  if (is.null(spec[["measure_id"]])) v$add("error", "measure_missing")
+  m <- spec[["measure_id"]]
+  if (is.null(m)) v$add("error", "measure_missing")
+  mt <- if (utl_is_string(m)) scenario[["measures"]][[m]][["measure_type"]] else NULL
+  if (identical(mt, "erwerb_objekt")) {
+    s <- typ_base_resolver(scenario)(path_join(v$coll, v$id, "land_share"))
+    if (!is.null(s) && any(s %in% c(0, 1))) {
+      v$add("warning", "land_share_extreme", "land_share", value = s[1L])
+    }
+  }
+  pt <- scenario[["project"]][["project_type"]]
+  if (utl_is_string(pt) && !(pt %in% c("erwerb_sanierung", "erwerb_neubau", "neubau"))) {
+    v$add("warning", "type_project_mismatch", "measure_id", project_type = pt,
+          measure_type = mt %||% "-")
+  }
   v$out
 }
 
@@ -70,7 +81,7 @@ typedef_land <- function() {
       land_share = p("share", default = 1),
       date = p("timing", required = TRUE),
       delay_months = p("number", default = 0, min = 0, unit = "months"),
-      active = p("value", default = 1, min = 0, max = 1),
+      active = p("value", default = 1, min = 0, max = 1, shapes = "scalar"),
       land_asset_id = p("string"),
       building_asset_id = p("string")
     ),

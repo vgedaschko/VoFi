@@ -10,7 +10,7 @@ acq_grest_payload <- function(ctx, spec, has_rate) {
   p_legal <- ctx$legal("grunderwerbsteuer")
   if (!is.null(p_legal)) return(p_legal)
   if (!has_rate) return(NULL)
-  # Thema inaktiv, ausdruecklicher Satz: gesetzliche Freigrenze (Hinweis in validate())
+  # Thema inaktiv, ausdruecklicher Satz: gesetzliche Freigrenze (Vermerk in meta$notes)
   list(rates = list(), exemption_threshold_eur = rule_grest_threshold_default())
 }
 
@@ -31,6 +31,12 @@ acquisition_cost_build <- function(spec, ctx) {
   basis <- kp + cb
   threshold <- rule_grest_threshold_default()
   p_legal <- acq_grest_payload(ctx, spec, !is.null(rate))
+  notes <- if (is.null(ctx$legal("grunderwerbsteuer")) && !is.null(rate)) {
+    ctx$lbl("types.flow.acquisition_cost.msg.grest_topic_inactive", id = id,
+            threshold = rule_grest_threshold_default())
+  } else {
+    character(0)
+  }
   if (is.null(p_legal)) {
     if (any(basis > threshold)) {
       ctx$abort("types.flow.acquisition_cost.msg.grest_inactive", id = id)
@@ -75,32 +81,35 @@ acquisition_cost_build <- function(spec, ctx) {
       )
     }
   }
-  vofi_flows(rows, aux = list(grest_basis = ctx$by_sim(basis), grest_total = ctx$by_sim(grest)))
+  vofi_flows(rows, aux = list(grest_basis = ctx$by_sim(basis), grest_total = ctx$by_sim(grest)),
+             meta = list(notes = notes))
 }
 
 #' Prüfungen der Komponente acquisition_cost (Spec 01 Teil A 4.8)
+#'
+#' Meldungen im Sondernamensraum `validation.acquisition.*`; der Termin vor dem Stichtag wie
+#' bei `land` unter `validation.measures.before_valuation`.
 #' @noRd
 acquisition_cost_validate <- function(spec, scenario) {
-  v <- typ_validator(spec, scenario, "acquisition_cost")
+  v <- typ_validator(spec, scenario, "acquisition")
+  base <- typ_base_resolver(scenario)
   fs <- spec[["federal_state"]] %||% scenario[["project"]][["federal_state"]]
   has_rate <- !is.null(spec[["grest_rate"]])
-  kp <- typ_const(spec[["basis_eur"]])
-  cb <- if (isTRUE(spec[["uniform_contract"]])) typ_const(spec[["construction_basis_eur"]]) %||%
-    0 else 0
+  kp <- base(path_join(v$coll, v$id, "basis_eur"))
+  cb <- if (isTRUE(spec[["uniform_contract"]])) {
+    base(path_join(v$coll, v$id, "construction_basis_eur")) %||% 0
+  } else {
+    0
+  }
   due <- is.null(kp) || any(kp + cb > rule_grest_threshold_default())
   if (due && !has_rate && !utl_is_string(fs)) {
     v$add("error", "federal_state_missing", "federal_state")
   }
   legal <- scenario[["legal"]]
-  if (due && is.list(legal) && length(legal) > 0L && is.null(legal[["grunderwerbsteuer"]])) {
-    if (has_rate) {
-      v$add("info", "grest_topic_inactive", "grest_rate",
-            threshold = rule_grest_threshold_default())
-    } else {
-      v$add("error", "grest_inactive", "grest_rate")
-    }
+  if (due && !has_rate && is.null(legal[["grunderwerbsteuer"]])) {
+    v$add("error", "grest_inactive", "grest_rate")
   }
-  rate <- typ_const(spec[["grest_rate"]])
+  rate <- base(path_join(v$coll, v$id, "grest_rate"))
   rates <- legal[["grunderwerbsteuer"]][["values"]][["rates"]]
   if (!is.null(rate) && utl_is_string(fs) && !is.null(rates[[fs]]) &&
         abs(rate[1L] - as.double(rates[[fs]])) > 1e-12) {
@@ -113,10 +122,8 @@ acquisition_cost_validate <- function(spec, scenario) {
   vd <- typ_valuation_date(scenario)
   d <- typ_spec_date(spec[["date"]])
   if (!is.null(vd) && !is.null(d) && d < vd) {
-    v$add("error", "before_valuation", "date", date = d)
+    v$add("error", "measures.before_valuation", "date", date = d)
   }
-  x <- typ_const(spec[["delay_months"]])
-  if (!is.null(x) && any(x < 0)) v$add("error", "shift_negative", "delay_months")
   v$out
 }
 
@@ -141,7 +148,7 @@ typedef_acquisition_cost <- function() {
       other_vat_rate = p("share", default = 0.19),
       date = p("timing", required = TRUE),
       delay_months = p("number", default = 0, min = 0, unit = "months"),
-      active = p("value", default = 1, min = 0, max = 1),
+      active = p("value", default = 1, min = 0, max = 1, shapes = "scalar"),
       land_asset_id = p("string"),
       building_asset_id = p("string")
     ),

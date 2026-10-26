@@ -247,36 +247,69 @@ test_that("Batch-Invarianz mit laufspezifischen Kosten, Verzug und Index", {
   expect_no_rng(fun(7L, dr))
 })
 
-test_that("validate(): Befunde nach Spec 01 Teil A 4.6.5", {
+test_that("validate(): Befunde nach Spec 01 Teil A 4.6.5 (validation.measures.*)", {
   f <- wsei_findings("capex", cost_eur = 1000, asset_id = "b1", measure_id = "m1")
-  expect_identical(unname(f["timing"]), "error")
+  expect_identical(unname(f["measures.timing"]), "error")
   f <- wsei_findings("capex", date = 2028, asset_id = "b1", measure_id = "m1")
-  expect_identical(unname(f["cost_source"]), "error")
+  expect_identical(unname(f["measures.cost_source"]), "error")
   f <- wsei_findings("capex", date = 2028, cost_eur = 1, cost_kg = list(kg300 = 1),
                      asset_id = "b1", measure_id = "m1")
-  expect_true("cost_source" %in% names(f))
+  expect_true("measures.cost_source" %in% names(f))
   f <- wsei_findings("capex", date = 2028, cost_kg = list(kg300 = 1, kg800 = 2, kg700 = 3),
                      kg700_share = 0.1, asset_id = "b1", measure_id = "m1")
-  expect_identical(unname(f[c("kg_invalid", "kg700_double")]), c("error", "warning"))
+  expect_identical(unname(f[c("measures.kg800", "measures.kg700_double")]),
+                   c("error", "warning"))
+  # andere unbekannte Schlüssel der Map cost_kg: blockübergreifend unknown_field
+  comp <- make_component("capex", date = 2028, cost_kg = list(kg300 = 1), asset_id = "b1",
+                         measure_id = "m1")
+  comp$cost_kg$kg100 <- node_const(5)
+  out <- capex_validate(comp, make_spec())
+  expect_identical(vapply(out, function(x) x$code, ""), "validation.unknown_field")
+  expect_identical(out[[1]]$path, "components.x.cost_kg.kg100")
   f <- wsei_findings("capex", payment_schedule = list(schedule = list("2027-07-01" = 0.4,
                                                                       "2028-07-01" = 0.5),
                                                       unit = "share"),
                      cost_eur = 1, duration_months = 3L, asset_id = "b1", measure_id = "m1")
-  expect_identical(unname(f[c("schedule_sum", "duration_schedule")]), c("error", "error"))
+  expect_identical(unname(f[c("measures.schedule_sum", "measures.timing")]), c("error", "error"))
   f <- wsei_findings("capex", payment_schedule = list(schedule = list("2027-07-01" = 10)),
                      contingency_share = 0.1, asset_id = "b1", measure_id = "m1")
-  expect_identical(unname(f["contingency_ignored"]), "warning")
+  expect_identical(unname(f["measures.contingency_ignored"]), "warning")
   f <- wsei_findings("capex", date = "2027-03-01", duration_months = 6L, cost_eur = 1,
                      completion_date = "2026-09-01", active = 0.5, vat_rate = 0.1,
                      delay_months = 0)
-  expect_true(all(c("before_valuation", "completion_order", "active_fraction",
-                    "ids_missing", "vat_unusual") %in% names(f)))
+  expect_true(all(c("measures.before_valuation", "measures.completion_order",
+                    "measures.active_fraction", "measures.ids_missing",
+                    "measures.vat_unusual") %in% names(f)))
   f <- wsei_findings("capex", date = 2028, cost_eur = 1, asset_id = "b1", measure_id = "m1")
   expect_length(f, 0L)
+  # Befunde sind vofi_finding-Objekte mit Pfad der Komponente
+  out <- capex_validate(make_component("capex", cost_eur = 1, asset_id = "b1",
+                                       measure_id = "m1"), make_spec())
+  expect_s3_class(out[[1]], "vofi_finding")
+  expect_identical(out[[1]]$code, "validation.measures.timing")
+  expect_identical(out[[1]]$path, "components.x")
+  # negative Verschiebung: Wertegrenze des Schemas (validation.range), kein eigener Befund
   comp <- make_component("capex", date = 2028, cost_eur = 1, asset_id = "b1", measure_id = "m1")
   comp$delay_months <- node_const(-1)
-  out <- capex_validate(comp, make_spec())
-  expect_true(any(vapply(out, function(x) grepl("shift_negative", x$code), logical(1))))
+  expect_length(capex_validate(comp, make_spec()), 0L)
+  # Aktivierungsfaktor als Ausdruck: Basisfallwert entscheidet (a_m, 4.5.2)
+  sc <- make_spec(make_grid())
+  sc$measures <- list(m1 = list(active = node_const(0.5)))
+  f <- wsei_findings("capex", date = 2028, cost_eur = 1, asset_id = "b1", measure_id = "m1",
+                     active = list(expr = "measures.m1.active * 1"), scenario = sc)
+  expect_identical(unname(f["measures.active_fraction"]), "warning")
+})
+
+test_that("vofi_validate(): Befunde der Typen erscheinen im Bericht unter validation.*", {
+  sc <- example_scenario("skeleton")
+  x <- unclass(sc)
+  x$components$wp <- list(type = "capex", cost_eur = 50000, asset_id = "b1", measure_id = "wp")
+  rep <- vofi_validate(vofi_scenario(x))
+  hit <- rep[rep$code == "validation.measures.timing", , drop = FALSE]
+  expect_identical(nrow(hit), 1L)
+  expect_identical(hit$severity, "error")
+  expect_identical(hit$path, "components.wp")
+  expect_match(hit$message, "'wp'", fixed = TRUE)
 })
 
 test_that("Bau über vofi_build()/vofi_run(): Investitionszeile im Ledger mit Tags", {
@@ -290,4 +323,47 @@ test_that("Bau über vofi_build()/vofi_run(): Investitionszeile im Ledger mit Ta
   expect_identical(rows$category[rows$key == "wp__cost"], "capex")
   expect_equal(res$ledger$values[["wp__cost"]][1, 2], -50000 * 1.02)
   expect_vofi_invariants(res)
+})
+
+test_that("Basisfallwerte für validate(): typ_base_resolver() und typ_capex_base_cost()", {
+  sc <- make_spec(make_grid("annual", T = 10L))
+  sc$measures <- list(m1 = list(cost_eur = node_const(1000), kg300 = node_const(799500)))
+  put <- function(sc, id, ...) {
+    path_set(sc, path_join("components", id), make_component("capex", id = id, ...))
+  }
+  # C2: K = 1.451.488,50 (Bezug auf ein Domänenblatt)
+  sc <- put(sc, "c2", date = 2028, asset_id = "b1", measure_id = "m1",
+            cost_kg = list(kg300 = list(ref = "measures.m1.kg300"), kg400 = 372000),
+            kg700_share = 0.18, contingency_share = 0.05)
+  base <- typ_base_resolver(sc)
+  expect_equal(typ_capex_base_cost(sc$components$c2, "c2", base), 1451488.50)
+  # cost_eur netto mit Faktor und Aktivierung
+  sc <- put(sc, "c1", date = 2028, asset_id = "b1", measure_id = "m1",
+            cost_eur = list(ref = "measures.m1.cost_eur"), cost_is_net = TRUE, cost_factor = 1.1,
+            contingency_share = 0.1, active = 0.5)
+  base <- typ_base_resolver(sc)
+  expect_equal(typ_capex_base_cost(sc$components$c1, "c1", base), 1000 * 1.1 * 1.19 * 1.1 * 0.5)
+  # Zahlungsplan in EUR: Summe der Beträge ohne Zuschlag
+  sc <- put(sc, "c3", asset_id = "b1", measure_id = "m1", contingency_share = 0.1,
+            payment_schedule = list(schedule = list("2027-07-01" = 100, "2028-07-01" = 50),
+                                    unit = "eur"))
+  base <- typ_base_resolver(sc)
+  expect_equal(typ_capex_base_cost(sc$components$c3, "c3", base), 150)
+  sc <- put(sc, "c4", date = 2028, asset_id = "b1", measure_id = "m1")
+  expect_null(typ_capex_base_cost(sc$components$c4, "c4", typ_base_resolver(sc)))
+  # Auflöser: fehlender Pfad, Nicht-Knoten, zeitabhängiger Wert -> NULL
+  expect_null(base("components.c1.gibt_es_nicht"))
+  expect_null(base("components.c1.classification"))
+  sc$market$series_x <- node_normalize(list(series = list("2027" = 1, "2030" = 2)),
+                                       vofi_param("value"), "market.series_x")
+  sc <- put(sc, "c5", date = 2028, asset_id = "b1", measure_id = "m1",
+            cost_eur = list(ref = "market.series_x"))
+  expect_null(typ_base_resolver(sc)("components.c5.cost_eur"))
+  # ohne Stichtag kein Raster: Bezüge bleiben unaufgelöst, Konstanten gelten
+  sc0 <- sc
+  sc0$project$valuation_date <- NULL
+  b0 <- typ_base_resolver(sc0)
+  expect_null(b0("components.c1.cost_eur"))
+  expect_equal(b0("components.c1.cost_factor"), 1.1)
+  expect_null(typ_scenario_grid(sc0))
 })

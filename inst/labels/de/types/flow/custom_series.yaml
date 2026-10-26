@@ -27,10 +27,3 @@ rows:
   value: "Zahlung"
 msg:
   no_values: "Komponente '{id}': die Beträge values fehlen."
-errors:
-  section_invalid: "Komponente '{id}': Abschnitt '{value}' ist nicht zulässig (zulässig: {allowed})."
-  category_invalid: "Komponente '{id}': Kategorie '{value}' gehört nicht zum Abschnitt '{section}' oder ist der Engine vorbehalten.{suggestion}"
-  tax_category_invalid: "Komponente '{id}': Steuerkategorie '{value}' ist für die Kategorie '{category}' nicht zulässig (zulässig: {allowed})."
-  memo_cash: "Komponente '{id}': Merkzeilen (Abschnitt memo) sind nie zahlungswirksam (cash: false)."
-  sign: "Komponente '{id}': das Vorzeichen der Beträge widerspricht der Kategorie '{category}'."
-  unit_invalid: "Komponente '{id}': unbekannte Einheit '{value}'."

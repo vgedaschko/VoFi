@@ -69,18 +69,45 @@ wsei_sums <- function(flows, i = 1L) {
                   vapply(flows$rows, function(r) r$key, ""))
 }
 
+#' Validierungsmeldungen von WS-E-INV als Test-Stubs registrieren (Spec 00 2.10, R-104)
+#'
+#' Die Typen melden Befunde unter `validation.<block>.<code>`; die Texte gehören in
+#' `inst/labels/de/validation.yaml` (WS-B). Bis WS-B sie liefert, registriert der Helfer die
+#' fehlenden Schlüssel aus `fixtures/ws-e-inv/validation_stubs.yaml` im geladenen Katalog
+#' (vorhandene Schlüssel bleiben unverändert). Rückgabe: die registrierten Schlüssel.
+wsei_register_validation_stubs <- function() {
+  path <- testthat::test_path("fixtures", "ws-e-inv", "validation_stubs.yaml")
+  flat <- utl_flatten_labels(utl_read_yaml(path), "validation")
+  env <- lbl_state$labels
+  added <- character(0)
+  for (k in names(flat)) {
+    if (!exists(k, envir = env, inherits = FALSE)) {
+      assign(k, flat[[k]], envir = env)
+      added <- c(added, k)
+    }
+  }
+  invisible(added)
+}
+wsei_stub_keys <- wsei_register_validation_stubs()
+
 #' Befunde der validate()-Funktion eines Typs für eine Rohkomponente
+#'
+#' Prüft je Befund: Klasse `vofi_finding`, Schlüssel `validation.<block>.<code>` bzw.
+#' blockübergreifend `validation.<code>` (R-104), Text mit Platzhaltern (wie `vofi_validate()`).
+#' @return benannter Vektor Schwere, Namen = Schlüssel ohne Präfix `validation.`.
 wsei_findings <- function(type, ..., id = "x", scenario = NULL) {
   comp <- make_component(type, ..., id = id)
   def <- reg_get("flow", type)
   sc <- scenario %||% make_spec(make_grid())
   sc <- path_set(sc, path_join(helper_collection(comp), id), comp)
   out <- def$validate(comp, sc)
-  codes <- vapply(out, function(f) sub("^types\\.flow\\.[a-z_]+\\.errors\\.", "", f$code), "")
-  for (f in out) testthat::expect_true(lbl_has(f$code), info = f$code)
   for (f in out) {
-    testthat::expect_type(do.call(msg, c(list(f$code), f$args)), "character")
+    testthat::expect_s3_class(f, "vofi_finding")
+    testthat::expect_match(f$code, "^validation\\.[a-z_]+(\\.[a-z0-9_]+)?$", info = f$code)
+    testthat::expect_true(lbl_has(f$code), info = f$code)
+    testthat::expect_type(do.call(msg, c(list(f$code, path = f$path), f$args)), "character")
   }
+  codes <- vapply(out, function(f) sub("^validation\\.", "", f$code), "")
   stats::setNames(vapply(out, function(f) f$severity, ""), codes)
 }
 
@@ -101,6 +128,7 @@ wsei_with_grest <- function(spec) {
 
 #' Ausdruck auswerten und die Label-Schlüssel aller Meldungen (vofi_inform) sammeln
 wsei_capture <- function(expr) {
+  withr::local_options(vofi.verbose = TRUE)
   keys <- character(0)
   value <- withCallingHandlers(expr, message = function(m) {
     keys <<- c(keys, if (is.null(m$key)) NA_character_ else m$key)

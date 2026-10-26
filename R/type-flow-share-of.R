@@ -46,7 +46,7 @@ share_of_build <- function(spec, ctx) {
 #' Prüfungen der Komponente share_of (Spec 01 Teil A 4.15, 6.2 Nr. 3)
 #' @noRd
 share_of_validate <- function(spec, scenario) {
-  v <- typ_validator(spec, scenario, "share_of")
+  v <- typ_validator(spec, scenario, "components")
   of <- as.character(unlist(spec[["of"]]))
   if (length(of) == 0L) v$add("error", "no_source", "of")
   after <- typ_after_ids(spec)

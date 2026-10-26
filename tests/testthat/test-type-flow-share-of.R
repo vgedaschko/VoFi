@@ -67,16 +67,17 @@ test_that("validate(): Quellen, after, Zyklus auf sich selbst, Verzögerung", {
                                      id = "rw")
   f <- wsei_findings("share_of", of = c("miete", "fehlt", "rw"), share = 0.1, id = "x",
                      scenario = sc)
-  expect_true(all(c("of_not_after", "source_unknown", "source_residual") %in% names(f)))
+  expect_true(all(c("components.of_not_after", "components.source_unknown",
+                    "components.source_residual") %in% names(f)))
   f <- wsei_findings("share_of", of = c("miete", "x"), after = c("miete", "x"), share = 0.1,
                      id = "x", scenario = sc)
-  expect_identical(unname(f["source_self"]), "error")
+  expect_identical(unname(f["components.source_self"]), "error")
   f <- wsei_findings("share_of", of = "miete", after = "miete", share = 0.1, lag_periods = -1L,
                      id = "x", scenario = sc)
-  expect_identical(unname(f["lag_negative"]), "error")
+  expect_identical(unname(f["components.lag_negative"]), "error")
   f <- wsei_findings("share_of", of = "miete", after = "miete", share = 0.1,
                      category = "draw", id = "x", scenario = sc)
-  expect_identical(unname(f["category_invalid"]), "error")
+  expect_identical(unname(f["components.category_invalid"]), "error")
   expect_length(wsei_findings("share_of", of = "miete", after = "miete", share = 0.1, id = "x",
                               scenario = sc), 0L)
 })

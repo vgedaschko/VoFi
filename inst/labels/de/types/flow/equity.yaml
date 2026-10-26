@@ -32,7 +32,3 @@ rows:
 msg:
   negative_clamped: "Komponente '{id}': negative Beträge in '{param}' werden auf 0 begrenzt (Anteil der Läufe {share:pct}); Einlagen und Entnahmen sind als Beträge >= 0 anzugeben."
   after_horizon: "Komponente '{id}': die einmalige Einlage liegt außerhalb des Horizonts und entfällt."
-errors:
-  negative: "Komponente '{id}': '{param}' muss Beträge >= 0 enthalten (das Vorzeichen setzt der Typ)."
-  start_after_to: "Komponente '{id}': der Beginn der laufenden Beträge liegt nicht vor dem Ende (start_event < to)."
-  in_kind_double: "Komponente '{id}': der Bestandswert building.existing_value_eur ist bereits Sacheinlage (equity_in_kind); als Bareinlage zählt er doppelt."

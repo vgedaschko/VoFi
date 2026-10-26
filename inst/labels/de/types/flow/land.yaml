@@ -30,7 +30,3 @@ msg:
   after_horizon: "Komponente '{id}': der Kaufpreis fällt jenseits des Horizonts an und entfällt (Anteil der Läufe {share:pct})."
   no_date: "Komponente '{id}': Zahlungstermin date fehlt."
   no_price: "Komponente '{id}': Kaufpreis purchase_price_eur fehlt."
-errors:
-  before_valuation: "Komponente '{id}': der Zahlungstermin {date} liegt vor dem Bewertungsstichtag."
-  shift_negative: "Komponente '{id}': die Verschiebung delay_months muss >= 0 sein."
-  measure_missing: "Komponente '{id}': measure_id ist Pflicht für die Gebäudezeile (Kategorie capex)."

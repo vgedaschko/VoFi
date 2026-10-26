@@ -73,11 +73,4 @@ msg:
   no_basis: "Komponente '{id}': Gegenleistung basis_eur fehlt."
   grest_inactive: "Komponente '{id}': das Thema grunderwerbsteuer ist inaktiv (kein freigegebener Bibliothekseintrag) und grest_rate fehlt; Satz angeben oder legal/grunderwerbsteuer_2026 freigeben."
   federal_state_missing: "Komponente '{id}': Grunderwerbsteuer fällig, aber weder federal_state (bzw. project.federal_state) noch grest_rate angegeben."
-errors:
-  federal_state_missing: "Komponente '{id}': Grunderwerbsteuer fällig (Gegenleistung über der Freigrenze), aber weder project.federal_state noch grest_rate angegeben."
-  grest_inactive: "Komponente '{id}': das Thema grunderwerbsteuer ist inaktiv (kein freigegebener Eintrag) und grest_rate fehlt; Satz angeben oder legal/grunderwerbsteuer_2026 freigeben."
-  grest_topic_inactive: "Komponente '{id}': das Thema grunderwerbsteuer ist inaktiv; es gelten der angegebene Satz und die Freigrenze von {threshold:eur} (§ 3 Nr. 1 GrEStG)."
-  rate_deviates: "Komponente '{id}': grest_rate {value:pct} weicht vom Landessatz {state_rate:pct} ab."
-  uniform_without_construction: "Komponente '{id}': einheitlicher Vertragsgegenstand ohne Bauleistung (construction_basis_eur)."
-  before_valuation: "Komponente '{id}': die Fälligkeit {date} liegt vor dem Bewertungsstichtag."
-  shift_negative: "Komponente '{id}': die Verschiebung delay_months muss >= 0 sein."
+  grest_topic_inactive: "Komponente '{id}': das Thema grunderwerbsteuer ist inaktiv; es gelten der angegebene Satz grest_rate und die Freigrenze von {threshold:eur} (§ 3 Nr. 1 GrEStG)."

@@ -62,11 +62,3 @@ msg:
   share_incomplete: "Komponente '{id}': share_of_cost verlangt share_pa und capex_id."
   no_area: "Komponente '{id}': Bezugsfläche area_m2 fehlt."
   no_rate: "Komponente '{id}': Instandhaltungssatz rate_eur_m2_pa fehlt."
-errors:
-  rate_missing: "Komponente '{id}': basis rate verlangt rate_eur_m2_pa."
-  area_missing: "Komponente '{id}': die Bezugsfläche area_m2 fehlt."
-  iibv_rates_missing: "Komponente '{id}': basis iibv verlangt iibv_rates."
-  share_incomplete: "Komponente '{id}': basis share_of_cost verlangt share_pa und capex_id."
-  start_after_to: "Komponente '{id}': der Beginn liegt nicht vor dem Ende (start_event < to)."
-  double_count: "Komponente '{id}': Die Pauschale enthält die Erneuerung von Bauteilen; explizite Ersatz- und Instandsetzungsmaßnahmen zusätzlich führen zu Doppelzählung. Satz mindern und excludes_explicit_replacements: true setzen oder Ersatz abschalten."
-  replacements_excluded: "Komponente '{id}': explizit modellierte Erneuerungen im Horizont entsprechen {value} EUR/m² und Jahr (Preisstand, ohne Index). Ist der Satz darum gemindert?"

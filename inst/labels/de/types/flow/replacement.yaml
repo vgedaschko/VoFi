@@ -62,11 +62,3 @@ msg:
   no_life: "Komponente '{id}': useful_life_years fehlt."
   no_capex: "Komponente '{id}': include_initial verlangt eine Erstinvestition (capex_id)."
   no_cost: "Komponente '{id}': keine Ersatzkosten (cost_eur oder capex_id angeben)."
-errors:
-  life_nonpositive: "Komponente '{id}': die Nutzungsdauer muss > 0 sein."
-  life_short: "Komponente '{id}': Nutzungsdauer {value} Jahre unter 5 Jahren."
-  first_before_install: "Komponente '{id}': erster Ersatztermin {date} liegt vor dem Einbau."
-  shift_negative: "Komponente '{id}': Verschiebungen müssen >= 0 sein (früherer Basistermin mit Verschiebung >= 0)."
-  no_capex: "Komponente '{id}': include_initial = TRUE verlangt capex_id."
-  element_cost_missing: "Komponente '{id}': Ersatzkosten fehlen (cost_eur bzw. replacement_cost_eur des Bauteils angeben)."
-  many_events: "Komponente '{id}': {value:int} Ersatztermine im Horizont (mehr als 10)."

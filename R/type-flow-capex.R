@@ -87,10 +87,13 @@ typ_base_scalar <- function(ctx, spec, name, default) {
 #' Einzelne Elemente eines Zahlungsplans je Lauf auflösen (Termine, Beträge als n-Vektoren)
 #'
 #' Die Elemente eines `schedule`-Knotens dürfen Zahlen oder skalare Knoten sein (4.5 Regel 4).
-#' Jedes Element wird über `ctx$param()` bzw. `ctx$param_base()` als n-Vektor aufgelöst; dazu wird
-#' es in einer lokalen Kopie der Komponente unter einem eindeutigen Hilfsnamen abgelegt
+#' Zahlen und Konstanten werden direkt übernommen. Knoten (Bezug, Ausdruck, Mengenbezug) werden
+#' über `ctx$param()` bzw. `ctx$param_base()` als n-Vektor aufgelöst; dazu wird das Element in
+#' einer lokalen Kopie der Komponente unter einem eindeutigen Hilfsnamen abgelegt
 #' (Sequenzelemente sind keine eigenen Overlay-Ziele, 4.4 Nr. 3; Bezüge auf Blätter wirken über
-#' deren Pfad).
+#' deren Pfad). Das setzt voraus, dass `ctx$param()` einen Knoten, der nicht unter
+#' `path_get(ctx$spec, <Pfad>)` liegt, aus der übergebenen Komponente liest (Phase-0-Kontext;
+#' Vertragsänderungswunsch an WS-D: Auflösung von Zahlungsplanelementen als Teil von 6.3).
 #' @param ctx Laufkontext.
 #' @param spec Komponente.
 #' @param name Parametername des Zahlungsplans.
@@ -112,6 +115,11 @@ typ_schedule_parts <- function(ctx, spec, name, type, base = FALSE) {
   els <- vector("list", length(dates))
   for (i in seq_along(dates)) {
     el <- if (is.numeric(amounts) && !is.list(amounts)) amounts[i] else amounts[[i]]
+    num <- typ_const(el)
+    if (!is.null(num) && length(num) == 1L && !(is.list(el) && !identical(el[["kind"]], "const"))) {
+      els[[i]] <- rep(num, ctx$n)
+      next
+    }
     tmp <- spec
     hn <- paste0(name, "_element_", i)
     tmp[[hn]] <- el
@@ -181,28 +189,109 @@ typ_capex_tax <- function(classification) {
   if (identical(classification, "erhaltung")) "capex_expensable" else "capex_depreciable"
 }
 
-#' Sammler für Befunde einer validate()-Funktion (Spec 00 5.2; Codes = Label-Schlüssel)
+#' Sammler für Befunde einer validate()-Funktion (Spec 00 2.10, 5.2, 13.5; R-104, R-117)
 #'
-#' Die Befunde verwenden die Schlüssel `types.flow.<typ>.errors.<code>` der Label-Datei des
-#' Typs; Platzhalter `{id}` (Komponenten-id) wird immer gesetzt.
+#' Die Befunde sind Objekte von `new_vofi_finding()` mit Schlüsseln des Label-Katalogs
+#' `inst/labels/de/validation.yaml` (WS-B): `code` ohne Punkt wird zu
+#' `validation.<block>.<code>`, `code` mit Punkt (z. B. `"building.element_cost_missing"`) zu
+#' `validation.<code>`, ein vollständiger Schlüssel `validation.*` (blockübergreifend, z. B.
+#' `"validation.range"`) bleibt unverändert. Platzhalter `{id}` (Komponenten-id) wird immer
+#' gesetzt, `{path}` ergänzt `vofi_validate()`.
 #' @param spec Komponente.
 #' @param scenario `vofi_spec` (bzw. Liste mit `financing`).
-#' @param type Typname.
-#' @return Umgebung mit `add(severity, code, field, ...)` und `out` (Liste der Befunde).
+#' @param block Sondernamensraum bzw. oberster Szenarioblock der Meldungen des Typs (z. B.
+#'   `"measures"`, `"maintenance"`, `"acquisition"`, `"residual"`, `"financing"`, `"components"`).
+#' @return Umgebung mit `add(severity, code, field = NULL, ..., .path = NULL)` und `out` (Liste
+#'   von `vofi_finding`).
 #' @noRd
-typ_validator <- function(spec, scenario, type) {
+typ_validator <- function(spec, scenario, block) {
   acc <- new.env(parent = emptyenv())
   acc$out <- list()
   id <- spec[["id"]] %||% "?"
   coll <- if (id %in% names(scenario[["financing"]])) "financing" else "components"
-  acc$add <- function(severity, code, field = NULL, ...) {
-    acc$out[[length(acc$out) + 1L]] <- list(
-      severity = severity, code = paste0("types.flow.", type, ".errors.", code),
-      path = path_join(coll, id, field), args = c(list(id = id), list(...))
+  acc$id <- id
+  acc$coll <- coll
+  acc$add <- function(severity, code, field = NULL, ..., .path = NULL) {
+    key <- if (startsWith(code, "validation.")) code else
+      if (grepl(".", code, fixed = TRUE)) paste0("validation.", code) else
+        paste0("validation.", block, ".", code)
+    acc$out[[length(acc$out) + 1L]] <- new_vofi_finding(
+      severity, key, .path %||% path_join(coll, id, field), args = c(list(id = id), list(...))
     )
     invisible(NULL)
   }
   acc
+}
+
+#' Basisfallwerte von Knoten eines Szenarios (für validate(), Spec 00 6.3 Schritt 3, R-70)
+#'
+#' Liefert eine Funktion `f(path)`, die den Knoten am Pfad (z. B. `components.<id>.cost_eur`)
+#' als Basisfallwert auflöst: Konstanten direkt, Bezüge, Ausdrücke und Mengenbezüge über den
+#' Auflöser (`res_value(base = TRUE)`, WS-D). Nicht auflösbare oder zeitabhängige Werte ergeben
+#' `NULL`.
+#' @param scenario `vofi_spec`.
+#' @return `function(path)` -> double oder `NULL`.
+#' @noRd
+typ_base_resolver <- function(scenario) {
+  rc <- NULL
+  function(path) {
+    node <- path_get(scenario, path)
+    if (is.null(node)) return(NULL)
+    v <- typ_const(node)
+    if (!is.null(v)) return(v)
+    if (!is.list(node) || !node_is(node)) return(NULL)
+    if (is.null(rc)) {
+      rc <<- tryCatch(res_context(scenario, eng_build_grid(scenario), 1L),
+                      error = function(e) FALSE)
+    }
+    if (isFALSE(rc)) return(NULL)
+    x <- tryCatch(suppressWarnings(suppressMessages(res_value(rc, path, "scalar",
+                                                              base = TRUE))),
+                  error = function(e) NULL)
+    if (is.numeric(x) && length(x) >= 1L && !anyNA(x)) as.double(x[1L]) else NULL
+  }
+}
+
+#' Zeitraster eines Szenarios für validate() (`NULL`, wenn Stichtag oder Horizont fehlen)
+#' @noRd
+typ_scenario_grid <- function(scenario) {
+  tryCatch(eng_build_grid(scenario), error = function(e) NULL)
+}
+
+#' Grundkosten einer capex-Komponente im Basisfall (Spec 01 Teil A 4.6.2 (1), (2))
+#'
+#' K = K0 · g · cost_factor · active im Preisstand b* (ohne Index), für die Kennwerte der
+#' Validierung (4.11.4); `NULL`, wenn die Kosten nicht bestimmbar sind.
+#' @param cmp Komponente.
+#' @param id id der Komponente.
+#' @param base Auflöser aus `typ_base_resolver()`.
+#' @noRd
+typ_capex_base_cost <- function(cmp, id, base) {
+  p <- function(f) path_join("components", id, f)
+  num <- function(f, default = 0) {
+    x <- base(p(f))
+    if (is.null(x)) default else x[1L]
+  }
+  cs <- num("contingency_share")
+  kg <- cmp[["cost_kg"]]
+  if (is.list(kg) && length(kg) > 0L) {
+    s <- vapply(capex_kg_codes(), function(k) num(paste0("cost_kg.", k)), double(1))
+    b700 <- if (identical(cmp[["kg700_basis"]], "kg200_600")) sum(s[1:5]) else sum(s[2:3])
+    k700 <- s[[6L]] + num("kg700_share") * b700
+    bc <- sum(s[1:5]) + if (identical(cmp[["contingency_basis"]], "kg200_600")) 0 else k700
+    k0 <- sum(s[1:5]) + k700 + cs * bc
+  } else {
+    cost <- base(p("cost_eur"))
+    sched <- cmp[["payment_schedule"]]
+    if (is.null(cost) && is.list(sched) && identical(sched[["unit"]] %||% "eur", "eur")) {
+      cost <- sum(unlist(lapply(sched[["amounts"]] %||% list(), typ_const)))
+      cs <- 0
+    }
+    if (is.null(cost)) return(NULL)
+    k0 <- cost[1L] * (1 + cs)
+  }
+  g <- if (isTRUE(cmp[["cost_is_net"]])) 1 + num("vat_rate", 0.19) else 1
+  k0 * g * num("cost_factor", 1) * num("active", 1)
 }
 
 #' Datum eines timing-Parameters in validate() (normalisierter Wert; Token completion = NULL)
@@ -429,7 +518,9 @@ capex_build <- function(spec, ctx) {
 #' Prüfungen der Komponente capex (Spec 01 Teil A 4.6.5)
 #' @noRd
 capex_validate <- function(spec, scenario) {
-  v <- typ_validator(spec, scenario, "capex")
+  v <- typ_validator(spec, scenario, "measures")
+  base <- typ_base_resolver(scenario)
+  bp <- function(f) path_join(v$coll, v$id, f)
   has_date <- !is.null(spec[["date"]])
   sched <- spec[["payment_schedule"]]
   has_sched <- !is.null(sched)
@@ -440,10 +531,16 @@ capex_validate <- function(spec, scenario) {
   n_cost <- (!is.null(spec[["cost_eur"]])) + has_kg + identical(unit, "eur")
   if (n_cost != 1L) v$add("error", "cost_source")
   if (has_kg) {
-    bad <- setdiff(names(kg), capex_kg_codes())
-    if (length(bad) > 0L) v$add("error", "kg_invalid", "cost_kg", value = utl_collapse(bad))
-    s700 <- typ_const(kg[["kg700"]])
-    s_share <- typ_const(spec[["kg700_share"]])
+    for (k in setdiff(names(kg), capex_kg_codes())) {
+      if (identical(k, "kg800")) {
+        v$add("error", "kg800", "cost_kg.kg800")
+      } else {
+        v$add("error", "validation.unknown_field", paste0("cost_kg.", k),
+              suggestion = utl_suggest_text(k, capex_kg_codes()))
+      }
+    }
+    s700 <- base(bp("cost_kg.kg700"))
+    s_share <- base(bp("kg700_share"))
     if (!is.null(s700) && !is.null(s_share) && any(s700 > 0) && any(s_share > 0)) {
       v$add("warning", "kg700_double", "kg700_share")
     }
@@ -459,9 +556,7 @@ capex_validate <- function(spec, scenario) {
     v$add("warning", "contingency_ignored", "contingency_share")
   }
   dur <- spec[["duration_months"]] %||% 0L
-  if (has_sched && is.numeric(dur) && dur > 0) {
-    v$add("error", "duration_schedule", "duration_months")
-  }
+  if (has_sched && is.numeric(dur) && dur > 0) v$add("error", "timing", "duration_months")
   vd <- typ_valuation_date(scenario)
   d <- typ_spec_date(spec[["date"]])
   first <- NULL
@@ -480,7 +575,7 @@ capex_validate <- function(spec, scenario) {
       first
     if (cd < pay1) v$add("error", "completion_order", "completion_date", date = cd)
   }
-  a <- typ_const(spec[["active"]])
+  a <- base(bp("active"))
   if (!is.null(a) && any(!(a %in% c(0, 1)))) v$add("warning", "active_fraction", "active")
   if (is.null(spec[["asset_id"]]) || is.null(spec[["measure_id"]])) {
     v$add("error", "ids_missing")
@@ -488,10 +583,6 @@ capex_validate <- function(spec, scenario) {
   vat <- typ_const(spec[["vat_rate"]])
   if (!is.null(vat) && !all(vat %in% c(0, 0.07, 0.19))) {
     v$add("warning", "vat_unusual", "vat_rate", value = vat[1L])
-  }
-  for (f in c("delay_months", "construction_delay_months")) {
-    x <- typ_const(spec[[f]])
-    if (!is.null(x) && any(x < 0)) v$add("error", "shift_negative", f)
   }
   v$out
 }
@@ -527,7 +618,7 @@ typedef_capex <- function() {
       construction_delay_mode = p("enum", values = "vocab:construction_delay_mode",
                                   default = "none"),
       effect_start = p("enum", values = "vocab:effect_start", default = "completion"),
-      active = p("value", default = 1, min = 0, max = 1),
+      active = p("value", default = 1, min = 0, max = 1, shapes = "scalar"),
       classification = p("enum", values = "vocab:classification", default = "auto"),
       tax_category_kg200 = p("enum", values = c("capex_depreciable", "capex_expensable",
                                                 "capex_land"),

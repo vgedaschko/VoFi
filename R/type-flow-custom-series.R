@@ -66,7 +66,7 @@ typ_validate_target_row <- function(v, section, category, tax_category = NULL, c
 #' Prüfungen der Komponente custom_series (Spec 01 Teil A 4.13)
 #' @noRd
 custom_series_validate <- function(spec, scenario) {
-  v <- typ_validator(spec, scenario, "custom_series")
+  v <- typ_validator(spec, scenario, "components")
   typ_validate_target_row(v, spec[["section"]] %||% "project", spec[["category"]] %||% "custom",
                           spec[["tax_category"]], spec[["cash"]], typ_const(spec[["values"]]))
   unit <- spec[["unit"]]

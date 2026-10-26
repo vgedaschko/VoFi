@@ -25,7 +25,7 @@ test_that("CS1: Periodenbeträge ohne Delta-Skalierung, Kategorie other_cost", {
 test_that("CS1: Kategorie rent mit negativem Wert ist ein Fehler", {
   f <- wsei_findings("custom_series", values = c(0, -1000, -1000, 0), category = "rent",
                      scenario = make_spec(make_grid("annual", T = 3L)))
-  expect_identical(unname(f["sign"]), "error")
+  expect_identical(unname(f["components.sign"]), "error")
   g <- make_grid("annual", T = 3L)
   res <- wsei_build(list(cs = list(type = "custom_series", values = c(0, -1000, -1000, 0),
                                    category = "rent")), g)
@@ -53,24 +53,24 @@ test_that("Abschnitt memo: nicht zahlungswirksam; memo mit cash = TRUE ist ein F
   expect_false(f$rows[[1]]$cash)
   e <- wsei_findings("custom_series", values = c(1, 2, 3, 4), section = "memo",
                      category = "aux_memo", cash = TRUE)
-  expect_identical(unname(e["memo_cash"]), "error")
+  expect_identical(unname(e["components.memo_cash"]), "error")
 })
 
 test_that("validate(): Kategorie, Steuerkategorie, Einheit", {
   f <- wsei_findings("custom_series", values = c(0, 1, 0, 0), category = "rnet")
-  expect_identical(unname(f["category_invalid"]), "error")
+  expect_identical(unname(f["components.category_invalid"]), "error")
   f <- wsei_findings("custom_series", values = c(0, -1, 0, 0), category = "other_cost",
                      tax_category = "principal")
-  expect_identical(unname(f["tax_category_invalid"]), "error")
+  expect_identical(unname(f["components.tax_category_invalid"]), "error")
   f <- wsei_findings("custom_series", values = c(0, -1, 0, 0), category = "other_cost",
                      tax_category = "income_rental")
-  expect_identical(unname(f["tax_category_invalid"]), "error")
+  expect_identical(unname(f["components.tax_category_invalid"]), "error")
   f <- wsei_findings("custom_series", values = c(0, 1, 0, 0), section = "memo",
                      category = "aux_memo", unit = "furlongs")
-  expect_identical(unname(f["unit_invalid"]), "error")
+  expect_identical(unname(f["components.unit_invalid"]), "error")
   f <- wsei_findings("custom_series", values = c(0, 1, 0, 0), category = "draw",
                      section = "project")
-  expect_identical(unname(f["category_invalid"]), "error")
+  expect_identical(unname(f["components.category_invalid"]), "error")
   expect_length(wsei_findings("custom_series", values = c(0, -1, 0, 0),
                               category = "other_cost"), 0L)
 })

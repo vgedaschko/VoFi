@@ -93,24 +93,24 @@ test_that("base_date Default: (project.price_base_year + 1)-01-01", {
 test_that("validate(): Form, Vorzeichen, Richtung, Zeitraum, Kategoriehinweis", {
   f <- wsei_findings("recurring", amount_eur = list(start = 100, growth = 0.02),
                      category = "rent")
-  expect_identical(unname(f["amount_form"]), "error")
+  expect_identical(unname(f["components.amount_form"]), "error")
   f <- wsei_findings("recurring", amount_eur = 100, category = "passthrough")
-  expect_identical(unname(f["direction_missing"]), "error")
+  expect_identical(unname(f["components.direction_missing"]), "error")
   f <- wsei_findings("recurring", amount_eur = 100, category = "rent", direction = "outflow")
-  expect_identical(unname(f["direction_conflict"]), "error")
+  expect_identical(unname(f["components.direction_conflict"]), "error")
   f <- wsei_findings("recurring", amount_eur = 100, category = "rent",
                      start_event = "2030-01-01", to = "2029-01-01")
-  expect_identical(unname(f["start_after_to"]), "error")
+  expect_identical(unname(f["components.start_after_to"]), "error")
   f <- wsei_findings("recurring", amount_eur = 100, category = "rnet")
-  expect_identical(unname(f["category_invalid"]), "error")
+  expect_identical(unname(f["components.category_invalid"]), "error")
   f <- wsei_findings("recurring", amount_eur = 100, category = "rent",
                      tax_category = "capex_land")
-  expect_identical(unname(f["tax_category_invalid"]), "error")
+  expect_identical(unname(f["components.tax_category_invalid"]), "error")
   sc <- make_spec(make_grid())
   attr(sc, "provenance") <- data.frame(path = "components.x.category",
                                        source_type = "type_default")
   f <- wsei_findings("recurring", amount_eur = 100, scenario = sc)
-  expect_identical(unname(f["category_assumed"]), "info")
+  expect_identical(unname(f["components.category_assumed"]), "info")
   expect_length(wsei_findings("recurring", amount_eur = 100, category = "rent"), 0L)
 })
 

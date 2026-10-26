@@ -73,10 +73,10 @@ test_that("validate(): negative Beträge, Zeitraum, doppelte Sacheinlage", {
   f <- wsei_findings("equity", amount_eur = 1, contributions_pa = -1,
                      withdrawals = list(schedule = list("2028-01-01" = -5)),
                      start_event = "2030-01-01", to = "2029-01-01", id = "ek")
-  expect_true(all(c("negative", "start_after_to") %in% names(f)))
-  expect_true(all(f[names(f) == "negative"] == "error"))
+  expect_true(all(c("financing.negative", "financing.start_after_to") %in% names(f)))
+  expect_true(all(f[names(f) == "financing.negative"] == "error"))
   d <- wsei_findings("equity", amount_eur = list(ref = "building.existing_value_eur"), id = "ek")
-  expect_identical(unname(d["in_kind_double"]), "warning")
+  expect_identical(unname(d["financing.in_kind_double"]), "warning")
   expect_length(wsei_findings("equity", amount_eur = 1000, id = "ek"), 0L)
   # amount_eur: auto ist nur bei Krediten zulässig (Spec 00 8.7)
   expect_error(make_component("equity", amount_eur = "auto", id = "ek"),

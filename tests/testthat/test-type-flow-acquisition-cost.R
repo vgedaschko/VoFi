@@ -95,7 +95,7 @@ test_that("A6: federal_state fehlt bei Basis 300.000 (Befund und Abbruch)", {
   sc$project$federal_state <- NULL
   f <- wsei_findings("acquisition_cost", basis_eur = 300000, date = "2027-01-01",
                      measure_id = "m1", scenario = sc)
-  expect_identical(unname(f["federal_state_missing"]), "error")
+  expect_identical(unname(f["acquisition.federal_state_missing"]), "error")
   expect_error(acq_build(basis_eur = 300000, project = list(federal_state = NULL)),
                class = "vofi_error_contract")
   # project.federal_state als Default, ausdrücklicher Satz ohne Land zulässig
@@ -104,10 +104,20 @@ test_that("A6: federal_state fehlt bei Basis 300.000 (Befund und Abbruch)", {
   sc2 <- sc
   f3 <- wsei_findings("acquisition_cost", basis_eur = 300000, grest_rate = 0.05,
                       date = "2027-01-01", scenario = sc2)
-  expect_false("federal_state_missing" %in% names(f3))
+  expect_false("acquisition.federal_state_missing" %in% names(f3))
   # unter der Freigrenze kein Befund
   f4 <- wsei_findings("acquisition_cost", basis_eur = 2000, date = "2027-01-01", scenario = sc)
-  expect_false("federal_state_missing" %in% names(f4))
+  expect_false("acquisition.federal_state_missing" %in% names(f4))
+  # Bezug auf einen Domänenpfad: Basisfallwert entscheidet über die Fälligkeit
+  sc5 <- sc
+  sc5$measures <- list(m1 = list(purchase_price_eur = 2000))
+  f5 <- wsei_findings("acquisition_cost", basis_eur = list(ref = "measures.m1.purchase_price_eur"),
+                      date = "2027-01-01", scenario = sc5)
+  expect_false("acquisition.federal_state_missing" %in% names(f5))
+  sc5$measures$m1$purchase_price_eur <- 300000
+  f6 <- wsei_findings("acquisition_cost", basis_eur = list(ref = "measures.m1.purchase_price_eur"),
+                      date = "2027-01-01", scenario = sc5)
+  expect_identical(unname(f6["acquisition.federal_state_missing"]), "error")
 })
 
 test_that("Ausdrücklicher Satz gewinnt; Abweichung vom Landessatz ist eine Warnung", {
@@ -116,15 +126,19 @@ test_that("Ausdrücklicher Satz gewinnt; Abweichung vom Landessatz ist eine Warn
   sc <- wsei_with_grest(make_spec(make_grid()))
   w <- wsei_findings("acquisition_cost", basis_eur = 1000000, federal_state = "NW",
                      grest_rate = 0.05, date = "2027-01-01", scenario = sc)
-  expect_identical(unname(w["rate_deviates"]), "warning")
+  expect_identical(unname(w["acquisition.rate_deviates"]), "warning")
   ok <- wsei_findings("acquisition_cost", basis_eur = 1000000, federal_state = "NW",
                       grest_rate = 0.065, date = "2027-01-01", scenario = sc)
-  expect_false("rate_deviates" %in% names(ok))
+  expect_false("acquisition.rate_deviates" %in% names(ok))
 })
 
 test_that("Thema grunderwerbsteuer inaktiv: mit Satz Rückfall-Freigrenze, ohne Satz Fehler", {
   f <- acq_build(basis_eur = 1000000, grest_rate = 0.05, legal = FALSE)
   expect_equal(grest_of(f), -50000)
+  # Vermerk in meta$notes (Spec 00 4.10), kein Validierungsbefund
+  expect_length(f$meta$notes, 1L)
+  expect_match(f$meta$notes, "grunderwerbsteuer", fixed = TRUE)
+  expect_length(acq_build(basis_eur = 1000000, federal_state = "NW")$meta$notes, 0L)
   expect_equal(grest_of(acq_build(basis_eur = 2400, grest_rate = 0.05, legal = FALSE)), 0)
   expect_error(acq_build(basis_eur = 1000000, federal_state = "NW", legal = FALSE),
                class = "vofi_error_contract")
@@ -132,10 +146,19 @@ test_that("Thema grunderwerbsteuer inaktiv: mit Satz Rückfall-Freigrenze, ohne 
   sc$legal <- list(einkommensteuer = list(entry = "legal/x", values = list()))
   e <- wsei_findings("acquisition_cost", basis_eur = 1e6, federal_state = "NW",
                      date = "2027-01-01", scenario = sc)
-  expect_identical(unname(e["grest_inactive"]), "error")
+  expect_identical(unname(e["acquisition.grest_inactive"]), "error")
   i <- wsei_findings("acquisition_cost", basis_eur = 1e6, grest_rate = 0.05,
                      date = "2027-01-01", scenario = sc)
-  expect_identical(unname(i["grest_topic_inactive"]), "info")
+  expect_length(i, 0L)
+  # auch ohne andere Themen (leerer Rechtsstand) ist das Thema inaktiv: Befund statt Abbruch
+  sc0 <- make_spec(make_grid())
+  sc0$legal <- list()
+  e0 <- wsei_findings("acquisition_cost", basis_eur = 1e6, federal_state = "NW",
+                      date = "2027-01-01", scenario = sc0)
+  expect_identical(unname(e0["acquisition.grest_inactive"]), "error")
+  # unter der Freigrenze fällig ist nichts
+  expect_length(wsei_findings("acquisition_cost", basis_eur = 2000, federal_state = "NW",
+                              date = "2027-01-01", scenario = sc0), 0L)
 })
 
 test_that("Termin, Verschiebung, Aktivierung und weitere Befunde", {
@@ -153,9 +176,11 @@ test_that("Termin, Verschiebung, Aktivierung und weitere Befunde", {
   b <- wsei_findings("acquisition_cost", basis_eur = 1e5, federal_state = "BY",
                      uniform_contract = TRUE, date = "2026-01-01", delay_months = -2,
                      scenario = sc)
-  expect_identical(b[c("uniform_without_construction", "before_valuation", "shift_negative")],
-                   c(uniform_without_construction = "warning", before_valuation = "error",
-                     shift_negative = "error"))
+  expect_identical(b[c("acquisition.uniform_without_construction", "measures.before_valuation")],
+                   c(acquisition.uniform_without_construction = "warning",
+                     measures.before_valuation = "error"))
+  # negative Verschiebung prüft die Wertegrenze des Schemas (validation.range, WS-B)
+  expect_false(any(grepl("shift_negative", names(b))))
   expect_error(acq_build(basis_eur = NULL, federal_state = "BY"), class = "vofi_error_contract")
 })
 

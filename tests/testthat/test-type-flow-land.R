@@ -98,13 +98,34 @@ test_that("Fehlende Pflichtangaben sind Vertragsfehler", {
                class = "vofi_error_contract")
 })
 
-test_that("validate(): Stichtag, Verschiebung, Maßnahme", {
+test_that("validate(): Stichtag, Maßnahme, Kaufpreisaufteilung, Projektart (4.7)", {
   f <- wsei_findings("land", purchase_price_eur = 1, date = "2026-01-01", delay_months = -1)
-  expect_identical(f[c("before_valuation", "shift_negative", "measure_missing")],
-                   c(before_valuation = "error", shift_negative = "error",
-                     measure_missing = "error"))
+  expect_identical(f[c("measures.before_valuation", "measures.measure_missing")],
+                   c(measures.before_valuation = "error", measures.measure_missing = "error"))
+  # negative Verschiebung: Wertegrenze des Schemas (validation.range), kein eigener Befund
+  expect_false(any(grepl("shift_negative", names(f))))
   expect_length(wsei_findings("land", purchase_price_eur = 1, date = "2027-01-01",
                               measure_id = "m1"), 0L)
+  # erwerb_objekt mit land_share 0 oder 1 (Basisfallwert des Bezugs): Kaufpreisaufteilung prüfen
+  sc <- make_spec(make_grid())
+  sc$project$project_type <- "erwerb_sanierung"
+  sc$measures <- list(m1 = list(measure_type = "erwerb_objekt", land_share = node_const(1)))
+  w <- wsei_findings("land", purchase_price_eur = 1, date = "2027-01-01", measure_id = "m1",
+                     land_share = list(ref = "measures.m1.land_share"), scenario = sc)
+  expect_identical(w, c(measures.land_share_extreme = "warning"))
+  sc$measures$m1$land_share <- node_const(0.25)
+  expect_length(wsei_findings("land", purchase_price_eur = 1, date = "2027-01-01",
+                              measure_id = "m1", land_share = list(ref = "measures.m1.land_share"),
+                              scenario = sc), 0L)
+  # Grundstückskauf mit land_share 1 ist üblich (kein Befund)
+  sc$measures$m1 <- list(measure_type = "erwerb_grundstueck", land_share = node_const(1))
+  expect_length(wsei_findings("land", purchase_price_eur = 1, date = "2027-01-01",
+                              measure_id = "m1", land_share = 1, scenario = sc), 0L)
+  # Erwerb in einem Bestandsprojekt ohne Erwerb
+  sc$project$project_type <- "sanierung_eh"
+  m <- wsei_findings("land", purchase_price_eur = 1, date = "2027-01-01", measure_id = "m1",
+                     scenario = sc)
+  expect_identical(m, c(measures.type_project_mismatch = "warning"))
 })
 
 test_that("Batch-Invarianz", {

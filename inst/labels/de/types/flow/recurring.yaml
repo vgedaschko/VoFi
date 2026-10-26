@@ -31,15 +31,3 @@ rows:
 msg:
   direction_missing: "Komponente '{id}': die Kategorie '{category}' hat kein festes Vorzeichen; direction (inflow oder outflow) angeben."
   no_amount: "Komponente '{id}': der Jahresbetrag amount_eur fehlt."
-errors:
-  section_invalid: "Komponente '{id}': Abschnitt '{value}' ist nicht zulässig (zulässig: {allowed})."
-  category_invalid: "Komponente '{id}': Kategorie '{value}' gehört nicht zu den Abschnitten {section} oder ist der Engine vorbehalten.{suggestion}"
-  tax_category_invalid: "Komponente '{id}': Steuerkategorie '{value}' ist für die Kategorie '{category}' nicht zulässig (zulässig: {allowed})."
-  memo_cash: "Komponente '{id}': Merkzeilen sind nie zahlungswirksam."
-  sign: "Komponente '{id}': das Vorzeichen widerspricht der Kategorie '{category}'."
-  amount_form: "Komponente '{id}': amount_eur muss ein fester Jahresbetrag sein (Wertform '{form}'); Wachstum ausschließlich über growth angeben."
-  amount_negative: "Komponente '{id}': amount_eur muss >= 0 sein (das Vorzeichen folgt aus Kategorie bzw. direction)."
-  direction_missing: "Komponente '{id}': die Kategorie '{category}' hat kein festes Vorzeichen; direction (inflow oder outflow) angeben."
-  direction_conflict: "Komponente '{id}': direction '{direction}' widerspricht dem Vorzeichen der Kategorie '{category}'."
-  start_after_to: "Komponente '{id}': der Beginn liegt nicht vor dem Ende (start_event < to)."
-  category_assumed: "Komponente '{id}': keine Kategorie angegeben, other_cost angenommen (geht in den Reinertrag NOI ein)."

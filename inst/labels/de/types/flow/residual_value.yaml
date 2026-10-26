@@ -53,6 +53,9 @@ params:
   existing_value_eur:
     label: "Bestandswert"
     help: "Verkehrswert des Bestands zum Stichtag (Ausgangswert von market_growth, Bestand bei component und asset_value)."
+  completion_event:
+    label: "Fertigstellung des Neubaus"
+    help: "Termin für das Baujahr im Neubauprojekt, wenn keine Hauptmaßnahme die Fertigstellung liefert (Default completion mit Bauzeitverzug)."
 rows:
   value: "Restwert"
   sale_cost: "Verkaufskosten"
@@ -68,13 +71,3 @@ msg:
   no_useful_life: "Komponente '{id}': Maßnahmen ohne Nutzungsdauer gehen mit ihrem Herstellungswert ohne Abschreibung ein ({components})."
   negative_value: "Komponente '{id}': rechnerisch negativer Wert auf 0 begrenzt (Anteil der Läufe {share:pct})."
   method_unknown: "Komponente '{id}': unbekannte Restwertmethode '{method}'."
-errors:
-  rnd_manual_missing: "Komponente '{id}': remaining_life_method manual verlangt income_value.remaining_life_years."
-  construction_year_missing: "Komponente '{id}': für die Restnutzungsdauer (anlage2, linear) fehlt das Baujahr."
-  double_count: "Komponente '{id}': Ertragswert und Komponenten-Zeitwert zugleich (bog_component_residual) zählen die Maßnahmen doppelt."
-  fictitious_and_points: "Komponente '{id}': fiktives Baujahr und Modernisierungspunkte zugleich zählen die Modernisierung doppelt."
-  cap_rate_unusual: "Komponente '{id}': Liegenschaftszinssatz {value:pct} außerhalb von 1,5 % bis 6 %."
-  factor_unusual: "Komponente '{id}': Vervielfältiger {value} außerhalb von 10 bis 35."
-  existing_without_value: "Komponente '{id}': Sacheinlage ohne Gegenwert am Horizont (component.include_existing false bei gesetztem Bestandswert)."
-  points_capped: "Komponente '{id}': Modernisierungspunkte für '{element}' außerhalb der Höchstpunkte; sie werden begrenzt."
-  sale_cost_high: "Komponente '{id}': Verkaufskosten über 8 %."

@@ -59,7 +59,7 @@ recurring_build <- function(spec, ctx) {
 #' Prüfungen der Komponente recurring (Spec 00 7.12, Spec 01 Teil A 4.14)
 #' @noRd
 recurring_validate <- function(spec, scenario) {
-  v <- typ_validator(spec, scenario, "recurring")
+  v <- typ_validator(spec, scenario, "components")
   cat <- spec[["category"]] %||% "other_cost"
   sec <- if (!is.null(vocab_category("project", cat))) "project" else
     if (!is.null(vocab_category("grants", cat))) "grants" else NA_character_
@@ -78,8 +78,6 @@ recurring_validate <- function(spec, scenario) {
         amount[["kind"]] %in% c("growth", "series_t", "series_year", "points", "schedule")) {
     v$add("error", "amount_form", "amount_eur", form = amount[["kind"]])
   }
-  a <- typ_const(amount)
-  if (!is.null(a) && any(a < 0)) v$add("error", "amount_negative", "amount_eur")
   sign <- vocab_category(sec, cat)$sign
   dir <- spec[["direction"]]
   if (identical(sign, "any") && is.null(dir)) {

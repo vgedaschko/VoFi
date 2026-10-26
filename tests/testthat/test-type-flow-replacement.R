@@ -136,17 +136,48 @@ test_that("Fehlende Erstinvestition bzw. Kosten sind Vertragsfehler", {
 test_that("validate(): Befunde nach Spec 01 Teil A 4.10.2", {
   f <- wsei_findings("replacement", install_date = "2027-10-01", useful_life_years = 3,
                      first_date = "2027-01-01", asset_id = "b1", measure_id = "m1")
-  expect_true(all(c("life_short", "first_before_install", "no_capex") %in% names(f)))
+  expect_true(all(c("measures.life_short", "measures.first_before_install",
+                    "measures.no_capex") %in% names(f)))
   f <- wsei_findings("replacement", install_date = "2027-10-01", useful_life_years = 0,
                      include_initial = FALSE)
-  expect_true(all(c("life_nonpositive", "element_cost_missing") %in% names(f)))
+  expect_true(all(c("measures.life_nonpositive", "building.element_cost_missing") %in% names(f)))
   f <- wsei_findings("replacement", install_date = "2027-01-01", useful_life_years = 0.5,
                      cost_eur = 1, include_initial = FALSE,
                      scenario = make_spec(make_grid("annual", T = 30L)))
-  expect_identical(unname(f["many_events"]), "warning")
+  expect_identical(unname(f["measures.many_events"]), "warning")
+  # Nutzungsdauer als Bezug auf das Bauteil (Basisfallwert)
+  sc <- make_spec(make_grid("annual", T = 30L))
+  sc$building$elements <- list(k = list(useful_life_years = node_const(2)))
+  f <- wsei_findings("replacement", install_date = "2027-01-01", cost_eur = 1,
+                     useful_life_years = list(ref = "building.elements.k.useful_life_years"),
+                     include_initial = FALSE, scenario = sc)
+  expect_identical(unname(f[c("measures.life_short", "measures.many_events")]),
+                   c("warning", "warning"))
+  # negative Verschiebung: Wertegrenze des Schemas (validation.range), kein eigener Befund
   comp <- make_component("replacement", install_date = "2027-10-01", useful_life_years = 10,
                          capex_id = "cx")
   comp$first_shift_months <- node_const(-1)
   out <- replacement_validate(comp, make_spec())
-  expect_true(any(grepl("shift_negative", vapply(out, function(x) x$code, ""))))
+  expect_false(any(grepl("shift_negative", vapply(out, function(x) x$code, ""))))
+})
+
+test_that("Ersatztermine im Horizont (typ_repl_events): overdue, until, active, enabled", {
+  g <- make_grid("annual", T = 30L)
+  sc <- make_spec(g)
+  base <- typ_base_resolver(sc)
+  ev <- function(...) {
+    cmp <- make_component("replacement", include_initial = FALSE, install_date = "1998-01-01",
+                          useful_life_years = 18, cost_eur = 95000, id = "k", ...)
+    typ_repl_events(cmp, "k", typ_base_resolver(path_set(sc, "components.k", cmp)), g)
+  }
+  # R3: überfällig (2016) -> Ende Periode 1, dann 2046-01-01
+  expect_identical(ev()$dates, as.Date(c("2028-01-01", "2046-01-01")))
+  expect_equal(ev()$cost, 95000)
+  expect_identical(ev(overdue = "valuation")$dates, as.Date(c("2027-01-01", "2045-01-01")))
+  expect_identical(ev(overdue = "skip")$dates, as.Date(c("2034-01-01", "2052-01-01")))
+  # R4: ersetzt durch eine Maßnahme mit Fertigstellung 2027-10-01 -> kein Termin
+  expect_length(ev(until_date = "2027-10-01")$dates, 0L)
+  expect_length(ev(active = 0)$dates, 0L)
+  expect_null(ev(enabled = FALSE))
+  expect_null(typ_repl_events(list(enabled = TRUE), "k", base, g))
 })

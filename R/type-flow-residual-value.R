@@ -78,7 +78,7 @@ rv_params <- function() {
       forward_growth = p("value", default = ref("market.rent_growth")),
       cost_forward_growth = p("value", default = ref("market.inflation")),
       include_other_income = p("logical", default = FALSE),
-      land_value_eur = p("value", default = ref("building.land_value_eur")),
+      land_value_eur = p("value", default = ref("building.land_value_eur"), shapes = "scalar"),
       land_value_growth = p("value", default = ref("market.land_value_growth")),
       bwk = p("map", fields = list(
         admin_eur_unit_pa = p("value", default = 367, min = 0),
@@ -111,7 +111,7 @@ rv_params <- function() {
       cost_forward_growth = p("value", default = ref("market.inflation"))
     )),
     market_growth = p("map", fields = list(
-      base_value_eur = p("value", min = 0),
+      base_value_eur = p("value", min = 0, shapes = "scalar"),
       growth = p("value", default = ref("market.market_value_growth")),
       uplift_share = p("value", default = 0, min = 0)
     )),
@@ -123,7 +123,7 @@ rv_params <- function() {
       market_adjustment_factor = p("value", default = 1, min = 0),
       uplift_share = p("value", default = 0, min = 0),
       index = p("value", default = ref("market.construction_price_index")),
-      land_value_eur = p("value", default = ref("building.land_value_eur")),
+      land_value_eur = p("value", default = ref("building.land_value_eur"), shapes = "scalar"),
       land_value_growth = p("value", default = ref("market.land_value_growth"))
     )),
     component = p("map", fields = list(
@@ -139,8 +139,40 @@ rv_params <- function() {
     fictitious_construction_year = p("integer"),
     points_before = p("map", fields = pts_fields),
     points_measures = p("map", fields = list("*" = p("map", fields = pts_fields))),
-    existing_value_eur = p("amount", min = 0, unit = "EUR")
+    existing_value_eur = p("amount", min = 0, unit = "EUR"),
+    completion_event = p("timing", default = "completion")
   )
+}
+
+#' Normalisierter Default-Knoten eines (Unter-)Parameters von residual_value
+#' @param name Parametername bzw. Unterpfad einer Map (z. B. `"income_value.land_value_eur"`).
+#' @return Knoten oder `NULL`.
+#' @noRd
+rv_param_default <- function(name) {
+  pp <- list(fields = rv_params())
+  for (s in path_split(name)) {
+    pp <- pp$fields[[s]]
+    if (is.null(pp)) return(NULL)
+  }
+  if (is.null(pp$default)) NULL else node_normalize(pp$default, pp, name)
+}
+
+#' Parameter lesen; `NULL`, wenn der Knoten fehlt oder ein Bezugsziel nicht existiert
+#'
+#' Für optionale Domänenwerte wie `existing_value_eur = {ref: building.existing_value_eur}`
+#' (Spec 01 Teil A 6.2 Nr. 2) bzw. den Bodenwert: ein fehlender Bestandswert bedeutet „kein
+#' Bestand“ statt eines Abbruchs „Bezugsziel existiert nicht“. Fehlt der Knoten, gilt der Default
+#' des Parameterschemas (wie bei `ctx$param()`).
+#' @noRd
+rv_param_opt <- function(ctx, spec, name, shape = "scalar") {
+  node <- path_get(spec, name) %||% rv_param_default(name)
+  if (is.null(node)) return(NULL)
+  tg <- typ_ref_targets(node)
+  if (length(tg) > 0L && any(vapply(tg, function(p) is.null(path_get(ctx$spec, p)),
+                                    logical(1)))) {
+    return(NULL)
+  }
+  ctx$param(spec, name, shape)
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -218,7 +250,7 @@ rv_last <- function(ctx, spec, name) {
 #' Bodenwert BW_t = BW_0 · Bestandsindex ab Stichtag (Spec 01 Teil A 6.3.1)
 #' @noRd
 rv_land_value <- function(ctx, spec, map) {
-  bw0 <- ctx$param(spec, paste0(map, ".land_value_eur"))
+  bw0 <- rv_param_opt(ctx, spec, paste0(map, ".land_value_eur"))
   if (is.null(bw0)) {
     ctx$abort("types.flow.residual_value.msg.land_value_missing", id = spec[["id"]] %||% "?")
   }
@@ -226,17 +258,45 @@ rv_land_value <- function(ctx, spec, map) {
   ctx$by_sim(bw0) * ctx$index(g)
 }
 
+#' Verschobene Fertigstellung eines Neubaus je Lauf (Spec 01 Teil A 6.3.1)
+#'
+#' Maßgeblich ist die Hauptmaßnahme: capex-Abhängigkeiten mit Fertigstellung zum
+#' Projektfertigstellungstermin (`follows_construction`), verschoben um deren
+#' `aux$completion_shift` (Verzug der Maßnahme und Bauzeitverzug); bei mehreren die späteste.
+#' Ohne solche Abhängigkeit gilt der Termin `completion_event` über `ctx$timing()` (Token
+#' `completion` mit Bauzeitverzug).
+#' @return `Date` (Länge n).
+#' @noRd
+rv_shifted_completion <- function(ctx, spec, deps) {
+  n <- ctx$n
+  cd <- ctx$grid$completion_date
+  shift <- NULL
+  for (fl in deps$capex) {
+    fcd <- fl$meta$completion_date
+    if (!inherits(fcd, "Date") || !isTRUE(as.numeric(fcd) == as.numeric(cd)) ||
+          is.null(fl$aux$completion_shift)) {
+      next
+    }
+    s <- fl$aux$completion_shift[, 1L]
+    shift <- if (is.null(shift)) s else pmax(shift, s)
+  }
+  if (is.null(shift)) {
+    tm <- ctx$timing(spec, "completion_event") %||% list(date = cd, shift = rep(0, n))
+    cd <- tm$date
+    shift <- tm$shift
+  }
+  grid_add_months(rep(cd, n), typ_round_months(shift))
+}
+
 #' Baujahr* je Lauf (fiktives Baujahr bzw. Baujahr; Neubauprojekt: verschobene Fertigstellung)
 #' @noRd
-rv_build_year <- function(ctx, spec) {
+rv_build_year <- function(ctx, spec, deps = list(capex = list())) {
   n <- ctx$n
   fict <- ctx$setting(spec, "fictitious_construction_year")
   if (!is.null(fict)) return(rep(as.double(fict), n))
   pt <- ctx$project$project_type %||% ""
   if (pt %in% c("neubau", "erwerb_neubau")) {
-    shift <- ctx$value("project.construction_delay_months") %||% rep(0, n)
-    done <- grid_add_months(rep(ctx$grid$completion_date, n), typ_round_months(shift))
-    return(as.double(utl_year(done)))
+    return(as.double(utl_year(rv_shifted_completion(ctx, spec, deps))))
   }
   y <- ctx$setting(spec, "construction_year") %||%
     typ_const(ctx$building$construction_year) %||% ctx$building$construction_year
@@ -249,10 +309,10 @@ rv_build_year <- function(ctx, spec) {
 
 #' Alter a_t = Jahr(b_t) − Baujahr* (n x (T+1))
 #' @noRd
-rv_age <- function(ctx, spec) {
+rv_age <- function(ctx, spec, deps) {
   yb <- utl_year(ctx$grid$date_end)
   n_t <- ctx$T + 1L
-  matrix(yb, ctx$n, n_t, byrow = TRUE) - matrix(rv_build_year(ctx, spec), ctx$n, n_t)
+  matrix(yb, ctx$n, n_t, byrow = TRUE) - matrix(rv_build_year(ctx, spec, deps), ctx$n, n_t)
 }
 
 #' Restnutzungsdauer nach ImmoWertV 2021 Anlage 2 (vektorisiert)
@@ -300,7 +360,7 @@ rv_measure_effects <- function(ctx, deps) {
     fl <- deps$capex[[id]]
     m <- fl$meta$measure_id %||% id
     in_op <- fl$aux$in_operation
-    start <- typ_effect_start_pos(ctx, in_op)
+    start <- typ_effect_start_pos(ctx, in_op, fl$aux$active)
     start[is.na(start)] <- Inf
     out[[m]] <- list(active = typ_cumulative_active(ctx, in_op),
                      age_years = pmax(me - matrix(start, ctx$n, ctx$T + 1L), 0) / 12)
@@ -349,7 +409,7 @@ rv_rnd <- function(ctx, spec, deps) {
     tj <- g$tau[n_t]
     return(ctx$by_sim(rly) + ctx$by_period(tj - g$tau))
   }
-  age <- rv_age(ctx, spec)
+  age <- rv_age(ctx, spec, deps)
   if (identical(method, "linear")) return(pmax(gnd - pmin(pmax(age, 0), gnd), 0))
   rv_rnd_anlage2(age, rv_points(ctx, spec, deps), gnd, rv_table(ctx, spec))
 }
@@ -387,13 +447,14 @@ rv_income_value <- function(ctx, spec, deps, measures_value) {
     tax <- setdiff(vocab_tax_allowed("project", "operating_cost"), "passthrough")
     -win("operating_cost", cg, tax)
   } else {
-    ctx$by_sim(ctx$param(spec, m("bwk.admin_eur_unit_pa")) * ctx$param(spec, "n_units")) * i_bwk
+    ctx$param(spec, m("bwk.admin_eur_unit_pa"), "path") * ctx$by_sim(ctx$param(spec, "n_units")) *
+      i_bwk
   }
   maint <- if (identical(ctx$setting(spec, m("bwk.maintenance_source")), "ledger")) {
     -win("maintenance", cg)
   } else {
-    ctx$by_sim(ctx$param(spec, m("bwk.maintenance_eur_m2_pa")) *
-                 ctx$param(spec, "living_area_m2")) * i_bwk
+    ctx$param(spec, m("bwk.maintenance_eur_m2_pa"), "path") *
+      ctx$by_sim(ctx$param(spec, "living_area_m2")) * i_bwk
   }
   rls <- ctx$by_sim(ctx$param(spec, m("bwk.rent_loss_share")) %||% rep(0, ctx$n))
   maw <- rls * roe
@@ -476,18 +537,34 @@ rv_invest_base <- function(ctx, deps) {
   total
 }
 
+#' Anteil „alle Maßnahmen fertig“ ω_t (Spec 01 Teil A 6.3.4, Spec 00 4.12 Nr. 7, R-71)
+#'
+#' ω_t = min über die aktiven Maßnahmen von `aux$in_operation`; eine Maßnahme mit a_m = 0 zählt
+#' wie eine fehlende (Term `in_operation + 1 − a_m`), ohne aktive Maßnahme ist ω_t = 0.
+#' @noRd
+rv_all_in_operation <- function(ctx, deps) {
+  if (length(deps$capex) == 0L) return(ctx$zeros())
+  terms <- lapply(deps$capex, function(fl) {
+    a <- fl$aux$active %||% (ctx$zeros() + 1)
+    fl$aux$in_operation + (1 - a)
+  })
+  any_active <- Reduce(pmax, lapply(deps$capex, function(fl) {
+    fl$aux$active %||% (ctx$zeros() + 1)
+  }))
+  Reduce(pmin, terms) * any_active
+}
+
 #' Marktwertfortschreibung (Spec 01 Teil A 6.3.4)
 #' @noRd
 rv_market_growth <- function(ctx, spec, deps) {
   v0 <- ctx$param(spec, "market_growth.base_value_eur") %||%
-    ctx$param(spec, "existing_value_eur")
+    rv_param_opt(ctx, spec, "existing_value_eur")
   if (is.null(v0) && !is.null(path_get(ctx$spec, "building.market_value_eur"))) {
     v0 <- ctx$value("building.market_value_eur")
   }
   if (is.null(v0)) v0 <- rv_invest_base(ctx, deps)
   g <- ctx$param(spec, "market_growth.growth", "path") %||% ctx$zeros()
-  omega <- if (length(deps$capex) == 0L) ctx$zeros() else
-    Reduce(pmin, lapply(deps$capex, function(fl) fl$aux$in_operation))
+  omega <- rv_all_in_operation(ctx, deps)
   up <- ctx$param(spec, "market_growth.uplift_share", "path") %||% ctx$zeros()
   ctx$by_sim(v0) * ctx$index(g) * (1 + up * omega)
 }
@@ -499,7 +576,7 @@ rv_completion_pos <- function(ctx, fl) {
   if (inherits(cd, "Date") && !is.null(fl$aux$completion_shift)) {
     return(grid_month_pos(ctx$grid, cd) + fl$aux$completion_shift[, 1L])
   }
-  start <- typ_effect_start_pos(ctx, fl$aux$in_operation)
+  start <- typ_effect_start_pos(ctx, fl$aux$in_operation, fl$aux$active)
   start[is.na(start)] <- Inf
   start
 }
@@ -583,10 +660,10 @@ rv_asset_value <- function(ctx, spec, deps) {
   bw <- rv_land_value(ctx, spec, "asset_value")
   ex <- ctx$zeros()
   if (!isFALSE(ctx$setting(spec, "asset_value.include_existing"))) {
-    w0 <- ctx$param(spec, "existing_value_eur")
+    w0 <- rv_param_opt(ctx, spec, "existing_value_eur")
     pur <- rv_purchase(ctx, deps)
     if (!is.null(w0) || !is.null(pur)) {
-      a0 <- utl_year(g$valuation_date) - rv_build_year(ctx, spec)
+      a0 <- utl_year(g$valuation_date) - rv_build_year(ctx, spec, deps)
       rest <- pmax(gnd - a0, 1)
       wear <- pmax(0, 1 - ctx$by_period(g$tau) / matrix(rest, n, n_t))
       if (!is.null(w0)) ex <- ex + ctx$by_sim(pmax(w0 - bw[, 1L], 0)) * iav * wear
@@ -600,9 +677,12 @@ rv_asset_value <- function(ctx, spec, deps) {
 
 #' Zeitwerte der Maßnahmen (Spec 01 Teil A 6.3.7): Ersatzkomponenten und Maßnahmen ohne
 #' Nutzungsdauer (Herstellungswert ohne Abschreibung)
-#' @param elements Bestandsbauteile (`include_initial = FALSE`) einbeziehen.
-#' @param inform Hinweis auf Maßnahmen ohne Nutzungsdauer ausgeben (nur, wo der Wert davon
-#'   abhängt).
+#'
+#' Bestandsbauteile (`include_initial = FALSE`) zählen nur mit `elements` und nur mit dem
+#' Zeitwert ihrer Ersatzinvestitionen im Horizont (`aux$replaced`): die Erstinvestition ist Teil
+#' des Bestandswerts (3.2), sonst zählte sie neben W_0 doppelt.
+#' @param elements Bestandsbauteile einbeziehen.
+#' @param inform Hinweis auf Maßnahmen ohne Nutzungsdauer ausgeben.
 #' @noRd
 rv_component_paths <- function(ctx, spec, deps, indexed, elements = FALSE, inform = TRUE) {
   total <- ctx$zeros()
@@ -613,7 +693,9 @@ rv_component_paths <- function(ctx, spec, deps, indexed, elements = FALSE, infor
       if (!(is_element && elements)) next
     }
     covered <- c(covered, fl$meta$capex_id %||% character(0))
-    total <- total + (if (indexed) fl$aux$value else fl$aux$value_nominal)
+    val <- if (indexed) fl$aux$value else fl$aux$value_nominal
+    if (is_element) val <- val * (fl$aux$replaced %||% ctx$zeros())
+    total <- total + val
   }
   no_life <- setdiff(names(deps$capex), covered)
   if (length(no_life) > 0L) {
@@ -638,11 +720,11 @@ rv_component_paths <- function(ctx, spec, deps, indexed, elements = FALSE, infor
 rv_component <- function(ctx, spec, deps) {
   indexed <- !isFALSE(ctx$setting(spec, "component.indexed"))
   inc <- ctx$setting(spec, "component.include_existing") %||% "auto"
-  w0 <- ctx$param(spec, "existing_value_eur")
+  w0 <- rv_param_opt(ctx, spec, "existing_value_eur")
   pur <- rv_purchase(ctx, deps)
   include_ex <- if (identical(inc, "auto")) !is.null(w0) || !is.null(pur) else
     identical(inc, "true")
-  v <- rv_component_paths(ctx, spec, deps, indexed, elements = include_ex)
+  v <- rv_component_paths(ctx, spec, deps, indexed, elements = include_ex, inform = FALSE)
   if (isTRUE(ctx$setting(spec, "component.include_land"))) {
     v <- v + rv_land_value(ctx, spec, "income_value")
   }
@@ -695,7 +777,7 @@ rv_pre_operation <- function(ctx, spec, deps, v) {
     acc <- acc + inv[, j]
     cum[, j] <- acc
   }
-  w0 <- ctx$param(spec, "existing_value_eur")
+  w0 <- rv_param_opt(ctx, spec, "existing_value_eur")
   if (!is.null(w0)) cum <- cum + ctx$by_sim(w0)
   v[, pre] <- cum[, pre, drop = FALSE]
   v
@@ -709,9 +791,7 @@ residual_value_build <- function(spec, ctx) {
   method <- ctx$setting(spec, "method") %||% "zero"
   deps <- rv_deps(ctx, spec)
   indexed <- !isFALSE(ctx$setting(spec, "component.indexed"))
-  bog <- identical(method, "income_value") &&
-    isTRUE(ctx$setting(spec, "income_value.bog_component_residual"))
-  pm <- rv_component_paths(ctx, spec, deps, indexed, elements = FALSE, inform = bog)
+  pm <- rv_component_paths(ctx, spec, deps, indexed, elements = FALSE, inform = TRUE)
   v <- rv_method_value(ctx, spec, deps, method, pm)
   if (!identical(method, "zero")) v <- rv_pre_operation(ctx, spec, deps, v)
   neg <- v < -vofi_tol$zero_abs
@@ -740,12 +820,63 @@ residual_value_build <- function(spec, ctx) {
   )
 }
 
+#' Gibt es im Szenario eine Mietkomponente (Zeilen der Kategorie rent)?
+#'
+#' Statische Prüfung für validate(): Wohnungsgruppen (Expander `unit_groups`, Teil B),
+#' Komponenten des Typs `rent_path` bzw. Komponenten mit `category: rent`.
+#' @noRd
+rv_has_rent_source <- function(scenario) {
+  if (length(scenario[["unit_groups"]] %||% list()) > 0L) return(TRUE)
+  for (cmp in scenario[["components"]] %||% list()) {
+    if (identical(cmp[["type"]], "rent_path") || identical(cmp[["category"]], "rent")) {
+      return(TRUE)
+    }
+  }
+  FALSE
+}
+
+#' capex-Abhängigkeiten ohne Wertpfad einer Ersatzkomponente (Maßnahmen ohne Nutzungsdauer)
+#' @noRd
+rv_capex_without_life <- function(spec, scenario) {
+  comps <- scenario[["components"]] %||% list()
+  ids <- intersect(setdiff(as.character(unlist(spec[["after"]])), spec[["id"]]), names(comps))
+  type <- vapply(ids, function(i) comps[[i]][["type"]] %||% "", character(1))
+  capex <- ids[type == "capex"]
+  covered <- unlist(lapply(ids[type == "replacement"], function(i) {
+    cmp <- comps[[i]]
+    if (identical(cmp[["include_initial"]], FALSE)) NULL else cmp[["capex_id"]]
+  }))
+  setdiff(capex, covered)
+}
+
+#' Fehlt ein Wert bzw. das Ziel seines Bezugs im Szenario?
+#' @noRd
+rv_node_missing <- function(node, scenario) {
+  if (is.null(node)) return(TRUE)
+  tg <- typ_ref_targets(node)
+  length(tg) > 0L && any(vapply(tg, function(p) is.null(path_get(scenario, p)), logical(1)))
+}
+
 #' Prüfungen der Komponente residual_value (Spec 01 Teil A 6.6, 6.4)
+#'
+#' Meldungen im Sondernamensraum `validation.residual.*` (Spec 00 2.10, R-117).
 #' @noRd
 residual_value_validate <- function(spec, scenario) {
-  v <- typ_validator(spec, scenario, "residual_value")
+  v <- typ_validator(spec, scenario, "residual")
   method <- spec[["method"]] %||% "zero"
   iv <- spec[["income_value"]] %||% list()
+  land <- if (method %in% c("income_value", "asset_value")) {
+    lv <- paste0(method, ".land_value_eur")
+    path_get(spec, lv) %||% rv_param_default(lv)
+  }
+  if (method %in% c("income_value", "asset_value") && rv_node_missing(land, scenario)) {
+    v$add("error", "land_value_missing", paste0(method, ".land_value_eur"))
+  }
+  if (method %in% c("income_value", "multiplier", "exit_yield") &&
+        (identical(scenario[["project"]][["perspective"]], "selbstnutzer") ||
+           !rv_has_rent_source(scenario))) {
+    v$add("warning", "no_rent", "method", method = method)
+  }
   if (identical(method, "income_value")) {
     rlm <- iv[["remaining_life_method"]] %||% "anlage2"
     if (identical(rlm, "manual") && is.null(iv[["remaining_life_years"]])) {
@@ -779,6 +910,10 @@ residual_value_validate <- function(spec, scenario) {
                                                   "false") &&
         !is.null(scenario[["building"]][["existing_value_eur"]])) {
     v$add("warning", "existing_without_value", "component.include_existing")
+  }
+  no_life <- rv_capex_without_life(spec, scenario)
+  if (length(no_life) > 0L) {
+    v$add("info", "no_useful_life", "after", components = utl_collapse(no_life))
   }
   pb <- spec[["points_before"]] %||% list()
   for (el in intersect(names(pb), names(rv_points_max_default()))) {
