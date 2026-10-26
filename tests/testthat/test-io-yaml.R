@@ -57,6 +57,35 @@ test_that("Zeichenketten: Prozent, Tausendertrennung, Exponent", {
   expect_false(io_path_is_eur("components.x.rate_pa"))
 })
 
+test_that("A-08: EUR-Beträge erkennt jedes Schlüsselsegment eur (4.6)", {
+  expect_true(io_path_is_eur("unit_groups.a.operating.admin_per_unit_eur_pa"))
+  expect_true(io_path_is_eur("energy.carriers.gas.base_fee_eur_pa"))
+  expect_true(io_path_is_eur("building.maintenance.rate_eur_m2_pa"))
+  expect_true(io_path_is_eur("energy.carriers.gas.network_fee_eur_kwh"))
+  expect_true(io_path_is_eur("measures.m.cost_kg.eur"))
+  expect_true(io_path_is_eur("x.amounts_eur.2"))
+  expect_false(io_path_is_eur("x.europe_share"))
+  expect_false(io_path_is_eur("x.neuro_pa"))
+  expect_false(io_path_is_eur(""))
+  base <- c("schema_version: 1", "meta: {scenario_id: t, title: T}",
+            paste("project: {perspective: wu_privat, project_type: sanierung_eh,",
+                  "valuation_date: 2027-01-01}"))
+  e <- expect_error(vofi_read_scenario(write_yaml_lines(c(base, "unit_groups:", "  a:",
+                                                          "    operating:",
+                                                          "      admin_per_unit_eur_pa: 1.200"))),
+                    class = "vofi_error_input")
+  expect_identical(e$key, "io.thousands_eur")
+  expect_error(vofi_read_scenario(write_yaml_lines(c(base, "energy:", "  carriers:", "    gas:",
+                                                     "      base_fee_eur_pa: 1.500"))),
+               class = "vofi_error_input")
+  expect_error(vofi_read_scenario(write_yaml_lines(c(base, "measures:", "  m1:",
+                                                     "    cost_eur: 150.000"))),
+               class = "vofi_error_input")
+  sc <- vofi_read_scenario(write_yaml_lines(c(base, "energy:", "  carriers:", "    gas:",
+                                              "      base_fee_eur_pa: 1500")))
+  expect_identical(sc$energy$carriers$gas$base_fee_eur_pa, node_const(1500))
+})
+
 test_that("Führende Null: Dezimalkomma 0,02 / -0,5 und 010 nie oktal (4.6)", {
   y <- io_read_yaml_utf8(write_yaml_lines(c("a: 0,02", "b: -0,5", "c: 010", "d: 0x10",
                                             "e: 1:30", "f: 00", "g: 0,08")))

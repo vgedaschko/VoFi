@@ -56,7 +56,7 @@ test_that("Listenform in der Paketbibliothek ist ein Befund (R-13)", {
   expect_true(nzchar(lib$problems[lib$entry == "costs/kaputt"]))
   idx <- lib_index(root)
   e <- expect_error(lib_payload(idx, "costs/liste", "x"), class = "vofi_error_validation")
-  expect_identical(e$key, "io.library.entry_invalid")
+  ws_a_expect_key(e, "validation.library.entry_invalid", "io.library.entry_invalid")
 })
 
 test_that("Nutzlast mit Kette (entry$from), Unterpfad und Zyklus (4.9)", {
@@ -73,7 +73,7 @@ test_that("Nutzlast mit Kette (entry$from), Unterpfad und Zyklus (4.9)", {
   expect_identical(ub$values$nested, list(x = 1, y = 3))
   expect_null(lib_payload(idx, "costs/gibtsnicht"))
   e <- expect_error(lib_payload(idx, "costs/cycle_a", "x"), class = "vofi_error_validation")
-  expect_identical(e$key, "io.library.cycle")
+  ws_a_expect_key(e, "validation.library.cycle", "io.library.cycle")
   expect_match(conditionMessage(e), "costs/cycle_a -> costs/cycle_b -> costs/cycle_a",
                fixed = TRUE)
   rec <- lib_get(idx, "funding/kfw_261_wg_kredit_2026")
@@ -96,17 +96,18 @@ test_that("Fundstelle from/use: Nutzlast unter lokal, Ersetzung bei Skalar/Wertf
   expect_identical(prv_lookup(prv, "market.mortgage_rate")$quality, "A")
   expect_identical(prv_lookup(prv, "market.rent_growth")$layer, 3L)
   # Skalar bzw. Wertform mit weiteren lokalen Schlüsseln: Fehler
-  e <- expect_error(lib_resolve(list(market = list(mortgage_rate = list(
-    from = "prices/interest_rates_2026_10", use = "market.mortgage_rate", scale = 2))), "", lc),
-    class = "vofi_error_validation")
-  expect_identical(e$key, "io.library.local_keys")
+  bad_ref <- list(from = "prices/interest_rates_2026_10", use = "market.mortgage_rate",
+                  scale = 2)
+  e <- expect_error(lib_resolve(list(market = list(mortgage_rate = bad_ref)), "", lc),
+                    class = "vofi_error_validation")
+  ws_a_expect_key(e, "validation.library.local_keys", "io.library.local_keys")
   e <- expect_error(lib_resolve(list(market = list(x = list(from = "prices/macro_paths_2026",
                                                             use = "gibtsnicht"))), "", lc),
                     class = "vofi_error_validation")
-  expect_identical(e$key, "io.library.use_missing")
+  ws_a_expect_key(e, "validation.library.use_missing", "io.library.use_missing")
   e <- expect_error(lib_resolve(list(funding = list(k = list(from = "funding/gibtsnicht"))), "",
                                 lc), class = "vofi_error_validation")
-  expect_identical(e$key, "io.library.entry_unknown")
+  ws_a_expect_key(e, "validation.library.entry_unknown", "io.library.entry_unknown")
   e <- expect_error(lib_resolve(list(c = list(r = list(type = "recurring", from = "completion"))),
                                 "", lc), class = "vofi_error_validation")
   expect_identical(e$key, "validation.library.ref_not_id")
@@ -138,10 +139,10 @@ test_that("Overlay-Einträge: Vorlage unter lokal, use Pflicht bei Vorlagen-Map 
   expect_identical(k$target, "project.construction_cost_factor")
   expect_identical(k$apply, "multiply")
   expect_length(out$stochastic$correlations$shocks, 3L)
-  e <- expect_error(lib_resolve(list(stochastic = list(parameters = list(
-    kost = list(target = "x.y", from = "processes/cost_risks_2026")))), "", lc),
-    class = "vofi_error_validation")
-  expect_identical(e$key, "io.library.use_missing")
+  kost <- list(target = "x.y", from = "processes/cost_risks_2026")
+  e <- expect_error(lib_resolve(list(stochastic = list(parameters = list(kost = kost))), "", lc),
+                    class = "vofi_error_validation")
+  ws_a_expect_key(e, "validation.stochastic.template_use_missing", "io.library.use_missing")
 })
 
 test_that("Überschattung durch eine Nutzerbibliothek: eine Warnung je Auflösung (4.7)", {

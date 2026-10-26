@@ -309,23 +309,37 @@ lib_get <- function(index, id) {
 #' @param id Bibliotheks-id.
 #' @param path Fundstelle (für Meldungen).
 #' @param stack bisherige Kette (Zyklusschutz).
+#' @param cache optional: Umgebung als Zwischenspeicher je Auflösung (`ctx$lc$cache`); die
+#'   Nutzlast hängt nur vom Index ab, nicht von der Fundstelle.
 #' @return Liste `values`, `origin` (benannter Vektor Unterpfad -> id), `chain` (ids), `record`;
 #'   `NULL`, wenn der Eintrag fehlt.
 #' @noRd
-lib_payload <- function(index, id, path = "", stack = character(0)) {
+lib_payload <- function(index, id, path = "", stack = character(0), cache = NULL) {
+  use_cache <- is.environment(cache) && length(stack) == 0L && utl_is_string(id)
+  if (use_cache) {
+    hit <- get0(id, envir = cache, inherits = FALSE)
+    if (!is.null(hit)) return(hit)
+  }
+  out <- lib_payload_build(index, id, path, stack)
+  if (use_cache && !is.null(out)) assign(id, out, envir = cache)
+  out
+}
+
+#' Nutzlast eines Eintrags bilden (Arbeitsfunktion von `lib_payload()`)
+#' @noRd
+lib_payload_build <- function(index, id, path, stack) {
   if (id %in% stack) {
     chain <- utl_collapse(c(stack, id), " -> ")
-    vofi_abort(scn_key("validation.library.cycle", "io.library.cycle", path = path,
-                       chain = chain),
-               path = path, chain = chain, .class = "vofi_error_validation")
+    scn_signal("abort", "validation.library.cycle", "io.library.cycle", path = path,
+               chain = chain, value = id, .class = "vofi_error_validation")
   }
   rec <- lib_get(index, id)
   if (is.null(rec)) return(NULL)
   if (length(rec$problems) > 0L) {
     detail <- utl_collapse(rec$problems, "; ")
-    vofi_abort(scn_key("validation.library.entry_invalid", "io.library.entry_invalid",
-                       path = path, id = id, detail = detail),
-               path = path, id = id, detail = detail, .class = "vofi_error_validation")
+    scn_signal("abort", "validation.library.entry_invalid", "io.library.entry_invalid",
+               path = path, id = id, value = id, detail = detail,
+               .class = "vofi_error_validation")
   }
   own <- rec$values
   own_leaves <- scn_leaves(own)
@@ -336,9 +350,9 @@ lib_payload <- function(index, id, path = "", stack = character(0)) {
   par <- lib_payload(index, rec$from, path, c(stack, id))
   if (is.null(par)) {
     sug <- utl_suggest_text(rec$from, names(index$entries))
-    vofi_abort(scn_key("validation.library.unknown_entry", "io.library.entry_unknown",
-                       path = path, id = rec$from, suggestion = sug),
-               path = path, id = rec$from, suggestion = sug, .class = "vofi_error_validation")
+    scn_signal("abort", "validation.library.entry_unknown", "io.library.entry_unknown",
+               path = path, id = rec$from, value = rec$from, suggestion = sug,
+               .class = "vofi_error_validation")
   }
   vals <- if (is_map(par$values) && is_map(own)) scn_merge(par$values, own) else own %||%
     par$values
@@ -434,21 +448,21 @@ lib_resolve_site <- function(x, path, lc, overlay_entry = NULL) {
   use <- x[["use"]]
   if (!is.null(use) && !utl_is_string(use)) {
     use_txt <- utl_collapse(format(use))
-    vofi_abort(scn_key("validation.library.use_missing", "io.library.use_missing",
-                       path = path, id = from, use = use_txt),
-               path = path, id = from, use = use_txt, .class = "vofi_error_validation")
+    scn_signal("abort", "validation.library.use_missing", "io.library.use_missing",
+               path = path, id = from, entry = from, use = use_txt, value = use_txt,
+               .class = "vofi_error_validation")
   }
   local <- x[setdiff(names(x), c("from", "use"))]
-  res <- lib_payload(lc$index, from, path)
+  res <- lib_payload(lc$index, from, path, cache = lc$cache)
   if (is.null(res)) {
     if (identical(lc$mode, "drop")) {
       lc$missing <- unique(c(lc$missing, from))
       return(NULL)
     }
     sug <- utl_suggest_text(from, names(lc$index$entries))
-    vofi_abort(scn_key("validation.library.unknown_entry", "io.library.entry_unknown",
-                       path = path, id = from, suggestion = sug),
-               path = path, id = from, suggestion = sug, .class = "vofi_error_validation")
+    scn_signal("abort", "validation.library.entry_unknown", "io.library.entry_unknown",
+               path = path, id = from, value = from, suggestion = sug,
+               .class = "vofi_error_validation")
   }
   lib_warn_shadowed(lc, res$chain)
   payload <- res$values
@@ -459,14 +473,13 @@ lib_resolve_site <- function(x, path, lc, overlay_entry = NULL) {
         lc$missing <- unique(c(lc$missing, paste0(from, "#", use)))
         return(NULL)
       }
-      key <- if (overlay_entry) {
-        scn_key("validation.stochastic.template_use_missing", "io.library.use_missing",
-                path = path, id = from, use = use)
+      primary <- if (overlay_entry) {
+        "validation.stochastic.template_use_missing"
       } else {
-        scn_key("validation.library.use_missing", "io.library.use_missing",
-                path = path, id = from, use = use)
+        "validation.library.use_missing"
       }
-      vofi_abort(key, path = path, id = from, use = use, .class = "vofi_error_validation")
+      scn_signal("abort", primary, "io.library.use_missing", path = path, id = from,
+                 entry = from, use = use, value = use, .class = "vofi_error_validation")
     }
     payload <- path_get(payload, use)
     keep <- names(origin) == use | startsWith(names(origin), paste0(use, "."))
@@ -474,9 +487,9 @@ lib_resolve_site <- function(x, path, lc, overlay_entry = NULL) {
     names(origin) <- sub(paste0("^", gsub(".", "[.]", use, fixed = TRUE), "[.]?"), "",
                          names(origin))
   } else if (overlay_entry && lib_is_template_map(payload)) {
-    vofi_abort(scn_key("validation.stochastic.template_use_missing", "io.library.use_missing",
-                       path = path, id = from, use = ""),
-               path = path, id = from, use = "", .class = "vofi_error_validation")
+    scn_signal("abort", "validation.stochastic.template_use_missing", "io.library.use_missing",
+               path = path, id = from, entry = from, use = "", value = "",
+               .class = "vofi_error_validation")
   }
   lib_record_payload(lc, payload, path, res, origin, use)
   lc$used[[length(lc$used) + 1L]] <- list(id = from, chain = res$chain, path = path)
@@ -487,9 +500,9 @@ lib_resolve_site <- function(x, path, lc, overlay_entry = NULL) {
   if (replace) {
     if (length(local) > 0L) {
       keys <- utl_collapse(names(local))
-      vofi_abort(scn_key("validation.library.local_keys", "io.library.local_keys",
-                         path = path, id = from, keys = keys),
-                 path = path, id = from, keys = keys, .class = "vofi_error_validation")
+      scn_signal("abort", "validation.library.local_keys", "io.library.local_keys",
+                 path = path, id = from, entry = from, keys = keys, value = keys,
+                 .class = "vofi_error_validation")
     }
     return(payload)
   }
@@ -557,8 +570,10 @@ lib_warn_shadowed <- function(lc, ids) {
 #' @return benannte Liste `<topic> = list(entry, values, quality, unreleased, chain)`.
 #' @noRd
 lib_select_legal <- function(index, legal_state, pending = character(0)) {
-  recs <- Filter(function(r) identical(r$block, "legal") && utl_is_string(r$topic) &&
-                   !is.na(r$topic) && length(r$problems) == 0L, index$entries)
+  recs <- Filter(function(r) {
+    identical(r$block, "legal") && utl_is_string(r$topic) && !is.na(r$topic) &&
+      length(r$problems) == 0L
+  }, index$entries)
   if (length(recs) == 0L || is.null(legal_state) || is.na(legal_state)) return(list())
   pending <- as.character(pending %||% character(0))
   ok <- vapply(recs, function(r) lib_legal_selectable(r, legal_state, pending), logical(1))

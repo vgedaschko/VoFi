@@ -68,7 +68,7 @@ test_that("Operationen set, add, overrides (extends-Kette), remove, replace (4.1
   e <- expect_error(quiet_resolve(sc, "kreis_a"), class = "vofi_error_validation")
   expect_identical(e$key, "io.variant_cycle")
   e <- expect_error(quiet_resolve(sc, "falsch"), class = "vofi_error_validation")
-  expect_identical(e$key, "io.variant_path_missing")
+  ws_a_expect_key(e, "validation.variants.path_missing", "io.variant_path_missing")
   e <- expect_error(quiet_resolve(sc, "unbekannt"), class = "vofi_error_validation")
   expect_match(conditionMessage(e), "unbekannt", fixed = TRUE)
   e <- expect_error(quiet_resolve(sc, "tippfehler"), class = "vofi_error_validation")
@@ -90,7 +90,7 @@ test_that("Szenario-Sets: Pfadbeschränkung, Overrides (Schicht 8), Build auf Sp
   expect_identical(pz$variant[pz$path == "accounts.deposit_rate_pa"], "zins")
   expect_identical(pz$variant[pz$path == "components.z.values"], "base+zins")
   e <- expect_error(quiet_resolve(sc, scenario_set = "verboten"), class = "vofi_error_validation")
-  expect_identical(e$key, "io.scenario_set_path")
+  ws_a_expect_key(e, "validation.scenario_set.path_not_allowed", "io.scenario_set_path")
   expect_error(quiet_resolve(sc, scenario_set = "fehlt"), class = "vofi_error_validation")
   expect_error(quiet_resolve(sc, scenario_set = 1), class = "vofi_error_input")
   ov <- quiet_resolve(sc, overrides = list(financing = list(bank = list(rate_pa = 0.06))))
@@ -122,9 +122,9 @@ test_that("Standard-Sets aus global.yaml (Teil C 4.2): Platzhalter, Wachstumsfor
   expect_identical(ws_a_prov(fs, "funding.f1.approved")$source_type, "scenario_set")
   # z2: kein Treffer -> Hinweis, Ergebnis wie Basis
   nofund <- ws_a_scenario(horizon_years = 5L)
-  m <- testthat::capture_messages(withCallingHandlers(
-    z2 <- vofi_resolve(vofi_scenario(nofund), scenario_set = "foerderstopp"),
-    vofi_warning_library_outdated = function(w) invokeRestart("muffleWarning")))
+  m <- testthat::capture_messages(ws_a_no_outdated(
+    z2 <- vofi_resolve(vofi_scenario(nofund), scenario_set = "foerderstopp")
+  ))
   expect_true(any(grepl("keinen Treffer", m, fixed = TRUE)))
   b0 <- ws_a_resolve(nofund)
   expect_identical(z2$funding, b0$funding)
@@ -148,7 +148,7 @@ test_that("Standard-Sets aus global.yaml (Teil C 4.2): Platzhalter, Wachstumsfor
   const <- ws_a_scenario(horizon_years = 5L, market = list(energy_price = list(gas = 0.06335)))
   e <- expect_error(ws_a_resolve(const, scenario_set = "stress_2022"),
                     class = "vofi_error_validation")
-  expect_identical(e$key, "io.scenario_set_growth_form")
+  ws_a_expect_key(e, "validation.scenario_set.growth_form_required", "io.scenario_set_growth_form")
   # gasnetz_rueckbau: Netzentgelte +8 % p. a. (nur growth gemischt)
   gn <- ws_a_resolve(base, scenario_set = "gasnetz_rueckbau")
   expect_identical(gn$market$energy_network_fee$gas$growth, node_const(0.08))
@@ -179,9 +179,9 @@ test_that("Set-Pfade: z6 außerhalb der Blöcke, z7 shared, Platzhalter höchste
                       ),
                       market = list(pv_price = 0.1))
   e6 <- expect_error(ws_a_resolve(sc, scenario_set = "z6"), class = "vofi_error_validation")
-  expect_identical(e6$key, "io.scenario_set_path")
+  ws_a_expect_key(e6, "validation.scenario_set.path_not_allowed", "io.scenario_set_path")
   e7 <- expect_error(ws_a_resolve(sc, scenario_set = "z7"), class = "vofi_error_validation")
-  expect_identical(e7$key, "io.scenario_set_shared")
+  ws_a_expect_key(e7, "validation.scenario_set.path_forbidden", "io.scenario_set_shared")
   expect_match(conditionMessage(e7), "market-Pfad", fixed = TRUE)
   ew <- expect_error(ws_a_resolve(sc, scenario_set = "zwei"), class = "vofi_error_validation")
   expect_identical(ew$key, "io.scenario_set_wildcard")
@@ -210,27 +210,25 @@ test_that("Sets aus Profil und Szenario werden über global.yaml gemischt", {
 
 test_that("Overlay in Varianten (R-96) und Overlay-Bindung bei set/replace (4.7)", {
   local_ws_a_library()
+  kx_neu <- list(target = "market.x", dist = "normal", mean = 0.025, sd = 0.02)
+  kz <- list(target = "market.y", from = "processes/cost_risks_2026", use = "overrun_component")
+  kurz <- list(dist = "pert", min = 0.01, base = 0.02, mode = 0.02, max = 0.04)
   sc <- vofi_scenario(ws_a_scenario(
     market = list(x = 0.02, y = 0.03),
     stochastic = list(parameters = list(
       kx = list(target = "market.x", dist = "normal", mean = 0.02, sd = 0.01),
-      ky = list(target = "market.y", dist = "normal", mean = 0.03, sd = 0.01))),
+      ky = list(target = "market.y", dist = "normal", mean = 0.03, sd = 0.01)
+    )),
     variants = list(
       fix = list(label = "x fest", set = list("market.x" = 0.025)),
       neu = list(label = "x neu verteilt", set = list("market.x" = 0.025),
-                 replace = list("stochastic.parameters.kx" = list(target = "market.x",
-                                                                   dist = "normal",
-                                                                   mean = 0.025, sd = 0.02))),
-      add = list(label = "Overlay dazu", add = list("stochastic.parameters.kz" = list(
-        target = "market.y", from = "processes/cost_risks_2026", use = "overrun_component"))),
+                 replace = list("stochastic.parameters.kx" = kx_neu)),
+      add = list(label = "Overlay dazu", add = list("stochastic.parameters.kz" = kz)),
       weg = list(label = "Overlay weg", remove = list("stochastic.parameters.ky")),
-      kurz = list(label = "Kurzform", set = list("market.x" = list(dist = "pert", min = 0.01,
-                                                                   base = 0.02,
-                                                                   mode = 0.02, max = 0.04)))
-    )))
-  m <- testthat::capture_messages(withCallingHandlers(
-    fx <- vofi_resolve(sc, "fix"),
-    vofi_warning_library_outdated = function(w) invokeRestart("muffleWarning")))
+      kurz = list(label = "Kurzform", set = list("market.x" = kurz))
+    )
+  ))
+  m <- testthat::capture_messages(ws_a_no_outdated(fx <- vofi_resolve(sc, "fix")))
   expect_true(any(grepl("kx", m, fixed = TRUE) & grepl("deterministisch", m, fixed = TRUE)))
   expect_null(fx$stochastic$parameters$kx)
   expect_false(is.null(fx$stochastic$parameters$ky))
@@ -248,17 +246,153 @@ test_that("Overlay in Varianten (R-96) und Overlay-Bindung bei set/replace (4.7)
   expect_null(ku$stochastic$parameters$kx)                    # Ziel höchstens einmal
 })
 
+test_that("A-02: set in Elternmap-Form bindet nur die gesetzten Blätter (4.7, XM13)", {
+  local_ws_a_library()
+  wp <- list(measure_type = "heizung_waermepumpe_luft", year = 2028, cost_eur = 30000)
+  sc <- vofi_scenario(ws_a_scenario(
+    measures = list(wp = wp),
+    stochastic = list(parameters = list(
+      d = list(target = "measures.wp.delay_months", dist = "discrete", values = c(0, 12),
+               probs = c(0.5, 0.5)),
+      k = list(target = "measures.wp.cost_factor", dist = "normal", mean = 1, sd = 0.1)
+    )),
+    variants = list(
+      v1 = list(set = list("measures.wp" = list(cost_factor = 1.2))),
+      v2 = list(set = list("measures.wp.cost_factor" = 1.2)),
+      v3 = list(replace = list("measures.wp" = wp)),
+      v4 = list(overrides = list(measures = list(wp = list(cost_factor = 1.2))))
+    )
+  ))
+  keys <- function(v) sort(names(quiet_resolve(sc, v)$stochastic$parameters))
+  expect_identical(keys("v1"), "d")
+  expect_identical(keys("v2"), "d")
+  expect_identical(keys("v4"), "d")
+  expect_length(keys("v3"), 0L)                               # replace bindet den Teilbaum
+  expect_identical(quiet_resolve(sc, "v1")$measures$wp$cost_factor, node_const(1.2))
+  r <- var_apply_ops(list(m = list(a = 1, b = 2)), list(set = list(m = list(a = 3))), "v")
+  expect_identical(r$bound, "m.a")
+  expect_identical(r$x$m, list(a = 3, b = 2))
+})
+
+test_that("A-06: Validierungsschlüssel von WS-B werden mit ihren Platzhaltern gewählt", {
+  local_ws_a_library()
+  # Texte aus inst/labels/de/validation.yaml von WS-B (Platzhalter nach dessen Konvention)
+  wsb <- list(
+    "validation.profile_path_forbidden" = "Das Profil setzt '{path}' ({file}).",
+    "validation.scenario_set.path_forbidden" = "'{path}': keine shared-Blätter ('{value}').",
+    "validation.scenario_set.path_not_allowed" = "'{path}': nicht zulässig ('{value}').",
+    "validation.scenario_set.growth_form_required" = "'{path}': '{value}' ohne Wachstumsform.",
+    "validation.measures.schedule_amount_form" = "'{path}': Form {form}.",
+    "validation.quantity.reference_missing" = "'{path}': per {per} fehlt.",
+    "validation.measures.pv_vat_conflict" = "'{path}' = {value:raw} statt {expected:raw}.",
+    "validation.measures.kind_ohnehin_conflict" = "'{path}' = {value}.",
+    "validation.measures.kind_from_classification" = "'{path}' = none.",
+    "validation.measures.catalog_defaults" = "Katalogwerte ({n}): {value}.",
+    "validation.measures.pv_vat_unchecked" = "'{path}': nicht geprüft.",
+    "validation.library.entry_unknown" = "'{path}': '{value}' existiert nicht.",
+    "validation.stochastic.template_use_missing" = "'{path}': {entry} ohne use."
+  )
+  env <- lbl_state$labels
+  for (k in names(wsb)) assign(k, wsb[[k]], envir = env)
+  withr::defer(rm(list = names(wsb), envir = env))
+  local_vofi_options(vofi.strict_labels = TRUE)
+  key_of <- function(expr) tryCatch(expr, error = function(e) e$key)
+  # Profilpfad (PR4)
+  prof <- io_read_yaml_utf8(ws_a_lib("profiles", "forbidden_profile.yaml"))
+  f <- scn_check_defaults(prof, "profile", "profiles/forbidden_profile.yaml")
+  hit <- Filter(function(x) identical(x$path, "market.inflation"), f)[[1]]
+  expect_identical(hit$code, "validation.profile_path_forbidden")
+  expect_match(do.call(lbl, c(list(hit$code), hit$args)), "forbidden_profile.yaml", fixed = TRUE)
+  # Szenario-Sets (z4, z7)
+  set_err <- function(set) {
+    sc <- vofi_scenario(ws_a_scenario(market = list(p = 0.05), shared = list(co2_2030 = 1),
+                                      scenario_sets = list(s = set)))
+    tryCatch(quiet_resolve(sc, scenario_set = "s"), error = identity)
+  }
+  e7 <- set_err(list(set = list("shared.co2_2030" = 120)))
+  expect_identical(e7$key, "validation.scenario_set.path_forbidden")
+  expect_match(conditionMessage(e7), "'scenario_sets.s': keine shared-Bl", fixed = TRUE)
+  expect_match(conditionMessage(e7), "shared.co2_2030", fixed = TRUE)
+  e6 <- set_err(list(set = list("building.n_units" = 3)))
+  expect_identical(e6$key, "validation.scenario_set.path_not_allowed")
+  e4 <- set_err(list(set = list("market.p" = list(growth = 0.1))))
+  expect_identical(e4$key, "validation.scenario_set.growth_form_required")
+  expect_match(conditionMessage(e4), "'market.p' ohne Wachstumsform", fixed = TRUE)
+  # Mengenbezug ohne Bezugsgröße (Q5) und Zahlungsplan mit Verteilung (XM11)
+  m_kw <- list(measure_type = "sonstige", year = 2028, cost_eur = list(value = 1800, per = "kw"))
+  q5 <- vofi_scenario(ws_a_scenario(measures = list(m = m_kw)))
+  expect_identical(key_of(quiet_resolve(q5)), "validation.quantity.reference_missing")
+  pert <- list(schedule = list("2027" = list(dist = "pert", min = 1, mode = 2, max = 3)))
+  expect_identical(key_of(node_normalize(pert, NULL, "measures.m.payment_schedule")),
+                   "validation.measures.schedule_amount_form")
+  # Bibliothek
+  sc_lib <- vofi_scenario(ws_a_scenario(funding = list(f = list(from = "funding/gibtsnicht"))))
+  e <- tryCatch(quiet_resolve(sc_lib), error = identity)
+  expect_identical(e$key, "validation.library.entry_unknown")
+  expect_match(conditionMessage(e), "funding/gibtsnicht", fixed = TRUE)
+  # Meldungen und Warnungen der Ableitungsregeln (XM3, XM9, XM10)
+  msgs <- character(0)
+  ws <- character(0)
+  rule_ms <- list(
+    pv = list(measure_type = "pv", year = 2028, cost_eur = 45000, vat_rate = 0),
+    f = list(measure_type = "fenster", year = 2028, cost_eur = 1, ohnehin_share = 1,
+             modernization_kind = "bgb_555b_1"),
+    e = list(measure_type = "fenster", year = 2028, cost_eur = 1, classification = "erhaltung")
+  )
+  sc_rules <- vofi_scenario(ws_a_scenario(measures = rule_ms,
+                                          energy = list(pv = list(kwp = 40, measure = "pv"))))
+  on_msg <- function(m) {
+    msgs <<- c(msgs, conditionMessage(m))
+    invokeRestart("muffleMessage")
+  }
+  on_warn <- function(w) {
+    ws <<- c(ws, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
+  withCallingHandlers(vofi_resolve(sc_rules), message = on_msg, warning = on_warn)
+  expect_true(any(grepl("Katalogwerte (", msgs, fixed = TRUE)))
+  expect_true(any(grepl("'measures.e.modernization_kind' = none.", msgs, fixed = TRUE)))
+  expect_true(any(grepl("'measures.pv.vat_rate' = 0 statt 0.19.", ws, fixed = TRUE)))
+  expect_true(any(grepl("'measures.f.modernization_kind' = bgb_555b_1.", ws, fixed = TRUE)))
+  expect_false(any(grepl("{", c(msgs, ws), fixed = TRUE)))
+})
+
+test_that("A-06: jeder Rückfallschlüssel von scn_key()/scn_signal() steht im Katalog", {
+  ns <- asNamespace("vofi")
+  acc <- new.env(parent = emptyenv())
+  acc$keys <- character(0)
+  walk <- function(e) {
+    if (is.call(e)) {
+      if (is.symbol(e[[1L]]) && as.character(e[[1L]]) %in% c("scn_key", "scn_signal")) {
+        txt <- paste(deparse(e), collapse = " ")
+        acc$keys <- c(acc$keys, regmatches(txt, gregexpr("\"io[.][a-z_.]+\"", txt))[[1L]])
+      }
+      for (part in as.list(e)[-1L]) if (!missing(part)) walk(part)
+    }
+  }
+  for (nm in ls(ns, all.names = TRUE)) {
+    f <- get(nm, envir = ns)
+    if (is.function(f) && !is.primitive(f)) walk(body(f))
+  }
+  keys <- unique(gsub("\"", "", acc$keys, fixed = TRUE))
+  expect_true(length(keys) >= 15L)
+  expect_identical(keys[!vapply(keys, lbl_has, logical(1))], character(0))
+})
+
 test_that("Bibliotheksverweise in Operationen werden nach Schicht 3 aufgelöst (R-87)", {
   local_ws_a_library()
   sc <- vofi_scenario(ws_a_scenario(
     measures = list(m1 = list(measure_type = "fenster", year = 2028, cost_eur = 1000)),
     variants = list(
-      kfw = list(label = "mit KfW", add = list("funding.kfw" = list(
-        from = "funding/kfw_261_eh55", measures = "m1"))),
-      co2 = list(label = "CO2 hoch", set = list("market.co2_price" = list(
-        from = "prices/co2_price_paths_2026", use = "scenarios.hoch"))),
+      kfw = list(label = "mit KfW", add = list(
+        "funding.kfw" = list(from = "funding/kfw_261_eh55", measures = "m1")
+      )),
+      co2 = list(label = "CO2 hoch", set = list(
+        "market.co2_price" = list(from = "prices/co2_price_paths_2026", use = "scenarios.hoch")
+      )),
       bad = list(label = "falsche id", add = list("funding.k" = list(from = "funding/gibtsnicht")))
-    )))
+    )
+  ))
   k <- quiet_resolve(sc, "kfw")
   expect_identical(k$funding$kfw$instrument_type, "loan_with_repayment_grant")
   expect_identical(k$funding$kfw$measures, "m1")
@@ -270,7 +404,7 @@ test_that("Bibliotheksverweise in Operationen werden nach Schicht 3 aufgelöst (
   expect_identical(ws_a_prov(c2, "market.co2_price")$entry, "prices/co2_price_paths_2026")
   expect_identical(c2$market$co2_price$kind, "points")
   e <- expect_error(quiet_resolve(sc, "bad"), class = "vofi_error_validation")
-  expect_identical(e$key, "io.library.entry_unknown")
+  ws_a_expect_key(e, "validation.library.entry_unknown", "io.library.entry_unknown")
 })
 
 test_that("set/overrides auf Vorlagen- und Regelfelder (R-112, Teil A XM13)", {
@@ -326,7 +460,8 @@ test_that("Existenzprüfung nach R-112 mit Vorlagen einer Sammlung (var_path_kno
   ctx <- list(items = list(
     building = list(building_id = "b1", maintenance = list(enabled = TRUE, rate = 1)),
     measures = list(cost_factor = list(ref = "project.construction_cost_factor"),
-                    rent_law = list(levy = "auto"))))
+                    rent_law = list(levy = "auto"))
+  ))
   x <- list(measures = list(wp = list(cost_eur = 1000)), building = list(n_units = 1L))
   r <- var_apply_ops(x, list(set = list("measures.wp.cost_factor" = 1.2)), "v", ctx = ctx)
   expect_identical(r$x$measures$wp$cost_factor, 1.2)

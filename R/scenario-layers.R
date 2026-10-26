@@ -1,12 +1,13 @@
 # Schichten, Deep-Merge, Defaults-Dateien, Ableitungsregeln, item_defaults, Build-Kontext und
 # Expander-Aufruf (WS-A, Spec 00 Abschnitte 4.7-4.12, 6.4; Spec 01 Teil A 1.4, 2.1, 4.5.1,
 # Teil B 5.5, 7.1).
-# Reihenfolge (4.7): Schicht 0 -> global.yaml -> global#by_project_type -> Profil ->
-# Profil#by_project_type -> Schichten 3-8 (Bibliotheksverweise an der Fundstelle jeder Quelle,
-# Szenario, Overlay, Varianten, Szenario-Set, Overrides) -> Ableitungsregeln -> item_defaults
-# -> Rechtsstand -> Typ-Defaults -> Expander. Herkunft je Blatt ueber den Herkunftsspeicher
-# (R/scenario-provenance.R). Solange die Paketbibliothek fehlt (WS-L liefert sie in Welle 3),
-# entfallen Bibliotheksverweise der Defaults-Dateien mit einem Hinweis je Sitzung.
+# Reihenfolge nach 4.7: Schicht 0, global.yaml und sein Teilbaum by_project_type, Profil und
+# sein Teilbaum by_project_type, Schichten 3 bis 8 (Bibliotheksverweise an der Fundstelle jeder
+# Quelle; Szenario, Overlay, Varianten, Szenario-Set, Overrides), danach Ableitungsregeln,
+# item_defaults, Rechtsstand, Typ-Defaults, Pruefung der Mengenbezuege und Expander. Herkunft
+# je Blatt ueber den Herkunftsspeicher in R/scenario-provenance.R. Solange die Paketbibliothek
+# fehlt (WS-L liefert sie in Welle 3), entfallen Bibliotheksverweise der Defaults-Dateien mit
+# einem Hinweis je Sitzung.
 
 scn_state <- new.env(parent = emptyenv())
 
@@ -28,10 +29,14 @@ scn_state <- new.env(parent = emptyenv())
 #' Bibliothekseintrags außerhalb seiner Gültigkeit oder ist sein Stand zu alt, folgt
 #' `vofi_warning_library_outdated`.
 #'
+#' `analysis.kpis: default` bedeutet den Wert der Schicht 2 (Kennzahlenliste des Profils, Spec 01
+#' Teil A 2.1); die Liste steht danach in `spec$analysis$kpis` (Herkunft `profile`). Mengenbezüge
+#' (`{value, per}`) brauchen ihre Bezugsgröße am Bezugsobjekt bzw. in `building`
+#' (`validation.quantity.reference_missing`, Spec 01 Teil A 3.5).
+#'
 #' Die Spezifikation trägt die Herkunft je Blatt (`attr(spec, "provenance")`, 4.8), die Metadaten
-#' der Defaults-Dateien (`attr(spec, "defaults_meta")`), den Bibliotheksstand
-#' (`attr(spec, "library_version")`, `spec$library`) und die Kennzahlenliste des Profils für
-#' `analysis.kpis: default` (`attr(spec, "kpis_default")`).
+#' der Defaults-Dateien (`attr(spec, "defaults_meta")`) und den Bibliotheksstand
+#' (`attr(spec, "library_version")`, `spec$library`).
 #'
 #' @param scenario Objekt der Klasse `vofi_scenario`.
 #' @param variant Variante (Default `"base"`).
@@ -75,6 +80,7 @@ vofi_resolve <- function(scenario, variant = "base", overrides = NULL, scenario_
     x <- scn_apply_source(x, s, ctx)
   }
   scn_inform_missing(ctx)
+  scn_note_kpis_default(x, ctx)
   x <- scn_apply_scenario(x, base, prov5, ctx)
 
   # Schicht 7: Varianten (extends-Kette), danach Szenario-Set
@@ -97,13 +103,16 @@ vofi_resolve <- function(scenario, variant = "base", overrides = NULL, scenario_
   # Schicht 8
   if (!is.null(overrides)) x <- scn_apply_override_layer(x, overrides, ctx)
   x <- scn_normalize(x)
+  x <- scn_resolve_kpis_default(x, ctx)
 
-  # Ableitungsregeln (vor item_defaults), item_defaults, Rechtsstand, Typ-Defaults, Expander
+  # Ableitungsregeln (vor item_defaults), item_defaults, Rechtsstand, Typ-Defaults,
+  # Mengenbezuege, Expander
   x <- scn_run_rules(x, ctx)
   x <- scn_apply_item_defaults(x, ctx)
   x$legal <- scn_legal_all(x, ctx)
   x$registers <- list(assets = list(), measures = list())
   x <- scn_type_defaults(x, ctx)
+  scn_check_quantities(x)
   x <- scn_run_expanders(x, ctx)
   x <- scn_type_defaults(x, ctx)
   x$variant <- variant
@@ -116,13 +125,12 @@ vofi_resolve <- function(scenario, variant = "base", overrides = NULL, scenario_
   spec <- new_vofi_spec(x, provenance = prv_table(ctx$prv, tree, variant = label))
   attr(spec, "defaults_meta") <- scn_defaults_meta(ctx$defaults)
   attr(spec, "library_version") <- lib_version(ctx$lib_paths)
-  attr(spec, "kpis_default") <- ctx$kpis_default
   attr(spec, "notes") <- unique(ctx$notes)
   src$read_time <- NULL
   attr(spec, "scn_state") <- list(scenario = new_vofi_scenario(sc, source = src,
                                                                provenance = prov5),
                                   variant = variant, scenario_set = scenario_set,
-                                  overrides = overrides)
+                                  overrides = overrides, derived = unique(ctx$derived))
   spec
 }
 
@@ -140,13 +148,19 @@ scn_context <- function(src, variant) {
   ctx$lib_calls <- character(0)
   ctx$legal_cache <- list()
   ctx$kpis_default <- NULL
+  ctx$kpis_default_info <- NULL
+  ctx$derived <- character(0)
+  ctx$lc$cache <- new.env(hash = TRUE, parent = emptyenv())
   ctx
 }
 
 #' Schlüssel eines Validierungsbefunds mit Rückfall (WS-B-Schlüssel, sobald im Katalog)
 #'
 #' Liefert `primary`, wenn der Schlüssel im Label-Katalog steht und alle seine Platzhalter unter
-#' den übergebenen Argumenten sind, sonst `fallback` (Schlüssel von WS-A in `io.yaml`).
+#' den übergebenen Argumenten sind, sonst `fallback` (Schlüssel von WS-A in `io.yaml`). Die
+#' Aufrufer übergeben die Obermenge der Platzhalter beider Texte (Konvention von WS-B:
+#' `path` = Fundstelle, `value` = betroffener Wert bzw. Zielpfad, dazu z. B. `file`, `form`,
+#' `expected`, `entry`, `n`); `scn_signal()` meldet mit demselben Satz.
 #' @param primary Schlüssel `validation.*` (Spec 01).
 #' @param fallback eigener Schlüssel.
 #' @param ... Platzhalterwerte, die der Aufrufer übergibt.
@@ -156,9 +170,28 @@ scn_key <- function(primary, fallback, ...) {
   if (!lbl_has(primary)) return(fallback)
   text <- get0(primary, envir = lbl_state$labels, inherits = FALSE)
   if (!utl_is_string(text)) return(fallback)
-  ph <- regmatches(text, gregexpr("\\{([a-z_][a-z0-9_]*)(:[a-z]+)?\\}", text))[[1L]]
-  ph <- unique(sub("^\\{([a-z_][a-z0-9_]*).*$", "\\1", ph))
+  ph <- regmatches(text, gregexpr("\\{([A-Za-z_][A-Za-z0-9_.]*)(:[a-z]+)?\\}", text))[[1L]]
+  ph <- unique(sub("^\\{([A-Za-z_][A-Za-z0-9_.]*).*$", "\\1", ph))
   if (all(ph %in% names(list(...)))) primary else fallback
+}
+
+#' Befund mit Schlüsselwahl nach `scn_key()` melden
+#'
+#' Wählt den Schlüssel aus denselben Platzhaltern, mit denen gemeldet wird; so passen Text und
+#' Argumente immer zusammen.
+#' @param type `"abort"`, `"warn"` oder `"inform"`.
+#' @param primary,fallback Schlüssel (`scn_key()`).
+#' @param ... Platzhalterwerte (Obermenge beider Texte).
+#' @param .class Bedingungsklasse (`abort`, `warn`).
+#' @return wie `vofi_abort()`, `vofi_warn()` bzw. `vofi_inform()`.
+#' @noRd
+scn_signal <- function(type, primary, fallback, ..., .class = NULL) {
+  key <- scn_key(primary, fallback, ...)
+  switch(type,
+    abort = vofi_abort(key, ..., .class = .class %||% "vofi_error_validation"),
+    warn = vofi_warn(key, ..., .class = .class %||% "vofi_warning_plausibility"),
+    inform = vofi_inform(key, ...)
+  )
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -290,7 +323,7 @@ scn_check_defaults <- function(raw, kind, file) {
     if (identical(k, "item_defaults")) {
       add("io.defaults.item_defaults_profile", k)
     } else {
-      add(scn_key("validation.unknown_key", "io.defaults.unknown_key", path = k,
+      add(scn_key("validation.unknown_key", "io.defaults.unknown_key", path = k, file = file,
                   suggestion = ""),
           k, suggestion = utl_suggest_text(k, allowed))
     }
@@ -333,7 +366,7 @@ scn_check_defaults <- function(raw, kind, file) {
       for (p in scn_defaults_leaves(t)) {
         if (!scn_profile_path_ok(p)) {
           add(scn_key("validation.profile_path_forbidden", "io.defaults.profile_path",
-                      path = p, allowed = ""),
+                      path = p, file = file, allowed = ""),
               path_join(prefixes[i], p),
               allowed = utl_collapse(scn_profile_paths()))
         }
@@ -410,9 +443,6 @@ scn_item_templates <- function() {
 }
 
 #' Quellen der Schichten 1-2 in Mischreihenfolge (4.7)
-#'
-#' Die Kennzahlenliste des Profils (`analysis.kpis`) ist die Bedeutung von
-#' `analysis.kpis: default` (Spec 01 Teil A 2.1) und wird als `ctx$kpis_default` geführt.
 #' @noRd
 scn_default_sources <- function(defaults, project_type, ctx) {
   out <- list()
@@ -431,18 +461,36 @@ scn_default_sources <- function(defaults, project_type, ctx) {
       locs <- c(locs, list(l))
     }
     for (i in seq_along(trees)) {
-      t <- trees[[i]]
-      if (identical(d$kind, "profile") && !is.null(t$analysis$kpis)) {
-        ctx$kpis_default <- node_ids(t$analysis$kpis, "analysis.kpis")
-        t$analysis$kpis <- NULL
-      }
       out[[length(out) + 1L]] <- list(
-        tree = t, locations = locs[[i]], defaults = TRUE,
+        tree = trees[[i]], locations = locs[[i]], defaults = TRUE,
         info = prv_info(layer, st, file = d$file, entry = entries[i])
       )
     }
   }
   out
+}
+
+#' Wert von `analysis.kpis` nach den Schichten 1-2 merken (Bedeutung von `default`)
+#'
+#' Ist der Wert nach global.yaml und Profil eine Liste (Profil, Spec 01 Teil A 2.3-2.7), ist sie
+#' die Bedeutung von `analysis.kpis: default` in den Schichten 5-8; ihre Herkunft bleibt die des
+#' Profils.
+#' @noRd
+scn_note_kpis_default <- function(x, ctx) {
+  k <- x$analysis$kpis
+  if (is.null(k) || identical(k, "default")) return(invisible(NULL))
+  ctx$kpis_default <- k
+  ctx$kpis_default_info <- prv_lookup(ctx$prv, "analysis.kpis")
+  invisible(NULL)
+}
+
+#' `analysis.kpis: default` durch die Profilliste ersetzen (Wert der Schicht 2, Teil A 2.1, PR3)
+#' @noRd
+scn_resolve_kpis_default <- function(x, ctx) {
+  if (!identical(x$analysis$kpis, "default") || is.null(ctx$kpis_default)) return(x)
+  x$analysis$kpis <- ctx$kpis_default
+  if (!is.null(ctx$kpis_default_info)) prv_set(ctx$prv, "analysis.kpis", ctx$kpis_default_info)
+  x
 }
 
 #' Perspektive und Projektart der Auflösung (nach Varianten und Overrides)
@@ -523,8 +571,8 @@ scn_apply_scenario <- function(x, base, prov5, ctx) {
   res <- lib_resolve(base, "", lc)
   leaves <- scn_leaves(lib_strip_refs(base))
   if (length(leaves) > 0L) {
-    idx <- if (is.data.frame(prov5)) match(leaves, prov5$path) else rep(NA_integer_,
-                                                                           length(leaves))
+    idx <- rep(NA_integer_, length(leaves))
+    if (is.data.frame(prov5)) idx <- match(leaves, prov5$path)
     for (i in seq_along(leaves)) {
       j <- idx[i]
       info <- if (is.na(j)) {
@@ -784,10 +832,10 @@ scn_run_rules <- function(x, ctx) {
   }
   ctx$rule <- NULL
   if (length(ctx$catalog_set) > 0L) {
-    vofi_inform(scn_key("validation.measures.catalog_defaults", "io.rule.catalog_defaults",
-                        fields = "", variant = ""),
-                fields = utl_collapse(utl_sort(unique(ctx$catalog_set))),
-                variant = ctx$variant)
+    fields <- utl_sort(unique(ctx$catalog_set))
+    scn_signal("inform", "validation.measures.catalog_defaults", "io.rule.catalog_defaults",
+               path = "measures", fields = utl_collapse(fields), variant = ctx$variant,
+               n = length(fields), value = utl_collapse(utils::head(fields, 10L)))
   }
   x
 }
@@ -825,6 +873,7 @@ scn_rule_set <- function(x, path, value, ctx, entry = NULL, quality = NA_charact
   if (!is.null(cur) && !(auto && identical(cur, "auto"))) return(x)
   value <- scn_rule_value(value)
   x <- path_set(x, path, value)
+  ctx$derived <- c(ctx$derived, path)
   rec <- if (!is.null(entry) && utl_is_library_id(entry)) lib_get(ctx$index, entry) else NULL
   info <- prv_info(0L, "type_default", file = rec$file %||% NA_character_,
                    entry = entry %||% paste0("rule:", ctx$rule), valid_from = rec$valid_from,
@@ -911,7 +960,7 @@ scn_is_newbuild <- function(x) {
 #' Bibliothekseintrag für Regeln und `bctx$lib()` (Kette aufgelöst; `NULL`, wenn er fehlt)
 #' @noRd
 scn_lib <- function(ctx, id) {
-  pl <- tryCatch(lib_payload(ctx$index, id, path = paste0("lib:", id)),
+  pl <- tryCatch(lib_payload(ctx$index, id, path = paste0("lib:", id), cache = ctx$lc$cache),
                  vofi_error = function(e) NULL)
   if (is.null(pl)) {
     if (!(id %in% ctx$lib_missing)) {
@@ -967,8 +1016,8 @@ scn_rule_tax_regime <- function(x, ctx) {
 scn_rule_report_mode <- function(x, ctx) {
   persp <- x$project$perspective
   if (!utl_is_string(persp)) return(x)
-  scn_rule_set(x, "project.report_mode", if (startsWith(persp, "wu_")) "expert" else
-    "household", ctx, auto = TRUE)
+  mode <- if (startsWith(persp, "wu_")) "expert" else "household"
+  scn_rule_set(x, "project.report_mode", mode, ctx, auto = TRUE)
 }
 
 #' `rule:dates`: Antragsdatum und Rechtsstand = Bewertungsstichtag
@@ -1137,10 +1186,8 @@ scn_rule_measure_catalog <- function(x, ctx) {
         }
       }
       has_life <- !is.null(life) || !is.null(el$useful_life_years)
-      x <- scn_rule_set(x, p("replacement.enabled"),
-                        isTRUE(row$replacement) && has_life && !identical(row$useful_life,
-                                                                           "main"),
-                        ctx, cat_id)
+      repl <- isTRUE(row$replacement) && has_life && !identical(row$useful_life, "main")
+      x <- scn_rule_set(x, p("replacement.enabled"), repl, ctx, cat_id)
     }
     # Zuschläge (Teil A 4.1, 4.5.1 Nr. 1)
     has_kg <- is_map(el$cost_kg) && length(el$cost_kg) > 0L
@@ -1279,18 +1326,19 @@ scn_rule_pv <- function(x, ctx) {
       identical(m, pv_measure)
   }, logical(1))]
   if (length(pv_ids) == 0L) return(x)
+  unchecked <- function() {
+    scn_signal("inform", "validation.measures.pv_vat_unchecked", "io.rule.pv_vat_unchecked",
+               measures = utl_collapse(pv_ids),
+               path = utl_collapse(paste0("measures.", pv_ids, ".vat_rate")))
+  }
   if (!scn_has_pv(x)) {
-    vofi_inform(scn_key("validation.measures.pv_vat_unchecked", "io.rule.pv_vat_unchecked",
-                        measures = ""),
-                measures = utl_collapse(pv_ids))
+    unchecked()
     return(x)
   }
   ust <- scn_legal(ctx, x, "umsatzsteuer")
   s <- ust$values$pv_zero_rate$max_kwp_without_proof
   if (is.null(s)) {
-    vofi_inform(scn_key("validation.measures.pv_vat_unchecked", "io.rule.pv_vat_unchecked",
-                        measures = ""),
-                measures = utl_collapse(pv_ids))
+    unchecked()
     for (m in pv_ids) {
       row <- scn_catalog_row(ctx, ms[[m]]$measure_type)
       if (!is.null(row$vat_rate)) {
@@ -1313,10 +1361,9 @@ scn_rule_pv <- function(x, ctx) {
       } else if (!is.null(derived)) {
         given <- tryCatch(scn_value_base(x, g, path), error = function(e) NULL)
         if (!is.null(given) && abs(given - derived) > 1e-12) {
-          vofi_warn(scn_key("validation.measures.pv_vat_conflict", "io.rule.pv_vat_conflict",
-                            path = path, value = given, derived = derived),
-                    path = path, value = given, derived = derived,
-                    .class = "vofi_warning_plausibility")
+          scn_signal("warn", "validation.measures.pv_vat_conflict", "io.rule.pv_vat_conflict",
+                     path = path, value = given, derived = derived, expected = derived,
+                     .class = "vofi_warning_plausibility")
         }
       }
     }
@@ -1345,9 +1392,8 @@ scn_expr_num <- function(v) {
 scn_expr_term <- function(el, m, x, path) {
   if (is.numeric(el)) return(scn_expr_num(el))
   bad <- function(kind) {
-    vofi_abort(scn_key("validation.measures.schedule_amount_form", "io.schedule_amount_form",
-                       path = path, kind = kind),
-               path = path, kind = kind, .class = "vofi_error_validation")
+    scn_signal("abort", "validation.measures.schedule_amount_form", "io.schedule_amount_form",
+               path = path, kind = kind, form = kind, .class = "vofi_error_validation")
   }
   if (!node_is(el)) bad(utl_collapse(class(el)))
   switch(el$kind,
@@ -1380,24 +1426,84 @@ scn_expr_term <- function(el, m, x, path) {
 #' @noRd
 scn_quantity_ref <- function(per, m, x, path) {
   if (identical(per, "total")) return(NULL)
-  field <- switch(per, unit = "n_units", m2_living_area = "living_area_m2",
-                  m2_net_floor_area = "net_floor_area_m2", parking = "n_parking",
-                  kw = "kw", kwp = "kwp", kwh = "kwh", NULL)
-  if (is.null(field) && startsWith(per, "m2_component:")) {
-    field <- paste0("component_areas_m2.", sub("^m2_component:", "", per))
-  }
-  if (is.null(field)) {
-    vofi_abort("io.quantity_per_unknown", path = path, per = per, .class = "vofi_error_input")
-  }
+  field <- scn_quantity_field(per)
   own <- path_join("measures", m, field)
   if (path_exists(x, own)) return(own)
   if (!(per %in% c("kw", "kwp", "kwh"))) {
     b <- path_join("building", field)
     if (path_exists(x, b)) return(b)
   }
-  vofi_abort(scn_key("validation.quantity.reference_missing", "io.quantity_reference_missing",
-                     path = path, per = per),
+  scn_signal("abort", "validation.quantity.reference_missing", "io.quantity_reference_missing",
              path = path, per = per, .class = "vofi_error_validation")
+}
+
+#' Bezugsgrößen aller Mengenbezüge prüfen (Spec 01 Teil A 3.5, Prüffälle Q5, Q7)
+#'
+#' Nach den Ableitungsregeln und `item_defaults`, vor den Expandern: Für jeden Knoten
+#' `{value, per}` der Domäne (auch Beträge eines Zahlungsplans) muss die Bezugsgröße am
+#' Bezugsobjekt (nächster Vorfahre mit dem Feld, z. B. `measures.<m>`, `unit_groups.<g>`,
+#' `building.elements.<e>`, die Komponente) oder in `building` stehen; `kw`, `kwp` und `kwh` haben
+#' keinen Rückfall auf `building`. Sonst E `validation.quantity.reference_missing`.
+#' @param x teilaufgelöste Spezifikation.
+#' @return `invisible(TRUE)`.
+#' @noRd
+scn_check_quantities <- function(x) {
+  blocks <- c("building", "household", "unit_groups", "measures", "energy", "funding",
+              "components", "financing", "accounts", "market", "residual_value", "shared")
+  hits <- unlist(lapply(intersect(blocks, names(x)), function(b) {
+    scn_quantity_nodes(x[[b]], b)
+  }), recursive = FALSE)
+  for (h in hits) {
+    if (identical(h$per, "total") || !utl_is_string(h$per)) next
+    if (is.null(scn_quantity_target(x, h$path, h$per))) {
+      scn_signal("abort", "validation.quantity.reference_missing",
+                 "io.quantity_reference_missing", path = h$path, per = h$per,
+                 .class = "vofi_error_validation")
+    }
+  }
+  invisible(TRUE)
+}
+
+#' Feld der Bezugsgröße eines Mengenbezugs (Spec 00 4.5, R-91; `per` ist nach
+#' `node_quantity_per()` geprüft)
+#' @noRd
+scn_quantity_field <- function(per) {
+  if (startsWith(per, "m2_component:")) {
+    return(paste0("component_areas_m2.", sub("^m2_component:", "", per)))
+  }
+  switch(per, unit = "n_units", m2_living_area = "living_area_m2",
+         m2_net_floor_area = "net_floor_area_m2", parking = "n_parking", per)
+}
+
+#' Mengenbezüge eines Teilbaums (Pfad und `per`; Beträge eines Zahlungsplans eingeschlossen)
+#' @noRd
+scn_quantity_nodes <- function(x, path) {
+  if (node_is(x)) {
+    if (identical(x$kind, "quantity")) return(list(list(path = path, per = x$per)))
+    if (identical(x$kind, "schedule") && is.list(x$amounts)) {
+      return(unlist(lapply(seq_along(x$amounts), function(i) {
+        scn_quantity_nodes(x$amounts[[i]], path_join(path, "schedule", i))
+      }), recursive = FALSE))
+    }
+    return(list())
+  }
+  if (!is_map(x) || length(x) == 0L) return(list())
+  unlist(lapply(names(x), function(nm) scn_quantity_nodes(x[[nm]], path_join(path, nm))),
+         recursive = FALSE)
+}
+
+#' Pfad der Bezugsgröße eines Mengenbezugs oder `NULL` (Spec 01 Teil A 3.5, R-91)
+#' @noRd
+scn_quantity_target <- function(x, path, per) {
+  field <- scn_quantity_field(per)
+  segs <- path_split(path)
+  for (k in rev(seq_len(length(segs) - 1L))) {
+    cand <- path_join(paste(segs[seq_len(k)], collapse = "."), field)
+    if (!is.null(path_get(x, cand))) return(cand)
+  }
+  if (per %in% c("kw", "kwp", "kwh")) return(NULL)
+  fb <- paste0("building.", field)
+  if (!is.null(path_get(x, fb))) fb else NULL
 }
 
 #' `rule:cost_from_kg`: abgeleitetes `cost_eur` (K0 nach 4.6.2 (1) bzw. Summe des
@@ -1460,11 +1566,10 @@ scn_rule_measure_kind <- function(x, ctx) {
     full <- scn_ohnehin_full(x, g, m)
     if (!is.null(el$modernization_kind)) {
       if (isTRUE(full) && !identical(el$modernization_kind, "none")) {
-        vofi_warn(scn_key("validation.measures.kind_ohnehin_conflict",
-                          "io.rule.kind_ohnehin_conflict", measure = m,
-                          value = el$modernization_kind),
-                  measure = m, value = el$modernization_kind,
-                  .class = "vofi_warning_plausibility")
+        scn_signal("warn", "validation.measures.kind_ohnehin_conflict",
+                   "io.rule.kind_ohnehin_conflict", measure = m,
+                   path = path_join("measures", m, "modernization_kind"),
+                   value = el$modernization_kind, .class = "vofi_warning_plausibility")
       }
       next
     }
@@ -1483,9 +1588,9 @@ scn_rule_measure_kind <- function(x, ctx) {
     }
   }
   if (length(from_class) > 0L) {
-    vofi_inform(scn_key("validation.measures.kind_from_classification",
-                        "io.rule.kind_from_classification", measures = ""),
-                measures = utl_collapse(from_class))
+    scn_signal("inform", "validation.measures.kind_from_classification",
+               "io.rule.kind_from_classification", measures = utl_collapse(from_class),
+               path = utl_collapse(paste0("measures.", from_class, ".modernization_kind")))
   }
   x
 }
@@ -1613,7 +1718,7 @@ scn_rule_carrier_defaults <- function(x, ctx) {
                       if (path_exists(x, fee)) node_ref(fee) else 0, ctx)
     cls <- x$energy$carriers[[cid]]$class
     if (!utl_is_string(cls)) cls <- "other"
-    # CO2-Kosten (BEHG/EBeV)
+    # CO2-Kosten nach BEHG und EBeV
     if (is.null(co2)) {
       x <- scn_rule_set(x, p("emission_factor_kg_kwh"), 0, ctx)
       warned <- c(warned, "emission_factors_co2cost")
@@ -1753,16 +1858,18 @@ scn_apply_item_defaults <- function(x, ctx) {
     if (is_coll) {
       coll <- path_get(x, p)
       if (!is_map(coll) || length(coll) == 0L || node_is(coll)) next
+      # einmal je Vorlage normalisieren, danach je Element nur den Platzhalter {id} ersetzen
+      norm <- path_get(scn_normalize(path_set(list(), pseudo, tpl)), pseudo)
       for (id in names(coll)) {
-        x <- scn_item_merge(x, path_join(p, id), node_subst_id(tpl, id), pseudo, tp, info,
-                           ctx$prv)
+        x <- scn_item_merge(x, path_join(p, id), node_subst_id(norm, id), pseudo, tp, info, ctx,
+                            normalized = TRUE)
       }
     } else {
       top <- length(path_split(p)) == 1L
       blk <- path_get(x, p)
       exists <- if (top) is_map(blk) && length(blk) > 0L else path_exists(x, p) && is_map(blk)
       if (!exists) next
-      x <- scn_item_merge(x, p, tpl, pseudo, tp, info, ctx$prv)
+      x <- scn_item_merge(x, p, tpl, pseudo, tp, info, ctx)
     }
   }
   x
@@ -1787,24 +1894,31 @@ scn_resolve_template <- function(tpl, pseudo, tp, ctx) {
 }
 
 #' Vorlage unter ein Element mischen (Element gewinnt) und Herkunft der neuen Blätter setzen
+#'
+#' Die neuen Blätter gelten als abgeleitet (`ctx$derived`): `vofi_write_scenario(resolved =
+#' TRUE)` lässt sie weg, weil sie beim Auflösen wieder entstehen.
+#' @param normalized Vorlage bereits normalisiert (Sammlungen: einmal je Vorlage)?
 #' @noRd
-scn_item_merge <- function(x, path, tpl, pseudo, tp, info, prv) {
+scn_item_merge <- function(x, path, tpl, pseudo, tp, info, ctx, normalized = FALSE) {
   el <- path_get(x, path)
-  norm <- path_get(scn_normalize(path_set(list(), path, tpl)), path)
+  norm <- if (normalized) tpl else path_get(scn_normalize(path_set(list(), path, tpl)), path)
   merged <- scn_merge(norm, el %||% list(), path)
   before <- scn_leaves(el, path)
   after <- scn_leaves(merged, path)
   x <- path_set(x, path, merged)
   new <- setdiff(after, before)
   if (length(new) == 0L) return(x)
+  ctx$derived <- c(ctx$derived, new)
   for (p in new) {
     rel <- substring(p, nchar(path) + 1L)
     hit <- prv_lookup(tp, paste0(pseudo, rel))
-    rec <- if (is.null(hit)) info else {
+    rec <- if (is.null(hit)) {
+      info
+    } else {
       hit$layer <- 1L
       hit
     }
-    prv_set(prv, p, rec)
+    prv_set(ctx$prv, p, rec)
   }
   x
 }
@@ -1831,6 +1945,7 @@ scn_type_defaults <- function(x, ctx) {
           if (!is.null(ctx)) {
             prv_record_tree(ctx$prv, comp[[p]], path_join(coll, id, p),
                             prv_info(0L, "type_default"))
+            ctx$derived <- c(ctx$derived, path_join(coll, id, p))
           }
         }
       }
@@ -1848,10 +1963,10 @@ scn_type_defaults <- function(x, ctx) {
 
 #' Expander in order-Reihenfolge ausführen (4.12)
 #'
-#' Jeder registrierte Expander, dessen Block existiert, erhält Block, teilaufgelöste
-#' Spezifikation und Build-Kontext und liefert `list(components, financing, assets, measures,
-#' notes)`. Erzeugte ids dürfen nicht kollidieren; die Herkunft der erzeugten Blätter ist
-#' `source_type = "expander"`, `entry = "expander:<name>"`.
+#' Jeder registrierte Expander, der nach `scn_expander_runs()` anwendbar ist, erhält Block (leer:
+#' `list()`), teilaufgelöste Spezifikation und Build-Kontext und liefert `list(components,
+#' financing, assets, measures, notes)`. Erzeugte ids dürfen nicht kollidieren; die Herkunft der
+#' erzeugten Blätter ist `source_type = "expander"`, `entry = "expander:<name>"`.
 #' @noRd
 scn_run_expanders <- function(x, ctx = NULL) {
   ex <- reg_list("expander")
@@ -1860,14 +1975,31 @@ scn_run_expanders <- function(x, ctx = NULL) {
   defs <- defs[order(vapply(defs, function(d) as.double(d$order), double(1)),
                      vapply(defs, function(d) d$name, ""), method = "radix")]
   for (d in defs) {
-    blk <- x[[d$block]]
-    if (is.null(blk) || length(blk) == 0L) next
+    if (!scn_expander_runs(d, x)) next
+    blk <- x[[d$block]] %||% list()
     grid <- scn_grid(x)
     bctx <- scn_bctx(x, grid, roots = ctx$lib_paths, index = ctx$index)
     res <- d$expand(blk, x, bctx)
     x <- scn_merge_expansion(x, res, d$name, ctx)
   }
   x
+}
+
+#' Läuft ein Expander? (4.12; Spec 01 Teil A 4.5.2)
+#'
+#' Ein Expander läuft, wenn sein Block nicht leer ist oder einer der Blöcke aus dem optionalen
+#' Typfeld `run_if_blocks` existiert. Der Maßnahmen-Expander (`block = "measures"`) läuft
+#' zusätzlich immer, wenn `building` existiert: Er erzeugt dann `m_maintenance` und die Assets
+#' `<bid>_building`/`<bid>_land` auch ohne Maßnahmen (z. B. Referenzvariante mit `remove` aller
+#' Maßnahmen).
+#' @param d Typdefinition (Art `expander`).
+#' @param x teilaufgelöste Spezifikation.
+#' @return `TRUE`/`FALSE`.
+#' @noRd
+scn_expander_runs <- function(d, x) {
+  extra <- d$run_if_blocks %||% if (identical(d$block, "measures")) "building"
+  blocks <- unique(c(d$block, as.character(unlist(extra))))
+  any(vapply(blocks, function(b) scn_has_block(x, b), logical(1)))
 }
 
 #' Ergebnis eines Expanders übernehmen (Kollisionen sind Validierungsfehler, 4.12 Nr. 3)
@@ -1882,9 +2014,9 @@ scn_merge_expansion <- function(x, res, name, ctx) {
     new <- res[[coll]] %||% list()
     for (id in names(new)) {
       if (id %in% c(names(x$components), names(x$financing))) {
-        vofi_abort(scn_key("validation.expander.id_collision", "io.expander_id_collision",
-                           id = id, expander = name),
-                   id = id, expander = name, .class = "vofi_error_validation")
+        scn_signal("abort", "validation.expander.id_collision", "io.expander_id_collision",
+                   id = id, expander = name, path = path_join(coll, id), value = id,
+                   .class = "vofi_error_validation")
       }
       comp <- scn_normalize_component(new[[id]], id, coll)
       comp$origin <- comp$origin %||% "expander"
@@ -1925,9 +2057,9 @@ scn_bctx <- function(spec, grid, roots = NULL, index = NULL) {
   e$lib <- function(id) {
     pl <- lib_payload(idx, id, path = paste0("bctx$lib(", id, ")"))
     if (is.null(pl)) {
-      vofi_abort(scn_key("validation.library.unknown_entry", "io.library.entry_unknown",
-                         path = "bctx", id = id, suggestion = ""),
-                 path = "bctx", id = id, suggestion = utl_suggest_text(id, names(idx$entries)),
+      scn_signal("abort", "validation.library.entry_unknown", "io.library.entry_unknown",
+                 path = "bctx", id = id, value = id,
+                 suggestion = utl_suggest_text(id, names(idx$entries)),
                  .class = "vofi_error_validation")
     }
     pl$values
@@ -1956,20 +2088,29 @@ scn_bctx <- function(spec, grid, roots = NULL, index = NULL) {
 }
 
 #' Regelversion zum Rechtsstand wählen (4.10; Registry-Art `rule`)
+#'
+#' Nach demselben Muster wie die `legal/*`-Wahl (`lib_select_legal()`): wählbar sind Versionen
+#' mit `valid_from <= legal_state < valid_to`, deren Reformcode (falls gesetzt) in
+#' `pending_reforms` steht; Versionen mit Reform haben Vorrang vor Versionen ohne Reform, danach
+#' gewinnt das größte `valid_from`.
 #' @noRd
 scn_rule_for <- function(name, spec) {
   versions <- reg_rules(name)
   ls <- scn_date(spec$project$legal_state) %||% scn_date(spec$project$valuation_date)
   reforms <- as.character(unlist(spec$project$pending_reforms %||% character(0)))
+  has_reform <- function(d) utl_is_string(d$reform) && !is.na(d$reform) && nzchar(d$reform)
   ok <- Filter(function(d) {
-    (is.null(d$reform) || d$reform %in% reforms) && !is.null(ls) && d$valid_from <= ls &&
-      (is.null(d$valid_to) || ls < d$valid_to)
+    (!has_reform(d) || d$reform %in% reforms) && !is.null(ls) && d$valid_from <= ls &&
+      (is.null(d$valid_to) || is.na(d$valid_to) || ls < d$valid_to)
   }, versions)
   if (length(ok) == 0L) {
     vofi_abort("io.rule_unknown", rule = name, date = format(ls %||% as.Date(NA)),
                .class = "vofi_error_registry")
   }
-  ok[[length(ok)]]$fun
+  ref <- vapply(ok, has_reform, logical(1))
+  if (any(ref)) ok <- ok[ref]
+  vf <- vapply(ok, function(d) as.double(d$valid_from), double(1))
+  ok[[order(vf, method = "radix")[length(ok)]]]$fun
 }
 
 # ---------------------------------------------------------------------------------------------

@@ -32,8 +32,6 @@ test_that("Schichtreihenfolge und Herkunft: global, Profil, Szenario, Regeln (4.
   expect_identical(dm$profile$kind, "profile")
   expect_s3_class(dm$global$as_of, "Date")
   expect_identical(attr(spec, "library_version"), "2026.10.1")
-  expect_identical(attr(spec, "kpis_default")[1:3],
-                   c("terminal_value", "terminal_value_opp", "delta_terminal_value"))
   expect_identical(spec$analysis$kpis,
                    c("terminal_value", "terminal_value_opp", "delta_terminal_value"))
   expect_true(all(c("entry", "as_of", "valid_from", "valid_to", "quality") %in%
@@ -57,6 +55,7 @@ test_that("PR8: Gerüst ohne building: kein Block building, Herkunft der Projekt
   expect_true(all(pj$entry[pj$source_type == "type_default"] %in%
                     c("rule:tax_regime", "rule:report_mode", "rule:dates",
                       "rule:price_base_year")))
+  local_ws_a_schema()
   mute <- function(w) invokeRestart("muffleWarning")
   v <- withCallingHandlers(vofi_validate(vofi_read_scenario(vofi_example("skeleton"))),
                            vofi_warning_library_outdated = mute)
@@ -111,14 +110,14 @@ test_that("PR5: Habenzins mit anchor folgt dem Zinspfad mit Untergrenze 0 (Teil 
   base <- ws_a_scenario(perspective = "wu_genossenschaft", horizon_years = 6L)
   s1 <- ws_a_resolve(base, overrides = list("market.mortgage_rate" = 0.041))
   expect_equal(as.vector(ws_a_value(s1, "accounts.deposit_rate_pa", "path")), rep(0.02, 7L))
-  s2 <- ws_a_resolve(base, overrides = list("market.mortgage_rate" = list(
-    series = list("2027" = 0.041, "2030" = 0.051), fill = "locf")))
+  path2 <- list(series = list("2027" = 0.041, "2030" = 0.051), fill = "locf")
+  s2 <- ws_a_resolve(base, overrides = list("market.mortgage_rate" = path2))
   g <- scn_grid(s2)
   v2 <- as.vector(ws_a_value(s2, "accounts.deposit_rate_pa", "path"))
   expect_equal(v2[g$year <= 2029], rep(0.02, sum(g$year <= 2029)))
   expect_equal(v2[g$year >= 2030], rep(0.03, sum(g$year >= 2030)))
-  s3 <- ws_a_resolve(base, overrides = list("market.mortgage_rate" = list(
-    series = list("2027" = 0.041, "2030" = 0.010), fill = "locf")))
+  path3 <- list(series = list("2027" = 0.041, "2030" = 0.010), fill = "locf")
+  s3 <- ws_a_resolve(base, overrides = list("market.mortgage_rate" = path3))
   v3 <- as.vector(ws_a_value(s3, "accounts.deposit_rate_pa", "path"))
   expect_equal(v3[g$year >= 2030], rep(0, sum(g$year >= 2030)))
   expect_identical(ws_a_prov(s3, "market.mortgage_rate")$source_type, "override")
@@ -200,15 +199,17 @@ test_that("XM7, XM10, XM11: Zuschläge, Nutzungsdauer der Hauptmaßnahme, abgele
       neubau = list(measure_type = "neubau", cost_kg = list(kg300 = 1000000), year = 2027,
                     follows_construction = TRUE),
       nk = list(measure_type = "baunebenkosten", cost_eur = 200000, year = 2027),
-      plan = list(measure_type = "aussenanlagen", payment_schedule = list(
-        schedule = list("2027-07-01" = 100000, "2028-07-01" = list(ref = "shared.rate2")),
-        unit = "eur"))
+      plan = list(
+        measure_type = "aussenanlagen",
+        payment_schedule = list(
+          schedule = list("2027-07-01" = 100000, "2028-07-01" = list(ref = "shared.rate2")),
+          unit = "eur"
+        )
+      )
     )
   )
-  expect_message(spec <- withCallingHandlers(
-    vofi_resolve(vofi_scenario(sc)),
-    vofi_warning_library_outdated = function(w) invokeRestart("muffleWarning")),
-    "kg700_share", fixed = TRUE)
+  expect_message(spec <- ws_a_no_outdated(vofi_resolve(vofi_scenario(sc))), "kg700_share",
+                 fixed = TRUE)
   nb <- spec$measures$neubau
   expect_identical(nb$kg700_share, node_const(0.2))
   expect_identical(ws_a_prov(spec, "measures.neubau.kg700_share")$entry,
@@ -234,14 +235,16 @@ test_that("XM7, XM10, XM11: Zuschläge, Nutzungsdauer der Hauptmaßnahme, abgele
   expect_identical(solo$measures$nk$useful_life_years,
                    node_ref("residual_value.income_value.gnd_years"))
   # Mengenbezug im Zahlungsplan ohne Bezugsgröße: Fehler
-  bad <- ws_a_scenario(measures = list(p = list(measure_type = "sonstige", payment_schedule = list(
-    schedule = list("2027" = list(value = 10, per = "kw")), unit = "eur"))))
+  ps_kw <- list(schedule = list("2027" = list(value = 10, per = "kw")), unit = "eur")
+  bad <- ws_a_scenario(measures = list(p = list(measure_type = "sonstige",
+                                                payment_schedule = ps_kw)))
   e <- expect_error(ws_a_resolve(bad), class = "vofi_error_validation")
-  expect_identical(e$key, "io.quantity_reference_missing")
+  ws_a_expect_key(e, "validation.quantity.reference_missing", "io.quantity_reference_missing")
+  ps_m2 <- list(schedule = list("2027" = list(value = 10, per = "m2_living_area")),
+                unit = "eur")
   qok <- ws_a_scenario(building = list(living_area_m2 = 500),
-                       measures = list(p = list(measure_type = "sonstige", payment_schedule = list(
-                         schedule = list("2027" = list(value = 10, per = "m2_living_area")),
-                         unit = "eur"))))
+                       measures = list(p = list(measure_type = "sonstige",
+                                                payment_schedule = ps_m2)))
   q <- ws_a_resolve(qok)
   expect_identical(q$measures$p$cost_eur, node_expr("(10 * building.living_area_m2)"))
   expect_equal(ws_a_value(q, "measures.p.cost_eur"), 5000)
@@ -260,12 +263,12 @@ test_that("XM9: keine Modernisierung bei Erhaltung bzw. Ohnehin-Anteil 1 (X-09, 
   )))
   acc <- new.env()
   acc$msgs <- character(0)
-  w <- testthat::capture_warnings(withCallingHandlers(
-    spec <- vofi_resolve(sc),
-    message = function(m) {
-      acc$msgs <- c(acc$msgs, conditionMessage(m))
-      invokeRestart("muffleMessage")
-    }))
+  keep_msg <- function(m) {
+    acc$msgs <- c(acc$msgs, conditionMessage(m))
+    invokeRestart("muffleMessage")
+  }
+  w <- testthat::capture_warnings(withCallingHandlers(spec <- vofi_resolve(sc),
+                                                      message = keep_msg))
   msgs <- acc$msgs
   ms <- spec$measures
   expect_identical(ms$ersatz_wp_2049$modernization_kind, "none")
@@ -275,11 +278,12 @@ test_that("XM9: keine Modernisierung bei Erhaltung bzw. Ohnehin-Anteil 1 (X-09, 
   expect_identical(ms$fenster_neu$modernization_kind, "bgb_555b_1")
   expect_identical(ms$fenster_teil$modernization_kind, "bgb_555b_1")
   expect_identical(ms$fenster_teil$ohnehin_share, node_const(0.85))
-  expect_true(any(grepl("ersatz_wp_2049, fenster_alt", msgs, fixed = TRUE)))
+  expect_true(any(grepl("ersatz_wp_2049", msgs, fixed = TRUE) &
+                    grepl("fenster_alt", msgs, fixed = TRUE)))
   expect_true(any(grepl("fenster_neu", w, fixed = TRUE)))
   # Ohnehin-Kosten >= Grundkosten im Basisfall
-  oc <- ws_a_resolve(ws_a_scenario(measures = list(f = list(
-    measure_type = "fenster", year = 2028, cost_eur = 50000, ohnehin_cost_eur = 50000))))
+  f_oc <- list(measure_type = "fenster", year = 2028, cost_eur = 50000, ohnehin_cost_eur = 50000)
+  oc <- ws_a_resolve(ws_a_scenario(measures = list(f = f_oc)))
   expect_identical(oc$measures$f$modernization_kind, "none")
 })
 
@@ -301,23 +305,20 @@ test_that("XM3: PV-Umsatzsteuer als Ausdruck aus dem Thema umsatzsteuer (X-25, 7
   expect_equal(ws_a_value(s40, "measures.pv.vat_rate"), 0.19)
   s40a <- ws_a_resolve(mk(list(kwp = 40, measure = "pv", vat_zero_rate_attested = TRUE)))
   expect_equal(ws_a_value(s40a, "measures.pv.vat_rate"), 0)
-  expect_warning(withCallingHandlers(
-    vofi_resolve(vofi_scenario(mk(list(kwp = 40, measure = "pv"), vat = 0))),
-    message = function(m) invokeRestart("muffleMessage"),
-    vofi_warning_library_outdated = function(w) invokeRestart("muffleWarning")),
-    "widerspricht", class = "vofi_warning_plausibility")
-  m <- testthat::capture_messages(withCallingHandlers(
-    s0 <- vofi_resolve(vofi_scenario(mk(NULL))),
-    vofi_warning_library_outdated = function(w) invokeRestart("muffleWarning")))
+  sc_vat <- vofi_scenario(mk(list(kwp = 40, measure = "pv"), vat = 0))
+  expect_warning(ws_a_quiet(vofi_resolve(sc_vat)), "widerspricht",
+                 class = "vofi_warning_plausibility")
+  m <- testthat::capture_messages(ws_a_no_outdated(s0 <- vofi_resolve(vofi_scenario(mk(NULL)))))
   expect_true(any(grepl("PV-Umsatzsteuer", m, fixed = TRUE)))
   expect_identical(s0$measures$pv$vat_rate, node_const(0))
 })
 
 test_that("UG1: Gebäudesummen über Wohnungsgruppen als Ausdruck (Teil A 3.4)", {
   local_ws_a_library()
-  sc <- ws_a_scenario(building = list(construction_year = 1980L), unit_groups = list(
-    a = list(n_units = 12, living_area_m2 = 600), b = list(n_units = 18, living_area_m2 = 1170),
-    c = list(n_units = 6, living_area_m2 = 630)))
+  groups <- list(a = list(n_units = 12, living_area_m2 = 600),
+                 b = list(n_units = 18, living_area_m2 = 1170),
+                 c = list(n_units = 6, living_area_m2 = 630))
+  sc <- ws_a_scenario(building = list(construction_year = 1980L), unit_groups = groups)
   spec <- ws_a_resolve(sc)
   expect_identical(spec$building$n_units$kind, "expr")
   expect_identical(ws_a_prov(spec, "building.n_units")$entry, "rule:building_aggregates")
@@ -357,8 +358,8 @@ test_that("d1-d4: Ableitungsregeln von Teil B und Vorlagen (Teil B 5.5, 7.1)", {
   expect_identical(ws_a_prov(d2k, "unit_groups.g.rent_regime")$entry,
                    "global#item_defaults.unit_groups")
   expect_identical(d2k$unit_groups$g$operating$admin_per_unit_eur_pa, node_const(367))
-  bs <- ws_a_resolve(ws_a_scenario(project_type = "neubau", unit_groups = list(
-    s = list(n_units = 10, rent_regime = "bound_social"))))
+  bound <- list(s = list(n_units = 10, rent_regime = "bound_social"))
+  bs <- ws_a_resolve(ws_a_scenario(project_type = "neubau", unit_groups = bound))
   expect_identical(bs$unit_groups$s$operating$admin_per_unit_eur_pa, node_const(372.46))
   expect_identical(ws_a_prov(bs, "unit_groups.s.operating.admin_per_unit_eur_pa")$entry,
                    "costs/bewirtschaftung_ii_bv_2026")
@@ -368,7 +369,8 @@ test_that("d1-d4: Ableitungsregeln von Teil B und Vorlagen (Teil B 5.5, 7.1)", {
   expect_length(ws_a_resolve(ws_a_scenario())$energy, 0L)
   d4 <- ws_a_resolve(ws_a_scenario(
     measures = list(m1 = list(measure_type = "fenster", year = 2028, cost_eur = 1000)),
-    funding = list(f35 = list(from = "funding/estg_35c", measures = list("m1")))))
+    funding = list(f35 = list(from = "funding/estg_35c", measures = list("m1")))
+  ))
   f <- d4$funding$f35
   expect_identical(f$instrument_type, "tax_credit")
   expect_identical(f$payout_delay_months, node_const(12))
@@ -382,9 +384,9 @@ test_that("d1-d4: Ableitungsregeln von Teil B und Vorlagen (Teil B 5.5, 7.1)", {
 
 test_that("rule:carrier_defaults: Klasse, Netzentgelt, Emissionsfaktoren (Teil B 3.2.1)", {
   local_ws_a_library()
-  spec <- ws_a_resolve(ws_a_scenario(energy = list(carriers = list(
-    gas = list(), pellets = list(), heatpump_power = list(), eigen = list(class = "other",
-                                                                         price_eur_kwh = 0.1)))))
+  carriers <- list(gas = list(), pellets = list(), heatpump_power = list(),
+                   eigen = list(class = "other", price_eur_kwh = 0.1))
+  spec <- ws_a_resolve(ws_a_scenario(energy = list(carriers = carriers)))
   cs <- spec$energy$carriers
   expect_identical(cs$gas$class, "gas")
   expect_identical(cs$pellets$class, "biomass")
@@ -404,11 +406,9 @@ test_that("rule:carrier_defaults: Klasse, Netzentgelt, Emissionsfaktoren (Teil B
                    "global#item_defaults.energy.carriers")
   expect_identical(cs$gas$vat_rate, node_const(0.19))
   # Thema inaktiv (vor valid_from): Faktor 0 und Warnung
-  w <- testthat::capture_warnings(withCallingHandlers(
-    old <- vofi_resolve(vofi_scenario(ws_a_scenario(valuation_date = "2020-01-01",
-                                                    energy = list(carriers = list(gas = list()))))),
-    message = function(m) invokeRestart("muffleMessage"),
-    vofi_warning_library_outdated = function(w) invokeRestart("muffleWarning")))
+  sc_old <- vofi_scenario(ws_a_scenario(valuation_date = "2020-01-01",
+                                        energy = list(carriers = list(gas = list()))))
+  w <- testthat::capture_warnings(ws_a_quiet(old <- vofi_resolve(sc_old)))
   expect_identical(sum(grepl("Emissionsfaktoren nicht verfügbar", w, fixed = TRUE)), 2L)
   expect_identical(old$energy$carriers$gas$emission_factor_kg_kwh, node_const(0))
   expect_identical(old$energy$carriers$gas$ghg_factor_kg_kwh, node_const(0))
@@ -446,8 +446,9 @@ test_that("F-9, F-15: Zusagezeitpunkt und Zusagewahrscheinlichkeit (Teil B 4.2, 
     plain = list(instrument_type = "grant", application_date = "2031-03-01"),
     lib = list(from = "funding/kfw_261_eh55", application_date = "2027-01-01")
   )))
-  expect_identical(f15$funding$late$approval_probability, node_expr(
-    "funding.late.budget_risk.approval_probability * funding.late.availability_after_2030"))
+  late_txt <- paste("funding.late.budget_risk.approval_probability *",
+                    "funding.late.availability_after_2030")
+  expect_identical(f15$funding$late$approval_probability, node_expr(late_txt))
   expect_equal(ws_a_value(f15, "funding.late.approval_probability"), 0.63)
   expect_identical(f15$funding$early$approval_probability,
                    node_ref("funding.early.budget_risk.approval_probability"))
@@ -462,16 +463,14 @@ test_that("F-9, F-15: Zusagezeitpunkt und Zusagewahrscheinlichkeit (Teil B 4.2, 
 
 test_that("Overrides (Schicht 8): Pfadform, Löschen, Bibliotheksverweis, Overlay-Bindung (4.7)", {
   local_ws_a_library()
-  sc <- vofi_scenario(ws_a_scenario(
-    market = list(x = 0.02),
-    stochastic = list(parameters = list(k = list(target = "market.x", dist = "normal",
-                                                 mean = 0.02, sd = 0.01)))))
-  expect_message(spec <- withCallingHandlers(
-    vofi_resolve(sc, overrides = list("market.x" = 0.03, project = list(horizon_years = 12L),
-                                      market = list(co2 = list(from = "prices/co2_price_paths_2026",
-                                                               use = "scenarios.hoch")))),
-    vofi_warning_library_outdated = function(w) invokeRestart("muffleWarning")),
-    "deterministisch", fixed = TRUE)
+  k_entry <- list(target = "market.x", dist = "normal", mean = 0.02, sd = 0.01)
+  sc <- vofi_scenario(ws_a_scenario(market = list(x = 0.02),
+                                    stochastic = list(parameters = list(k = k_entry))))
+  co2 <- list(from = "prices/co2_price_paths_2026", use = "scenarios.hoch")
+  ov <- list("market.x" = 0.03, project = list(horizon_years = 12L),
+             market = list(co2 = co2))
+  expect_message(spec <- ws_a_no_outdated(vofi_resolve(sc, overrides = ov)), "deterministisch",
+                 fixed = TRUE)
   expect_identical(spec$market$x, node_const(0.03))
   expect_null(spec$stochastic$parameters$k)
   expect_identical(spec$project$horizon_years, 12L)
@@ -479,9 +478,9 @@ test_that("Overrides (Schicht 8): Pfadform, Löschen, Bibliotheksverweis, Overla
   expect_identical(ws_a_prov(spec, "market.co2")$layer, 8L)
   del <- ws_a_resolve(sc, overrides = list(accounts = list(prepay = NULL)))
   expect_null(del$accounts$prepay)
-  keep <- ws_a_resolve(sc, overrides = list(stochastic = list(parameters = list(
-    k = list(target = "market.x", dist = "normal", mean = 0.03, sd = 0.01))),
-    market = list(x = 0.03)))
+  k_new <- list(target = "market.x", dist = "normal", mean = 0.03, sd = 0.01)
+  keep <- ws_a_resolve(sc, overrides = list(stochastic = list(parameters = list(k = k_new)),
+                                            market = list(x = 0.03)))
   expect_identical(keep$stochastic$parameters$k$mean, 0.03)
   # vofi_build() auf einer Spezifikation löst mit den gemischten Overrides neu auf
   sp2 <- ws_a_resolve(vofi_read_scenario(vofi_example("skeleton")),
@@ -501,14 +500,15 @@ test_that("Overrides (Schicht 8): Pfadform, Löschen, Bibliotheksverweis, Overla
 
 test_that("Gültigkeit der Bibliothekseinträge: Antragsdatum bei Förderung, Stand (D10, 4.9)", {
   local_ws_a_library()
-  sc <- ws_a_scenario(valuation_date = "2026-11-01", funding = list(
-    f = list(from = "funding/estg_35c", application_date = "2030-06-01")))
+  f35 <- list(from = "funding/estg_35c", application_date = "2030-06-01")
+  sc <- ws_a_scenario(valuation_date = "2026-11-01", funding = list(f = f35))
   w <- testthat::capture_warnings(suppressMessages(vofi_resolve(vofi_scenario(sc))))
   expect_true(any(grepl("funding/estg_35c", w, fixed = TRUE)))
-  st <- ws_a_scenario(valuation_date = "2026-11-01", stochastic = list(parameters = list(
-    a = list(target = "funding.f.availability_after_2030", from = "processes/funding_risks_2026",
-             use = "availability_after_2030"))),
-    funding = list(f = list(instrument_type = "grant")))
+  avail <- list(target = "funding.f.availability_after_2030",
+                from = "processes/funding_risks_2026", use = "availability_after_2030")
+  st <- ws_a_scenario(valuation_date = "2026-11-01",
+                      stochastic = list(parameters = list(a = avail)),
+                      funding = list(f = list(instrument_type = "grant")))
   w2 <- testthat::capture_warnings(suppressMessages(vofi_resolve(vofi_scenario(st))))
   expect_true(any(grepl("processes/funding_risks_2026", w2, fixed = TRUE)))
   expect_true(any(grepl("12 Monate", w2, fixed = TRUE)))
@@ -531,9 +531,9 @@ test_that("Ohne Paketbibliothek entfallen die Verweise der Defaults-Dateien (Hin
   expect_identical(spec$residual_value$method, "income_value")
   expect_identical(nrow(spec$library), 0L)
   expect_true(is.na(attr(spec, "library_version")))
-  e <- expect_error(vofi_resolve(vofi_scenario(ws_a_scenario(
-    funding = list(f = list(from = "funding/kfw_261_eh55"))))), class = "vofi_error_validation")
-  expect_identical(e$key, "io.library.entry_unknown")
+  sc_kfw <- vofi_scenario(ws_a_scenario(funding = list(f = list(from = "funding/kfw_261_eh55"))))
+  e <- expect_error(vofi_resolve(sc_kfw), class = "vofi_error_validation")
+  ws_a_expect_key(e, "validation.library.entry_unknown", "io.library.entry_unknown")
 })
 
 test_that("Defaults-Dateien: Prüfung der reservierten Schlüssel (R-76, R-85, R-97, N-05; d5)", {
@@ -552,7 +552,7 @@ test_that("Defaults-Dateien: Prüfung der reservierten Schlüssel (R-76, R-85, R
   fp <- scn_check_defaults(prof, "profile", "profiles/forbidden_profile.yaml")
   pc <- vapply(fp, function(x) x$code, "")
   expect_true(scn_key("validation.profile_path_forbidden", "io.defaults.profile_path",
-                      path = "", allowed = "") %in% pc)
+                      path = "", file = "", allowed = "") %in% pc)
   expect_true("market.inflation" %in% vapply(fp, function(x) x$path, ""))
   meta <- scn_check_defaults(list(project = list()), "profile", "p.yaml")
   expect_identical(meta[[1]]$code, "io.defaults.meta_missing")
@@ -616,8 +616,8 @@ test_that("Expander: order-Reihenfolge, Herkunft expander, Kollision ist ein Feh
                          notes = "Testexpander")
                   })
   reg_add(ex, source = "vofi")
-  sc <- ws_a_scenario(horizon_years = 2L, measures = list(
-    m = list(measure_type = "fenster", year = 2028, cost_eur = 1)))
+  m1 <- list(measure_type = "fenster", year = 2028, cost_eur = 1)
+  sc <- ws_a_scenario(horizon_years = 2L, measures = list(m = m1))
   spec <- ws_a_resolve(sc)
   expect_true("x_m" %in% names(spec$components))
   expect_identical(spec$components$x_m$origin, "expander")
@@ -627,7 +627,7 @@ test_that("Expander: order-Reihenfolge, Herkunft expander, Kollision ist ein Feh
   expect_true("Testexpander" %in% attr(spec, "notes"))
   sc$components$x_m <- list(type = "custom_series", values = c(1, 2, 3))
   e <- expect_error(ws_a_resolve(sc), class = "vofi_error_validation")
-  expect_identical(e$key, "io.expander_id_collision")
+  ws_a_expect_key(e, "validation.expander.id_collision", "io.expander_id_collision")
   expect_error(scn_merge_expansion(list(), "kaputt", "t", NULL), class = "vofi_error_contract")
 })
 
@@ -653,4 +653,137 @@ test_that("Knotenbewusstes Mischen und Prüfung des Schlüssels from (4.7, R-110
   expect_identical(scn_overrides_tree(list("a.b" = 1, c = 2, "a.d" = NULL)),
                    list(c = 2, a = list(b = 1, d = NULL)))
   expect_error(scn_overrides_tree(list(1)), class = "vofi_error_input")
+})
+
+test_that("A-04: Maßnahmen-Expander läuft mit building auch ohne Maßnahmen (Teil A 4.5.2)", {
+  local_ws_a_library()
+  old <- reg_state$types
+  withr::defer(reg_state$types <- old)
+  calls <- new.env()
+  calls$n <- 0L
+  calls$blocks <- list()
+  ex <- vofi_type(name = "ws_a_measures", kind = "expander", block = "measures", order = 10L,
+                  expand = function(block, scenario, bctx) {
+                    calls$n <- calls$n + 1L
+                    calls$blocks[[calls$n]] <- block
+                    list(components = list(), assets = list(), measures = list())
+                  })
+  reg_add(ex, source = "vofi")
+  ug <- vofi_type(name = "ws_a_groups", kind = "expander", block = "unit_groups", order = 20L,
+                  expand = function(block, scenario, bctx) {
+                    calls$n <- calls$n + 100L
+                    NULL
+                  })
+  reg_add(ug, source = "vofi")
+  sc <- ws_a_scenario(building = list(construction_year = 1972L, living_area_m2 = 1000),
+                      unit_groups = list())
+  spec <- ws_a_resolve(sc)
+  expect_identical(calls$n, 1L)
+  expect_identical(calls$blocks[[1]], list())
+  expect_identical(spec$building$maintenance$enabled, TRUE)
+  # ohne building und ohne Maßnahmen: kein Aufruf
+  calls$n <- 0L
+  ws_a_resolve(ws_a_scenario())
+  expect_identical(calls$n, 0L)
+  # Referenzvariante ohne Maßnahmen (remove), building bleibt
+  calls$n <- 0L
+  sc2 <- ws_a_scenario(building = list(construction_year = 1972L, living_area_m2 = 1000),
+                       measures = list(m = list(measure_type = "fenster", year = 2028,
+                                                cost_eur = 1)),
+                       variants = list(ref = list(remove = list("measures.m"))))
+  ws_a_resolve(sc2, variant = "ref")
+  expect_identical(calls$n, 1L)
+  expect_length(calls$blocks[[1]], 0L)
+  expect_true(scn_expander_runs(list(block = "energy", run_if_blocks = "building"),
+                                list(building = list(a = 1))))
+  expect_false(scn_expander_runs(list(block = "energy"), list(building = list(a = 1))))
+})
+
+test_that("A-09: Bezugsgröße jedes Mengenbezugs wird vor den Expandern geprüft (Q5, Q7)", {
+  local_ws_a_library()
+  q5 <- ws_a_scenario(measures = list(wp = list(measure_type = "heizung_waermepumpe_luft",
+                                                year = 2028,
+                                                cost_eur = list(value = 1800, per = "kw"))))
+  e <- expect_error(ws_a_resolve(q5), class = "vofi_error_validation")
+  ws_a_expect_key(e, "validation.quantity.reference_missing", "io.quantity_reference_missing")
+  expect_identical(e$args$path, "measures.wp.cost_eur")
+  q5$measures$wp$kw <- 12
+  expect_equal(ws_a_value(ws_a_resolve(q5), "measures.wp.cost_eur"), 21600)
+  # Q7: kWp der PV-Maßnahme aus energy.pv über rule:measure_catalog
+  q7 <- ws_a_resolve(ws_a_scenario(
+    measures = list(pv = list(measure_type = "pv", year = 2028,
+                              cost_eur = list(value = 1400, per = "kwp"))),
+    energy = list(pv = list(kwp = 30, measure = "pv"))
+  ))
+  expect_identical(q7$measures$pv$kwp, node_ref("energy.pv.kwp"))
+  expect_equal(ws_a_value(q7, "measures.pv.cost_eur"), 42000)
+  # Rückfall building, kein Rückfall für kw; Gruppe und Bauteil als Bezugsobjekt
+  rate <- list(value = 14.4, per = "m2_living_area")
+  admin <- list(value = 367, per = "unit")
+  wdvs <- list(measure_type = "daemmung_fassade", year = 2028,
+               cost_eur = list(value = 248, per = "m2_component:facade"))
+  ok <- ws_a_resolve(ws_a_scenario(
+    building = list(living_area_m2 = 1600, component_areas_m2 = list(facade = 1500),
+                    maintenance = list(rate_eur_m2_pa = rate)),
+    unit_groups = list(std = list(n_units = 24, operating = list(admin_per_unit_eur_pa = admin))),
+    measures = list(wdvs = wdvs)
+  ))
+  expect_equal(ws_a_value(ok, "building.maintenance.rate_eur_m2_pa"), 23040)
+  expect_equal(ws_a_value(ok, "measures.wdvs.cost_eur"), 372000)
+  bad_ug <- ws_a_scenario(unit_groups = list(g = list(
+    operating = list(admin_per_unit_eur_pa = admin)
+  )))
+  expect_error(ws_a_resolve(bad_ug), class = "vofi_error_validation")
+  kwh <- list(schedule = list("2027" = list(value = 1, per = "kwh")))
+  sched <- ws_a_scenario(shared = list(p = kwh))
+  e2 <- expect_error(ws_a_resolve(sched), class = "vofi_error_validation")
+  expect_identical(e2$args$path, "shared.p.schedule.1")
+  expect_identical(scn_quantity_target(list(building = list(n_units = 3)), "a.b.c", "unit"),
+                   "building.n_units")
+  expect_null(scn_quantity_target(list(building = list(kw = 3)), "a.b.c", "kw"))
+})
+
+test_that("A-10: bctx$rule() wählt die Reformversion vor der Version ohne Reform (4.10)", {
+  old <- reg_state$types
+  withr::defer(reg_state$types <- old)
+  mk <- function(from, reform = NULL, val) {
+    vofi_type("ws_a_regel", "rule", fun = function(x) val, valid_from = from, reform = reform,
+              returns = "value", label = "R")
+  }
+  reg_add(mk("2024-01-01", val = "alt"), source = "vofi")
+  reg_add(mk("2026-06-01", val = "neu"), source = "vofi")
+  reg_add(mk("2025-01-01", reform = "mietrecht_ii", val = "reform"), source = "vofi")
+  spec <- function(ls, reforms = character(0)) {
+    list(project = list(legal_state = as.Date(ls), pending_reforms = reforms))
+  }
+  expect_identical(scn_rule_for("ws_a_regel", spec("2027-01-01"))(1), "neu")
+  expect_identical(scn_rule_for("ws_a_regel", spec("2025-06-01"))(1), "alt")
+  expect_identical(scn_rule_for("ws_a_regel", spec("2027-01-01", "mietrecht_ii"))(1), "reform")
+  expect_identical(scn_rule_for("ws_a_regel", spec("2024-06-01", "mietrecht_ii"))(1), "alt")
+  expect_error(scn_rule_for("ws_a_regel", spec("2020-01-01")), class = "vofi_error_registry")
+})
+
+test_that("A-13: Bibliotheksnutzlasten werden je Auflösung zwischengespeichert", {
+  local_ws_a_library()
+  ms <- lapply(1:8, function(i) list(measure_type = "fenster", year = 2028, cost_eur = 1000))
+  names(ms) <- paste0("m", 1:8)
+  sc <- vofi_scenario(ws_a_scenario(measures = ms))
+  orig <- lib_payload_build
+  cnt <- new.env()
+  cnt$ids <- character(0)
+  testthat::local_mocked_bindings(lib_payload_build = function(index, id, path, stack) {
+    cnt$ids <- c(cnt$ids, id)
+    orig(index, id, path, stack)
+  })
+  spec <- ws_a_resolve(sc)
+  expect_identical(sum(cnt$ids == "costs/massnahmentypen_2026"), 1L)
+  expect_identical(spec$measures$m8$kg, 300L)
+  prv <- prv_new()
+  prv_set(prv, c("a.b", "a.c", "d"), prv_info(5L, "scenario"))
+  prv_set(prv, "a.c", prv_info(7L, "variant"))
+  idx <- prv_index(prv)
+  expect_identical(get("a", envir = idx), "a.c")
+  expect_identical(prv_lookup(prv, "a", idx)$layer, 7L)
+  expect_identical(prv_lookup(prv, "a.b.x")$layer, 5L)
+  expect_identical(length(ls(prv_index(prv_new()))), 0L)
 })

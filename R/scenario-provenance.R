@@ -13,11 +13,11 @@ prv_columns <- function() {
 }
 
 #' Neuer Herkunftsspeicher (Umgebung, damit Schichten ohne Kopien aufzeichnen)
-#' @return Umgebung mit `rec` (Liste nach Pfad) und Zähler `seq`.
+#' @return Umgebung mit `rec` (Umgebung nach Pfad, Hash) und Zähler `seq`.
 #' @noRd
 prv_new <- function() {
   e <- new.env(parent = emptyenv())
-  e$rec <- list()
+  e$rec <- new.env(hash = TRUE, parent = emptyenv())
   e$seq <- 0L
   e
 }
@@ -58,7 +58,7 @@ prv_set <- function(prv, paths, info, quality = NULL, location = NULL) {
     if (!is.null(quality) && !is.na(quality[i])) rec$quality <- quality[i]
     if (!is.null(location) && !is.na(location[i])) rec$location <- location[i]
     rec$seq <- prv$seq
-    prv$rec[[paths[i]]] <- rec
+    assign(paths[i], rec, envir = prv$rec)
   }
   invisible(NULL)
 }
@@ -83,20 +83,50 @@ prv_record_tree <- function(prv, x, prefix, info, locations = NULL) {
   invisible(paths)
 }
 
+#' Präfixindex der Aufzeichnungen: je Vorfahrenpfad die jüngste Aufzeichnung darunter
+#' @param prv Herkunftsspeicher.
+#' @return Umgebung Präfix -> Pfad der jüngsten Aufzeichnung unterhalb des Präfixes.
+#' @noRd
+prv_index <- function(prv) {
+  nms <- ls(prv$rec, all.names = TRUE, sorted = FALSE)
+  desc <- new.env(hash = TRUE, parent = emptyenv())
+  if (length(nms) == 0L) return(desc)
+  seqs <- vapply(nms, function(p) get(p, envir = prv$rec)$seq, integer(1), USE.NAMES = FALSE)
+  segs <- strsplit(nms, ".", fixed = TRUE)
+  pre <- lapply(segs, function(s) {
+    k <- length(s) - 1L
+    if (k < 1L) character(0) else vapply(seq_len(k), function(j) {
+      paste(s[seq_len(j)], collapse = ".")
+    }, "")
+  })
+  who <- rep(seq_along(nms), lengths(pre))
+  pre <- unlist(pre, use.names = FALSE)
+  if (length(pre) == 0L) return(desc)
+  o <- order(-seqs[who], method = "radix")
+  pre <- pre[o]
+  who <- who[o]
+  keep <- !duplicated(pre)
+  list2env(stats::setNames(as.list(nms[who[keep]]), pre[keep]), envir = desc)
+}
+
 #' Maßgebliche Angabe für einen Blattpfad
+#'
+#' Die jüngste Aufzeichnung zum Pfad selbst, zu einem Vorfahren oder zu einem Nachfahren.
 #' @param prv Herkunftsspeicher.
 #' @param path Blattpfad.
-#' @param nms optional: vorberechnete Namen der Aufzeichnungen.
+#' @param idx optional: vorberechneter Präfixindex (`prv_index()`).
 #' @return Angabe oder `NULL`.
 #' @noRd
-prv_lookup <- function(prv, path, nms = names(prv$rec)) {
-  if (length(nms) == 0L) return(NULL)
+prv_lookup <- function(prv, path, idx = NULL) {
+  if (length(prv$rec) == 0L) return(NULL)
+  if (is.null(idx)) idx <- prv_index(prv)
   segs <- path_split(path)
   anc <- vapply(seq_along(segs), function(k) paste(segs[seq_len(k)], collapse = "."), "")
-  cand <- c(anc[anc %in% nms], nms[startsWith(nms, paste0(path, "."))])
+  cand <- anc[vapply(anc, exists, logical(1), envir = prv$rec, inherits = FALSE)]
+  cand <- c(cand, get0(path, envir = idx, inherits = FALSE))
   if (length(cand) == 0L) return(NULL)
-  seqs <- vapply(cand, function(p) prv$rec[[p]]$seq, integer(1))
-  prv$rec[[cand[which.max(seqs)]]]
+  seqs <- vapply(cand, function(p) get(p, envir = prv$rec)$seq, integer(1))
+  get(cand[which.max(seqs)], envir = prv$rec)
 }
 
 #' Herkunftstabelle der Blätter von `x` (4.8)
@@ -110,11 +140,13 @@ prv_table <- function(prv, x, variant = NA_character_,
                       default = prv_info(0L, "type_default")) {
   paths <- scn_leaves(x)
   if (length(paths) == 0L) return(prv_empty_table())
-  nms <- names(prv$rec)
-  recs <- lapply(paths, function(p) prv_lookup(prv, p, nms) %||% default)
+  idx <- prv_index(prv)
+  recs <- lapply(paths, function(p) prv_lookup(prv, p, idx) %||% default)
   col <- function(f) vapply(recs, function(r) as.character(r[[f]] %||% NA_character_), "")
-  dcol <- function(f) as.Date(vapply(recs, function(r) as.double(r[[f]] %||% NA_real_),
-                                     double(1)), origin = "1970-01-01")
+  dcol <- function(f) {
+    as.Date(vapply(recs, function(r) as.double(r[[f]] %||% NA_real_), double(1)),
+            origin = "1970-01-01")
+  }
   var <- col("variant")
   var[is.na(var)] <- as.character(variant)
   data.frame(

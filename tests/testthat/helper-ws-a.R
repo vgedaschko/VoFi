@@ -3,12 +3,21 @@
 # Abhängigkeiten zu anderen Paketen (im Bericht an den Integrator genannt):
 # 1. helper-contracts.R (Integrator) führt vofi_library() und vofi_write_scenario() noch als
 #    Stubs; WS-A liefert beide. vofi_stubs() wird hier um diese Namen verkleinert (verkettbar
-#    mit gleichartigen Helfern anderer Pakete), bis der Integrator die Liste anpasst.
-# 2. Das Phase-0-Schema von WS-B (val_domain_schema(), val_known_extra_fields()) kennt die
-#    Felder von residual_value aus global.yaml (Spec 01 Teil A 2.2, 6.1) noch nicht; ohne Patch
-#    meldet vofi_validate() dafür validation.unknown_field. Der Patch ergänzt nur Felder, die
-#    global.yaml und die Profile tatsächlich setzen und die das Schema noch nicht kennt; er ist
-#    wirkungslos, sobald WS-B das Schema nach Spec 01 liefert.
+#    und idempotent wie die gleichartigen Hüllen von WS-D und WS-D2), bis der Integrator die
+#    Liste beim Merge anpasst; test-api.R prüft sonst, dass jede gelistete Funktion
+#    vofi_error_not_implemented meldet.
+# 2. Das Phase-0-Schema von WS-B (val_domain_schema(), val_known_extra_fields()) kennt Felder aus
+#    global.yaml, den Profilen und den Ableitungsregeln (z. B. building.maintenance,
+#    residual_value.income_value, Spec 01 Teil A 2.2, 6.1) noch nicht; vofi_validate() meldet
+#    dafür validation.unknown_field (falsch positiv). Das Schema von WS-B (ws/ws-b) kennt alle
+#    diese Felder. Brücke bis zum Merge:
+#    - WS-A-Tests rufen local_ws_a_schema() je Test auf.
+#    - Für die übrigen Testdateien (z. B. test-validate-structure.R, test-type-inst-loan-core.R,
+#      die aufgelöste Szenarien ohne Befund erwarten) ergänzt ws_a_schema_bridge() dieselben
+#      Felder für die Suite, aber nur, solange das Schema sie nicht kennt; mit dem Schema von
+#      WS-B ist die Liste leer und die Brücke tut nichts. test-profiles.R ("A-11") prüft mit dem
+#      ungepatchten Schema, dass die Brücke genau diese Befunde und keine anderen verdeckt.
+#    Der Integrator löscht die Brücke beim Merge mit WS-B (Bericht WS-A).
 
 if (exists("vofi_stubs", mode = "function")) {
   vofi_stubs <- local({
@@ -17,9 +26,12 @@ if (exists("vofi_stubs", mode = "function")) {
   })
 }
 
-local({
+#' Felder aus global.yaml, Profilen und Ableitungsregeln, die das Schema noch nicht kennt
+#' @param known_extra Funktion `val_known_extra_fields()` (Default: die aktuelle Bindung).
+ws_a_extra_fields <- function(known_extra = NULL) {
   ns <- asNamespace("vofi")
-  orig <- get("val_known_extra_fields", envir = ns)
+  known_extra <- known_extra %||% get("val_known_extra_fields", envir = ns)
+  schema <- get("val_domain_schema", envir = ns)
   files <- c(system.file("extdata", "defaults", "global.yaml", package = "vofi"),
              list.files(system.file("extdata", "profiles", package = "vofi"),
                         pattern = "\\.yaml$", full.names = TRUE))
@@ -27,30 +39,60 @@ local({
   blocks <- c("meta", "project", "grid", "building", "household", "accounts",
               "residual_value", "tax", "analysis")
   extra <- list()
+  add <- function(b, fields) {
+    known <- c(names(schema(b)), known_extra(b))
+    extra[[b]] <<- unique(c(extra[[b]], setdiff(fields, known)))
+  }
   for (f in files) {
     raw <- get("io_read_yaml_utf8", envir = ns)(f)
     items <- raw$item_defaults %||% list()
     trees <- c(list(raw), unname(raw$by_project_type %||% list()),
                list(items[intersect(names(items), blocks)]))
     for (t in trees) {
-      for (b in intersect(blocks, names(t))) {
-        known <- c(names(get("val_domain_schema", envir = ns)(b)), orig(b))
-        extra[[b]] <- unique(c(extra[[b]], setdiff(names(t[[b]]), known)))
-      }
+      for (b in intersect(blocks, names(t))) add(b, names(t[[b]]))
     }
   }
   rules <- get("scn_rule_fields", envir = ns)()
-  for (b in intersect(blocks, names(rules))) {
-    known <- c(names(get("val_domain_schema", envir = ns)(b)), orig(b))
-    extra[[b]] <- unique(c(extra[[b]], setdiff(rules[[b]], known)))
+  for (b in intersect(blocks, names(rules))) add(b, rules[[b]])
+  Filter(length, extra)
+}
+
+#' Ergänzte Fassung von val_known_extra_fields() (Felder nach ws_a_extra_fields())
+ws_a_patched_known_extra <- function(orig, extra) {
+  patched <- function(block) unique(c(orig(block), extra[[block]]))
+  environment(patched) <- list2env(list(orig = orig, extra = extra),
+                                   parent = asNamespace("vofi"))
+  patched
+}
+
+#' Schema-Ergänzung für vofi_validate() in einem Test (nur für den aufrufenden Test)
+local_ws_a_schema <- function(env = parent.frame()) {
+  ns <- asNamespace("vofi")
+  orig <- get("val_known_extra_fields", envir = ns)
+  extra <- ws_a_extra_fields()
+  if (length(extra) == 0L) return(invisible(NULL))
+  testthat::local_mocked_bindings(val_known_extra_fields = ws_a_patched_known_extra(orig, extra),
+                                  .env = env)
+  invisible(extra)
+}
+
+#' Ungepatchte Fassung von val_known_extra_fields() (für die Prüfung der Brücke)
+ws_a_schema_state <- new.env(parent = emptyenv())
+
+#' Brücke für die Suite, solange das Schema die Felder der Defaults nicht kennt (siehe oben)
+ws_a_schema_bridge <- function() {
+  ns <- asNamespace("vofi")
+  if (is.null(ws_a_schema_state$orig)) {
+    ws_a_schema_state$orig <- get("val_known_extra_fields", envir = ns)
   }
-  extra <- Filter(length, extra)
-  if (length(extra) > 0L) {
-    patched <- function(block) unique(c(orig(block), extra[[block]]))
-    environment(patched) <- list2env(list(orig = orig, extra = extra), parent = ns)
-    utils::assignInNamespace("val_known_extra_fields", patched, ns = "vofi")
-  }
-})
+  extra <- ws_a_extra_fields(ws_a_schema_state$orig)
+  ws_a_schema_state$extra <- extra
+  if (length(extra) == 0L) return(invisible(NULL))
+  utils::assignInNamespace("val_known_extra_fields",
+                           ws_a_patched_known_extra(ws_a_schema_state$orig, extra), ns = "vofi")
+  invisible(extra)
+}
+ws_a_schema_bridge()
 
 #' Wurzel der Testbibliothek (tests/testthat/fixtures/library)
 ws_a_lib <- function(...) testthat::test_path("fixtures", "library", ...)
@@ -105,6 +147,19 @@ ws_a_resolve <- function(x, ...) {
   )
 }
 
+#' Ausdruck ohne Veraltungswarnungen der Testbibliothek auswerten (Hinweise bleiben sichtbar)
+ws_a_no_outdated <- function(expr) {
+  withCallingHandlers(
+    expr,
+    vofi_warning_library_outdated = function(w) invokeRestart("muffleWarning")
+  )
+}
+
+#' Ausdruck ohne Hinweise auswerten (Warnungen bleiben sichtbar)
+ws_a_no_messages <- function(expr) {
+  withCallingHandlers(expr, message = function(m) invokeRestart("muffleMessage"))
+}
+
 #' Ausdruck ohne Hinweise und ohne Veraltungswarnungen auswerten
 ws_a_quiet <- function(expr) {
   withCallingHandlers(
@@ -125,4 +180,12 @@ ws_a_value <- function(spec, path, shape = "scalar") {
   ns <- asNamespace("vofi")
   grid <- get("scn_grid", envir = ns)(spec)
   get("scn_value_base", envir = ns)(spec, grid, path, shape)
+}
+
+#' Schlüssel eines Befunds: WS-B-Schlüssel (sobald dessen Text im Katalog steht und die
+#' Platzhalter passen) oder der Rückfallschlüssel von WS-A (`scn_key()`); welcher gewählt wird,
+#' prüft test-scenario-variants.R ("A-06") mit den Texten von WS-B.
+ws_a_expect_key <- function(e, primary, fallback) {
+  testthat::expect_true(e$key %in% c(primary, fallback),
+                        info = paste0(e$key, " ist weder ", primary, " noch ", fallback))
 }

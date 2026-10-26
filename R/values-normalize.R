@@ -45,9 +45,11 @@ node_normalize <- function(x, param = NULL, path = NULL) {
   if (is.null(x)) return(NULL)
   kind <- if (is.null(param)) "value" else param$kind
   if (kind %in% c("number", "amount", "rate", "share", "value", "schedule")) {
-    eur <- identical(kind, "amount") || identical(param$unit, "EUR") || io_path_is_eur(path)
+    unit <- param$unit
+    eur <- identical(kind, "amount") || (utl_is_string(unit) && startsWith(unit, "EUR")) ||
+      io_path_is_eur(path)
     node <- node_value(x, path, eur = eur, allow_auto = isTRUE(param$allow_auto))
-    node_check_rate(node, kind, path, eur)
+    node_check_rate(node, kind, path, eur, unit = unit)
     return(node)
   }
   switch(kind,
@@ -103,7 +105,7 @@ node_value <- function(x, path, eur = FALSE, allow_auto = FALSE) {
       schedule = node_schedule_raw(x, path, eur),
       growth = node_growth_raw(x, path, eur),
       quantity = list(kind = "quantity", value = node_quantity_value(x[["value"]], path, eur),
-                      per = node_string(x[["per"]], path_join(path, "per"))),
+                      per = node_quantity_per(x[["per"]], path_join(path, "per"))),
       dist = node_dist_raw(x, path),
       from = x
     ))
@@ -175,7 +177,7 @@ node_tidy <- function(x, path, eur) {
     },
     quantity = {
       x$value <- node_quantity_value(x$value, path, eur)
-      x$per <- node_string(x$per, path_join(path, "per"))
+      x$per <- node_quantity_per(x$per, path_join(path, "per"))
       x
     },
     x
@@ -209,13 +211,13 @@ node_scalar <- function(x, path, eur = FALSE, allow = node_scalar_kinds()) {
   node <- node_value(x, path, eur)
   if (!(node$kind %in% allow)) {
     if ("quantity" %in% allow) {
-      key <- if (startsWith(path, "measures.")) {
-        scn_key("validation.measures.schedule_amount_form", "io.schedule_amount_form",
-                path = path, kind = node$kind)
+      primary <- if (startsWith(path, "measures.")) {
+        "validation.measures.schedule_amount_form"
       } else {
         "io.schedule_amount_form"
       }
-      vofi_abort(key, path = path, kind = node$kind, .class = "vofi_error_validation")
+      scn_signal("abort", primary, "io.schedule_amount_form", path = path, kind = node$kind,
+                 form = node$kind, .class = "vofi_error_validation")
     }
     vofi_abort("io.element_not_scalar", path = path, kind = node$kind,
                .class = "vofi_error_input")
@@ -263,16 +265,16 @@ node_quantity_value <- function(x, path, eur = FALSE) {
 
 #' Raten und Anteile > 1 sind ein Eingabefehler (4.6)
 #'
-#' Maßgeblich ist die Parameterart (`rate`, `share`); ohne diese Art das Schlüsselsuffix
-#' `_pa`/`_share`, außer bei EUR-Beträgen (Einheit EUR, Art amount, Suffix `_eur_pa` wie
-#' `deposit_tax_allowance_eur_pa` bzw. Jahresbeträge wie `contributions_pa` mit Einheit EUR).
+#' Maßgeblich ist zuerst die Parameterart: `rate` und `share` sind Raten, `amount` und
+#' EUR-Beträge (Einheit `EUR*`, Schlüsselsegment `_eur`) nie. Nennt das Schema eine Einheit,
+#' entscheidet sie (`rate_pa`, `rate`, `share` sind Raten; `kWh_pa`, `EUR_pa`, `m2` usw. nicht).
+#' Ohne Art und Einheit gilt das Schlüsselsuffix `_pa`/`_share` (4.6), außer wenn davor ein
+#' Einheitensegment steht (`kwh_pa`, `quantity_kwh_pa`, `maintenance_eur_m2_pa`; Mengen und
+#' Beträge je Jahr sind keine Raten).
+#' @param unit `NULL` oder Einheit des Parameterschemas.
 #' @noRd
-node_check_rate <- function(node, kind, path, eur = FALSE) {
-  segs <- path_split(path)
-  last <- if (length(segs) > 0L) segs[length(segs)] else ""
-  is_rate <- kind %in% c("rate", "share") ||
-    (!isTRUE(eur) && grepl("(_pa|_share)$", last) && !grepl("_eur", last, fixed = TRUE))
-  if (!is_rate || !is.list(node)) return(invisible(TRUE))
+node_check_rate <- function(node, kind, path, eur = FALSE, unit = NULL) {
+  if (!node_is_rate_target(kind, path, eur, unit) || !is.list(node)) return(invisible(TRUE))
   vals <- if (identical(node$kind, "const")) {
     node$value
   } else if (node$kind %in% c("series_t", "series_year", "points") && is.numeric(node$values)) {
@@ -286,6 +288,49 @@ node_check_rate <- function(node, kind, path, eur = FALSE) {
                .class = "vofi_error_input")
   }
   invisible(TRUE)
+}
+
+#' Ist das Ziel eine Rate bzw. ein Anteil (Prüfung > 1 nach 4.6)?
+#' @inheritParams node_check_rate
+#' @return `TRUE`/`FALSE`.
+#' @noRd
+node_is_rate_target <- function(kind, path, eur = FALSE, unit = NULL) {
+  if (kind %in% c("rate", "share")) return(TRUE)
+  if (isTRUE(eur) || identical(kind, "amount")) return(FALSE)
+  if (utl_is_string(unit) && nzchar(unit)) return(unit %in% node_rate_units())
+  segs <- path_split(path)
+  segs <- segs[!grepl("^[0-9]+$", segs)]
+  last <- if (length(segs) > 0L) segs[length(segs)] else ""
+  if (!grepl("(_pa|_share)$", last)) return(FALSE)
+  stem <- strsplit(sub("(_pa|_share)$", "", last), "_", fixed = TRUE)[[1L]]
+  !any(stem %in% node_unit_tokens())
+}
+
+#' Einheiten des Parameterschemas, die Raten bzw. Anteile bezeichnen (4.6)
+#' @noRd
+node_rate_units <- function() c("rate_pa", "rate", "share", "share_pa")
+
+#' Einheitensegmente in Schlüsseln, vor denen `_pa` keine Rate bezeichnet (4.6)
+#' @noRd
+node_unit_tokens <- function() {
+  c("eur", "ct", "kwh", "mwh", "kw", "kwp", "kg", "t", "m2", "m3", "l")
+}
+
+#' Mengenbezug `per` prüfen: Code aus `quantity_per`, Bauteilcode bei `m2_component:<b>`
+#' (4.5, Spec 01 Teil A 3.1.1, 3.5)
+#' @noRd
+node_quantity_per <- function(x, path) {
+  per <- node_string(x, path)
+  ok <- vocab_has("quantity_per", per)
+  if (ok && startsWith(per, "m2_component:")) {
+    ok <- vocab_has("component_area", sub("^m2_component:", "", per))
+  }
+  if (!isTRUE(ok)) {
+    vofi_abort("io.quantity_per_unknown", path = path, per = per,
+               suggestion = utl_suggest_text(per, vocab_codes("quantity_per")),
+               .class = "vofi_error_input")
+  }
+  per
 }
 
 #' Bezug {ref, scale, offset, floor, cap, anchor}
@@ -359,7 +404,7 @@ node_schedule_raw <- function(x, path, eur) {
                                                         path_join(path, "unit"))
   is_eur <- eur && !identical(unit, "share")
   node <- node_schedule(dates, node_elements(unname(s), path_join(path, "schedule"), is_eur,
-                                               node_schedule_kinds()))
+                                             node_schedule_kinds()))
   node$unit <- unit
   node
 }

@@ -80,8 +80,9 @@ var_chain <- function(variants, variant) {
 #' @param name Name der Variante bzw. des Sets.
 #' @param is_set Szenario-Set?
 #' @param ctx `NULL` oder Kontext von `vofi_resolve()` (Bibliothek, Herkunft, Vorlagen).
-#' @return `list(x, bound, keys)`: Spezifikation, deterministisch gesetzte Pfade (`set`,
-#'   `replace`, `overrides`) und die von den Operationen berührten Overlay-Schlüssel.
+#' @return `list(x, bound, keys)`: Spezifikation, deterministisch gesetzte Pfade (`replace`:
+#'   der ganze Teilbaum; `set` und `overrides`: die Blätter des Werts, weil sie mischen) und die
+#'   von den Operationen berührten Overlay-Schlüssel.
 #' @noRd
 var_apply_ops <- function(x, ops, name, is_set = FALSE, ctx = NULL) {
   ops <- ops %||% list()
@@ -106,9 +107,9 @@ var_apply_ops <- function(x, ops, name, is_set = FALSE, ctx = NULL) {
   check <- function(p, op, relaxed) {
     known <- if (relaxed) var_path_known(x, p, ctx) else path_exists(x, p)
     if (!known) {
-      vofi_abort(scn_key("validation.variant.path_missing", "io.variant_path_missing",
-                         variant = name, op = op, path = p),
-                 variant = name, op = op, path = p, .class = "vofi_error_validation")
+      scn_signal("abort", "validation.variants.path_missing", "io.variant_path_missing",
+                 variant = name, op = op, path = p, value = p,
+                 .class = "vofi_error_validation")
     }
   }
   value_of <- function(v, p) var_resolve_value(v, p, ctx, name, op_name)
@@ -137,7 +138,9 @@ var_apply_ops <- function(x, ops, name, is_set = FALSE, ctx = NULL) {
       if (is_set) var_check_growth_form(old, v, p, name)
       x <- path_set(x, p, if (is.null(old)) v else scn_merge(old, v, p))
       var_record(ctx, ops$set[[p0]], p, name, op_name)
-      bound <- c(bound, p)
+      # set mischt: deterministisch gesetzt sind nur die Blaetter des Werts (Elternmap-Form
+      # {measures.wp: {cost_factor: 1.2}} = Pfadform measures.wp.cost_factor, XM13)
+      bound <- c(bound, var_override_leaves(v, p))
       touched <- c(touched, var_overlay_key(p), var_dist_keys(v, p))
     }
   }
@@ -267,9 +270,9 @@ var_check_growth_form <- function(old, v, p, name) {
   is_growth <- (node_is(old) && identical(old$kind, "growth")) ||
     (is_map(old) && identical(utl_value_form_kind(old), "growth"))
   if (!is_growth) {
-    vofi_abort(scn_key("validation.scenario_set.growth_form_required",
-                       "io.scenario_set_growth_form", set = name, path = p),
-               set = name, path = p, .class = "vofi_error_validation")
+    scn_signal("abort", "validation.scenario_set.growth_form_required",
+               "io.scenario_set_growth_form", set = name, path = paste0("scenario_sets.", name),
+               value = p, .class = "vofi_error_validation")
   }
   invisible(TRUE)
 }
@@ -399,9 +402,13 @@ var_check_set_path <- function(p, name) {
   ok <- first %in% c("market", "funding", "accounts", "residual_value", "stochastic", "tax") ||
     identical(p, "project.pending_reforms")
   if (!ok) {
-    key <- if (identical(first, "shared")) "io.scenario_set_shared" else "io.scenario_set_path"
-    vofi_abort(scn_key("validation.scenario_set.path_forbidden", key, set = name, path = p),
-               set = name, path = p, .class = "vofi_error_validation")
+    shared <- identical(first, "shared")
+    scn_signal("abort",
+               if (shared) "validation.scenario_set.path_forbidden" else
+                 "validation.scenario_set.path_not_allowed",
+               if (shared) "io.scenario_set_shared" else "io.scenario_set_path",
+               set = name, path = paste0("scenario_sets.", name), value = p,
+               .class = "vofi_error_validation")
   }
   invisible(TRUE)
 }

@@ -143,7 +143,7 @@ test_that("Zahlungsplan: Beträge als Zahl, ref, expr oder Mengenbezug; Verteilu
                                                                       mode = 2, max = 3))),
                                    NULL, "measures.m.payment_schedule"),
                     class = "vofi_error_validation")
-  expect_identical(e$key, "io.schedule_amount_form")
+  ws_a_expect_key(e, "validation.measures.schedule_amount_form", "io.schedule_amount_form")
   expect_error(node_normalize(list(schedule = list("2027" = list(value = 1, per = "unit"))),
                               NULL, "components.x.draw_schedule"), NA)
   e2 <- expect_error(node_normalize(list(years = c(2026, 2030),
@@ -207,4 +207,163 @@ test_that("node_to_yaml ist die Umkehrung von node_normalize (Round-Trip 4.14)",
   expect_identical(node_normalize(node_to_yaml(d)), d)
   expect_identical(node_to_yaml("text"), "text")
   expect_identical(node_to_yaml(node_const(1)), 1)
+})
+
+test_that("A-01: Raten nach Art und Einheit; Jahresmengen mit Einheitensegment sind keine Raten", {
+  # Art bzw. Einheit des Schemas entscheiden
+  expect_identical(node_normalize(24500, vofi_param("value", unit = "kWh_pa"),
+                                  "components.e1.quantity_kwh_pa"), node_const(24500))
+  expect_identical(node_normalize(3500, vofi_param("value", unit = "kWh_pa"), "x.extra_kwh_pa"),
+                   node_const(3500))
+  expect_error(node_normalize(3.9, vofi_param("value", unit = "rate_pa"), "x.turnover_rate_pa"),
+               class = "vofi_error_input")
+  expect_error(node_normalize(1.5, vofi_param("share"), "x.anything"), class = "vofi_error_input")
+  expect_identical(node_normalize(1200, vofi_param("amount"), "x.opex_eur_pa"), node_const(1200))
+  expect_identical(node_normalize(14.4, vofi_param("value", unit = "EUR_m2_pa"),
+                                  "building.maintenance.rate_pa"), node_const(14.4))
+  # ohne Einheit: Suffix _pa/_share (4.6), außer mit Einheitensegment davor
+  expect_error(node_normalize(3.9, vofi_param("value"), "accounts.deposit_rate_pa"),
+               class = "vofi_error_input")
+  expect_identical(node_normalize(3500, NULL, "energy.before.extra_consumption.haushalt.kwh_pa"),
+                   node_const(3500))
+  expect_identical(node_normalize(400, NULL, "x.quantity_kwh_pa"), node_const(400))
+  expect_identical(node_normalize(14.4, NULL, "residual_value.bwk.maintenance_eur_m2_pa"),
+                   node_const(14.4))
+  expect_identical(node_normalize(c(3500, 3600), NULL, "x.kwh_pa"),
+                   list(kind = "series_t", values = c(3500, 3600)))
+  expect_error(node_normalize(c(0.02, 2), NULL, "x.growth_share"), class = "vofi_error_input")
+  expect_true(node_is_rate_target("value", "x.items.3.loss_share"))
+  expect_false(node_is_rate_target("value", "x.kwp_pa"))
+  expect_false(node_is_rate_target("number", "x.count"))
+  # Referenzszenario S5 (Spec 01 Teil C): Haushaltsstrom als Jahresmenge
+  haushalt <- list(carrier = "power", kwh_pa = 3500)
+  sc <- vofi_scenario(list(
+    schema_version = 1L, meta = list(scenario_id = "s5", title = "S5"),
+    project = list(perspective = "selbstnutzer", project_type = "sanierung_eh",
+                   valuation_date = "2027-01-01"),
+    energy = list(before = list(extra_consumption = list(haushalt = haushalt)))
+  ))
+  expect_identical(sc$energy$before$extra_consumption$haushalt$kwh_pa, node_const(3500))
+})
+
+test_that("A-09: per eines Mengenbezugs wird beim Normalisieren geprüft (4.5, Teil A 3.1.1)", {
+  for (per in c("total", "unit", "m2_living_area", "m2_net_floor_area", "parking", "kw", "kwp",
+                "kwh", "m2_component:facade")) {
+    expect_identical(node_normalize(list(value = 1, per = per))$per, per, info = per)
+  }
+  e <- expect_error(node_normalize(list(value = 1, per = "m3"), NULL, "measures.m.cost_eur"),
+                    class = "vofi_error_input")
+  expect_identical(e$key, "io.quantity_per_unknown")
+  expect_identical(e$args$path, "measures.m.cost_eur.per")
+  expect_error(node_normalize(list(value = 1, per = "m2_component:kuppel")),
+               class = "vofi_error_input")
+  bad <- list(kind = "quantity", value = 1, per = "m3")
+  expect_error(node_normalize(bad), class = "vofi_error_input")
+})
+
+test_that("Normalisierte Knoten werden vervollständigt (Idempotenz, node_tidy)", {
+  st <- node_normalize(list(kind = "series_t", values = list(1, 2)))
+  expect_identical(st, list(kind = "series_t", values = c(1, 2)))
+  sy <- node_normalize(list(kind = "series_year", years = c(2027, 2028), values = list(1, 2)))
+  expect_identical(sy$years, c(2027L, 2028L))
+  expect_identical(c(sy$fill, sy$before), c("locf", "first"))
+  pt <- node_normalize(list(kind = "points", years = c(2026, 2030), values = c(1, 2)))
+  expect_identical(pt$years, c(2026L, 2030L))
+  expect_identical(pt$interpolate, "linear")
+  sc <- node_normalize(list(kind = "schedule", dates = list("2027-01-01", 2028),
+                            amounts = list(1, list(ref = "shared.x"))), NULL, "x.cost_eur")
+  expect_identical(sc$dates, as.Date(c("2027-01-01", "2028-01-01")))
+  expect_identical(sc$amounts[[2]]$kind, "ref")
+  expect_warning(rf <- node_normalize(list(kind = "ref", path = "market.x", anchor = "0,02")),
+                 class = "vofi_warning_input")
+  expect_identical(c(rf$scale, rf$offset, rf$floor, rf$cap), c(1, 0, -Inf, Inf))
+  expect_identical(rf$anchor, 0.02)
+  gr <- node_normalize(list(kind = "growth", start = 5, growth = 0.02, base_date = "2027-01-01"))
+  expect_identical(gr$start, node_const(5))
+  expect_identical(gr$base_date, as.Date("2027-01-01"))
+  expect_identical(c(gr$real, gr$index), c(FALSE, "calendar_year"))
+  ex <- node_normalize(list(kind = "expr", text = "market.x * 2"))
+  expect_s3_class(ex$ast, "vofi_expr")
+  qn <- node_normalize(list(kind = "quantity", value = 3, per = "unit"))
+  expect_identical(qn$value, 3)
+  au <- list(kind = "auto", mode = "auto")
+  expect_identical(node_normalize(au, vofi_param("amount", allow_auto = TRUE)), au)
+  expect_identical(node_normalize(node_const(2L)), node_const(2))
+})
+
+test_that("Nicht-numerische Arten: Fehler- und Randfälle (5.4)", {
+  expect_identical(node_normalize(list(1, 2), vofi_param("integer")), c(1L, 2L))
+  expect_identical(node_normalize(c(3, 4), vofi_param("integer")), c(3L, 4L))
+  expect_identical(node_normalize(node_const(5), vofi_param("integer")), 5L)
+  expect_error(node_normalize(3e10, vofi_param("integer"), "x"), class = "vofi_error_input")
+  expect_identical(node_normalize(0, vofi_param("logical")), FALSE)
+  expect_identical(node_normalize("Nein", vofi_param("logical")), FALSE)
+  expect_error(node_normalize("vielleicht", vofi_param("logical"), "x"),
+               class = "vofi_error_input")
+  expect_error(node_normalize("01.01.2027", vofi_param("date"), "x"), class = "vofi_error_input")
+  expect_identical(node_normalize(list(year = 2030), vofi_param("timing")),
+                   as.Date("2030-01-01"))
+  expect_identical(node_normalize(node_const(2031), vofi_param("timing")),
+                   as.Date("2031-01-01"))
+  expect_identical(node_normalize("completion", vofi_param("timing")), "completion")
+  expect_error(node_normalize("bald", vofi_param("timing"), "x"), class = "vofi_error_input")
+  expect_error(node_normalize(12, vofi_param("timing"), "x"), class = "vofi_error_input")
+  expect_error(node_normalize(list(a = 1, b = 2), vofi_param("timing"), "x"),
+               class = "vofi_error_input")
+  expect_identical(node_normalize(TRUE, vofi_param("enum", values = c("true", "false"))), "true")
+  expect_null(node_enum(NULL, vofi_param("enum"), "x"))
+  expect_identical(node_normalize(12, vofi_param("string")), "12")
+  expect_identical(node_normalize(FALSE, vofi_param("string")), "false")
+  expect_error(node_normalize(list(1), vofi_param("string"), "x"), class = "vofi_error_input")
+  expect_identical(node_normalize(NULL, vofi_param("ids")), NULL)
+  expect_identical(node_normalize(list(), vofi_param("ids")), character(0))
+  expect_identical(node_normalize(list("a", "b"), vofi_param("ids")), c("a", "b"))
+  m <- node_normalize(list(rate = 0.02, extra = "x"),
+                      vofi_param("map", fields = list(rate = vofi_param("rate"))), "f")
+  expect_identical(m, list(rate = node_const(0.02), extra = "x"))
+  expect_error(node_normalize(1, vofi_param("map", fields = list(a = vofi_param("rate"))), "f"),
+               class = "vofi_error_input")
+  expect_identical(node_normalize("x", structure(list(kind = "andere"), class = "vofi_param")),
+                   "x")
+})
+
+test_that("Wertformen: Fehlerpfade (4.5)", {
+  expect_error(node_normalize(TRUE), class = "vofi_error_input")
+  expect_error(node_normalize(as.Date("2027-01-01")), class = "vofi_error_input")
+  expect_error(node_normalize(list(series = list(a = 1))), class = "vofi_error_input")
+  expect_error(node_normalize(list(series = 1)), class = "vofi_error_input")
+  expect_error(node_normalize(list(years = c(2026, 2030), values = list(1))),
+               class = "vofi_error_input")
+  expect_error(node_normalize(list(schedule = 1)), class = "vofi_error_input")
+  expect_error(node_normalize(list(start = 1, growth = 0.01, index = "monatlich")),
+               class = "vofi_error_input")
+  e <- expect_error(node_normalize(list(start = 1, growth = -1)), class = "vofi_error_input")
+  expect_identical(e$key, "io.growth_rate_invalid")
+  expect_error(node_normalize("abc", NULL, "x.y"), class = "vofi_error_input")
+  ds <- node_normalize(list(dist = "normal", mean = 1, sd = list(1, 2)))
+  expect_identical(ds$par$sd, c(1, 2))
+  expect_null(ds$base)
+})
+
+test_that("node_to_yaml: Elemente als Knoten, Defaults entfallen (Round-Trip 4.14)", {
+  pts <- node_normalize(list(years = c(2026, 2030), values = list(list(ref = "shared.a"), 2)))
+  y <- node_to_yaml(pts)
+  expect_identical(y$values[[1]], list(ref = "shared.a"))
+  expect_null(y$interpolate)
+  expect_identical(node_normalize(y), pts)
+  sch <- node_normalize(list(schedule = list("2027" = list(value = 10, per = "unit"),
+                                             "2028" = list(expr = "shared.b * 2"))))
+  ys <- node_to_yaml(sch)
+  expect_identical(names(ys$schedule), c("2027-01-01", "2028-01-01"))
+  expect_identical(ys$schedule[[1]], list(value = 10, per = "unit"))
+  expect_null(ys$unit)
+  expect_identical(node_normalize(ys), sch)
+  sy <- node_normalize(list(series = list("2027" = list(ref = "shared.c"), "2030" = 1)))
+  expect_identical(node_normalize(node_to_yaml(sy)), sy)
+  st <- node_normalize(list(1, list(ref = "shared.d")))
+  expect_identical(node_normalize(node_to_yaml(st)), st)
+  expect_identical(node_to_yaml(node_ref("a.b")), list(ref = "a.b"))
+  g <- node_growth(node_ref("x.y"), 0.01)
+  expect_identical(node_to_yaml(g), list(start = list(ref = "x.y"), growth = 0.01))
+  expect_identical(node_to_yaml(list(kind = "unbekannt_im_test")), list(kind = "unbekannt_im_test"))
 })

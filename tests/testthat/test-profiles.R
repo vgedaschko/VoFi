@@ -46,6 +46,7 @@ test_that("PR6: jede der fünf Profildateien lädt ohne Befund, Pfade nach R-76,
 test_that("PR6: Ausgleichsketten der Profile erfüllen die Kettenregeln (Spec 00 8.9)", {
   local_ws_a_library()
   for (p in profile_ids) {
+    local_ws_a_schema()
     sc <- vofi_scenario(ws_a_scenario(perspective = p, horizon_years = 3L))
     v <- ws_a_quiet(vofi_validate(sc))
     expect_false(any(startsWith(v$code, "validation.chain")), info = p)
@@ -56,28 +57,45 @@ test_that("PR6: Ausgleichsketten der Profile erfüllen die Kettenregeln (Spec 00
   }
 })
 
-test_that("PR3: analysis.kpis: default bedeutet die Liste des Profils (Teil A 1.5, 2.6)", {
+test_that("PR3: analysis.kpis: default bedeutet die Liste des Profils (Teil A 1.5, 2.1, 2.6)", {
   local_ws_a_library()
-  sc <- ws_a_scenario(perspective = "kleinvermieter", analysis = list(kpis = "default"))
-  spec <- ws_a_resolve(sc)
-  kd <- attr(spec, "kpis_default")
+  dflt <- function(p) ws_a_scenario(perspective = p, analysis = list(kpis = "default"))
+  spec <- ws_a_resolve(dflt("kleinvermieter"))
+  kd <- spec$analysis$kpis
   expect_length(kd, 31L)
   expect_false("warm_rent" %in% kd)
   expect_true(all(c("monthly_net_cashflow", "restriction_liquidity",
                     "restriction_savings") %in% kd))
-  expect_identical(spec$analysis$kpis, "default")
-  wu <- attr(ws_a_resolve(ws_a_scenario(perspective = "wu_kommunal")), "kpis_default")
+  pk <- ws_a_prov(spec, "analysis.kpis")
+  expect_identical(c(pk$layer, pk$source_type, pk$entry, pk$file),
+                   c("2", "profile", "kleinvermieter", "profiles/kleinvermieter.yaml"))
+  expect_match(pk$location, "^Zeile [0-9]+$")
+  expect_null(attr(spec, "kpis_default"))
+  wu <- ws_a_resolve(dflt("wu_kommunal"))$analysis$kpis
   expect_length(wu, 37L)
   expect_true("warm_rent" %in% wu)
-  expect_length(attr(ws_a_resolve(ws_a_scenario(perspective = "selbstnutzer")), "kpis_default"),
-                27L)
+  expect_length(ws_a_resolve(dflt("selbstnutzer"))$analysis$kpis, 27L)
+  # ohne Angabe im Szenario: Wert der Schicht 2 (Profil überschreibt "default" aus global.yaml)
+  sc <- ws_a_scenario(perspective = "kleinvermieter")
+  sc$analysis$kpis <- NULL
+  expect_identical(ws_a_resolve(sc)$analysis$kpis, kd)
+  # ausdrückliche Liste im Szenario gewinnt; "default" in einer Variante greift ebenfalls
+  v_dflt <- list(v = list(set = list("analysis.kpis" = "default")))
+  sc2 <- ws_a_scenario(perspective = "kleinvermieter", variants = v_dflt)
+  expect_identical(ws_a_resolve(sc2)$analysis$kpis,
+                   c("terminal_value", "terminal_value_opp", "delta_terminal_value"))
+  expect_identical(ws_a_resolve(sc2, variant = "v")$analysis$kpis, kd)
+  # ohne Profil (Perspektive unbekannt) bleibt "default" (Engine: alle Kennzahlen)
+  expect_identical(scn_resolve_kpis_default(list(analysis = list(kpis = "default")),
+                                            list2env(list(kpis_default = NULL)))$analysis$kpis,
+                   "default")
 })
 
 test_that("PR4: Profil mit market.inflation ist ein Befund der Bibliothek (R-76)", {
   raw <- io_read_yaml_utf8(ws_a_lib("profiles", "forbidden_profile.yaml"))
   f <- scn_check_defaults(raw, "profile", "profiles/forbidden_profile.yaml")
   key <- scn_key("validation.profile_path_forbidden", "io.defaults.profile_path",
-                 path = "", allowed = "")
+                 path = "", file = "", allowed = "")
   hit <- Filter(function(x) identical(x$code, key), f)
   expect_true(length(hit) >= 1L)
   expect_true("market.inflation" %in% vapply(hit, function(x) x$path, ""))
@@ -163,4 +181,27 @@ test_that("PR7: jeder from/use-Verweis löst gegen die Paketbibliothek auf (WS-L
   expect_true(all(c("gas", "gas_mfh", "oil", "lpg", "power", "power_mfh", "heatpump_power",
                     "heatpump_power_mfh", "district_heating", "pellets") %in%
                     names(spec$market$energy_price)))
+})
+
+test_that("A-11: die Schemabrücke verdeckt nur Felder der Defaults und Regeln (bis WS-B)", {
+  local_ws_a_library()
+  orig <- ws_a_schema_state$orig
+  skip_if(is.null(orig), "Schemabrücke nicht geladen")
+  testthat::local_mocked_bindings(val_known_extra_fields = orig)
+  extra <- ws_a_extra_fields(orig)
+  sc <- vofi_scenario(ws_a_scenario(
+    building = list(construction_year = 1972L, living_area_m2 = 800),
+    measures = list(wp = list(measure_type = "heizung_waermepumpe_luft", year = 2028,
+                              cost_eur = 30000))
+  ))
+  v <- ws_a_quiet(vofi_validate(sc))
+  uf <- v$path[v$code == "validation.unknown_field"]
+  covered <- vapply(uf, function(p) {
+    segs <- path_split(p)
+    any(vapply(seq_along(segs)[-1L], function(k) {
+      segs[k] %in% extra[[paste(segs[seq_len(k - 1L)], collapse = ".")]]
+    }, logical(1)))
+  }, logical(1))
+  expect_true(all(covered), info = utl_collapse(uf[!covered]))
+  if (length(extra) == 0L) expect_length(uf, 0L)            # Schema von WS-B: keine Brücke
 })

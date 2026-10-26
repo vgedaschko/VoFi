@@ -239,12 +239,16 @@ io_unmark <- function(x, path = "") {
   x
 }
 
-#' Ist der Pfad ein EUR-Betrag nach Schluesselsuffix?
+#' Ist der Pfad ein EUR-Betrag nach dem Schluessel?
+#'
+#' EUR-Betrag ist jeder Schluessel mit dem Segment `eur` (`cost_eur`, `base_fee_eur_pa`,
+#' `admin_per_unit_eur_pa`, `rate_eur_m2_pa`, `network_fee_eur_kwh`); Elemente von Sequenzen
+#' (Ziffernsegmente) zaehlen zum Elternschluessel.
 #' @noRd
 io_path_is_eur <- function(path) {
   segs <- path_split(path)
   segs <- segs[!grepl("^[0-9]+$", segs)]
-  length(segs) > 0L && grepl("_eur$", segs[length(segs)])
+  length(segs) > 0L && grepl("(^|_)eur(_|$)", segs[length(segs)])
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -316,7 +320,7 @@ io_location_of <- function(locations, path) {
 }
 
 # ---------------------------------------------------------------------------------------------
-# Schreiben (vofi_write_scenario(), 4.6)
+# Schreiben fuer vofi_write_scenario (Abschnitt 4.6)
 # ---------------------------------------------------------------------------------------------
 
 #' Liste in YAML-Form als UTF-8-Datei schreiben

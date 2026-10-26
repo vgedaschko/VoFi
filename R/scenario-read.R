@@ -87,11 +87,14 @@ vofi_read_scenario <- function(path, format = c("auto", "yaml", "excel"), stocha
 
 #' Szenario schreiben
 #'
-#' Schreibt ein Szenario als YAML (bzw. Excel über WS-A2), auf Wunsch die aufgelöste Variante
-#' (Schichten 0–8 gemischt, Bibliotheksverweise aufgelöst, Ableitungsregeln und Element-Defaults
-#' angewandt; Expander-Komponenten entfallen, weil sie beim erneuten Einlesen wieder entstehen).
-#' Knoten werden in die Wertgrammatik zurückgeführt; das erneute Einlesen ergibt dieselbe
-#' kanonische Liste (Round-Trip, Spec 00, Abschnitte 4.6, 4.14).
+#' Schreibt ein Szenario als YAML (bzw. Excel über WS-A2), auf Wunsch die aufgelöste Variante:
+#' Schichten 1–8 gemischt (Defaults-Dateien, Profil, Bibliotheksverweise aufgelöst, Szenario,
+#' Overlay, Variante, Szenario-Set, Overrides). Was beim Auflösen nach Schicht 8 entsteht, entfällt,
+#' weil es beim erneuten Auflösen wieder entsteht: Werte der Ableitungsregeln (`rule:*`), der
+#' Vorlagen `item_defaults`, der Typ-Defaults (Schicht 0) und die Expander-Komponenten. Knoten
+#' werden in die Wertgrammatik zurückgeführt. Das erneute Einlesen ergibt dieselbe kanonische
+#' Liste; bei `resolved = TRUE` ergibt das erneute Auflösen dieselbe Spezifikation (Round-Trip,
+#' Spec 00, Abschnitte 4.6, 4.14).
 #'
 #' @param scenario Objekt der Klasse `vofi_scenario`.
 #' @param path Zieldatei.
@@ -150,10 +153,17 @@ scn_input_tree <- function(scenario) {
   x
 }
 
-#' Aufgelöste Variante als Szenario-Baum (ohne Register, Rechtsstand und Expander-Komponenten)
+#' Aufgelöste Variante als Szenario-Baum
+#'
+#' Ohne Register, Rechtsstand, Expander-Komponenten und ohne die abgeleiteten Blätter
+#' (`attr(spec, "scn_state")$derived`: Ableitungsregeln, `item_defaults`, Typ-Defaults). Maps,
+#' die dadurch leer werden, bleiben als leere Maps stehen: Ein leeres Element einer Sammlung
+#' (z. B. `energy.carriers.gas: {}`) ist eine Angabe des Szenarios, und Vorlagen wie
+#' Ableitungsregeln behandeln eine leere Map wie eine fehlende.
 #' @noRd
 scn_resolved_tree <- function(scenario, variant) {
   spec <- vofi_resolve(scenario, variant = variant)
+  derived <- attr(spec, "scn_state")$derived %||% character(0)
   x <- unclass(spec)
   attributes(x) <- list(names = names(x))
   x <- x[intersect(c("schema_version", utl_scenario_blocks()), names(x))]
@@ -163,8 +173,19 @@ scn_resolved_tree <- function(scenario, variant) {
                    logical(1))
     x[[coll]] <- x[[coll]][keep]
   }
+  x <- scn_drop_paths(x, derived)
   x$variants <- list()
   x$scenario_sets <- list()
+  x
+}
+
+#' Pfade entfernen (nicht vorhandene Pfade bleiben ohne Wirkung)
+#' @param x Liste.
+#' @param paths Pfade.
+#' @return `x`.
+#' @noRd
+scn_drop_paths <- function(x, paths) {
+  for (p in unique(paths)) x <- path_remove(x, p)
   x
 }
 
@@ -197,7 +218,8 @@ scn_optional_fun <- function(name) {
 #' ist idempotent: ein bereits normalisiertes Szenario bleibt unverändert.
 #'
 #' Sammlungen (`unit_groups`, `measures`, `funding`, `components`, `financing`, `variants`,
-#' `scenario_sets`) dürfen als Listen mit Feld `id` angegeben werden und werden Maps nach id.
+#' `scenario_sets`, `building.elements`, `energy.carriers`, `energy.stages`) dürfen als Listen
+#' mit Feld `id` angegeben werden und werden Maps nach id.
 #' Felder mit Schema (Spec 00, Abschnitt 4.3; Typparameter der Registry) werden nach ihrer Art
 #' normalisiert, übrige numerische Blätter und Wertformen werden Knoten. Kurzform-Verteilungen
 #' wandern ins Overlay (Schlüssel = Zielpfad), am Ort bleibt der Basiswert.
@@ -296,11 +318,17 @@ scn_unsupported <- function(what) {
 # Normalisierung (4.4, 4.5, 4.6)
 # ---------------------------------------------------------------------------------------------
 
-#' Sammlungen nach id (4.4 Nr. 1)
+#' Oberste Sammlungen nach id (4.4 Nr. 1); verschachtelte: `scn_nested_collections()`
 #' @noRd
 scn_collections <- function() {
   c("unit_groups", "measures", "funding", "components", "financing", "variants",
     "scenario_sets")
+}
+
+#' Verschachtelte Sammlungen nach id (4.4 Nr. 1; `utl_merge_collections()`)
+#' @noRd
+scn_nested_collections <- function() {
+  grep(".", utl_merge_collections(), fixed = TRUE, value = TRUE)
 }
 
 #' Liste mit Feld `id` in eine Map nach id umwandeln (Reihenfolge bleibt erhalten)
@@ -329,6 +357,10 @@ scn_normalize <- function(x) {
     x$schema_version <- node_integer(x$schema_version, "schema_version")
   }
   for (b in intersect(scn_collections(), names(x))) x[[b]] <- scn_as_map(x[[b]], b)
+  for (cp in scn_nested_collections()) {
+    v <- path_get(x, cp)
+    if (!is.null(v) && !is_map(v)) x <- path_set(x, cp, scn_as_map(v, cp))
+  }
   for (b in c("meta", "project", "grid", "building", "household", "accounts",
               "residual_value", "tax", "analysis")) {
     if (!is.null(x[[b]])) x[[b]] <- scn_normalize_block(x[[b]], b, val_domain_schema(b))
