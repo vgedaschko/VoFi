@@ -11,6 +11,9 @@ wsb_skeleton <- function() {
 }
 
 #' Bestandsprojekt mit Domänenblöcken ohne Befund (wu_kommunal, sanierung_eh, 20 Jahre)
+#'
+#' Auch mit den Defaults aus global.yaml und dem Profil (WS-A) ohne Fehler: Bodenwert für den
+#' Ertragswert des Profils, Wohnfläche für die Instandhaltung.
 wsb_domain <- function() {
   x <- wsb_skeleton()
   x$project <- list(perspective = "wu_kommunal", project_type = "sanierung_eh",
@@ -18,6 +21,7 @@ wsb_domain <- function() {
   x$components$z$values <- c(-100000, rep(10000, 20))
   x$building <- list(building_type = "MFH", construction_year = 1963L, n_units = 12L,
                      living_area_m2 = 800, existing_value_eur = 1000000,
+                     land_value_eur = 200000,
                      property_tax = list(amount_eur_pa = 2000),
                      maintenance = list(enabled = FALSE))
   x$unit_groups <- list(a = list(n_units = 12L, living_area_m2 = 800, rent_eur_m2_month = 7.5))
@@ -40,16 +44,53 @@ wsb_with <- function(base = c("skeleton", "domain"), f = identity) {
 #' Codes eines Validierungsberichts
 wsb_codes <- function(x, ...) unique(vofi_validate(x, ...)$code)
 
-#' Prüffall: Objekt, erwartete Codes, optional eigene Ausführung
-wsb_case <- function(id, codes, make = NULL, fun = NULL, args = list()) {
-  list(id = id, codes = codes, make = make, fun = fun, args = args)
+#' Befunde, die nach der Integration aus den Defaults stammen (global.yaml, Profile,
+#' Bibliothek, Ableitungsregeln; WS-A, WS-L) und nicht Gegenstand der Prüffälle sind
+wsb_default_codes <- function() {
+  c("validation.accounts.liquidity_unchecked", "validation.library.outdated",
+    "validation.library.stale", "validation.stochastic.library_outdated",
+    "validation.measures.ohnehin_catalog", "validation.measures.catalog_defaults",
+    "validation.measures.kind_from_classification", "validation.maintenance.default_rate")
 }
 
-#' Codes eines Prüffalls
+#' Validierungsbericht ohne die Befunde der Defaults (`wsb_default_codes()`)
+#'
+#' Für Tests, die einen Bericht vollständig vergleichen; sie bleiben so nach der Integration von
+#' Defaults, Profilen und Bibliothek gültig. Tests der Defaults-Befunde selbst verwenden
+#' `vofi_validate()`.
+wsb_validate <- function(x, ...) {
+  v <- vofi_validate(x, ...)
+  keep <- !(v$code %in% wsb_default_codes())
+  df <- as.data.frame(unclass(v), stringsAsFactors = FALSE)[keep, , drop = FALSE]
+  rownames(df) <- NULL
+  new_vofi_validation(df)
+}
+
+#' Prüffall: Objekt, erwartete Codes, optional eigene Ausführung
+#'
+#' Negativzusicherung: Bei Prüffällen mit `make` darf der Bericht keine Fehler (E) außer den
+#' erwarteten Codes und `allow` enthalten (keine fremden Fehler, Review m5).
+#' @param allow weitere zulässige Fehlercodes.
+wsb_case <- function(id, codes, make = NULL, fun = NULL, args = list(), allow = character(0)) {
+  list(id = id, codes = codes, make = make, fun = fun, args = args, allow = allow)
+}
+
+#' Codes eines Prüffalls (Attribut `errors`: Codes der Fehler, bei `make`)
+#'
+#' Prüft schon das Einlesen (WS-A) eine Regel mit eigenem Schlüssel `validation.*`, zählt der
+#' Schlüssel der Bedingung als Befund (dieselbe Regel, früher gemeldet).
 wsb_run_case <- function(case) {
   if (is.function(case$fun)) return(case$fun())
-  v <- do.call(vofi_validate, c(list(case$make()), case$args))
-  v$code
+  x <- tryCatch(case$make(), error = function(e) e)
+  if (inherits(x, "error")) {
+    key <- x$key
+    if (utl_is_string(key) && startsWith(key, "validation.")) {
+      return(structure(key, errors = key))
+    }
+    stop(x)
+  }
+  v <- do.call(vofi_validate, c(list(x), case$args))
+  structure(v$code, errors = unique(v$code[v$severity == "error"]))
 }
 
 #' Alle Prüffälle einer Tabelle ausführen
@@ -62,8 +103,19 @@ wsb_expect_cases <- function(cases) {
     testthat::expect(length(miss) == 0L,
                      sprintf("Prüffall %s: fehlt %s (erhalten: %s)", cs$id,
                              paste(miss, collapse = ", "), paste(unique(codes), collapse = ", ")))
+    # Kennzahlen der Profile registriert erst WS-D2 (validation.kpi_unknown vor dessen Integration)
+    extra <- setdiff(attr(codes, "errors"), c(cs$codes, cs$allow, "validation.kpi_unknown"))
+    testthat::expect(length(extra) == 0L,
+                     sprintf("Prüffall %s: fremde Fehler %s", cs$id,
+                             paste(extra, collapse = ", ")))
   }
   invisible(TRUE)
+}
+
+#' Fehlerzeilen eines Validierungsberichts als Text (für Meldungen der Tests)
+wsb_errors <- function(v) {
+  e <- v[v$severity == "error", , drop = FALSE]
+  paste(e$code, e$path, e$variant, sep = " @ ", collapse = "; ")
 }
 
 #' Ersatztyp der Registry eintragen (ohne Vertragsprüfung)
@@ -227,10 +279,14 @@ wsb_cases_structure <- function() {
                                                     "funding.*.*.approved" = 0)))
                x
              })),
-    wsb_case("Auflösung", c("validation.resolve_failed", "validation.library.ref_not_id"),
+    wsb_case("Auflösung: from als Termin", "validation.library.ref_not_id",
              sk(function(x) {
                x$components$r <- list(type = "recurring", category = "rent", amount_eur = 1000,
                                       from = "completion")
+               x
+             })),
+    wsb_case("Auflösung: Variante mit fehlendem Pfad", "validation.resolve_failed",
+             sk(function(x) {
                x$variants <- list(falsch = list(label = "f",
                                                 set = list("components.gibtsnicht.values" = 1)))
                x
@@ -287,7 +343,8 @@ wsb_cases_structure <- function() {
                                      "validation.library.release_incomplete",
                                      "validation.library.ref_not_id", "validation.not_date",
                                      "validation.schema_version", "validation.enum",
-                                     "validation.not_map"),
+                                     "validation.not_map", "validation.library.fallback_missing",
+                                     "validation.library.uncertainty_invalid"),
              fun = function() {
                e1 <- list(id = "legal/test_eintrag", block = "funding", schema_version = 2L,
                           label = "T", source = list(document = "", publisher = "X"),
@@ -308,9 +365,16 @@ wsb_cases_structure <- function() {
                e5 <- e2
                e5$quality <- "D"
                e5$legal_state$status <- "derived"
+               e6 <- list(id = "processes/t", block = "processes", schema_version = 1L,
+                          label = "P", source = list(document = "D", publisher = "P"),
+                          as_of = "2026-10-25", valid_from = "2026-01-01", valid_to = NULL,
+                          quality = "D", quality_detail = list(fehlt = "C"),
+                          values = list(type = "ar1", x0 = "base"),
+                          uncertainty = list(a = list(dist = "pert", apply = "mal"), b = 5))
                c(val_library_entry(e1, id = "legal/anders")$code, val_library_entry(e2)$code,
                  val_library_entry(e3)$code, val_library_entry(e4)$code,
-                 val_library_entry(e5)$code, val_library_entry("x")$code)
+                 val_library_entry(e5)$code, val_library_entry("x")$code,
+                 val_library_entry(e6)$code)
              })
   )
 }
@@ -364,30 +428,34 @@ wsb_cases_types <- function() {
                                                 "validation.auto_not_allowed",
                                                 "validation.ref_id_unknown",
                                                 "validation.not_schedule"),
-             dm(function(x) {
-               x$measures$huelle$cost_eur <- "teuer"
-               x$measures$huelle$follows_construction <- "vielleicht"
-               x$measures$huelle$completion_date <- "bald"
-               x$measures$huelle$ohnehin_due_date <- "irgendwann"
-               x$measures$huelle$label <- list(1, 2)
-               x$measures$huelle$effects <- 5
-               x$measures$huelle$useful_life_years <- c(30, 40, 50)
-               x$measures$huelle$replaces_elements <- "gibts_nicht"
-               x$measures$m2 <- list(measure_type = "fenster", date = "2028-01-01",
+             # Rohformen in der aufgelösten Spezifikation (das Einlesen von WS-A normalisiert
+             # bzw. verwirft sie schon vorher)
+             make = function() wsb_spec(g = function(s) {
+               s$measures$huelle$cost_eur <- "teuer"
+               s$measures$huelle$follows_construction <- "vielleicht"
+               s$measures$huelle$completion_date <- "bald"
+               s$measures$huelle$ohnehin_due_date <- "irgendwann"
+               s$measures$huelle$label <- list(1, 2)
+               s$measures$huelle$effects <- 5
+               s$measures$huelle$useful_life_years <- c(30, 40, 50)
+               s$measures$huelle$replaces_elements <- "gibts_nicht"
+               s$measures$m2 <- list(measure_type = "fenster", date = "2028-01-01",
                                      cost_eur = "auto", payment_schedule = 5)
-               x$unit_groups$a$n_units <- 2.5
-               x
-             })),
+               s$unit_groups$a$n_units <- 2.5
+               s
+             }), allow = c("validation.measures.timing", "validation.measures.cost_source")),
     wsb_case("Listen, Folgen, Duplikate, Steigung", c("validation.not_list", "validation.not_ids",
                                                       "validation.duplicate_entries",
                                                       "validation.not_increasing"),
-             dm(function(x) {
+             make = function() wsb_spec(function(x) {
                x$analysis <- list(mandatory_sensitivities = list(a = 1))
-               x$funding <- list(f = list(instrument_type = "grant", measures = list(a = 1)))
                x$stochastic <- list(settings = list(keep_runs = c("p05", "p05"),
                                                     band_probs = c(0.5, 0.25)))
                x
-             })),
+             }, function(s) {
+               s$funding <- list(f = list(instrument_type = "grant", measures = list(a = 1)))
+               s
+             }), allow = "validation.funding.measures_empty"),
     wsb_case("Plausibilitätsbereich", "validation.unusual",
              dm(function(x) {
                x$project$horizon_years <- 70L
@@ -516,7 +584,7 @@ wsb_cases_types <- function() {
                    p4 = list(target = "market.gas", type = "ar1", mu = 0.02,
                              phi = list(dist = "normal", mean = 0.5, sd = 0.2), sigma = 0.01)))
                x
-             })),
+             }), allow = "validation.stochastic.target_duplicate"),
     wsb_case("Overlay-Einstellungen", c("validation.stochastic.block_and_replicates",
                                         "validation.stochastic.n_sim_not_multiple",
                                         "validation.stochastic.antithetic_lhs",
@@ -792,7 +860,8 @@ wsb_cases_refs <- function() {
                    j = c(list(target = "measures.huelle.useful_life_years"), pert(30, 40, 50))),
                  correlations = list(parameters = list(list("funding.f.approved", "j", 0.5))))
                x
-             })),
+             }), allow = c("validation.stochastic.target_missing",
+                           "validation.stochastic.corr_unknown_key")),
     wsb_case("Referenzvariante (unbekannt)", "validation.reference_variant_unknown",
              sk(function(x) {
                x$project$reference_variant <- "gibts"
@@ -943,7 +1012,7 @@ wsb_cases_plaus <- function() {
                  mandatory_sensitivities = list(
                    list(id = "a", path = "accounts.deposit_rate_pa", value = 0.02, label = "A"),
                    list(id = "a", path = "gibts.x", label = "B", delta = 0.01),
-                   list(path = "accounts.deposit_rate_pa", value = 1, delta = 1)))
+                   list(path = "accounts.deposit_rate_pa", value = 0.01, delta = 1)))
                x
              })),
     wsb_case("Konten", c("validation.accounts.liquidity_unchecked",
@@ -1002,7 +1071,9 @@ wsb_cases_plaus <- function() {
                  d = list(target = "measures.huelle.delay_months", dist = "discrete",
                           values = c(0, 6), probs = c(0.5, 0.5))))
                x
-             })),
+             }),
+             # gleiche Regel im Instrumententyp (WS-F), Änderungswunsch an die Verträge
+             allow = "types.instrument.annuity_loan.errors.tau_installment"),
     wsb_case("Bestandsdarlehen bei Neubau", "validation.financing.existing_new_build",
              dm(function(x) {
                x$project$project_type <- "neubau"
@@ -1124,7 +1195,6 @@ wsb_cases_plaus <- function() {
              }),
     wsb_case("Maßnahmen", c("validation.measures.timing", "validation.measures.cost_source",
                             "validation.measures.schedule_sum",
-                            "validation.measures.schedule_amount_form",
                             "validation.measures.before_valuation",
                             "validation.measures.duration_timing",
                             "validation.measures.completion_order",
@@ -1151,9 +1221,6 @@ wsb_cases_plaus <- function() {
                  m1 = wsb_m(year = 2028L, cost_kg = list(kg300 = 1000)),
                  m2 = wsb_m(date = NULL, payment_schedule = list(
                    schedule = list("2028-01-01" = 0.5, "2028-06-01" = 0.3), unit = "share")),
-                 m3 = wsb_m(date = NULL, cost_eur = NULL, payment_schedule = list(
-                   schedule = list("2028-01-01" = list(start = 1000, growth = 0.02)),
-                   unit = "eur")),
                  m4 = wsb_m(date = "2026-06-01"),
                  m5 = wsb_m(date = NULL, cost_eur = NULL, duration_months = 3L,
                             payment_schedule = list(schedule = list("2028-01-01" = 1000),
@@ -1177,7 +1244,17 @@ wsb_cases_plaus <- function() {
                  m22 = wsb_m(measure_type = "pv"),
                  m23 = list(measure_type = "erwerb_objekt", date = "2027-01-01")))
                wsb_funding(x, s35c = list(instrument_type = "tax_credit"), beg = list())
-             })),
+             }),
+             # Folgefehler des fehlenden Kaufpreises: die Ableitung von land_share (WS-A) verweist
+             # auf measures.m23.purchase_price_eur
+             allow = "validation.expr.path_missing"),
+    wsb_case("Zahlungsplan: Betrag als Wachstumsform", "validation.measures.schedule_amount_form",
+             dm(function(x) {
+               x$measures$m3 <- wsb_m(date = NULL, cost_eur = NULL, payment_schedule = list(
+                 schedule = list("2028-01-01" = list(start = 1000, growth = 0.02)),
+                 unit = "eur"))
+               x
+             }), allow = "validation.measures.cost_source"),
     wsb_case("Maßnahmen: Herkunft aus Katalog und Regeln",
              c("validation.measures.ohnehin_catalog", "validation.measures.kind_from_classification",
                "validation.measures.catalog_defaults"),
@@ -1362,10 +1439,7 @@ wsb_cases_plaus <- function() {
              }),
     wsb_case("Energie", c("validation.energy.carrier_class_missing",
                           "validation.energy.gas_price_high",
-                          "validation.energy.network_fee_missing",
                           "validation.energy.vat_biomass", "validation.energy.emission_hi",
-                          "validation.energy.co2_price_missing",
-                          "validation.energy.bio_premium_missing",
                           "validation.energy.before_start", "validation.energy.demand_basis",
                           "validation.energy.shares_sum", "validation.energy.heating_carrier_both",
                           "validation.energy.consumption_carrier",
@@ -1396,7 +1470,23 @@ wsb_cases_plaus <- function() {
                  performance_gap = list(realisation_factor = 0.9, rebound_factor = 1.1),
                  co2_landlord_share_reduction = 0, co2_hardship_5d = TRUE)
                x
-             })),
+             }), allow = "validation.energy.co2_price_missing"),
+    wsb_case("Energie: Trägerfelder fehlen nach den Defaults",
+             c("validation.energy.network_fee_missing", "validation.energy.co2_price_missing",
+               "validation.energy.bio_premium_missing"),
+             fun = function() {
+               # Netzentgelt, CO2-Preis und Bio-Aufschlag setzen nach der Integration Ableitungs-
+               # regel und Vorlagen (WS-A); die Prüfung gilt dem aufgelösten Zustand
+               spec <- wsb_spec(function(x) {
+                 x$energy <- list(carriers = list(gas = list(price_eur_kwh = 0.06)))
+                 x
+               }, function(s) {
+                 s$energy$carriers$gas[c("network_fee_eur_kwh", "co2_price_eur_t",
+                                         "bio_premium_eur_kwh")] <- NULL
+                 s
+               })
+               wsb_codes(spec)
+             }),
     wsb_case("Energie: Prebound bei Verbrauchsdaten", "validation.energy.prebound_measured",
              dm(function(x) {
                x$energy <- list(before = list(consumption_basis = "measured"),
@@ -1408,7 +1498,7 @@ wsb_cases_plaus <- function() {
                      "validation.energy.pv_internal_price"),
              fun = function() {
                a <- wsb_codes(wsb_with("domain", function(x) {
-                 x$energy <- list(pv = list(kwp = 10, self_consumption_share = 0.3,
+                 x$energy <- list(pv = list(kwp = 12, self_consumption_share = 0.3,
                                             feed_in_mode = "full",
                                             vat_zero_rate_attested = TRUE))
                  x
@@ -1477,7 +1567,7 @@ wsb_cases_plaus <- function() {
                  f12 = list(cumulation = list(requires = c("funding/kfw_458"))),
                  f13 = list(program_code = "x", basis = list(cap_period = "calendar_year")),
                  f14 = list(program_code = "x", basis = list(cap_period = "calendar_year")))
-             })),
+             }), allow = c("validation.ref_id_unknown", "validation.measures.funding_choice_35c")),
     wsb_case("Förderung: Kumulierung", "validation.funding.cumulation_exclusive",
              fun = function() {
                spec <- wsb_spec(function(x) {
@@ -1516,6 +1606,7 @@ wsb_cases_plaus <- function() {
              fun = function() {
                rv <- function(f) wsb_codes(wsb_with("domain", f))
                c(rv(function(x) {
+                 x$building$land_value_eur <- NULL
                  x$building$fictitious_construction_year <- 1990L
                  x$building$modernization_points_before <- list(heating = 1L)
                  x$residual_value <- list(method = "income_value", income_value = list(
@@ -1536,6 +1627,7 @@ wsb_cases_plaus <- function() {
                    land_value_eur = 1e5))
                  x
                }), rv(function(x) {
+                 x$measures$huelle$measure_type <- "sonstige"       # Katalog ohne Nutzungsdauer
                  x$measures$huelle$useful_life_years <- NULL
                  x$residual_value <- list(method = "component", component = list(
                    include_existing = "false"))
@@ -1592,7 +1684,7 @@ wsb_cases_other <- function() {
                           "validation.report.line", "validation.report.location",
                           "validation.report.variants", "validation.report.more"),
              fun = function() {
-               empty <- format(vofi_validate(wsb_with("skeleton")))
+               empty <- format(wsb_validate(wsb_with("skeleton")))
                v <- vofi_validate(wsb_with("skeleton", function(x) {
                  x$accounts$deposit_rate <- 0.02
                  x$accounts$overdraft_rat <- 0.02
@@ -1624,8 +1716,276 @@ wsb_cases_other <- function() {
   )
 }
 
+# ---------------------------------------------------------------------------------------------
+# Positivfälle mit vollständigen Blöcken (Review m5): Defaults nach global.yaml und Profil
+# (Spec 01 Teil A 2.2, 2.3; Teil C 1.2, 4.4) ohne Bibliotheksverweise
+# ---------------------------------------------------------------------------------------------
+
+#' Marktnamen der Defaults (Spec 00 4.3.11; Werte wie prices/macro_paths_2026)
+wsb_market <- function() {
+  list(inflation = 0.02, rent_growth = 0.0175, land_value_growth = 0.015,
+       market_value_growth = 0.015, construction_price_index = 0.025, mortgage_rate = 0.041)
+}
+
+#' Stochastik-Einstellungen wie global.yaml (Teil C 1.2)
+wsb_settings <- function() {
+  list(preset = "standard", seed = 20261025L, sampling = "lhs", block_size = 200L,
+       antithetic = FALSE, copula = "iman_conover", store = "bands",
+       keep_runs = c("p05", "p50", "p95"), keep_runs_kpi = "delta_terminal_value",
+       bands = c("net_position", "dep_balance", "od_balance"),
+       band_probs = c(0.05, 0.25, 0.5, 0.75, 0.95), auto_funding_approval = TRUE,
+       convergence = list(rel_halfwidth_mean = 0.005, abs_halfwidth_prob = 0.01))
+}
+
+#' Analyse wie global.yaml und Profil wu_kommunal (Teil A 2.2, 2.3; Teil C 4.4)
+wsb_analysis <- function() {
+  list(kpis = c("terminal_value", "terminal_value_opp", "delta_terminal_value"),
+       primary_kpi = "auto", allow_opportunity_reference = FALSE,
+       deterministic_point = "mode",
+       thresholds = list(dscr = 1.2, burden_share = 0.40, warm_rent_increase_eur_m2 = 0.50,
+                         roe_hurdle = 0.025),
+       lending_value_haircut = 0.10, rv_path_basis = "auto", restrictions = "dscr",
+       traffic_light = list(green_prob = 0.70, red_prob = 0.40, restriction_prob = 0.30),
+       mandatory_sensitivities = list(
+         list(id = "restwert_null", path = "residual_value.method", value = "zero",
+              label = "Restwert = 0"),
+         list(id = "habenzins_liquiditaet", path = "accounts.deposit_rate_pa", value = 0.02,
+              label = "Habenzins 2,0 %"),
+         list(id = "habenzins_kalkulationszins", path = "accounts.deposit_rate_pa",
+              value = 0.035, label = "Habenzins 3,5 %"),
+         list(id = "habenzins_fk", path = "accounts.deposit_rate_pa",
+              value = list(ref = "market.mortgage_rate"), label = "Habenzins = FK-Zins"),
+         list(id = "stufe_2045", path = "project.pending_reforms", add = "stufe_2045",
+              label = "mit 2045-Stufe")))
+}
+
+#' Restwert wie global.yaml (Teil A 2.2) mit gewählter Methode
+wsb_residual <- function(method = "zero") {
+  ref <- function(p) list(ref = p)
+  list(
+    method = method, sale_cost_share = 0.03, path_pre_operation = "auto",
+    income_value = list(
+      variant = "general", cap_rate = 0.035, remaining_life_method = "anlage2",
+      remaining_life_offset_years = 0, gnd_years = 80, income_basis = "forward",
+      forward_growth = ref("market.rent_growth"), cost_forward_growth = ref("market.inflation"),
+      include_other_income = FALSE, land_value_eur = ref("building.land_value_eur"),
+      land_value_growth = ref("market.land_value_growth"),
+      bwk = list(admin_eur_unit_pa = 367, maintenance_eur_m2_pa = 14.40, rent_loss_share = 0.02,
+                 price_base_year = 2025L, index = ref("market.inflation"),
+                 admin_source = "model", maintenance_source = "model",
+                 variant_cost_categories = c("co2_cost", "energy_cost", "other_cost"),
+                 vacancy_from_ledger = TRUE),
+      bog_eur = 0, bog_component_residual = FALSE, stranded_discount_share = 0,
+      liquidation_floor = TRUE, demolition_cost_eur = 0),
+    multiplier = list(factor = 20, basis = "net_cold_rent_incl_levy", income_basis = "forward",
+                      forward_growth = ref("market.rent_growth")),
+    exit_yield = list(cap_rate = 0.04, income_basis = "forward",
+                      forward_growth = ref("market.rent_growth"),
+                      cost_forward_growth = ref("market.inflation")),
+    market_growth = list(growth = ref("market.market_value_growth"), uplift_share = 0),
+    asset_value = list(life_basis = "gnd", gnd_years = ref("residual_value.income_value.gnd_years"),
+                       kg_include = c(200L, 300L, 400L, 500L, 700L), include_existing = TRUE,
+                       market_adjustment_factor = 1.0, uplift_share = 0,
+                       index = ref("market.construction_price_index"),
+                       land_value_eur = ref("building.land_value_eur"),
+                       land_value_growth = ref("market.land_value_growth")),
+    component = list(indexed = TRUE, include_land = FALSE, include_existing = "auto",
+                     existing_growth = ref("market.market_value_growth")),
+    user_value = list(value_eur = 0))
+}
+
+#' Gerüst mit den Defaults ohne building (Spec 01 Teil A 6.1: gültig, R-115)
+wsb_skeleton_defaults <- function(method = "income_value") {
+  x <- wsb_skeleton()
+  x$market <- wsb_market()
+  x$residual_value <- wsb_residual(method)
+  x$analysis <- utils::modifyList(wsb_analysis(), x$analysis)
+  x$stochastic <- list(settings = wsb_settings())
+  x
+}
+
+#' Bestandsprojekt mit vollständigen Domänenblöcken: Bestandsbauteile, Energieträger und
+#' -zustände (after vor einer späteren Stufe, Teil B 3.2.2), Defaults wie global.yaml
+wsb_full <- function() {
+  x <- wsb_domain()
+  x$market <- wsb_market()
+  x$building$land_value_eur <- 200000
+  x$building$elements <- list(
+    kessel = list(measure_type = "heizung_gaskessel", installed_year = 2010L,
+                  replacement_cost_eur = 95000, useful_life_years = 20, price_index = 0.02,
+                  next_replacement_delay_months = 0, active = 1))
+  x$measures$huelle$replaces_elements <- list()
+  x$energy <- list(
+    carriers = list(
+      gas = list(price_eur_kwh = 0.06, network_fee_eur_kwh = 0.02, vat_rate = 0.19,
+                 emission_factor_kg_kwh = 0.1814, co2_price_eur_t = 55,
+                 bio_premium_eur_kwh = 0.01, base_fee_eur_pa = 150, fee_growth = 0.02),
+      heatpump_power = list(price_eur_kwh = 0.22, vat_rate = 0.19)),
+    before = list(consumption_basis = "demand", demand_kwh = 120000, heating_carrier = "gas",
+                  efficiency = 0.9, installation_date = "2010-01-01"),
+    stages = list(daemm = list(measure = "huelle", demand_kwh = 90000),
+                  ersatz = list(start_event = 2045L, service_eur_pa = 300)),
+    after = list(start_event = 2035L, heating_carrier = "heatpump_power", jaz = 3.2,
+                 heat_pump_carrier = "heatpump_power", flow_temperature_c = 55),
+    performance_gap = list(prebound_factor = 0.8, rebound_factor = 1.1,
+                           realisation_factor = 1))
+  x$accounts$deposit_rate_pa <- list(ref = "market.mortgage_rate", anchor = 0.025, floor = 0)
+  x$accounts$overdraft_rate_pa <- list(ref = "market.mortgage_rate", anchor = 0.06)
+  x$residual_value <- wsb_residual("income_value")
+  x$analysis <- wsb_analysis()
+  x$stochastic <- list(settings = wsb_settings())
+  x$measures$huelle$cost_factor <- list(
+    expr = "ifelse('stufe_2045' %in% project.pending_reforms, 1.1, 1)")
+  x$project$pending_reforms <- list()
+  x
+}
+
+# ---------------------------------------------------------------------------------------------
+# Prüffälle der Review-Korrekturen (B1-B6, M1-M6, m1-m4)
+# ---------------------------------------------------------------------------------------------
+
+wsb_cases_review <- function() {
+  sk <- function(f) function() wsb_with("skeleton", f)
+  dm <- function(f) function() wsb_with("domain", f)
+  fl <- function(f) function() vofi_scenario(f(wsb_full()))
+  list(
+    wsb_case("B1: Felder der Sammlungselemente nach Katalog", "validation.unknown_field",
+             fl(function(x) {
+               x$building$elements$kessel$baujahr <- 1998L
+               x$energy$carriers$gas$preis <- 0.1
+               x$energy$stages$daemm$wirkungsgrad <- 0.9
+               x
+             })),
+    wsb_case("B2: band_probs als Zahlenliste", c("validation.not_increasing", "validation.range",
+                                                 "validation.not_number"),
+             fun = function() {
+               v <- function(bp) {
+                 vofi_validate(wsb_with("skeleton", function(x) {
+                   x$stochastic <- list(settings = list(band_probs = bp))
+                   x
+                 }))$code
+               }
+               c(v(c(0.5, 0.25)), v(c(0, 0.5)), v("viele"))
+             }),
+    wsb_case("B3: Pflichtsensitivitäten nach der Art des Ziels",
+             c("validation.enum", "validation.analysis.sensitivity_op_kind", "validation.range"),
+             sk(function(x) {
+               x$analysis$mandatory_sensitivities <- list(
+                 list(id = "a", path = "residual_value.method", value = "nix", label = "A"),
+                 list(id = "b", path = "residual_value.method", delta = 0.1, label = "B"),
+                 list(id = "c", path = "accounts.deposit_rate_pa", add = "x", label = "C"),
+                 list(id = "d", path = "project.pending_reforms", add = "gibts", label = "D"),
+                 list(id = "e", path = "accounts.deposit_rate_pa", value = 0.5, label = "E"))
+               x$residual_value <- list(method = "zero")
+               x
+             })),
+    wsb_case("B4: Restwertbezug ohne building wird bei exit_yield gelesen",
+             "validation.ref_target_missing",
+             sk(function(x) {
+               x$residual_value <- list(method = "exit_yield",
+                                        exit_yield = list(cap_rate = list(ref = "market.fehlt")))
+               x
+             })),
+    wsb_case("B5: Prozess mit unbekanntem Typ", "validation.stochastic.process_unknown",
+             sk(function(x) {
+               x$market$x <- 0.02
+               x$stochastic <- list(processes = list(p = list(target = "market.x",
+                                                               type = "ar_1")))
+               x
+             })),
+    wsb_case("B6: Bauphase, nur die zweite Maßnahme folgt der Bauzeit",
+             "validation.grid.completion_mismatch",
+             dm(function(x) {
+               x$grid <- list(construction_months = 12L)
+               x$measures$b <- wsb_m(date = "2028-07-01", follows_construction = TRUE)
+               x
+             })),
+    wsb_case("M1: Energiezustände mit gleichem Termin bzw. vor before",
+             "validation.energy.state_order",
+             fun = function() {
+               v1 <- vofi_validate(vofi_scenario(within(wsb_full(), {
+                 energy$stages$ersatz$start_event <- 2035L
+               })))$code
+               v2 <- vofi_validate(vofi_scenario(within(wsb_full(), {
+                 energy$after$start_event <- "2026-01-01"
+               })))$code
+               c(v1, v2)
+             }),
+    wsb_case("M3: Ausdruck mit c() außerhalb von %in% und Fehler des Probelaufs",
+             c("validation.expr.c_context", "validation.expr.eval_failed",
+               "validation.expr.code_list"),
+             fun = function() {
+               cl <- wsb_cond_key(expr_eval(expr_parse("p.r == 'x'"),
+                                            function(p) c("x", "y"), 2L, 1L))
+               sp <- vofi_resolve(wsb_with("skeleton"))
+               sp$financing$bank$rate_pa <- list(kind = "expr", text = "c(0.05, 0.04) * 1")
+               a <- vofi_validate(sp)$code
+               b <- vofi_validate(wsb_with("skeleton", function(x) {
+                 x$market <- list(s = c(1, 2), e = list(expr = "market.s * 2"))
+                 x$financing$bank$rate_pa <- list(ref = "market.e")
+                 x
+               }))$code
+               c(a, b, cl)
+             }),
+    wsb_case("M4: statisches Szenario-Set auf den Ebenen 2-4", "validation.range",
+             sk(function(x) {
+               x$scenario_sets <- list(hoch = list(label = "Hoch",
+                                                   set = list("accounts.deposit_rate_pa" = 0.5)))
+               x
+             })),
+    wsb_case("M6: ersetzte Ohnehin-Maßnahme fehlt in der Referenzvariante",
+             "validation.measures.replaces_ohnehin_unknown",
+             dm(function(x) {
+               x$measures$huelle$replaces_ohnehin <- "fenster_alt"
+               x
+             })),
+    wsb_case("M6: Zuschüsse übersteigen Kosten bzw. max_total_share",
+             "validation.funding.cumulation_total_share",
+             fun = function() {
+               a <- wsb_codes(wsb_with("domain", function(x) {
+                 wsb_funding(x, f = list(amount_eur = 600000))
+               }))
+               b <- wsb_codes(wsb_with("domain", function(x) {
+                 x$financing$k <- list(type = "annuity_loan", amount_eur = 300000, rate_pa = 0.02,
+                                       term_years = 20, measure_id = "huelle",
+                                       repayment_grant = list(amount_eur = 100000))
+                 wsb_funding(x, f = list(amount_eur = 150000,
+                                         cumulation = list(max_total_share = 0.4)))
+               }))
+               c(a, b)
+             }),
+    wsb_case("12.3a: Erwerb mit Sanierung ohne Referenzvariante",
+             "validation.reference_variant_recommended",
+             dm(function(x) {
+               x$project$project_type <- "erwerb_sanierung"
+               x$building$existing_value_eur <- NULL
+               x$variants <- NULL
+               x
+             })),
+    wsb_case("m1/m3: Kostengruppe 100, Neubau im Bestand, negativer Zahlungsplan",
+             c("validation.measures.kg100", "validation.measures.type_project_mismatch",
+               "validation.range"),
+             dm(function(x) {
+               x$measures$huelle$kg <- 100L
+               x$measures$nb <- list(measure_type = "neubau", date = "2028-01-01",
+                                     cost_eur = 1000)
+               x$measures$ps <- list(measure_type = "fenster",
+                                     payment_schedule = list(schedule = list("2028-01-01" = -5),
+                                                             unit = "eur"))
+               x
+             })),
+    wsb_case("m3: Bundesland bei ausdrücklicher Komponente acquisition_cost",
+             "validation.acquisition.federal_state_missing",
+             sk(function(x) {
+               x$components$acq <- list(type = "acquisition_cost", basis_eur = 500000,
+                                        date = "2027-01-01")
+               x
+             }), allow = "validation.type_unknown")
+  )
+}
+
 #' Alle Prüffälle
 wsb_all_cases <- function() {
   c(wsb_cases_structure(), wsb_cases_types(), wsb_cases_refs(), wsb_cases_plaus(),
-    wsb_cases_other())
+    wsb_cases_other(), wsb_cases_review())
 }

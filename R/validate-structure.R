@@ -25,9 +25,14 @@
 #' Die Meldungen stehen im Label-Katalog unter `validation.<block>.<code>` bzw.
 #' blockübergreifend unter `validation.<code>` (Spec 00, Abschnitt 2.10).
 #'
+#' Ohne Auswahl (`variant = NULL`) wird jedes statische Szenario-Set des Szenarios wie ein
+#' eigener Planungsfall aufgelöst (Basis mit dem Set) und auf den Ebenen 2 bis 4 geprüft; seine
+#' Befunde tragen in der Spalte `variant` den Namen des Sets. `variant = character(0)` prüft nur
+#' die Struktur (Ebene 1, wie in Phase 0).
+#'
 #' @param x Objekt der Klasse `vofi_scenario` oder `vofi_spec`.
-#' @param variant `NULL` (Basis, alle Varianten und alle statischen Szenario-Sets) oder
-#'   Zeichenvektor mit Namen von Varianten.
+#' @param variant `NULL` (Basis, alle Varianten und alle statischen Szenario-Sets),
+#'   `character(0)` (nur Struktur) oder Zeichenvektor mit Namen von Varianten.
 #' @param min_severity kleinste ausgegebene Schwere: `"info"`, `"warning"` oder `"error"`.
 #' @return Objekt der Klasse `vofi_validation` (Data Frame mit den Spalten `severity`, `code`,
 #'   `path`, `location`, `message`, `layer`, `variant`).
@@ -38,8 +43,7 @@
 #' @export
 vofi_validate <- function(x, variant = NULL, min_severity = c("info", "warning", "error")) {
   min_severity <- utl_match_arg(min_severity, c("info", "warning", "error"), "min_severity")
-  if (!is.null(variant) && (!is.character(variant) || length(variant) == 0L ||
-                              anyNA(variant))) {
+  if (!is.null(variant) && (!is.character(variant) || anyNA(variant))) {
     vofi_abort("core.arg_character", arg = "variant", .class = "vofi_error_input")
   }
   if (inherits(x, "vofi_scenario")) {
@@ -64,6 +68,7 @@ vofi_validate <- function(x, variant = NULL, min_severity = c("info", "warning",
 #' @noRd
 val_scenario <- function(x, variant = NULL) {
   out <- c(val_scenario_structure(x), val_variants_structure(x), val_sets_structure(x))
+  if (!is.null(variant) && length(variant) == 0L) return(out)     # nur Struktur (Ebene 1)
   struct <- val_bind(out)
   variants <- x$variants %||% list()
   vars <- if (is.null(variant)) c("base", names(variants)) else unique(variant)
@@ -79,7 +84,38 @@ val_scenario <- function(x, variant = NULL) {
     specs[[v]] <- spec
     out <- c(out, val_spec(spec, v, scenario = x))
   }
+  if (is.null(variant)) out <- c(out, val_sets_specs(x, struct))
   c(out, val_cross(x, specs, full = is.null(variant)))
+}
+
+#' Statische Szenario-Sets auflösen und auf den Ebenen 2 bis 4 prüfen (Spec 00 4.11)
+#'
+#' Ein Set ist ein eigener Planungsfall (Basis mit den Operationen des Sets). Sets mit
+#' Strukturfehlern und generierte Sets (`generate`) werden nicht aufgelöst; ein Fehler beim
+#' Auflösen erscheint als Befund des Sets.
+#' @param x `vofi_scenario`.
+#' @param struct Befunde der Ebene 1 (Data Frame).
+#' @return Liste von Befunden.
+#' @noRd
+val_sets_specs <- function(x, struct) {
+  sets <- x$scenario_sets
+  out <- list()
+  if (!is_map(sets) || length(sets) == 0L) return(out)
+  for (s in names(sets)) {
+    e <- sets[[s]]
+    if (!is_map(e) || !is.null(e$generate)) next
+    if (any(struct$severity == "error" & struct$variant %in% s)) next
+    spec <- tryCatch(vofi_resolve(x, variant = "base", scenario_set = s), error = function(e) e)
+    if (inherits(spec, "error")) {
+      # Regeln, die val_sets_cross() mit der Operation meldet, nicht doppelt aufnehmen
+      if (!(identical(spec$key, "validation.scenario_set.growth_form_required"))) {
+        out[[length(out) + 1L]] <- val_resolve_finding(spec, s)
+      }
+      next
+    }
+    out <- c(out, val_spec(spec, s, scenario = x))
+  }
+  out
 }
 
 #' Variante und ihre Elternvarianten (ohne base; bricht bei Zyklen ab)
@@ -253,7 +289,7 @@ val_unique <- function(df) {
 #' Liste von Zeichenketten bzw. Zeichenvektor (Operationen remove, ids)
 #' @noRd
 val_chr_list <- function(x) {
-  if (is.null(x)) return(character(0))
+  if (is.null(x) || (is.list(x) && length(x) == 0L)) return(character(0))   # z. B. YAML []
   if (is.character(x)) return(x)
   if (is.list(x) && !is_map(x) &&
         all(vapply(x, function(e) is.character(e) && length(e) == 1L, logical(1)))) {
@@ -342,8 +378,9 @@ val_variants_structure <- function(x) {
     add <- function(sev, code, p, ...) {
       out[[length(out) + 1L]] <<- val_finding(sev, code, p, ..., layer = 7L, variant = v)
     }
-    if (!utl_is_id(v) || v %in% c("base", "engine")) add("error", "validation.id_invalid", path,
-                                                        value = v)
+    if (!utl_is_id(v) || v %in% c("base", "engine")) {
+      add("error", "validation.id_invalid", path, value = v)
+    }
     e <- variants[[v]]
     if (!is_map(e)) {
       add("error", "validation.not_map", path)
@@ -623,13 +660,19 @@ val_library_block_of <- function(id) {
 #'
 #' Für WS-L (`test-library.R`) und WS-A (Nutzerbibliotheken): Wurzelschlüssel, Pflichtfelder,
 #' id = Dateipfad, Zielblock passend zum Ordner, Gültigkeit, Qualität, Rechtsstand, Reform und
-#' Freigabe, Unterpfade von `quality_detail`.
+#' Freigabe, Unterpfade von `quality_detail`, `fallback` deckt jedes Token `base` der Nutzlast
+#' ab, `uncertainty` enthält gültige Verteilungsangaben.
+#'
+#' Unterpfade und Token beziehen sich auf die aufgelöste Nutzlast der `from:`-Kette (Spec 00
+#' 4.9). Bei einem Eintrag mit `from` sind diese beiden Prüfungen nur mit `payload` möglich und
+#' entfallen sonst (die lokale Nutzlast allein ergäbe falsche Fehler).
 #' @param entry Eintrag (Rohform).
 #' @param id erwartete id (Pfad relativ zur Bibliothekswurzel ohne `.yaml`) oder `NULL`.
 #' @param file Dateiname für die Meldungen.
+#' @param payload optional: aufgelöste Nutzlast (`values` über die `from:`-Kette gemischt).
 #' @return Objekt der Klasse `vofi_validation`.
 #' @noRd
-val_library_entry <- function(entry, id = NULL, file = NA_character_) {
+val_library_entry <- function(entry, id = NULL, file = NA_character_, payload = NULL) {
   out <- list()
   add <- function(sev, code, p, ...) {
     out[[length(out) + 1L]] <<- val_finding(sev, code, p, ..., layer = 3L, location = file)
@@ -710,6 +753,9 @@ val_library_entry <- function(entry, id = NULL, file = NA_character_) {
     add("error", "validation.enum", "quality", value = utl_collapse(format(q)),
         suggestion = "")
   }
+  chained <- !is.null(entry$from)
+  values <- payload %||% entry$values
+  verify <- !chained || !is.null(payload)        # Kette ohne aufgelöste Nutzlast: nicht prüfbar
   qd <- entry$quality_detail
   if (is_map(qd) && length(qd) > 0L) {
     for (sub in names(qd)) {
@@ -717,12 +763,19 @@ val_library_entry <- function(entry, id = NULL, file = NA_character_) {
         add("error", "validation.enum", path_join("quality_detail", sub),
             value = utl_collapse(format(qd[[sub]])), suggestion = "")
       }
-      if (!val_library_subpath_exists(entry$values, sub)) {
+      if (verify && !val_library_subpath_exists(values, sub)) {
         add("error", "validation.library.quality_detail_path", path_join("quality_detail", sub),
             value = sub)
       }
     }
   }
+  if (verify) {
+    for (tp in val_library_base_tokens(values)) {
+      fb <- if (is_map(entry$fallback)) path_get(entry$fallback, tp) else NULL
+      if (is.null(fb)) add("error", "validation.library.fallback_missing", "fallback", value = tp)
+    }
+  }
+  val_library_uncertainty(entry$uncertainty, add)
   folder <- if (utl_is_string(eid) && utl_is_library_id(eid)) {
     strsplit(eid, "/", fixed = TRUE)[[1L]][1L]
   } else {
@@ -774,6 +827,57 @@ val_library_entry <- function(entry, id = NULL, file = NA_character_) {
     add("error", "validation.library.ref_not_id", "from", value = utl_collapse(format(from)))
   }
   new_vofi_validation(val_bind(out))
+}
+
+#' Pfade der Nutzlast mit dem Token `base` (Startparameter der Prozessvorlagen, Teil C 1.5.1)
+#' @noRd
+val_library_base_tokens <- function(values, path = "") {
+  if (identical(values, "base")) return(path)
+  if (!is_map(values)) return(character(0))
+  unlist(lapply(names(values), function(nm) {
+    val_library_base_tokens(values[[nm]], if (nzchar(path)) path_join(path, nm) else nm)
+  }), use.names = FALSE) %||% character(0)
+}
+
+#' Vorschläge `uncertainty` eines Bibliothekseintrags: gültige Verteilungsangaben (Teil C 3.1)
+#'
+#' Je Unterpfad eine Overlay-Vorlage `{dist, <parameter>, apply}`; der Typ muss registriert sein
+#' und `validate()` bestehen. Ohne registrierte Verteilungstypen (Registry noch leer) wird nur
+#' die Form geprüft.
+#' @param unc Inhalt von `uncertainty`.
+#' @param add Sammelfunktion `function(severity, code, path, ...)`.
+#' @noRd
+val_library_uncertainty <- function(unc, add) {
+  if (is.null(unc)) return(invisible(NULL))
+  if (!is_map(unc)) {
+    add("error", "validation.library.uncertainty_invalid", "uncertainty", detail = "Map")
+    return(invisible(NULL))
+  }
+  known <- nrow(reg_list("distribution")) > 0L
+  for (sub in names(unc)) {
+    e <- unc[[sub]]
+    path <- path_join("uncertainty", sub)
+    if (!is_map(e) || !utl_is_string(e$dist)) {
+      add("error", "validation.library.uncertainty_invalid", path, detail = "dist")
+      next
+    }
+    ap <- e$apply
+    if (!is.null(ap) && !(utl_is_string(ap) && vocab_has("overlay_apply", ap))) {
+      add("error", "validation.library.uncertainty_invalid", path,
+          detail = paste0("apply: ", utl_collapse(format(ap))))
+    }
+    if (!known) next
+    if (!reg_has("distribution", e$dist)) {
+      add("error", "validation.library.uncertainty_invalid", path, detail = e$dist)
+      next
+    }
+    msgs <- tryCatch(reg_get("distribution", e$dist)$validate(val_dist_par(e)),
+                     error = function(err) conditionMessage(err))
+    for (m in as.character(unlist(msgs))) {
+      add("error", "validation.library.uncertainty_invalid", path, detail = m)
+    }
+  }
+  invisible(NULL)
 }
 
 #' Existiert der Unterpfad in der Nutzlast? (Indizes `[i]` adressieren Sequenzelemente)

@@ -7,7 +7,7 @@ test_that("Prüffälle der Ebene 2 (Tabelle)", {
 })
 
 test_that("Domänenszenario ohne Befund; unbekannte Felder in Blöcken sind Fehler (R-106)", {
-  expect_identical(nrow(vofi_validate(wsb_with("domain"))), 0L)
+  expect_identical(nrow(wsb_validate(wsb_with("domain"))), 0L)
   sc <- wsb_with("skeleton", function(x) {
     x$accounts$deposit_rate <- 0.02
     x$building <- list(n_units = 4L, unbekannt = 1)
@@ -16,7 +16,7 @@ test_that("Domänenszenario ohne Befund; unbekannte Felder in Blöcken sind Fehl
     x$analysis$thresholds <- list(dscr = 1.2)
     x
   })
-  v <- vofi_validate(sc)
+  v <- wsb_validate(sc)
   hit <- v[v$code == "validation.unknown_field", , drop = FALSE]
   expect_setequal(hit$path, c("accounts.deposit_rate", "building.unbekannt"))
   expect_identical(unique(hit$severity), "error")
@@ -25,7 +25,7 @@ test_that("Domänenszenario ohne Befund; unbekannte Felder in Blöcken sind Fehl
 })
 
 test_that("Wertebereiche: Intervalle mit ausschließlichen Grenzen, Pfade, Schwere", {
-  v <- vofi_validate(wsb_with("domain", function(x) {
+  v <- wsb_validate(wsb_with("domain", function(x) {
     x$measures$huelle$useful_life_years <- 0
     x$measures$huelle$vat_rate <- 0.16
     x$unit_groups$a$vacancy_rate <- 0.2
@@ -41,7 +41,7 @@ test_that("Wertebereiche: Intervalle mit ausschließlichen Grenzen, Pfade, Schwe
   uv <- v[v$code == "validation.unusual_value", , drop = FALSE]
   expect_identical(uv$path, "measures.huelle.vat_rate")
   # Kredite: Bereich aus dem Parameterschema des Typs (WS-F), Pfad des Parameters
-  v2 <- vofi_validate(wsb_with("skeleton", function(x) {
+  v2 <- wsb_validate(wsb_with("skeleton", function(x) {
     x$financing$bank$amount_eur <- -60000
     x
   }))
@@ -51,18 +51,18 @@ test_that("Wertebereiche: Intervalle mit ausschließlichen Grenzen, Pfade, Schwe
 test_that("Plausibilitätsbereiche mit warn_domain nur in Szenarien mit Domänenblöcken", {
   sk <- wsb_with("skeleton")
   expect_identical(sk$project$horizon_years, 3L)
-  expect_false("validation.unusual" %in% vofi_validate(sk)$code)
+  expect_false("validation.unusual" %in% wsb_validate(sk)$code)
   dom <- wsb_with("domain", function(x) {
     x$project$horizon_years <- 5L
     x$components$z$values <- c(-100000, rep(10000, 5))
     x
   })
-  v <- vofi_validate(dom, variant = "base")
+  v <- wsb_validate(dom, variant = "base")
   expect_identical(v$path[v$code == "validation.unusual"], "project.horizon_years")
 })
 
 test_that("ids: Muster, Länge je Sammlung (R-90), Kollision, reservierte Präfixe", {
-  v <- vofi_validate(wsb_with("domain", function(x) {
+  v <- wsb_validate(wsb_with("domain", function(x) {
     x$measures[["m_genau_neunundzwanzig_zeich"]] <- wsb_m()
     x$measures[["m_dreissig_zeichen_lange_id_x1"]] <- wsb_m()
     x$funding <- list(f_dreissig_zeichen_lange_id_ab = list(instrument_type = "grant",
@@ -86,7 +86,7 @@ test_that("ids: Muster, Länge je Sammlung (R-90), Kollision, reservierte Präfi
 })
 
 test_that("Rohformen in Sammlungen: Wertgrammatik, Codes, Aliase, Termine", {
-  v <- vofi_validate(wsb_with("domain", function(x) {
+  v <- wsb_validate(wsb_with("domain", function(x) {
     x$measures$huelle$cost_eur <- list(value = 600, per = "m2_living_area")
     x$measures$huelle$modernization_kind <- "energetisch"
     x$measures$huelle$classification <- "erhalt"
@@ -107,13 +107,13 @@ test_that("Ketten (8.9), Steuermodul (10.2), Kennzahlen", {
   sc$accounts$deficit_order <- c("dep_withdraw", "equity_call", "od_draw")
   sc$tax$module <- "flatt"
   sc$analysis$kpis <- c("terminal_value", "endwert")
-  v <- vofi_validate(sc)
+  v <- wsb_validate(sc)
   expect_true(all(c("validation.chain_role", "validation.chain_order",
                     "validation.tax_module_unknown", "validation.kpi_unknown") %in% v$code))
   expect_match(v$message[v$code == "validation.tax_module_unknown"], "flat|none")
   sc3 <- example_scenario("skeleton")
   sc3$accounts$surplus_order <- character(0)
-  expect_true("validation.required" %in% vofi_validate(vofi_resolve(sc3))$code)
+  expect_true("validation.required" %in% wsb_validate(vofi_resolve(sc3))$code)
 })
 
 test_that("Overlay-Einstellungen: Prüffälle s1-s6 (Teil C 1.2)", {
@@ -121,7 +121,7 @@ test_that("Overlay-Einstellungen: Prüffälle s1-s6 (Teil C 1.2)", {
   with_set <- function(settings, n_keys = 1L) {
     pars <- list(k1 = list(target = "accounts.deposit_rate_pa", dist = "pert", min = 0.01,
                            mode = 0.02, max = 0.03))
-    vofi_validate(wsb_with("skeleton", function(x) {
+    wsb_validate(wsb_with("skeleton", function(x) {
       x$stochastic <- list(settings = settings, parameters = pars)
       x
     }))
@@ -157,7 +157,7 @@ test_that("Mindestblockgröße bei Korrelationsgruppen (s4, 1.7.3)", {
     list(target = paste0("market.m", i), dist = "pert", min = 0, mode = 0.01, max = 0.02)
   }), keys)
   pairs <- lapply(seq_len(11), function(i) list(keys[i], keys[i + 1L], 0.5))
-  v <- vofi_validate(wsb_with("skeleton", function(x) {
+  v <- wsb_validate(wsb_with("skeleton", function(x) {
     x$market <- stats::setNames(as.list(rep(0.01, 12)), paste0("m", 1:12))
     x$stochastic <- list(settings = list(block_size = 10L, n_sim = 1000L),
                          parameters = pars, correlations = list(parameters = pairs))
@@ -198,4 +198,99 @@ test_that("Bausteine der Prüfung: Werte in Roh- und Knotenform", {
   expect_identical(val_process_fixed_params("fixed_path"), "*")
   expect_identical(val_corr_keys(list(list("a", "b", 0.5), list("b", "c", 0.1))),
                    c("a", "b", "c"))
+})
+
+test_that("B1: Bestandsbauteile, Träger und Zustände werden nach ihrem Katalog geprüft", {
+  v <- wsb_validate(wsb_with("domain", function(x) {
+    x$building$elements <- list(kessel = list(measure_type = "heizung_gaskessel",
+                                              installed_year = 2015L,
+                                              replacement_cost_eur = 95000,
+                                              useful_life_years = 20))
+    x$energy <- list(carriers = list(gas = list(price_eur_kwh = 0.06, vat_rate = 0.19,
+                                                network_fee_eur_kwh = 0.02,
+                                                co2_price_eur_t = 55,
+                                                bio_premium_eur_kwh = 0.01)),
+                     stages = list(s2 = list(start_event = 2030L, demand_kwh = 9e4,
+                                             heating_carrier = "gas", efficiency = 0.9)))
+    x
+  }))
+  expect_identical(sum(v$severity == "error"), 0L, info = wsb_errors(v))
+  expect_false("validation.unknown_field" %in% v$code)
+  v <- wsb_validate(wsb_with("domain", function(x) {
+    x$building$elements <- list(kessel = list(measure_type = "heizung_gaskessel",
+                                              installed_year = 2015L,
+                                              replacement_cost_eur = 95000, baujahr = 1))
+    x
+  }))
+  hit <- v[v$code == "validation.unknown_field", , drop = FALSE]
+  expect_identical(unique(hit$path), "building.elements.kessel.baujahr")
+})
+
+test_that("B2: band_probs ist eine Zahlenliste, convergence bleibt Rohform (Teil C 1.2)", {
+  p <- val_schema_catalog()[["stochastic.settings"]]$band_probs
+  expect_true(isTRUE(p$extra$vector))
+  # Sicht der Normalisierung (WS-A): Zahlenlisten und feste Zahlen sind kein Wertknoten
+  view <- val_domain_schema("stochastic.settings")
+  expect_null(view$band_probs)
+  expect_null(view$convergence)
+  v <- wsb_validate(wsb_with("skeleton", function(x) {
+    x$stochastic <- list(settings = wsb_settings())
+    x
+  }))
+  expect_identical(nrow(v), 0L)
+  for (bp in list(list(0.05, 0.5), node_const(0.5),
+                  list(kind = "series_t", values = list(node_const(0.1), node_const(0.9))))) {
+    vc <- val_context(vofi_resolve(wsb_with("skeleton")))
+    val_check_value(vc, bp, p, "stochastic.settings.band_probs")
+    expect_length(vc$out, 0L)
+  }
+  v <- wsb_validate(wsb_with("skeleton", function(x) {
+    x$stochastic <- list(settings = list(convergence = list(rel_halfwidth_mean = c(0.1, 0.2),
+                                                            abs_halfwidth_prob = 1)))
+    x
+  }))
+  expect_setequal(v$code, c("validation.not_number", "validation.range"))
+})
+
+test_that("m2: apply multiply nach dem Träger des Typs (Teil C 1.3, R-94)", {
+  wsb_registry()
+  run <- function(...) {
+    wsb_validate(wsb_with("skeleton", function(x) {
+      x$stochastic <- list(parameters = list(k = c(list(target = "financing.bank.rate_pa",
+                                                        apply = "multiply"), list(...))))
+      x
+    }))$code
+  }
+  expect_true("validation.stochastic.apply_not_allowed" %in%
+                run(dist = "normal", mean = 1, sd = 0.01))
+  expect_true("validation.stochastic.apply_not_allowed" %in%
+                run(dist = "pert", min = -0.1, mode = 1, max = 1.2))
+  expect_false("validation.stochastic.apply_not_allowed" %in%
+                 run(dist = "pert", min = 0, mode = 1, max = 1.2))
+  expect_identical(val_dist_support_min(list(support = function(par) c(2, 3)), "x", list()), 2)
+})
+
+test_that("iid: dist_spec ist die Jahresverteilung, ihre Parameter sind nicht verteilbar", {
+  wsb_registry()
+  wsb_put_type("process", list(
+    name = "iid", params = list(dist_spec = vofi_param("map", fields = list(
+      dist = vofi_param("string")))),
+    simulate = function(par, z, u, years, linked) NULL, expected = function(par, years) NULL,
+    n_shocks = function(par) 1L, n_uniforms = function(par) 0L,
+    validate = function(par) if (is.list(par$dist_spec)) character(0) else "dist_spec fehlt"))
+  run <- function(ds) {
+    wsb_validate(wsb_with("skeleton", function(x) {
+      x$market <- list(vf = 1)
+      x$stochastic <- list(processes = list(vf = list(target = "market.vf", type = "iid",
+                                                      dist_spec = ds)))
+      x
+    }))
+  }
+  expect_identical(nrow(run(list(dist = "pert", min = 0.5, mode = 1, max = 2))), 0L)
+  v <- run(list(dist = "pert", min = list(dist = "pert", min = 0, mode = 0.5, max = 1),
+                mode = 1, max = 2))
+  expect_identical(v$code, "validation.stochastic.process_param_not_distributable")
+  expect_identical(v$path, "stochastic.processes.vf.dist_spec.min")
+  expect_identical(run(list(dist = "pert", min = 3, mode = 1, max = 2))$code,
+                   "validation.stochastic.dist_invalid")
 })

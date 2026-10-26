@@ -4,8 +4,11 @@
 # eigenen Interpreter ueber den Baum. Pfadsymbole (mit Punkt) werden ueber resolve() gelesen,
 # Operanden nach der Formregel angeglichen (Laenge 1 -> n-Vektor; n-Vektoren zeilenweise auf
 # n x (T+1), sobald ein Operand zeitabhaengig ist). Codes und Wahrheitswerte (setting-Semantik)
-# sind nur in Vergleichen und logischen Verknuepfungen zulaessig (R-91). Fehler sind
-# vofi_error_input mit Position (Zeile, Spalte) im Ausdruckstext.
+# sind nur in Vergleichen und logischen Verknuepfungen zulaessig (R-91). %in% und c() nur mit
+# deterministischen Operanden: c() nur als rechte Seite von %in%, links von %in% ein Literal
+# oder ein Code bzw. Wahrheitswert; == und != vergleichen nur einzelne Codes (Code-Listen nur
+# rechts von %in%). So haengt das Ergebnis eines Laufs nur von dessen Werten ab
+# (Batch-Invarianz). Fehler sind vofi_error_input mit Position (Zeile, Spalte) im Ausdruckstext.
 
 #' Zulässige Funktionen und Operatoren (4.5 Regel 5)
 #' @return Zeichenvektor.
@@ -41,10 +44,13 @@ expr_hint <- function(name) {
 #' Ausdruck parsen und gegen die Whitelist prüfen
 #'
 #' @param text Zeichenkette, z. B. `"building.living_area_m2 * 150"`.
+#' @param reserved zusätzlich zulässige Symbole ohne Punkt (z. B. reservierte Symbole der
+#'   Förderbedingungen `taxable_income_adj`, Spec 01 Teil B 4.3.2); sie zählen nicht zu den
+#'   Pfadsymbolen.
 #' @return Objekt der Klasse `vofi_expr` (`text`, `call`, `symbols`); Syntaxfehler und nicht
 #'   zugelassene Funktionen, Symbole oder Werte sind `vofi_error_input` mit Position.
 #' @noRd
-expr_parse <- function(text) {
+expr_parse <- function(text, reserved = character(0)) {
   if (inherits(text, "vofi_expr")) return(text)
   if (!utl_is_string(text) || !nzchar(trimws(text))) {
     vofi_abort("validation.expr.empty", text = utl_collapse(format(text %||% "")),
@@ -61,7 +67,7 @@ expr_parse <- function(text) {
                .class = "vofi_error_input")
   }
   call <- parsed[[1L]]
-  expr_check(call, text)
+  expr_check(call, text, reserved = reserved)
   structure(list(text = text, call = call, symbols = expr_collect_symbols(call)),
             class = "vofi_expr")
 }
@@ -142,19 +148,27 @@ expr_is_path <- function(e) {
   is.symbol(e) && grepl(".", as.character(e), fixed = TRUE)
 }
 
+#' Ist `e` das Symbol `TRUE` bzw. `FALSE`?
+#' @noRd
+expr_is_flag_symbol <- function(e) {
+  is.symbol(e) && as.character(e) %in% c("TRUE", "FALSE")
+}
+
 #' AST rekursiv gegen die Whitelist prüfen
 #' @param e Teilbaum.
 #' @param text Ausdruckstext (für Meldungen).
+#' @param in_set `TRUE` für die rechte Seite von `%in%` (nur dort ist `c()` zulässig).
+#' @param reserved zulässige Symbole ohne Punkt.
 #' @return `invisible(TRUE)`.
 #' @noRd
-expr_check <- function(e, text) {
+expr_check <- function(e, text, in_set = FALSE, reserved = character(0)) {
   if (is.logical(e) && length(e) == 1L && is.na(e)) {
     expr_fail("validation.expr.literal", text, "NA", value = "NA")
   }
   if (expr_is_literal(e)) return(invisible(TRUE))
   if (is.symbol(e)) {
     s <- as.character(e)
-    if (s %in% c("TRUE", "FALSE")) return(invisible(TRUE))
+    if (s %in% c("TRUE", "FALSE", reserved)) return(invisible(TRUE))
     if (!grepl(".", s, fixed = TRUE) || !grepl("^[A-Za-z][A-Za-z0-9_.]*[A-Za-z0-9_]$", s)) {
       expr_fail("validation.expr.symbol", text, s, symbol = s)
     }
@@ -186,19 +200,28 @@ expr_check <- function(e, text) {
       expr_fail("validation.expr.not_deterministic", text, name, fun = name)
     }
     if (identical(name, "c")) {
+      if (!in_set) expr_fail("validation.expr.c_context", text, "c")
       for (a in args) {
-        if (!(expr_is_literal(a) || expr_is_path(a))) {
+        if (!(expr_is_literal(a) || expr_is_path(a) || expr_is_flag_symbol(a))) {
           expr_fail("validation.expr.not_deterministic", text, "c", fun = "c")
         }
       }
     }
     if (identical(name, "%in%")) {
+      lhs <- args[[1L]]
       rhs <- args[[2L]]
-      ok <- expr_is_literal(rhs) || expr_is_path(rhs) ||
+      ok_lhs <- expr_is_literal(lhs) || expr_is_path(lhs) || expr_is_flag_symbol(lhs) ||
+        (is.symbol(lhs) && as.character(lhs) %in% reserved)
+      ok_rhs <- expr_is_literal(rhs) || expr_is_path(rhs) ||
         (is.call(rhs) && identical(expr_call_name(rhs), "c"))
-      if (!ok) expr_fail("validation.expr.not_deterministic", text, "%in%", fun = "%in%")
+      if (!ok_lhs || !ok_rhs) {
+        expr_fail("validation.expr.not_deterministic", text, "%in%", fun = "%in%")
+      }
     }
-    for (a in args) expr_check(a, text)
+    for (i in seq_along(args)) {
+      expr_check(args[[i]], text, in_set = identical(name, "%in%") && i == 2L,
+                 reserved = reserved)
+    }
     return(invisible(TRUE))
   }
   vofi_abort("validation.expr.syntax", text = text, position = expr_format_position(1L, 1L),
@@ -297,7 +320,9 @@ expr_align <- function(args, env) {
 #'
 #' Codes (`character`) sind nur in `==`, `!=` (gegen Codes) zulässig, Wahrheitswerte
 #' (`logical`, setting-Semantik) in `==`, `!=`, `!`, `&`, `|`; das Ergebnis ist 0/1. Jede andere
-#' Verwendung ist `vofi_error_input`.
+#' Verwendung ist `vofi_error_input`. `==` und `!=` vergleichen nur einzelne Codes: eine
+#' Code-Liste (z. B. `project.pending_reforms`) würde elementweise verglichen und die Länge des
+#' Ergebnisses hinge von der Liste statt von der Zahl der Läufe ab (dafür `%in%`).
 #' @noRd
 expr_check_operands <- function(args, name, env) {
   is_chr <- vapply(args, is.character, logical(1))
@@ -306,6 +331,9 @@ expr_check_operands <- function(args, name, env) {
     (any(is_lgl) && !(name %in% c("==", "!=", "!", "&", "|")))
   if (bad) {
     expr_fail("validation.expr.code_operand", env$text, name, fun = name)
+  }
+  if (any(is_chr) && any(lengths(args[is_chr]) != 1L)) {
+    expr_fail("validation.expr.code_list", env$text, name, fun = name)
   }
   invisible(TRUE)
 }
@@ -425,20 +453,26 @@ expr_eval_c <- function(args, raw_args, env) {
   as.double(unlist(args))
 }
 
-#' %in%: Ergebnis 0/1 in der Form des ersten Operanden; rechte Seite deterministisch
+#' %in%: Ergebnis 0/1; beide Seiten deterministisch
+#'
+#' Links ein Literal oder ein einzelner Code bzw. Wahrheitswert (ein Zahlenpfad kann je Lauf
+#' verschieden sein und ist nicht zulässig), rechts eine Menge aus Literalen bzw. Codes.
 #' @noRd
 expr_eval_in <- function(args, raw_args, env) {
   lhs <- args[[1L]]
   rhs <- args[[2L]]
-  if (expr_is_path(raw_args[[2L]]) && !is.character(rhs) && !is.logical(rhs)) {
-    expr_fail("validation.expr.not_deterministic", env$text, "%in%", fun = "%in%")
+  for (i in 1:2) {
+    if (expr_is_path(raw_args[[i]]) && !is.character(args[[i]]) && !is.logical(args[[i]])) {
+      expr_fail("validation.expr.not_deterministic", env$text, "%in%", fun = "%in%")
+    }
+  }
+  if (length(lhs) != 1L) {
+    expr_fail("validation.expr.code_list", env$text, "%in%", fun = "%in%")
   }
   if (is.logical(lhs)) lhs <- tolower(as.character(lhs))
   if (is.logical(rhs)) rhs <- tolower(as.character(rhs))
   if (xor(is.character(lhs), is.character(rhs))) {
     expr_fail("validation.expr.code_operand", env$text, "%in%", fun = "%in%")
   }
-  res <- as.double(lhs %in% rhs)
-  if (is.matrix(lhs)) dim(res) <- dim(lhs)
-  res
+  as.double(lhs %in% rhs)
 }

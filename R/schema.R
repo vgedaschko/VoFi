@@ -20,8 +20,17 @@
 #   sequence            Sequenz von Maps mit den Feldern fields
 #   missing_code        eigener Meldungsschluessel fuer ein fehlendes Pflichtfeld
 #   max_chars           W bei laengeren Zeichenketten
-# Die Sicht val_domain_schema() (ohne Sammlungselemente, freie Maps und Sequenzen) nutzen die
-# Normalisierung (WS-A, scn_normalize_block()) und die Existenzpruefung der Varianten (R-112).
+#   collection          Elementpfad der Sammlung (z. B. "building.elements"): die Elemente prueft
+#                       val_collection() nach dem Katalogeintrag dieses Namens
+#   vector              Zahlenliste beliebiger Laenge (z. B. band_probs): Konstanten, kein Shape-
+#                       Fehler; Bereich je Element
+#   plain               feste Zahl in Rohform (deterministische Einstellung, z. B. convergence.*),
+#                       kein Wertknoten
+#   dynamic             Art nach dem Zielpfad (z. B. mandatory_sensitivities.value): die Pruefung
+#                       laeuft in der Blockregel, nicht nach dem Katalog
+# Die Sicht val_domain_schema() (ohne Sammlungselemente, freie Maps, Sequenzen, Zahlenlisten und
+# Felder mit dynamischer Art) nutzen die Normalisierung (WS-A, scn_normalize_block()) und die
+# Existenzpruefung der Varianten (R-112).
 
 #' Parameterbeschreibung eines Bausteintyps
 #'
@@ -213,13 +222,20 @@ val_domain_schema <- function(block = NULL) {
   view[[block]] %||% list()
 }
 
-#' Freie Maps und Sequenzen aus einer Feldliste entfernen (rekursiv)
+#' Freie Maps, Sequenzen, Zahlenlisten und Felder dynamischer Art entfernen (rekursiv)
+#'
+#' Diese Felder haben keine feste Art bzw. Feldliste; die Normalisierung behandelt sie allgemein
+#' (Zahlenlisten wie `band_probs` bleiben Zahlenvektoren und werden kein `series_t`-Knoten).
 #' @noRd
 val_schema_strip <- function(fields) {
   out <- list()
   for (f in names(fields)) {
     p <- fields[[f]]
-    if (isTRUE(p$extra[["free"]]) || isTRUE(p$extra[["sequence"]])) next
+    if (isTRUE(p$extra[["free"]]) || isTRUE(p$extra[["sequence"]]) ||
+          isTRUE(p$extra[["vector"]]) || isTRUE(p$extra[["plain"]]) ||
+          isTRUE(p$extra[["dynamic"]])) {
+      next
+    }
     if (identical(p$kind, "map")) {
       sub <- val_schema_strip(p$fields)
       if (length(sub) == 0L) next
@@ -237,6 +253,9 @@ val_build_catalog <- function() {
   enum <- function(v, ...) p("enum", values = paste0("vocab:", v), ...)
   codes <- function(values, ...) p("enum", values = values, ...)
   num <- function(...) p("number", ...)
+  det <- function(...) p("number", deterministic_only = TRUE, stochastic = FALSE, ...)
+  vec <- function(...) det(vector = TRUE, ...)
+  plain <- function(...) det(plain = TRUE, ...)
   amt <- function(...) p("amount", ...)
   shr <- function(...) p("share", ...)
   rte <- function(...) p("rate", ...)
@@ -249,8 +268,9 @@ val_build_catalog <- function() {
   ids <- function(...) p("ids", ...)
   map <- function(fields, ...) p("map", fields = fields, ...)
   free <- function(leaf, ...) p("map", fields = list(.key = leaf), free = TRUE, ...)
-  anymap <- function(...) p("map", fields = list(.key = p("string")), free = TRUE, any = TRUE,
-                            ...)
+  anymap <- function(...) {
+    p("map", fields = list(.key = p("string")), free = TRUE, any = TRUE, ...)
+  }
   sqn <- function(fields, ...) p("map", fields = fields, sequence = TRUE, ...)
   vshare <- function(...) val(min = 0, max = 1, ...)
   vrate <- function(...) val(min = -0.1, max = 1, ...)
@@ -377,7 +397,7 @@ val_build_catalog <- function() {
     ),
     measures = list(
       label = str(), measure_type = codes(meas_codes, required = TRUE), description = str(),
-      date = dat(), year = year(), payment_schedule = p("schedule"),
+      date = dat(), year = year(), payment_schedule = p("schedule", min = 0),
       duration_months = int(min = 0L, unit = "months"),
       payment_profile = enum("payment_profile"), completion_date = dat(),
       follows_construction = lgl(), construction_delay_mode = enum("construction_delay_mode"),
@@ -402,7 +422,8 @@ val_build_catalog <- function() {
       ohnehin_share = shr(), ohnehin_cost_eur = amt(min = 0, unit = "EUR"),
       ohnehin_due_date = tim(), ohnehin_due_year = tim(),
       classification = enum("classification"), tax_spread_years = int(min = 1L, max = 5L),
-      modernization_kind = enum("modernization_kind"), asset_type = codes(asset_codes),
+      modernization_kind = enum("modernization_kind"),
+      asset_type = ids(items = "asset_types"),            # Liste bei erwerb_objekt (Teil A 8.3)
       asset_id = str(id = TRUE, max_len = 40L),
       replaces_ohnehin = ids(), replaces_elements = ids(ref_ids = "building.elements"),
       funding_choice = enum("funding_choice"), contractor_certified = lgl(),
@@ -561,8 +582,8 @@ val_build_catalog <- function() {
                                       threshold = anymap(), mode = enum("bonus_mode"),
                                       min_age_gas_biomass_years = int(min = 0L)),
                                  open = TRUE)),
-      rate_cap = map(list(default = val(), exceptions = sqn(list(condition = str(),
-                                                                cap = val())))),
+      rate_cap = map(list(default = val(),
+                          exceptions = sqn(list(condition = str(), cap = val())))),
       degression = sqn(list(target = str(), start = dat(), step = num(),
                             every_months = int(min = 1L), floor = num())),
       amount_eur = val(min = 0, unit = "EUR"),
@@ -663,8 +684,8 @@ val_build_catalog <- function() {
       rv_path_basis = enum("rv_path_basis"), restrictions = ids(items = "vocab:restriction"),
       traffic_light = map(list(green_prob = shr(), red_prob = shr(), restriction_prob = shr())),
       mandatory_sensitivities = sqn(list(id = str(id = TRUE, max_len = 40L), path = str(),
-                                         label = str(), value = val(), delta = num(),
-                                         add = str())),
+                                         label = str(), value = val(dynamic = TRUE),
+                                         delta = num(), add = ids())),
       tenant_view = lgl()
     ),
     "stochastic.settings" = list(
@@ -674,12 +695,12 @@ val_build_catalog <- function() {
       antithetic = lgl(), copula = enum("copula"), start_year = int(min = 1990L),
       store = enum("store"), keep_runs = ids(pattern = "^p[0-9]{2}$", unique = TRUE),
       keep_runs_kpi = str(),
-      bands = ids(), band_probs = num(min = 0, max = 1, excl_min = TRUE, excl_max = TRUE),
+      bands = ids(), band_probs = vec(min = 0, max = 1, excl_min = TRUE, excl_max = TRUE),
       auto_funding_approval = lgl(),
-      convergence = map(list(rel_halfwidth_mean = num(min = 0, max = 1, excl_min = TRUE,
-                                                      excl_max = TRUE),
-                             abs_halfwidth_prob = num(min = 0, max = 1, excl_min = TRUE,
-                                                      excl_max = TRUE)))
+      convergence = map(list(rel_halfwidth_mean = plain(min = 0, max = 1, excl_min = TRUE,
+                                                        excl_max = TRUE),
+                             abs_halfwidth_prob = plain(min = 0, max = 1, excl_min = TRUE,
+                                                        excl_max = TRUE)))
     ),
     "stochastic.parameters" = list(
       target = str(required = TRUE), label = str(), description = str(),
@@ -701,7 +722,7 @@ val_build_catalog <- function() {
       label = str(required = TRUE), description = str(), set = anymap(),
       replace = anymap(), add = anymap(), remove = ids(), overrides = anymap(),
       generate = map(list(method = enum("generate_method"), n_drivers = int(min = 1L),
-                          probs = num(min = 0, max = 1, excl_min = TRUE, excl_max = TRUE),
+                          probs = vec(min = 0, max = 1, excl_min = TRUE, excl_max = TRUE),
                           kpi = str(), params = ids(token = "auto"), exclude = ids()))
     )
   )
@@ -824,7 +845,7 @@ val_json_schema_list <- function() {
     components = val_json_types("components"),
     financing = val_json_types("financing"),
     accounts = val_json_object(cat$accounts),
-    market = list(type = "object", additionalProperties = list(`$ref` = "#/$defs/market")),
+    market = val_json_market_map(),
     residual_value = val_json_object(cat$residual_value),
     tax = val_json_object(cat$tax),
     analysis = val_json_object(cat$analysis),
@@ -862,20 +883,20 @@ val_json_defs <- function() {
          properties = list(expr = str)),
     list(type = "object", required = list("series"), additionalProperties = FALSE,
          properties = list(series = list(type = "object"),
-                           fill = list(enum = vocab_codes("enums:series_fill")),
-                           before = list(enum = vocab_codes("enums:series_before")))),
+                           fill = val_json_enum(vocab_codes("enums:series_fill")),
+                           before = val_json_enum(vocab_codes("enums:series_before")))),
     list(type = "object", required = list("years", "values"), additionalProperties = FALSE,
          properties = list(years = list(type = "array"), values = list(type = "array"),
-                           interpolate = list(enum = vocab_codes("enums:interpolate")))),
+                           interpolate = val_json_enum(vocab_codes("enums:interpolate")))),
     list(type = "object", required = list("schedule"), additionalProperties = FALSE,
          properties = list(schedule = list(type = "object"),
-                           unit = list(enum = vocab_codes("enums:schedule_unit")))),
+                           unit = val_json_enum(vocab_codes("enums:schedule_unit")))),
     list(type = "object", required = list("start", "growth"), additionalProperties = FALSE,
          properties = list(start = list(`$ref` = "#/$defs/scalar"),
                            growth = list(`$ref` = "#/$defs/value"),
                            base_date = list(`$ref` = "#/$defs/timing"),
                            real = list(type = "boolean"),
-                           index = list(enum = vocab_codes("enums:growth_index")))),
+                           index = val_json_enum(vocab_codes("enums:growth_index")))),
     list(type = "object", required = list("value", "per"), additionalProperties = FALSE,
          properties = list(value = list(`$ref` = "#/$defs/value"), per = str)),
     list(type = "object", required = list("dist")),
@@ -885,23 +906,55 @@ val_json_defs <- function() {
     scalar = list(anyOf = list(num, str, list(type = "object"))),
     value = list(anyOf = forms),
     amount_auto = list(anyOf = list(list(`$ref` = "#/$defs/value"),
-                                    list(enum = vocab_codes("enums:auto_mode")))),
+                                    val_json_enum(vocab_codes("enums:auto_mode")))),
     timing = list(anyOf = list(list(type = "string", format = "date"),
                                list(type = "integer", minimum = 1000, maximum = 9999),
-                               list(enum = c("completion", "auto")))),
+                               val_json_enum(c("completion", "auto")))),
     library_ref = list(type = "object", required = list("from"),
                        properties = list(from = list(type = "string",
                                                      pattern = utl_library_id_pattern()),
                                          use = str)),
-    market = list(anyOf = list(list(`$ref` = "#/$defs/value"),
-                               list(type = "object",
-                                    additionalProperties = list(`$ref` = "#/$defs/market"))))
+    market = list(anyOf = list(list(`$ref` = "#/$defs/value"), val_json_market_map()))
   )
 }
+
+#' Map des Blocks market (auch Teilmaps): Marktnamen, optional Bibliotheksverweis `from`/`use`
+#' @noRd
+val_json_market_map <- function() {
+  list(type = "object",
+       properties = list(from = list(type = "string", pattern = utl_library_id_pattern()),
+                         use = list(type = "string")),
+       additionalProperties = list(`$ref` = "#/$defs/market"))
+}
+
+#' Wert `null` zulassen (YAML `~` entfernt ein Blatt beim Mischen, Spec 00 4.7)
+#' @noRd
+val_json_nullable <- function(x) {
+  if (length(x) == 0L) return(x)                      # beliebiger Wert
+  if (!is.null(x$anyOf) && length(x) == 1L) {
+    x$anyOf <- c(x$anyOf, list(list(type = "null")))
+    return(x)
+  }
+  list(anyOf = list(x, list(type = "null")))
+}
+
+#' Aufzählung als JSON-Array (auch mit nur einem Code; Metaschema Draft 2020-12)
+#' @noRd
+val_json_enum <- function(x) list(enum = as.list(unique(as.character(x))))
+
+#' Leeres JSON-Schema (beliebiger Wert, `{}`)
+#' @noRd
+val_json_any <- function() structure(list(), names = character(0))
 
 #' JSON-Schema eines Parameters
 #' @noRd
 val_json_param <- function(p) {
+  if (isTRUE(p$extra[["dynamic"]])) return(val_json_any())
+  if (isTRUE(p$extra[["vector"]])) {
+    return(list(anyOf = list(list(type = "array", items = list(type = "number")),
+                             list(type = "number"))))
+  }
+  if (isTRUE(p$extra[["plain"]])) return(list(type = "number"))
   out <- switch(p$kind,
     number = , amount = , rate = , share = , value = , schedule = {
       if (isTRUE(p$allow_auto)) list(`$ref` = "#/$defs/amount_auto") else
@@ -909,12 +962,9 @@ val_json_param <- function(p) {
     },
     integer = list(anyOf = list(list(type = "integer"),
                                 list(type = "array", items = list(type = "integer")))),
-    enum = {
-      cds <- utl_param_codes(p)
-      list(enum = unique(c(cds, val_param_aliases(p))))
-    },
+    enum = val_json_enum(c(utl_param_codes(p), val_param_aliases(p), p$extra[["token"]])),
     logical = list(anyOf = list(list(type = "boolean"),
-                                list(enum = c("ja", "nein", "yes", "no")))),
+                                val_json_enum(c("ja", "nein", "yes", "no")))),
     date = list(type = "string", format = "date"),
     timing = list(`$ref` = "#/$defs/timing"),
     string = , ref = {
@@ -947,7 +997,7 @@ val_json_param <- function(p) {
 #' JSON-Schema einer festen Feldliste
 #' @noRd
 val_json_object <- function(fields, extra_props = list()) {
-  props <- lapply(fields, val_json_param)
+  props <- lapply(fields, function(p) val_json_nullable(val_json_param(p)))
   props <- c(props, extra_props)
   req <- names(fields)[vapply(fields, function(f) isTRUE(f$required), logical(1))]
   out <- list(type = "object", additionalProperties = FALSE, properties = props)
@@ -991,25 +1041,26 @@ val_json_energy <- function(cat) {
 #' JSON-Schema des Stochastik-Overlays
 #' @noRd
 val_json_stochastic <- function(cat) {
+  # dist bzw. type kann eine Bibliotheksvorlage liefern (from/use, R-87): nur target ist Pflicht
   pe <- val_json_object(cat[["stochastic.parameters"]])
   pe$additionalProperties <- TRUE
+  pe$required <- list("target")
   pr <- val_json_object(cat[["stochastic.processes"]])
   pr$additionalProperties <- TRUE
+  pr$required <- list("target")
   dists <- reg_list("distribution")$name
   procs <- reg_list("process")$name
-  if (length(dists) > 0L) pe$properties$dist <- list(enum = dists)
-  if (length(procs) > 0L) pr$properties$type <- list(enum = procs)
+  if (length(dists) > 0L) pe$properties$dist <- val_json_enum(dists)
+  if (length(procs) > 0L) pr$properties$type <- val_json_enum(procs)
   pair <- list(type = "array", items = list(type = "array", minItems = 3L, maxItems = 3L))
+  pair_or_ref <- list(anyOf = list(pair, list(`$ref` = "#/$defs/library_ref")))
   list(type = "object", additionalProperties = FALSE,
        properties = list(
          settings = val_json_object(cat[["stochastic.settings"]]),
          parameters = list(type = "object", additionalProperties = pe),
          processes = list(type = "object", additionalProperties = pr),
          correlations = list(type = "object", additionalProperties = FALSE,
-                             properties = list(parameters = list(anyOf = list(
-                               pair, list(`$ref` = "#/$defs/library_ref"))),
-                               shocks = list(anyOf = list(
-                                 pair, list(`$ref` = "#/$defs/library_ref")))))
+                             properties = list(parameters = pair_or_ref, shocks = pair_or_ref))
        ))
 }
 

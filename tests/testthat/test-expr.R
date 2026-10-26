@@ -45,11 +45,31 @@ test_that("Codes und Wahrheitswerte nur in Vergleich und Logik (R-91)", {
   expect_error(ev("p.flag"), class = "vofi_error_input")
 })
 
-test_that("%in% mit zeitabhaengigem Operanden behaelt die Form n x (T+1)", {
-  m <- matrix(1:6, 2, 3)
-  v <- expr_eval(expr_parse("a.x %in% c(2, 5)"), resolve = function(p) m, n = 2L, T = 2L)
-  expect_identical(dim(v), c(2L, 3L))
-  expect_equal(v, matrix(c(0, 1, 0, 0, 1, 0), 2, 3))
+test_that("%in% und c() nur mit deterministischen Operanden (4.5 Regel 5)", {
+  vals <- list(a.v = c(1, 2), a.p = matrix(1:6, 2, 3), p.reforms = c("x", "y"),
+               p.code = "x", p.flag = TRUE)
+  res <- function(p) vals[[p]]
+  ev <- function(txt, n = 2L) expr_eval(expr_parse(txt), res, n, 2L)
+  key <- function(expr) wsb_cond_key(expr)
+  # c() nur als rechte Seite von %in% (sonst hinge die Länge des Ergebnisses von c() ab)
+  expect_identical(key(expr_parse("c(1, 2) * 3")), "validation.expr.c_context")
+  expect_identical(key(expr_parse("pmax(c(1, 2), a.v)")), "validation.expr.c_context")
+  expect_identical(key(expr_parse("'x' %in% (c('x'))")), "validation.expr.not_deterministic")
+  # links von %in% nur Literale und einzelne Codes bzw. Wahrheitswerte
+  expect_identical(key(expr_parse("(a.v + 1) %in% c(2, 3)")),
+                   "validation.expr.not_deterministic")
+  expect_identical(key(ev("a.v %in% c(2, 5)")), "validation.expr.not_deterministic")
+  expect_identical(key(ev("a.p %in% c(2, 5)")), "validation.expr.not_deterministic")
+  expect_identical(key(ev("p.reforms %in% c('x')")), "validation.expr.code_list")
+  expect_identical(ev("p.code %in% c('x', 'z')"), c(1, 1))
+  expect_identical(ev("2 %in% c(1, 2)"), c(1, 1))
+  # == und != vergleichen nur einzelne Codes; Code-Listen nur rechts von %in%
+  expect_identical(key(ev("p.reforms == 'x'")), "validation.expr.code_list")
+  expect_identical(key(ev("'y' != p.reforms")), "validation.expr.code_list")
+  expect_identical(ev("ifelse('y' %in% p.reforms, 1, 0) + a.v"), c(2, 3))
+  # Ergebnis unabhängig von n (Batch-Invarianz)
+  expect_identical(ev("('x' %in% p.reforms) * 3", n = 1L), 3)
+  expect_identical(ev("('x' %in% p.reforms) * 3", n = 3L), c(3, 3, 3))
 })
 
 test_that("Meldungsschlüssel, Positionen und Vorschläge", {
@@ -94,13 +114,16 @@ test_that("Benannte Argumente, Stelligkeit und deterministische Operanden", {
   expect_identical(key("ifelse(a.v > 1, 1)"), "validation.expr.arity")
   expect_identical(key("abs()"), "validation.expr.arity")
   expect_identical(key("round(a.v, a.v)"), "validation.expr.not_deterministic")
-  expect_identical(key("c(a.v + 1)"), "validation.expr.not_deterministic")
-  expect_identical(key("c(a.v)"), "validation.expr.not_deterministic")
+  expect_identical(key("'x' %in% c(a.v + 1)"), "validation.expr.not_deterministic")
+  expect_identical(key("'x' %in% c(a.v)"), "validation.expr.not_deterministic")
+  expect_identical(key("c(a.v)"), "validation.expr.c_context")
   expect_identical(key("a.v %in% a.v"), "validation.expr.not_deterministic")
+  expect_identical(key("'x' %in% a.v"), "validation.expr.not_deterministic")
   expect_identical(key("a.v %in% pmax(1, 2)"), "validation.expr.not_deterministic")
   expect_identical(ev("'x' %in% p.codes"), c(1, 1, 1))
   expect_identical(ev("'z' %in% c(p.codes, 'w')"), c(0, 0, 0))
-  expect_identical(key("a.v %in% p.codes"), "validation.expr.code_operand")
+  expect_identical(key("a.v %in% p.codes"), "validation.expr.not_deterministic")
+  expect_identical(key("1 %in% p.codes"), "validation.expr.code_operand")
   expect_identical(ev("sqrt(a.v * 0 - 1) * 0 + is.na(sqrt(a.v * 0 - 1))"), c(NaN, NaN, NaN))
   expect_identical(ev("floor(a.v) + ceiling(a.v) + (-a.v + a.v) + +1"), c(4, 6, 8))
   expect_identical(ev("a.v %% 1 >= 0"), c(1, 1, 1))
@@ -130,14 +153,15 @@ test_that("Pfadsymbole aus Text, Knoten und Objekt", {
 test_that("Batch-Invarianz: Lauf i hängt nur von den Werten des Laufs i ab", {
   big_t <- 4L
   s3 <- list(a.v = c(1.5, -2, 4), a.p = matrix(seq_len(15) / 3, 3, big_t + 1L), a.s = 0.5,
-             p.code = c("x", "y", "x"))
+             p.code = "x", p.codes = c("x", "y"))
   txt <- paste("ifelse(a.v > 0, pmax(a.p * a.v, a.s), round(a.p, 1)) +",
-               "(p.code == 'x') * floor(a.v) + (a.v %in% c(4, 1.5))")
+               "(p.code == 'x') * floor(a.v) + ('y' %in% p.codes) * a.v +",
+               "('z' %in% c(p.code, 'w'))")
   r3 <- expr_eval(expr_parse(txt), function(p) s3[[p]], 3L, big_t)
   expect_identical(dim(r3), c(3L, big_t + 1L))
   for (i in 1:3) {
     s1 <- list(a.v = s3$a.v[i], a.p = s3$a.p[i, , drop = FALSE], a.s = s3$a.s,
-               p.code = s3$p.code[i])
+               p.code = s3$p.code, p.codes = s3$p.codes)
     r1 <- expr_eval(expr_parse(txt), function(p) s1[[p]], 1L, big_t)
     expect_identical(r1, r3[i, , drop = FALSE])
   }

@@ -76,12 +76,14 @@ print.vofi_validation <- function(x, ...) {
 #' @examples
 #' as.data.frame(vofi_validate(vofi_read_scenario(vofi_example("skeleton"))))
 #' @export
+# nolint start: object_name_linter. Argumentnamen der Generik base::as.data.frame().
 as.data.frame.vofi_validation <- function(x, row.names = NULL, optional = FALSE, ...) {
   df <- x
   class(df) <- "data.frame"
   if (!is.null(row.names)) rownames(df) <- row.names else rownames(df) <- NULL
   df
 }
+# nolint end
 
 #' Zeilen des Berichts: gleiche Befunde mehrerer Varianten zusammengefasst, sortiert
 #'

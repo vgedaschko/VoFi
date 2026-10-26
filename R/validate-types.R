@@ -65,6 +65,19 @@ val_as_date <- function(x, year = FALSE) {
   NULL
 }
 
+#' Daten einer Liste verbinden (`NULL`-Elemente entfallen, die Klasse `Date` bleibt erhalten)
+#'
+#' `do.call(c, list(NULL, <Date>))` liefert `numeric`, weil `c()` nach dem ersten Argument
+#' dispatcht; deshalb werden leere Elemente vorher entfernt.
+#' @param x Liste von `Date`-Objekten bzw. `NULL`.
+#' @return `Date`-Vektor oder `NULL`.
+#' @noRd
+val_dates_c <- function(x) {
+  x <- Filter(function(d) inherits(d, "Date") && length(d) > 0L, unname(x))
+  if (length(x) == 0L) return(NULL)
+  do.call(c, x)
+}
+
 #' Zahl(en) aus Roh- oder Konstantenform (`NULL`, wenn keine feste Zahl)
 #' @noRd
 val_num <- function(x) {
@@ -172,8 +185,19 @@ val_node_numbers <- function(node) {
 val_block <- function(vc, block) {
   x <- vc$spec[[block]]
   if (is.null(x) || (is.list(x) && length(x) == 0L)) return(invisible(NULL))
-  val_walk(vc, x, vc$catalog[[block]], block)
+  val_walk(vc, x, vc$catalog[[block]], block, extra_known = val_known_extra_fields(block))
 }
+
+#' Zusätzlich bekannte Felder eines Blocks ohne Katalogeintrag (Kompatibilität mit Phase 0)
+#'
+#' Der Feldkatalog (`val_schema_catalog()`) ist vollständig; die Funktion liefert daher keine
+#' Felder. Sie bleibt als Erweiterungspunkt der Phase-0-Schnittstelle erhalten, den Testhelfer
+#' anderer Pakete (z. B. `helper-ws-a.R`) ergänzen dürfen; ergänzte Felder meldet die Prüfung
+#' unbekannter Felder nicht.
+#' @param block Name des Blocks.
+#' @return Zeichenvektor.
+#' @noRd
+val_known_extra_fields <- function(block) character(0)
 
 #' Feldliste einer Map prüfen (Pflicht, unbekannt, Art, Bereich)
 #' @param vc Prüfkontext.
@@ -182,15 +206,16 @@ val_block <- function(vc, block) {
 #' @param path Pfad von `x`.
 #' @param open weitere Felder zulässig.
 #' @param unknown_code Schlüssel für unbekannte Felder.
+#' @param extra_known weitere bekannte Felder ohne Katalogeintrag (ohne Prüfung).
 #' @noRd
 val_walk <- function(vc, x, fields, path, open = FALSE,
-                     unknown_code = "validation.unknown_field") {
+                     unknown_code = "validation.unknown_field", extra_known = character(0)) {
   if (!is_map(x)) {
     val_add(vc, "error", "validation.not_map", path)
     return(invisible(NULL))
   }
   if (!open) {
-    for (f in setdiff(names(x), names(fields))) {
+    for (f in setdiff(names(x), c(names(fields), extra_known))) {
       val_add(vc, "error", unknown_code, path_join(path, f),
               suggestion = utl_suggest_text(f, names(fields)))
     }
@@ -200,8 +225,9 @@ val_walk <- function(vc, x, fields, path, open = FALSE,
     v <- if (utl_has_name(x, f)) x[[f]] else NULL
     fp <- path_join(path, f)
     if (is.null(v)) {
-      if (isTRUE(p$required)) val_add(vc, "error", p$extra[["missing_code"]] %||% "validation.required",
-                                      fp)
+      if (isTRUE(p$required)) {
+        val_add(vc, "error", p$extra[["missing_code"]] %||% "validation.required", fp)
+      }
       next
     }
     val_check_value(vc, v, p, fp)
@@ -213,6 +239,10 @@ val_walk <- function(vc, x, fields, path, open = FALSE,
 #' @noRd
 val_check_value <- function(vc, v, p, path) {
   kind <- p$kind
+  if (isTRUE(p$extra[["dynamic"]])) return(invisible(NULL))   # Blockregel (z. B. Sensitivitäten)
+  if (isTRUE(p$extra[["vector"]]) || isTRUE(p$extra[["plain"]])) {
+    return(val_check_vector(vc, v, p, path))
+  }
   if (kind %in% val_numeric_kinds()) return(val_check_number(vc, v, p, path))
   switch(kind,
     integer = val_check_integer(vc, v, p, path),
@@ -266,6 +296,42 @@ val_check_number <- function(vc, v, p, path) {
   nums <- val_node_numbers(node)
   val_check_bounds(vc, nums, p, path, lower_only = isTRUE(attr(nums, "lower_only")))
   invisible(NULL)
+}
+
+#' Zahlen einer Zahlenliste (Rohform, Konstante, Liste von Zahlen bzw. Konstanten, series_t)
+#' @return double-Vektor oder `NULL`, wenn der Wert keine Zahlenliste ist.
+#' @noRd
+val_num_vec <- function(x) {
+  one <- function(e) {
+    if (is.numeric(e) && !is.list(e) && length(e) == 1L) return(as.double(e))
+    if (node_is(e) && identical(e$kind, "const") && is.numeric(e$value)) return(as.double(e$value))
+    NA_real_
+  }
+  if (node_is(x)) {
+    if (identical(x$kind, "const") && is.numeric(x$value)) return(as.double(x$value))
+    if (identical(x$kind, "series_t")) return(val_num_vec(x$values))
+    return(NULL)
+  }
+  if (is.numeric(x) && !is.list(x)) return(as.double(x))
+  if (is.list(x) && !is_map(x) && length(x) > 0L) {
+    out <- vapply(x, one, double(1))
+    return(if (anyNA(out)) NULL else unname(out))
+  }
+  NULL
+}
+
+#' Zahlenliste (Extra `vector`, Konstanten beliebiger Länge) bzw. feste Zahl (Extra `plain`)
+#'
+#' Bereich je Element; kein Shape-Fehler, weil die Werte keine Wertformen sind.
+#' @noRd
+val_check_vector <- function(vc, v, p, path) {
+  nums <- val_num_vec(v)
+  if (is.null(nums) || length(nums) == 0L ||
+        (!isTRUE(p$extra[["vector"]]) && length(nums) != 1L)) {
+    val_add(vc, "error", "validation.not_number", path, value = utl_collapse(format(unlist(v))))
+    return(invisible(NULL))
+  }
+  val_check_bounds(vc, nums, p, path)
 }
 
 #' Bereich (min/max, ausschließlich), zulässige Werte, Ganzzahligkeit, Warnbereich
@@ -372,8 +438,9 @@ val_check_string <- function(vc, v, p, path) {
     val_add(vc, "error", "validation.pattern", path, value = s, pattern = p$extra[["pattern"]])
   }
   mc <- p$extra[["max_chars"]]
-  if (!is.null(mc) && nchar(s) > mc) val_add(vc, "warning", "validation.text_long", path,
-                                              max = mc)
+  if (!is.null(mc) && nchar(s) > mc) {
+    val_add(vc, "warning", "validation.text_long", path, max = mc)
+  }
   if (!is.null(p$extra[["ref_ids"]])) val_check_ref_id(vc, s, p$extra[["ref_ids"]], path)
   invisible(NULL)
 }
@@ -386,7 +453,9 @@ val_check_ids <- function(vc, v, p, path) {
     val_add(vc, "error", "validation.not_ids", path)
     return(invisible(NULL))
   }
-  if (length(vals) == 1L && vals %in% (p$extra[["token"]] %||% character(0))) return(invisible(NULL))
+  if (length(vals) == 1L && vals %in% (p$extra[["token"]] %||% character(0))) {
+    return(invisible(NULL))
+  }
   if (!is.null(p$extra[["items"]])) {
     codes <- val_codes(p$extra[["items"]])
     if (!is.null(codes)) {
@@ -414,7 +483,7 @@ val_check_ids <- function(vc, v, p, path) {
 #' Art map: feste Feldliste, freie Map, Sequenz, beliebiger Inhalt
 #' @noRd
 val_check_map <- function(vc, v, p, path) {
-  if (isTRUE(p$extra[["collection"]])) return(invisible(NULL))   # eigene Prüfung (val_collection)
+  if (!is.null(p$extra[["collection"]])) return(invisible(NULL))  # eigene Prüfung (val_collection)
   if (isTRUE(p$extra[["sequence"]])) {
     if (!is.list(v) || (is_map(v) && length(v) > 0L)) {
       val_add(vc, "error", "validation.not_list", path)
@@ -852,7 +921,7 @@ val_stochastic_settings <- function(vc) {
     val_add(vc, "error", "validation.duplicate_entries", path_join(p, "keep_runs"),
             value = kr[duplicated(kr)][1L])
   }
-  bp <- val_num(s$band_probs)
+  bp <- val_num_vec(s$band_probs)
   if (length(bp) > 1L && any(diff(bp) <= 0)) {
     val_add(vc, "error", "validation.not_increasing", path_join(p, "band_probs"))
   }
@@ -931,13 +1000,32 @@ val_overlay_parameter <- function(vc, key, e, path, short) {
     val_add(vc, "error", "validation.stochastic.apply_not_allowed", path_join(path, "apply"),
             value = ap)
   } else if (identical(ap, "multiply") && !identical(e$dist, "bernoulli")) {
-    lo <- tryCatch(as.double(def$quantile(1e-9, par)), error = function(err) NA_real_)
+    lo <- val_dist_support_min(def, e$dist, par)
     if (length(lo) != 1L || is.na(lo) || lo < 0) {
       val_add(vc, "error", "validation.stochastic.apply_not_allowed", path_join(path, "apply"),
               value = ap)
     }
   }
   invisible(NULL)
+}
+
+#' Untergrenze des Trägers einer Verteilung (R-94: multiply nur mit Träger in [0, Inf))
+#'
+#' Maßgeblich ist der Träger des Typs, nicht ein Quantil nahe 0: `normal` hat den Träger R
+#' (auch bei kleiner Streuung); sonst das Quantil bei u = 0 (z. B. `-Inf` bei `truncnorm` ohne
+#' Untergrenze, `min` bei `pert`, `triangular`, `uniform`, 0 bei `lognormal`). Eine Typangabe
+#' `support` (Funktion `par -> c(lo, hi)`) hat Vorrang.
+#' @return double(1) oder `NA`.
+#' @noRd
+val_dist_support_min <- function(def, dist, par) {
+  if (identical(dist, "normal")) return(-Inf)
+  if (is.function(def$support)) {
+    sup <- tryCatch(as.double(def$support(par)), error = function(err) NA_real_)
+    return(if (length(sup) >= 1L) sup[1L] else NA_real_)
+  }
+  lo <- tryCatch(suppressWarnings(as.double(def$quantile(0, par))),
+                 error = function(err) NA_real_)
+  if (length(lo) != 1L) NA_real_ else lo
 }
 
 #' Zulässiger Bereich der Prozessparameter für Verteilungsangaben (Teil C 1.5.2)
@@ -987,6 +1075,19 @@ val_overlay_process <- function(vc, key, e, path) {
     }
   }
   fixed <- val_process_fixed_params(type)
+  if (identical(type, "iid") && is_map(par$dist_spec)) {
+    # dist_spec ist die Jahresverteilung selbst; ihre Parameter sind nicht verteilbar (1.5.2)
+    dsp <- par$dist_spec
+    dsp_path <- path_join(path, "dist_spec")
+    nested <- names(dsp)[vapply(dsp, function(v) is_map(v) && utl_has_name(v, "dist"),
+                                logical(1))]
+    for (nm in nested) {
+      val_add(vc, "error", "validation.stochastic.process_param_not_distributable",
+              path_join(dsp_path, nm), param = path_join("dist_spec", nm))
+    }
+    if (length(nested) == 0L) val_check_dist(vc, dsp$dist, val_dist_par(dsp), dsp_path)
+    par <- par[setdiff(names(par), "dist_spec")]
+  }
   point <- par
   dist_params <- function(x, prefix) {
     out <- list()
@@ -1035,6 +1136,7 @@ val_overlay_process <- function(vc, key, e, path) {
   }
   point <- point[!vapply(point, is.null, logical(1))]
   point <- lapply(point, function(v) if (node_is(v) && identical(v$kind, "const")) v$value else v)
+  if (identical(type, "iid") && !is.null(e$dist_spec)) point$dist_spec <- e$dist_spec
   msgs <- tryCatch(def$validate(point), error = function(err) conditionMessage(err))
   for (m in as.character(unlist(msgs))) {
     val_add(vc, "error", "validation.stochastic.process_invalid", path, detail = m)

@@ -84,14 +84,22 @@ val_is_value <- function(x) {
 val_as_node <- function(x, path) {
   if (node_is(x)) return(x)
   if (is.numeric(x) && !is.list(x)) {
-    return(if (length(x) == 1L) node_const(x) else list(kind = "series_t",
-                                                           values = as.double(x)))
+    return(if (length(x) == 1L) node_const(x) else list(kind = "series_t", values = as.double(x)))
   }
   if (!val_is_value(x)) return(NULL)
   tryCatch(suppressWarnings(node_value(x, path)), error = function(e) NULL)
 }
 
+#' Restwertmethoden, die ohne `building` gelesen werden (Spec 01 Teil A 6.1, 6.2 Nr. 5)
+#' @noRd
+val_rv_methods_without_building <- function() c("user_value", "market_growth", "exit_yield")
+
 #' Gelesene Wurzelknoten (R-115)
+#'
+#' Ohne `building` liest der Restwert nur die Methoden nach
+#' `val_rv_methods_without_building()`; die Untermaps der übrigen Methoden (z. B.
+#' `residual_value.income_value.land_value_eur: {ref: building.land_value_eur}` aus
+#' `global.yaml`) bleiben ungeprüft (Spec 00 4.5 Regel 2; Gerüst, Orakel, `grob_lehrbuch_a`).
 #' @return Zeichenvektor der Blattpfade mit Wertknoten.
 #' @noRd
 val_ref_roots <- function(vc) {
@@ -118,8 +126,10 @@ val_ref_roots <- function(vc) {
   if (is_map(rv)) {
     method <- val_str(rv$method) %||% "zero"
     methods <- val_codes("vocab:residual_method") %||% character(0)
+    has_building <- is_map(spec$building) && length(spec$building) > 0L
     for (nm in names(rv)) {
       if (nm %in% methods && !identical(nm, method)) next
+      if (nm %in% methods && !has_building && !(nm %in% val_rv_methods_without_building())) next
       collect(rv[[nm]], path_join("residual_value", nm))
     }
   }
@@ -231,6 +241,7 @@ val_value_refs <- function(vc) {
   visited <- character(0)
   edges <- list()
   reported <- character(0)
+  broken <- character(0)
   while (length(queue) > 0L) {
     p <- queue[1L]
     queue <- queue[-1L]
@@ -242,6 +253,7 @@ val_value_refs <- function(vc) {
     for (t in tg) {
       if (!is.null(t$error)) {
         val_add_condition(vc, t$error, p)
+        broken <- c(broken, p)
         next
       }
       target <- t$target
@@ -251,6 +263,7 @@ val_value_refs <- function(vc) {
       first <- path_split(target)[1L]
       if (!(first %in% val_ref_blocks())) {
         val_add(vc, "error", "validation.ref_target_forbidden", p, target = target)
+        broken <- c(broken, p)
         next
       }
       tn <- path_get(spec, target)
@@ -262,11 +275,13 @@ val_value_refs <- function(vc) {
           val_add(vc, "error", "validation.ref_target_missing", p, target = target,
                   suggestion = val_target_suggestion(spec, target))
         }
+        broken <- c(broken, p)
         next
       }
       numeric_ok <- val_is_value(tn) || (is.numeric(tn) && !is.list(tn))
       if (identical(t$kind, "ref") && !numeric_ok) {
         val_add(vc, "error", "validation.ref_target_not_numeric", p, target = target)
+        broken <- c(broken, p)
         next
       }
       if (isTRUE(t$element) && identical(val_path_shape(vc, target), "path")) {
@@ -284,15 +299,23 @@ val_value_refs <- function(vc) {
     val_add(vc, "error", "validation.ref_cycle", cyc[1L],
             chain = utl_collapse(c(cyc, cyc[1L]), " -> "))
   }
-  val_expr_dry_run(vc, visited, edges)
+  val_expr_dry_run(vc, visited, edges, broken)
   invisible(NULL)
 }
 
 #' Befund aus einer Bedingung mit Schlüssel `validation.*` (z. B. Ausdrucksfehler)
+#'
+#' Bedingungen ohne eigenen Schlüssel `validation.*` (z. B. Vertragsfehler der Formregel)
+#' erscheinen als `fallback` mit dem Meldungstext (Platzhalter `detail`) und `args`; ohne
+#' `fallback` werden sie verworfen.
 #' @noRd
-val_add_condition <- function(vc, cond, path) {
+val_add_condition <- function(vc, cond, path, fallback = NULL, args = list()) {
   key <- cond$key
   if (!(utl_is_string(key) && startsWith(key, "validation.") && lbl_has(key))) {
+    if (!is.null(fallback)) {
+      do.call(val_add, c(list(vc, "error", fallback, path),
+                         c(args, list(detail = conditionMessage(cond)))))
+    }
     return(invisible(NULL))
   }
   args <- cond$args %||% list()
@@ -336,24 +359,49 @@ val_find_cycles <- function(edges) {
     }
     assign(v, 2L, envir = color)
   }
-  for (v in sort(names(edges), method = "radix")) {
+  for (v in sort(names(edges) %||% character(0), method = "radix")) {
     if (get0(v, envir = color, inherits = FALSE, ifnotfound = 0L) == 0L) visit(v, v)
   }
   found
 }
 
 #' Ausdrücke im Basisfall probeweise auswerten (Fehler der Ausdruckssprache, R-91)
+#'
+#' Ausgelassen werden Ausdrücke in Zyklen und Ausdrücke, die (transitiv) von einem bereits
+#' gemeldeten fehlerhaften Bezug abhängen (`broken`). Fehler ohne eigenen Schlüssel
+#' `validation.*` (z. B. Formfehler der Auswertung) erscheinen als
+#' `validation.expr.eval_failed`.
+#' @param vc Prüfkontext.
+#' @param paths gelesene Pfade.
+#' @param edges Abhängigkeiten (Pfad -> Zielpfade).
+#' @param broken Pfade mit gemeldeten Fehlern der Bezüge bzw. Ausdrücke.
 #' @noRd
-val_expr_dry_run <- function(vc, paths, edges) {
+val_expr_dry_run <- function(vc, paths, edges, broken = character(0)) {
   if (is.null(vc$grid)) return(invisible(NULL))
   cyclic <- unique(unlist(val_find_cycles(edges)))
+  reaches_broken <- function(p) {
+    seen <- character(0)
+    todo <- p
+    while (length(todo) > 0L) {
+      q <- todo[1L]
+      todo <- todo[-1L]
+      if (q %in% broken) return(TRUE)
+      if (q %in% seen) next
+      seen <- c(seen, q)
+      todo <- c(todo, edges[[q]] %||% character(0))
+    }
+    FALSE
+  }
   rc <- res_context(vc$spec, vc$grid, 1L)
   for (p in setdiff(paths, cyclic)) {
     node <- val_as_node(path_get(vc$spec, p), p)
-    if (!(node_is(node) && identical(node$kind, "expr"))) next
+    if (!(node_is(node) && identical(node$kind, "expr")) || reaches_broken(p)) next
     res <- tryCatch(suppressMessages(suppressWarnings(res_node(rc, node, p, TRUE, p))),
                     error = function(e) e)
-    if (inherits(res, "error")) val_add_condition(vc, res, p)
+    if (inherits(res, "error")) {
+      val_add_condition(vc, res, p, fallback = "validation.expr.eval_failed",
+                        args = list(text = node$text %||% ""))
+    }
   }
   invisible(NULL)
 }
@@ -494,7 +542,7 @@ val_schedule_dates <- function(x) {
   dates <- if (node_is(x) && identical(x$kind, "schedule")) {
     x$dates
   } else if (is_map(x) && is_map(x$schedule)) {
-    do.call(c, lapply(names(x$schedule), function(k) val_as_date(k, year = TRUE)))
+    val_dates_c(lapply(names(x$schedule), function(k) val_as_date(k, year = TRUE)))
   } else {
     NULL
   }
@@ -515,7 +563,7 @@ val_approval_timing <- function(vc, fid) {
     vc$vd
   ms <- val_chr_list(f$measures) %||% character(0)
   if (length(ms) == 0L) ms <- val_ids(vc, "measures")
-  dates <- do.call(c, lapply(ms, function(m) val_measure_first_date(vc$spec$measures[[m]])))
+  dates <- val_dates_c(lapply(ms, function(m) val_measure_first_date(vc$spec$measures[[m]])))
   if (length(dates) == 0L || is.null(app)) return("before_start")
   if (app <= min(dates)) "before_start" else "after_start"
 }
@@ -699,8 +747,10 @@ val_overlay_target <- function(vc, key, e, path, kind) {
   ap <- val_str(e$apply) %||% "replace"
   b <- base[min(2L, length(base))]
   if (identical(ap, "replace")) {
-    q <- tryCatch(as.double(def$quantile(c(1e-9, 1 - 1e-9), par)),
+    # Träger [Q(0), Q(1)] einschließlich der Ränder (z. B. Basis 0 bei beta, pert mit min 0)
+    q <- tryCatch(suppressWarnings(as.double(def$quantile(c(0, 1), par))),
                   error = function(err) c(NA_real_, NA_real_))
+    if (length(q) != 2L) q <- c(NA_real_, NA_real_)
     tol <- 1e-9 * max(1, abs(b))
     if (!anyNA(q) && (b < q[1L] - tol || b > q[2L] + tol)) {
       val_add(vc, "error", "validation.stochastic.base_outside_support", tp, value = b,
@@ -823,6 +873,7 @@ val_correlations <- function(vc) {
     e <- procs[[k]]
     if (!is_map(e)) return(NULL)
     nm <- names(e)[vapply(e, function(v) is_map(v) && utl_has_name(v, "dist"), logical(1))]
+    if (identical(e$type, "iid")) nm <- setdiff(nm, "dist_spec")   # Jahresverteilung
     if (length(nm) == 0L) NULL else paste(k, nm, sep = ".")
   }))
   fund_keys <- paste0("funding.", val_ids(vc, "funding"), ".approved")
@@ -943,6 +994,7 @@ val_cross <- function(x, specs, full = TRUE) {
   for (v in names(specs)) {
     vc <- val_context(specs[[v]], v, x)
     val_fallbacks(vc, vars, get_spec)
+    val_replaces_ohnehin(vc, vars, get_spec)
     out <- c(out, vc$out)
   }
   if (full) out <- c(out, val_sets_cross(x, base))
@@ -982,6 +1034,11 @@ val_reference_variant <- function(vc, x) {
       report("analysis.primary_kpi")
     }
   }
+  # Erwerb mit Sanierung: Referenzvariante für die Sanierungsentscheidung empfohlen (12.3a)
+  if (identical(p$project_type, "erwerb_sanierung") && length(vars) < 2L) {
+    val_add(vc, "info", "validation.reference_variant_recommended", "project.reference_variant",
+            value = p$project_type)
+  }
   invisible(NULL)
 }
 
@@ -1019,6 +1076,27 @@ val_existing_vs_base <- function(vc, base) {
   invisible(NULL)
 }
 
+#' Ersetzte Ohnehin-Maßnahmen existieren in der Referenzvariante (Teil A 4.1)
+#' @noRd
+val_replaces_ohnehin <- function(vc, vars, get_spec) {
+  ms <- vc$spec$measures
+  if (!is_map(ms) || length(ms) == 0L) return(invisible(NULL))
+  rv <- val_str(vc$spec$project$reference_variant) %||% "base"
+  if (!(rv %in% vars)) return(invisible(NULL))          # meldet val_reference_variant()
+  ref <- get_spec(rv)
+  if (is.null(ref)) return(invisible(NULL))
+  ids <- names(ref$measures %||% list()) %||% character(0)
+  for (m in names(ms)) {
+    ro <- if (is_map(ms[[m]])) val_chr_list(ms[[m]]$replaces_ohnehin) else NULL
+    for (id in setdiff(ro %||% character(0), ids)) {
+      val_add(vc, "warning", "validation.measures.replaces_ohnehin_unknown",
+              path_join("measures", m, "replaces_ohnehin"), value = id, reference = rv,
+              suggestion = utl_suggest_text(id, ids))
+    }
+  }
+  invisible(NULL)
+}
+
 #' Ausweichvarianten der Entscheidungsknoten (9.11 Nr. 1, 4)
 #' @noRd
 val_fallbacks <- function(vc, vars, get_spec) {
@@ -1047,13 +1125,14 @@ val_fallbacks <- function(vc, vars, get_spec) {
   invisible(NULL)
 }
 
-#' Szenario-Sets gegen die Basis: Auflösung, Platzhalter, Wachstumsform, generierte Sets
+#' Szenario-Sets gegen die Basis: Platzhalter, Wachstumsform, generierte Sets
+#'
+#' Auflösung und Prüfung der statischen Sets auf den Ebenen 2 bis 4: `val_sets_specs()`.
 #' @noRd
 val_sets_cross <- function(x, base) {
   sets <- x$scenario_sets
   out <- list()
   if (!is_map(sets) || length(sets) == 0L) return(out)
-  struct <- val_bind(val_sets_structure(x))
   vc <- val_context(base, "base", x)
   for (s in names(sets)) {
     e <- sets[[s]]
@@ -1070,9 +1149,8 @@ val_sets_cross <- function(x, base) {
       if (!is_map(o)) next
       ps <- if (identical(op, "overrides")) var_override_leaves(o) else names(o)
       for (p in ps) {
-        ops[[length(ops) + 1L]] <- list(op = op, path = p,
-                                         value = if (identical(op, "overrides")) path_get(o, p)
-                                         else o[[p]])
+        value <- if (identical(op, "overrides")) path_get(o, p) else o[[p]]
+        ops[[length(ops) + 1L]] <- list(op = op, path = p, value = value)
       }
     }
     for (p in val_chr_list(e$remove) %||% character(0)) {
@@ -1106,12 +1184,6 @@ val_sets_cross <- function(x, base) {
           }
         }
       }
-    }
-    blocked <- any(struct$severity == "error" & struct$variant %in% s)
-    if (!blocked) {
-      res <- tryCatch(vofi_resolve(x, variant = "base", scenario_set = s),
-                      error = function(err) err)
-      if (inherits(res, "error")) vc$out[[length(vc$out) + 1L]] <- val_resolve_finding(res, s)
     }
   }
   c(out, vc$out)

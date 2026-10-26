@@ -137,3 +137,52 @@ test_that("Ausgeliefertes JSON-Schema passt zum Katalog (data-raw/build_schema.R
   }
   expect_identical(shipped[["$defs"]], gen[["$defs"]])
 })
+
+test_that("M2: JSON-Schema nach Metaschema Draft 2020-12 (enum und required als Array)", {
+  skip_if_not_installed("jsonlite")
+  s <- jsonlite::fromJSON(vofi_json_schema(), simplifyVector = FALSE)
+  bad <- character(0)
+  walk <- function(x, path) {
+    if (!is.list(x)) return(invisible(NULL))
+    nms <- names(x) %||% rep("", length(x))
+    for (i in seq_along(x)) {
+      k <- nms[i]
+      if (k %in% c("enum", "required") && !(is.list(x[[i]]) && is.null(names(x[[i]])))) {
+        bad <<- c(bad, paste0(path, "/", k))
+      }
+      walk(x[[i]], paste0(path, "/", if (nzchar(k)) k else i))
+    }
+  }
+  walk(s, "")
+  expect_identical(bad, character(0))
+  # Zahlenliste band_probs, beliebiger Wert bei mandatory_sensitivities.value
+  st <- s$properties$stochastic$properties$settings$properties
+  expect_identical(st$band_probs$anyOf[[1L]]$type, "array")
+  # Prüfung gegen das Metaschema und Gültigkeit des Gerüsts, sofern python3 mit jsonschema
+  # und yaml verfügbar ist
+  py <- Sys.which("python3")
+  skip_if(!nzchar(py), "python3 fehlt")
+  ok <- suppressWarnings(system2(py, c("-I", "-c", shQuote("import jsonschema, yaml")),
+                                 stdout = FALSE, stderr = FALSE))
+  skip_if(!identical(ok, 0L), "python3 ohne jsonschema bzw. yaml")
+  f <- withr::local_tempfile(fileext = ".json")
+  vofi_json_schema(f)
+  code <- paste(
+    "import json, sys, yaml, datetime, jsonschema",
+    "s = json.load(open(sys.argv[1], encoding='utf-8'))",
+    "jsonschema.Draft202012Validator.check_schema(s)",
+    "def conv(x):",
+    "    if isinstance(x, dict): return {str(k): conv(v) for k, v in x.items()}",
+    "    if isinstance(x, list): return [conv(v) for v in x]",
+    "    if isinstance(x, (datetime.date, datetime.datetime)): return x.isoformat()",
+    "    return x",
+    "y = conv(yaml.safe_load(open(sys.argv[2], encoding='utf-8')))",
+    "e = list(jsonschema.Draft202012Validator(s).iter_errors(y))",
+    "print('ok' if not e else e[0].message)", sep = "\n")
+  # Gerüst und Orakel (a) sind gültig nach dem Schema (YAML ~ entfernt ein Blatt: null zulässig)
+  for (sc in c(vofi_example("skeleton"), test_path("fixtures", "scenarios", "oracle_a.yaml"))) {
+    out <- system2(py, c("-I", "-c", shQuote(code), shQuote(f), shQuote(sc)),
+                   stdout = TRUE, stderr = TRUE)
+    expect_identical(out, "ok", info = sc)
+  }
+})

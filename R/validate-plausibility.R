@@ -19,6 +19,7 @@ val_plausibility <- function(vc) {
   val_plaus_accounts(vc)
   val_plaus_financing(vc)
   val_plaus_library(vc)
+  val_plaus_acquisition_components(vc)
   if (!vc$domain) return(invisible(NULL))
   val_plaus_building(vc)
   val_plaus_elements(vc)
@@ -132,8 +133,20 @@ val_plaus_project <- function(vc) {
 val_first_measure_date <- function(vc) {
   ms <- vc$spec$measures
   if (!is_map(ms) || length(ms) == 0L) return(NULL)
-  d <- do.call(c, lapply(ms, val_measure_first_date))
+  d <- val_dates_c(lapply(ms, val_measure_first_date))
   if (length(d) == 0L) NULL else min(d)
+}
+
+#' Fertigstellung einer Maßnahme ohne Verschiebung (completion_date, date, year, letzter
+#' Zahlungstermin)
+#' @noRd
+val_measure_completion <- function(m) {
+  if (!is_map(m)) return(NULL)
+  d <- val_as_date(m$completion_date) %||% val_as_date(m$date) %||%
+    val_as_date(m$year, year = TRUE)
+  if (!is.null(d)) return(d)
+  sd <- val_schedule_dates(m$payment_schedule)
+  if (length(sd) == 0L) NULL else max(sd)
 }
 
 #' grid (Teil A 1.3)
@@ -142,7 +155,7 @@ val_plaus_grid <- function(vc) {
   g <- vc$spec$grid %||% list()
   hy <- val_num(vc$spec$project$horizon_years)
   cm <- val_num(g$construction_months)
-  if (length(cm) == 1L && length(hy) == 1L && cm >= 12 * hy) {
+  if (length(cm) == 1L && length(hy) == 1L && hy >= 1 && cm >= 12 * hy) {
     val_add(vc, "error", "validation.grid.construction_horizon", "grid.construction_months",
             value = as.integer(cm), max = as.integer(12 * hy - 1))
   }
@@ -151,8 +164,8 @@ val_plaus_grid <- function(vc) {
     val_add(vc, "warning", "validation.grid.no_construction", "grid.construction_months")
   }
   st <- val_num(g$construction_step_months)
-  if (length(st) == 1L && st < 12 && cm0 == 0 && val_explicit(vc,
-                                                             "grid.construction_step_months")) {
+  if (length(st) == 1L && st < 12 && cm0 == 0 &&
+        val_explicit(vc, "grid.construction_step_months")) {
     val_add(vc, "info", "validation.grid.step_ineffective", "grid.construction_step_months")
   }
   pm <- val_num(g$periods_months)
@@ -163,7 +176,7 @@ val_plaus_grid <- function(vc) {
   comp <- val_grid_completion(vc)
   ms <- vc$spec$measures
   if (!is.null(comp) && cm0 > 0 && is_map(ms)) {
-    ends <- do.call(c, lapply(names(ms), function(m) {
+    ends <- val_dates_c(lapply(names(ms), function(m) {
       if (!isTRUE(val_flag(ms[[m]]$follows_construction))) return(NULL)
       val_as_date(ms[[m]]$completion_date) %||% val_measure_first_date(ms[[m]])
     }))
@@ -231,7 +244,51 @@ val_plaus_analysis <- function(vc) {
       if (n_ops != 1L) {
         val_add(vc, "error", "validation.analysis.sensitivity_op", path, value = n_ops)
       }
+      if (!is.null(tp) && (path_exists(vc$spec, tp) || !is.null(val_param_at(vc$spec, tp)))) {
+        val_sensitivity_ops(vc, e, tp, path)
+      }
       if (is.null(e$label)) val_add(vc, "error", "validation.required", path_join(path, "label"))
+    }
+  }
+  invisible(NULL)
+}
+
+#' Operation einer Pflichtsensitivität gegen die Art des Zielpfads (Spec 00 4.3.14, R-82)
+#'
+#' `value` hat die Art des Ziels (Code bei enum, Code-Liste bei ids, Wertform bei Zahlenzielen);
+#' `delta` ist nur bei Zahlenzielen, `add` nur bei Code-Listen zulässig.
+#' @param vc Prüfkontext.
+#' @param e Eintrag der Liste.
+#' @param tp Zielpfad.
+#' @param path Pfad des Eintrags.
+#' @noRd
+val_sensitivity_ops <- function(vc, e, tp, path) {
+  p <- val_param_at(vc$spec, tp)
+  tn <- path_get(vc$spec, tp)
+  numeric_target <- if (!is.null(p)) {
+    p$kind %in% c(val_numeric_kinds(), "integer")
+  } else {
+    val_is_value(tn) || (is.numeric(tn) && !is.list(tn))
+  }
+  codes_target <- !is.null(p) && identical(p$kind, "ids")
+  if (!is.null(e$value)) {
+    vp <- path_join(path, "value")
+    if (!is.null(p)) {
+      val_check_value(vc, e$value, p, vp)
+    } else if (numeric_target) {
+      val_check_number(vc, e$value, vofi_param("value"), vp)
+    }
+  }
+  if (!is.null(e$delta) && !numeric_target) {
+    val_add(vc, "error", "validation.analysis.sensitivity_op_kind", path_join(path, "delta"),
+            op = "delta", target = tp)
+  }
+  if (!is.null(e$add)) {
+    if (codes_target) {
+      val_check_ids(vc, e$add, p, path_join(path, "add"))
+    } else {
+      val_add(vc, "error", "validation.analysis.sensitivity_op_kind", path_join(path, "add"),
+              op = "add", target = tp)
     }
   }
   invisible(NULL)
@@ -412,6 +469,35 @@ val_overlay_targets <- function(vc) {
 # Bibliothek: Gültigkeit und Stand (Spec 00 4.9, 4.10; Teil C 1.11, 3.1)
 # ---------------------------------------------------------------------------------------------
 
+#' Liegt ein Pfad in einem nicht gelesenen Teilbaum? (R-115)
+#'
+#' Untermap einer nicht gelesenen Restwertmethode (Teil A 6.1) oder Teilbaum unter einer Map
+#' mit `enabled: false` (Spec 00 4.5 Regel 2).
+#' @noRd
+val_path_unread <- function(vc, path) {
+  segs <- path_split(path)
+  for (k in seq_len(max(0L, length(segs) - 1L))) {
+    node <- path_get(vc$spec, paste(segs[seq_len(k)], collapse = "."))
+    if (is_map(node) && !node_is(node) && identical(val_flag(node$enabled), FALSE)) {
+      return(TRUE)
+    }
+  }
+  val_rv_unread(vc, segs)
+}
+
+#' Untermap einer nicht gelesenen Restwertmethode? (R-115; Teil A 6.1, 6.2 Nr. 5)
+#' @param segs Pfadsegmente.
+#' @noRd
+val_rv_unread <- function(vc, segs) {
+  if (length(segs) < 2L || !identical(segs[1L], "residual_value")) return(FALSE)
+  methods <- val_codes("vocab:residual_method") %||% character(0)
+  if (!(segs[2L] %in% methods)) return(FALSE)
+  method <- val_str(vc$spec$residual_value$method) %||% "zero"
+  b <- vc$spec$building
+  if (!identical(segs[2L], method)) return(TRUE)
+  !(is_map(b) && length(b) > 0L) && !(method %in% val_rv_methods_without_building())
+}
+
 #' Gültigkeitsfenster und Stand der verwendeten Bibliothekseinträge
 #' @noRd
 val_plaus_library <- function(vc) {
@@ -427,6 +513,7 @@ val_plaus_library <- function(vc) {
   for (i in which(lib)) {
     entry <- as.character(prov$entry[i])
     path <- as.character(prov$path[i])
+    if (val_path_unread(vc, path)) next          # nicht gelesener Teilbaum (R-115)
     segs <- path_split(path)
     scope <- if (segs[1L] %in% c("funding", "stochastic") && length(segs) >= 3L) {
       paste(segs[1:3], collapse = ".")
@@ -779,7 +866,7 @@ val_plaus_measures <- function(vc) {
     if ((length(kg) == 1L && kg == 800) || utl_has_name(x$cost_kg %||% list(), "kg800")) {
       val_add(vc, "error", "validation.measures.kg800", path)
     }
-    if (length(kg) == 1L && kg == 100 && !startsWith(pt, "erwerb_")) {
+    if (length(kg) == 1L && kg == 100 && !purchase) {
       val_add(vc, "error", "validation.measures.kg100", path_join(path, "kg"))
     }
     k7 <- val_bv(vc, path_join(path, "kg700_share"))
@@ -842,8 +929,8 @@ val_plaus_measures <- function(vc) {
       val_add(vc, "info", "validation.measures.kind_from_classification",
               path_join(path, "modernization_kind"))
     }
-    if (mt %in% c("erwerb_grundstueck", "erwerb_objekt") &&
-          !(pt %in% c("erwerb_sanierung", "erwerb_neubau", "neubau"))) {
+    if ((purchase && !(pt %in% c("erwerb_sanierung", "erwerb_neubau", "neubau"))) ||
+          (identical(mt, "neubau") && pt %in% val_existing_project_types())) {
       val_add(vc, "warning", "validation.measures.type_project_mismatch",
               path_join(path, "measure_type"), value = mt, project_type = pt)
     }
@@ -921,8 +1008,8 @@ val_funding_choice <- function(vc) {
   if (!is_map(fund) || length(fund) == 0L) return(invisible(NULL))
   by_type <- lapply(fund, function(f) val_str(f$instrument_type) %||% "")
   for (m in val_ids(vc, "measures")) {
-    hits <- names(fund)[vapply(fund, function(f) m %in% (val_chr_list(f$measures) %||%
-                                                            character(0)), logical(1))]
+    covers <- function(f) m %in% (val_chr_list(f$measures) %||% character(0))
+    hits <- names(fund)[vapply(fund, covers, logical(1))]
     types <- unlist(by_type[hits])
     if ("tax_credit" %in% types && any(types != "tax_credit")) {
       val_add(vc, "error", "validation.measures.funding_choice_35c", path_join("measures", m),
@@ -997,6 +1084,36 @@ val_plaus_measure_rent_law <- function(vc) {
     if (!is.null(ws) && !is.null(comp) && ws > comp) {
       val_add(vc, "error", "validation.measures.works_after_completion",
               path_join(path, "works_start_date"), value = ws)
+    }
+  }
+  invisible(NULL)
+}
+
+#' Ausdrückliche Komponenten `acquisition_cost` ohne Satz verlangen das Bundesland (Teil A 1.2)
+#'
+#' Gilt auch in Szenarien ohne Domänenblöcke; vom Expander erzeugte Komponenten prüft die
+#' Maßnahmenregel (`val_plaus_acquisition()`). Ohne Grunderwerbsteuer (Gegenleistung im
+#' Basisfall bis zur Freigrenze) entfällt die Pflicht.
+#' @noRd
+val_plaus_acquisition_components <- function(vc) {
+  comps <- vc$spec$components
+  if (!is_map(comps) || !is.null(val_str(vc$spec$project$federal_state))) {
+    return(invisible(NULL))
+  }
+  legal <- vc$spec$legal$grunderwerbsteuer
+  threshold <- val_num(legal$values$exemption_threshold_eur %||%
+                         legal$exemption_threshold_eur) %||% 2500
+  for (id in names(comps)) {
+    comp <- comps[[id]]
+    if (!is_map(comp) || !identical(comp$type, "acquisition_cost")) next
+    if (!identical(comp$origin %||% "scenario", "scenario")) next
+    if (!is.null(comp$grest_rate) || !is.null(val_str(comp$federal_state))) next
+    path <- path_join("components", id)
+    basis <- (val_bv(vc, path_join(path, "basis_eur")) %||% Inf) +
+      (val_bv(vc, path_join(path, "construction_basis_eur")) %||% 0)
+    if (basis > threshold[1L]) {
+      val_add(vc, "error", "validation.acquisition.federal_state_missing",
+              "project.federal_state", measure = id)
     }
   }
   invisible(NULL)
@@ -1170,8 +1287,8 @@ val_plaus_unit_groups <- function(vc) {
     rs <- val_as_date(x$rent_start, year = TRUE)
     re <- val_as_date(x$rent_end, year = TRUE)
     if (!is.null(rs) && !is.null(vc$vd) && rs < vc$vd) {
-      val_add(vc, "error", "validation.unit_groups.rent_start_before", path_join(path, "rent_start"),
-              value = rs)
+      val_add(vc, "error", "validation.unit_groups.rent_start_before",
+              path_join(path, "rent_start"), value = rs)
     }
     if (!is.null(rs) && !is.null(re) && re < rs) {
       val_add(vc, "error", "validation.unit_groups.rent_end_order", path_join(path, "rent_end"),
@@ -1192,8 +1309,8 @@ val_plaus_unit_groups <- function(vc) {
     }
     if (length(rent) == 1L && length(ovm) == 1L) {
       if (ovm < 0.8 * rent) {
-        val_add(vc, "warning", "validation.unit_groups.ovm_low", path_join(path, "ovm_eur_m2_month"),
-                value = ovm, rent = rent)
+        val_add(vc, "warning", "validation.unit_groups.ovm_low",
+                path_join(path, "ovm_eur_m2_month"), value = ovm, rent = rent)
       } else if (rent > 1.2 * ovm) {
         val_add(vc, "info", "validation.unit_groups.rent_above_ovm",
                 path_join(path, "rent_eur_m2_month"), value = rent, ovm = ovm)
@@ -1215,7 +1332,7 @@ val_plaus_unit_groups <- function(vc) {
         }
       }
     }
-    hist_dates <- do.call(c, Filter(Negate(is.null), hist_dates))
+    hist_dates <- val_dates_c(hist_dates)
     if (length(hist_dates) > 0L && !is.null(vc$vd) && any(hist_dates > vc$vd)) {
       val_add(vc, "error", "validation.unit_groups.history_after_valuation", path,
               value = max(hist_dates))
@@ -1324,6 +1441,45 @@ val_carrier_class <- function(vc, cid) {
          district_heating = "district_heating", pellets = "biomass", NA_character_)
 }
 
+#' Starttermin eines Energiezustands (Teil B 3.2.2): Datum bzw. Jahr, Token `completion`,
+#' Fertigstellung der Maßnahme; `before` ohne Angabe am Stichtag, übrige ohne Angabe und ohne
+#' Maßnahme mit dem Token `completion`
+#' @noRd
+val_state_start <- function(vc, s, x) {
+  ev <- x$start_event
+  st <- val_as_date(ev, year = TRUE)
+  if (!is.null(st)) return(st)
+  if (identical(ev, "completion")) return(val_grid_completion(vc))
+  if (utl_is_string(x$measure)) return(val_measure_completion(vc$spec$measures[[x$measure]]))
+  if (identical(s, "before")) return(vc$vd)
+  if (is.null(ev)) return(val_grid_completion(vc))
+  NULL
+}
+
+#' Zeitliche Ordnung der Energiezustände (Teil B 3.2.2, 3.4, 3.5 Nr. 1)
+#'
+#' Die Zustände werden nach ihrem Starttermin geordnet (nicht nach der Reihenfolge im YAML);
+#' `after` muss nicht der letzte Zustand sein. `before` ist immer der erste Zustand s_0 (3.4);
+#' ein Zustand, der am Stichtag beginnt, löst ihn sofort ab. E bei gleichem Starttermin zweier
+#' übriger Zustände und bei einem Zustand, der vor `before` beginnt.
+#' @param vc Prüfkontext.
+#' @param starts benannte Liste Zustand -> Starttermin.
+#' @noRd
+val_energy_state_order <- function(vc, starts) {
+  if (length(starts) < 2L) return(invisible(NULL))
+  d <- do.call(c, unname(starts))
+  names(d) <- names(starts)
+  rest <- d[names(d) != "before"]
+  tie <- duplicated(rest) | duplicated(rest, fromLast = TRUE)
+  before_late <- "before" %in% names(d) && any(rest < d[["before"]])
+  if (any(tie) || before_late) {
+    ord <- order(d, method = "radix")
+    val_add(vc, "error", "validation.energy.state_order", "energy",
+            value = utl_collapse(paste0(names(d)[ord], " (", format(d[ord]), ")")))
+  }
+  invisible(NULL)
+}
+
 #' Energieträger, Zustände, Performance Gap, CO2-Felder
 #' @noRd
 val_plaus_energy <- function(vc) {
@@ -1384,11 +1540,7 @@ val_plaus_energy <- function(vc) {
       val_add(vc, "error", "validation.energy.before_start", path_join(path, "start_event"),
               value = st)
     }
-    if (is.null(st) && utl_is_string(x$measure)) {
-      m <- spec$measures[[x$measure]]
-      st <- val_as_date(m$completion_date) %||% val_measure_first_date(m)
-    }
-    if (is.null(st) && identical(s, "before")) st <- vc$vd
+    st <- val_state_start(vc, s, x)
     if (!is.null(st)) starts[[s]] <- st
     me <- val_str(x$measure)
     if (!is.null(me)) {
@@ -1404,8 +1556,8 @@ val_plaus_energy <- function(vc) {
               path_join(path, "consumption_basis"))
     }
     if (identical(s, "before") && identical(cb, "demand")) {
-      val_add(vc, "warning", "validation.energy.demand_basis", path_join(path,
-                                                                        "consumption_basis"))
+      val_add(vc, "warning", "validation.energy.demand_basis",
+              path_join(path, "consumption_basis"))
     }
     shares <- x$carrier_shares
     if (is_map(shares) && length(shares) > 0L) {
@@ -1445,13 +1597,7 @@ val_plaus_energy <- function(vc) {
               path_join(path, "emergency_replacement"))
     }
   }
-  if (length(starts) > 1L) {
-    d <- do.call(c, starts)
-    if (any(diff(as.numeric(d)) <= 0)) {
-      val_add(vc, "error", "validation.energy.state_order", "energy",
-              value = utl_collapse(names(starts)))
-    }
-  }
+  val_energy_state_order(vc, starts)
   pg <- en$performance_gap
   if (is_map(pg)) {
     rf <- val_bv(vc, "energy.performance_gap.realisation_factor")
@@ -1468,8 +1614,9 @@ val_plaus_energy <- function(vc) {
     }
   }
   red <- val_bv(vc, "energy.co2_landlord_share_reduction")
-  if (length(red) == 1L && red == 0 && (isTRUE(val_flag(spec$building$denkmal)) ||
-                                          isTRUE(val_flag(spec$project$municipality$milieuschutz)))) {
+  protected <- isTRUE(val_flag(spec$building$denkmal)) ||
+    isTRUE(val_flag(spec$project$municipality$milieuschutz))
+  if (length(red) == 1L && red == 0 && protected) {
     val_add(vc, "warning", "validation.energy.co2_reduction_check",
             "energy.co2_landlord_share_reduction")
   }
@@ -1511,11 +1658,15 @@ val_plaus_pv <- function(vc) {
   if (identical(val_str(pv$feed_in_mode), "full") && length(sc) == 1L && sc > 0) {
     val_add(vc, "error", "validation.energy.pv_full_self", "energy.pv.feed_in_mode")
   }
-  if (is.null(pv$feed_in_tariff_eur_kwh)) {
-    val_add(vc, "error", "validation.energy.pv_tariff_missing", "energy.pv.feed_in_tariff_eur_kwh")
-  }
   att <- val_flag(pv$vat_zero_rate_attested)
   kwp <- val_bv(vc, "energy.pv.kwp")
+  # Pflicht nur jenseits der Ableitung (Teil B 3.9.1): partial > 100 kWp, full > 10 kWp
+  mode <- val_str(pv$feed_in_mode) %||% "partial"
+  limit <- if (identical(mode, "full")) 10 else 100
+  if (is.null(pv$feed_in_tariff_eur_kwh) && length(kwp) == 1L && kwp > limit) {
+    val_add(vc, "error", "validation.energy.pv_tariff_missing", "energy.pv.feed_in_tariff_eur_kwh",
+            value = kwp, mode = mode)
+  }
   if (isTRUE(att)) {
     val_add(vc, "info", "validation.energy.pv_vat_attested", "energy.pv.vat_zero_rate_attested")
   } else if (length(kwp) == 1L && kwp > 30) {
@@ -1541,11 +1692,16 @@ val_condition_reserved <- function(s) {
                                              "taxable_income_adj", "application_year")
 }
 
+#' Reservierte Symbole der Förderbedingungen ohne Punkt (Teil B 4.3.2)
+#' @noRd
+val_condition_plain_symbols <- function() c("taxable_income_adj", "application_year")
+
 #' Bedingungsausdruck prüfen (Teil B 4.3.2)
 #' @noRd
 val_check_condition <- function(vc, text, path) {
   if (is.null(text)) return(invisible(NULL))
-  ast <- tryCatch(expr_parse(text), error = function(e) e)
+  ast <- tryCatch(expr_parse(text, reserved = val_condition_plain_symbols()),
+                  error = function(e) e)
   if (inherits(ast, "error")) {
     val_add(vc, "error", "validation.funding.condition_invalid", path,
             detail = conditionMessage(ast))
@@ -1644,7 +1800,7 @@ val_plaus_funding <- function(vc) {
     }
     app <- val_as_date(x$application_date) %||% val_as_date(spec$project$application_date) %||%
       vc$vd
-    first <- do.call(c, lapply(ms, function(m) val_measure_first_date(spec$measures[[m]])))
+    first <- val_dates_c(lapply(ms, function(m) val_measure_first_date(spec$measures[[m]])))
     explicit_before <- identical(val_str(x$approval_timing), "before_start") &&
       val_explicit(vc, path_join(path, "approval_timing"))
     if (isTRUE(val_flag(x$application_before_start)) && !is.null(app) && length(first) > 0L &&
@@ -1748,7 +1904,34 @@ val_loan_term_range <- function(vc, loan, lv, path) {
   invisible(NULL)
 }
 
+#' Programmcode eines Bibliothekseintrags (Nutzlast `values.program_code`, über die Kette)
+#'
+#' Liest den Eintrag aus den Wurzeln `vofi_library_paths()` (bei gleicher id gewinnt der
+#' spätere Pfad, Spec 00 4.9); `NULL`, wenn der Eintrag fehlt oder keinen Programmcode hat.
+#' @param id Bibliotheks-id.
+#' @noRd
+val_lib_program_code <- function(id) {
+  roots <- rev(tryCatch(vofi_library_paths(), error = function(e) character(0)))
+  seen <- character(0)
+  while (utl_is_string(id) && utl_is_library_id(id) && !(id %in% seen)) {
+    seen <- c(seen, id)
+    files <- file.path(roots, paste0(id, ".yaml"))
+    files <- files[file.exists(files)]
+    if (length(files) == 0L) return(NULL)
+    e <- tryCatch(utl_read_yaml(files[1L]), error = function(err) NULL)
+    if (!is_map(e)) return(NULL)
+    pc <- if (is_map(e$values)) val_str(e$values$program_code) else NULL
+    if (!is.null(pc)) return(pc)
+    id <- e$from
+  }
+  NULL
+}
+
 #' Kumulierung (Teil B 4.11, N-12, X-18)
+#'
+#' Ein Eintrag x von `exclusive_with` trifft ein Instrument g, wenn x in der `from:`-Kette von g
+#' liegt oder der Programmcode des Bibliothekseintrags x gleich dem `program_code` von g ist
+#' (auch ohne `from`); geprüft wird in beide Richtungen.
 #' @noRd
 val_plaus_cumulation <- function(vc) {
   fund <- vc$spec$funding
@@ -1763,8 +1946,18 @@ val_plaus_cumulation <- function(vc) {
     }
     unique(c(out, val_str(fund[[f]]$from)))
   })
+  code_of <- vapply(fund, function(x) val_str(x$program_code) %||% NA_character_, "")
+  lib_codes <- new.env(parent = emptyenv())
+  lib_code <- function(x) {
+    if (!exists(x, envir = lib_codes, inherits = FALSE)) {
+      assign(x, val_lib_program_code(x) %||% NA_character_, envir = lib_codes)
+    }
+    get(x, envir = lib_codes, inherits = FALSE)
+  }
   hits <- function(list_x, g) {
-    any(list_x %in% chain[[g]])
+    if (any(list_x %in% chain[[g]])) return(TRUE)
+    if (is.na(code_of[[g]])) return(FALSE)
+    any(vapply(list_x, function(x) identical(lib_code(x), code_of[[g]]), logical(1)))
   }
   done <- character(0)
   for (f in names(fund)) {
@@ -1774,7 +1967,7 @@ val_plaus_cumulation <- function(vc) {
     excl <- val_chr_list(cu$exclusive_with) %||% character(0)
     for (g in setdiff(names(fund), f)) {
       excl_g <- val_chr_list(fund[[g]]$cumulation$exclusive_with) %||% character(0)
-      if (!(hits(excl, g) || any(excl_g %in% chain[[f]]))) next
+      if (!(hits(excl, g) || hits(excl_g, f))) next
       common <- intersect(val_chr_list(fund[[f]]$measures) %||% character(0),
                           val_chr_list(fund[[g]]$measures) %||% character(0))
       tag <- paste(sort(c(f, g)), collapse = "\r")
@@ -1791,7 +1984,7 @@ val_plaus_cumulation <- function(vc) {
               path_join(path, "requires"), value = utl_collapse(req))
     }
   }
-  codes <- vapply(fund, function(x) val_str(x$program_code) %||% NA_character_, "")
+  codes <- code_of
   yearly <- vapply(fund, function(x) {
     identical(val_str(if (is_map(x$basis)) x$basis$cap_period else NULL), "calendar_year")
   }, logical(1))
@@ -1800,6 +1993,62 @@ val_plaus_cumulation <- function(vc) {
     if (length(ids) > 1L) {
       val_add(vc, "warning", "validation.funding.annual_cap_shared", path_join("funding", ids[2L]),
               value = code)
+    }
+  }
+  val_cumulation_total_share(vc)
+  invisible(NULL)
+}
+
+#' Zuschüsse und Tilgungszuschüsse je Maßnahme gegen die Kosten (Teil B 4.11)
+#'
+#' Basisfallwerte ausdrücklicher Beträge: Instrumente `grant` mit `amount_eur` (auf ihre
+#' Maßnahmen nach Kosten aufgeteilt) und Tilgungszuschüsse der Finanzierungsbausteine mit
+#' `measure_id` (`repayment_grant.amount_eur` bzw. `share` x `amount_eur`). Grenze ist der
+#' kleinste `cumulation.max_total_share` der Instrumente der Maßnahme, ohne Angabe die Kosten.
+#' Aus Fördersätzen abgeleitete Beträge entstehen erst in den Fördertypen (WS-E2).
+#' @noRd
+val_cumulation_total_share <- function(vc) {
+  spec <- vc$spec
+  ms <- val_ids(vc, "measures")
+  if (length(ms) == 0L) return(invisible(NULL))
+  cost <- vapply(ms, function(m) {
+    v <- val_bv(vc, path_join("measures", m, "cost_eur"))
+    if (length(v) == 1L && is.finite(v)) v else NA_real_
+  }, double(1))
+  sub <- stats::setNames(numeric(length(ms)), ms)
+  cap <- stats::setNames(rep(NA_real_, length(ms)), ms)
+  fund <- spec$funding %||% list()
+  for (f in names(fund)) {
+    x <- fund[[f]]
+    if (!is_map(x)) next
+    fm <- intersect(val_chr_list(x$measures) %||% character(0), ms)
+    if (length(fm) == 0L) next
+    sh <- val_bv(vc, path_join("funding", f, "cumulation", "max_total_share"))
+    if (length(sh) == 1L && is.finite(sh)) cap[fm] <- pmin(cap[fm], sh, na.rm = TRUE)
+    if (!identical(val_str(x$instrument_type), "grant")) next
+    a <- val_bv(vc, path_join("funding", f, "amount_eur"))
+    if (length(a) != 1L || !is.finite(a) || anyNA(cost[fm]) || sum(cost[fm]) <= 0) next
+    sub[fm] <- sub[fm] + a * cost[fm] / sum(cost[fm])
+  }
+  for (k in names(spec$financing %||% list())) {
+    comp <- spec$financing[[k]]
+    mid <- if (is_map(comp)) val_str(comp$measure_id) else NULL
+    if (is.null(mid) || !(mid %in% ms) || !is_map(comp$repayment_grant)) next
+    path <- path_join("financing", k)
+    rg <- val_bv(vc, path_join(path, "repayment_grant", "amount_eur"))
+    if (is.null(rg)) {
+      share <- val_bv(vc, path_join(path, "repayment_grant", "share"))
+      amt <- val_bv(vc, path_join(path, "amount_eur"))
+      rg <- if (length(share) == 1L && length(amt) == 1L) share * amt else NULL
+    }
+    if (length(rg) == 1L && is.finite(rg)) sub[[mid]] <- sub[[mid]] + rg
+  }
+  for (m in ms) {
+    if (is.na(cost[[m]]) || sub[[m]] <= 0) next
+    share <- if (is.na(cap[[m]])) 1 else cap[[m]]
+    if (sub[[m]] > share * cost[[m]] + 1e-6) {
+      val_add(vc, "warning", "validation.funding.cumulation_total_share",
+              path_join("measures", m), value = sub[[m]], share = share, cost = cost[[m]])
     }
   }
   invisible(NULL)
