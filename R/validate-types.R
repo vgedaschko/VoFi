@@ -378,9 +378,21 @@ val_check_bounds <- function(vc, nums, p, path, lower_only = FALSE) {
 }
 
 #' Art integer (auch Konstantenknoten und Vektoren)
+#'
+#' Bezugs- und Ausdrucksknoten sind zulässig (Bezüge statt Kopien, R-86), z. B.
+#' `unit_groups.main.n_units: {ref: building.n_units}` aus `rule:unit_group_defaults` (Spec 01
+#' Teil B 5.5 (0), N-08a) oder `building.n_units` als Summenausdruck aus
+#' `rule:building_aggregates`. Ziel, Zahlart und Zyklen prüft Ebene 3 (R-115); ist der
+#' Basisfallwert auflösbar, gelten für ihn Ganzzahligkeit und Bereich wie für eine Zahl.
 #' @noRd
 val_check_integer <- function(vc, v, p, path) {
-  nums <- val_num(v)
+  node <- if (node_is(v)) v else if (is_map(v) && val_is_value(v)) val_as_node(v, path)
+  if (!is.null(node) && node$kind %in% c("ref", "expr")) {
+    nums <- val_bv(vc, path)
+    if (length(nums) != 1L || is.na(nums)) return(invisible(NULL))
+  } else {
+    nums <- val_num(v)
+  }
   if (is.null(nums)) {
     val_add(vc, "error", "validation.not_integer", path, value = utl_collapse(format(v)))
     return(invisible(NULL))
