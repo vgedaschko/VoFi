@@ -43,7 +43,16 @@ ns_sum() { grep -v '^#' NAMESPACE | sort | cksum; }
 man_sum() { cat man/*.Rd 2>/dev/null | cksum; }
 NS_BEFORE="$(ns_sum)"
 MAN_BEFORE="$(man_sum)"
-Rscript -e 'roxygen2::roxygenise()'
+# Weicht die installierte roxygen2-Version von RoxygenNote in DESCRIPTION ab (z. B. im CI mit
+# neuester CRAN-Version), formatiert roxygen2 NAMESPACE/Rd anders. Dann gelten die eingecheckten
+# Dateien, und roxygenise() wird uebersprungen.
+ROX_INSTALLED="$(Rscript -e 'cat(as.character(utils::packageVersion("roxygen2")))')"
+ROX_NOTE="$(sed -n 's/^RoxygenNote: *//p' DESCRIPTION)"
+if [ -n "$ROX_NOTE" ] && [ "$ROX_INSTALLED" != "$ROX_NOTE" ]; then
+  echo "Hinweis: roxygen2 $ROX_INSTALLED installiert, Dokumentation mit $ROX_NOTE erzeugt; roxygenise() uebersprungen."
+else
+  Rscript -e 'roxygen2::roxygenise()'
+fi
 if [ "$MAN_BEFORE" != "$(man_sum)" ]; then
   echo "Hinweis: man/ wurde durch roxygenise() aktualisiert."
 fi
