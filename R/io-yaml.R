@@ -1,6 +1,4 @@
-# YAML-Leser mit den Zahlen- und Einheitenregeln aus Spec 00, Abschnitt 4.6 (WS-A).
-# Phase-0-Minimalfassung, Eigentuemer: WS-A. Ausbau: io_write_yaml(), Zeilennummern fuer die
-# Herkunft (location), vollstaendige Meldungstexte.
+# YAML-Leser und -Schreiber mit den Zahlen- und Einheitenregeln aus Spec 00, Abschnitt 4.6 (WS-A).
 #
 # Lesen ausschliesslich ueber io_read_yaml_utf8(): readLines(encoding = "UTF-8") + yaml.load()
 # mit den Handlern int, float#fix, float#exp, float#inf, float#neginf, float#nan, bool#yes,
@@ -8,25 +6,49 @@
 # werden nicht still umgedeutet, sondern als markierte Rohzahl (Klasse "vofi_raw_num")
 # weitergegeben; die Normalisierung (R/values-normalize.R) kennt Pfad und Parameterart und
 # entscheidet ueber Warnung (vofi_warning_input) bzw. Fehler (EUR-Parameter, vofi_error_input).
+# Schreiben ueber io_write_yaml(): Zahlen in der kuerzesten verlustfreien Darstellung, die der
+# Leser ohne Umdeutung wieder einliest (Round-Trip, 4.6 "Numerische Ablage").
 
 #' YAML-Datei eines Szenarios UTF-8-sicher lesen (Spec 00, Abschnitt 4.6)
 #'
-#' Phase-0-Minimalfassung, Eigentümer: WS-A.
+#' Liest die Datei unabhängig vom Gebietsschema als UTF-8 (auch unter der Locale `C`) und wendet
+#' die Zahlenhandler aus 4.6 an. Ganze Zahlen werden als `double` geliefert (auch außerhalb des
+#' Integer-Bereichs, nie `NA`), mehrdeutige Zahlen als markierte Rohzahlen (`io_raw_num()`),
+#' Datumsangaben als Zeichenketten (die Normalisierung wandelt sie nach Schema um).
 #' @param path Dateipfad.
-#' @return Liste (leere Datei: `list()`); Zahlen sind `double`, mehrdeutige Zahlen markierte
-#'   Rohzahlen (`io_raw_num()`), Datumsangaben Zeichenketten (Umwandlung bei der Normalisierung).
+#' @return Liste (leere Datei: `list()`).
 #' @noRd
 io_read_yaml_utf8 <- function(path) {
   if (!utl_is_string(path) || !file.exists(path)) {
     vofi_abort("core.file_missing", path = as.character(path %||% "NULL")[1L],
                .class = "vofi_error_input")
   }
+  txt <- io_read_lines_utf8(path)
+  io_parse_yaml_text(txt, path)
+}
+
+#' Zeilen einer Textdatei als UTF-8 lesen (Fehler bei ungültigem UTF-8 mit Zeilennummer)
+#' @param path Dateipfad.
+#' @return Zeichenvektor (UTF-8 markiert).
+#' @noRd
+io_read_lines_utf8 <- function(path) {
   txt <- readLines(path, encoding = "UTF-8", warn = FALSE)
   bad <- which(!validUTF8(txt))
   if (length(bad) > 0L) {
     vofi_abort("io.not_utf8", path = path, line = as.character(bad[1L]),
                .class = "vofi_error_input")
   }
+  # Byte-Order-Mark am Dateianfang entfernen (Editoren unter Windows)
+  if (length(txt) > 0L) txt[1L] <- sub("^\ufeff", "", txt[1L])
+  txt
+}
+
+#' YAML-Text mit den Handlern aus 4.6 parsen
+#' @param txt Zeichenvektor der Zeilen.
+#' @param path Dateipfad bzw. Bezeichnung für Meldungen.
+#' @return Liste (leer: `list()`).
+#' @noRd
+io_parse_yaml_text <- function(txt, path = "<text>") {
   res <- tryCatch(
     withCallingHandlers(
       yaml::yaml.load(paste(txt, collapse = "\n"), handlers = io_yaml_handlers(),
@@ -156,8 +178,8 @@ io_as_number <- function(x, path = "", eur = FALSE) {
   if (is.numeric(x) && length(x) == 1L) return(as.double(x))
   if (!utl_is_string(x)) return(NULL)
   s <- trimws(x)
-  if (s %in% c(".inf", "+.inf", "Inf", "inf")) return(Inf)
-  if (s %in% c("-.inf", "-Inf", "-inf")) return(-Inf)
+  if (s %in% c(".inf", "+.inf", "Inf", "inf", ".Inf")) return(Inf)
+  if (s %in% c("-.inf", "-Inf", "-inf", "-.Inf")) return(-Inf)
   if (grepl("^[-+]?[0-9]+([.,][0-9]+)?[[:space:]]*%$", s)) {
     num <- as.double(sub(",", ".", sub("[[:space:]]*%$", "", s), fixed = FALSE))
     vofi_warn("io.percent", path = path, raw = s, value = num / 100,
@@ -217,10 +239,158 @@ io_unmark <- function(x, path = "") {
   x
 }
 
-#' Ist der Pfad ein EUR-Betrag nach Schluesselsuffix?
+#' Ist der Pfad ein EUR-Betrag nach dem Schluessel?
+#'
+#' EUR-Betrag ist jeder Schluessel mit dem Segment `eur` (`cost_eur`, `base_fee_eur_pa`,
+#' `admin_per_unit_eur_pa`, `rate_eur_m2_pa`, `network_fee_eur_kwh`); Elemente von Sequenzen
+#' (Ziffernsegmente) zaehlen zum Elternschluessel.
 #' @noRd
 io_path_is_eur <- function(path) {
   segs <- path_split(path)
   segs <- segs[!grepl("^[0-9]+$", segs)]
-  length(segs) > 0L && grepl("_eur$", segs[length(segs)])
+  length(segs) > 0L && grepl("(^|_)eur(_|$)", segs[length(segs)])
+}
+
+# ---------------------------------------------------------------------------------------------
+# Fundstellen (Herkunft, Spalte location, 4.8; best effort)
+# ---------------------------------------------------------------------------------------------
+
+#' Zeilennummern der Schlüssel einer YAML-Datei (Blockstil, best effort)
+#'
+#' Ordnet jedem Schlüsselpfad der Blocknotation die Zeile seiner Definition zu. Schlüssel in
+#' Flussnotation (`{a: 1, b: 2}`) erhalten die Zeile ihres Elternschlüssels (Nachschlagen über
+#' den längsten bekannten Präfix, `io_location_of()`). Sequenzeinträge mit `- id: x` werden wie
+#' Maps nach id behandelt (4.4 Nr. 1).
+#' @param txt Zeilen der Datei.
+#' @return benannter Zeichenvektor Pfad -> `"Zeile <n>"`.
+#' @noRd
+io_yaml_locations <- function(txt) {
+  out <- character(0)
+  st <- list(ind = numeric(0), key = character(0))
+  key_re <- "^([ ]*)(- +)?(\"[^\"]+\"|'[^']+'|[A-Za-z0-9_.*-]+)[ ]*:([ ]|$)"
+  push <- function(st, ind, key) {
+    keep <- st$ind < ind
+    list(ind = c(st$ind[keep], ind), key = c(st$key[keep], key))
+  }
+  for (i in seq_along(txt)) {
+    line <- txt[i]
+    if (grepl("^[ ]*#", line) || !grepl(key_re, line, perl = TRUE)) next
+    m <- regmatches(line, regexec(key_re, line, perl = TRUE))[[1L]]
+    d <- nchar(m[2L])
+    key <- gsub("^[\"']|[\"']$", "", m[4L])
+    found <- character(0)
+    if (nzchar(m[3L])) {
+      # "- id: x": Element einer Sequenz von Maps mit Feld id (4.4 Nr. 1) -> Pfad <eltern>.x;
+      # das Element liegt zwischen Elternschluessel (Einrueckung <= d) und seinen Feldern
+      keep <- st$ind <= d
+      st <- list(ind = st$ind[keep], key = st$key[keep])
+      if (identical(key, "id")) {
+        val <- trimws(sub("#.*$", "", sub(key_re, "", line, perl = TRUE)))
+        val <- gsub("^[\"']|[\"']$", "", val)
+        if (nzchar(val)) {
+          st <- push(st, d + 0.5, val)
+          found <- paste(st$key, collapse = ".")
+        }
+      }
+      st <- push(st, d + nchar(m[3L]), key)
+    } else {
+      st <- push(st, d, key)
+    }
+    found <- c(found, paste(st$key, collapse = "."))
+    new <- setdiff(found, names(out))
+    out[new] <- paste0("Zeile ", i)
+  }
+  out
+}
+
+#' Fundstelle eines Blattpfads (längster bekannter Präfix)
+#' @param locations Ergebnis von `io_yaml_locations()`.
+#' @param path Blattpfad.
+#' @return Zeichenkette oder `NA_character_`.
+#' @noRd
+io_location_of <- function(locations, path) {
+  if (length(locations) == 0L) return(NA_character_)
+  segs <- path_split(path)
+  for (k in rev(seq_along(segs))) {
+    key <- paste(segs[seq_len(k)], collapse = ".")
+    hit <- locations[key]
+    if (!is.na(hit)) return(unname(hit))
+  }
+  NA_character_
+}
+
+# ---------------------------------------------------------------------------------------------
+# Schreiben fuer vofi_write_scenario (Abschnitt 4.6)
+# ---------------------------------------------------------------------------------------------
+
+#' Liste in YAML-Form als UTF-8-Datei schreiben
+#'
+#' Zahlen werden in der kürzesten Darstellung geschrieben, die der Leser verlustfrei und ohne
+#' Umdeutung wieder einliest (kein Tausenderpunkt-Muster, Exponent mit Dezimalpunkt);
+#' Datumswerte als `JJJJ-MM-TT`, `Inf` als `.inf`, Wahrheitswerte als `true`/`false`.
+#' @param x Liste in YAML-Form (keine Knoten; siehe `node_to_yaml()`).
+#' @param path Zieldatei.
+#' @param header optional: Kommentarzeilen (ohne `#`) am Dateianfang.
+#' @return `invisible(path)`.
+#' @noRd
+io_write_yaml <- function(x, path, header = NULL) {
+  txt <- io_yaml_text(x)
+  if (length(header) > 0L) txt <- paste0(paste0("# ", header, collapse = "\n"), "\n", txt)
+  con <- file(path, open = "wb")
+  on.exit(close(con), add = TRUE)
+  writeBin(charToRaw(enc2utf8(txt)), con)
+  invisible(path)
+}
+
+#' YAML-Text einer Liste in YAML-Form
+#' @param x Liste.
+#' @return Zeichenkette.
+#' @noRd
+io_yaml_text <- function(x) {
+  yaml::as.yaml(io_yaml_prepare(x), handlers = list(logical = yaml::verbatim_logical),
+                unicode = TRUE)
+}
+
+#' Liste für `yaml::as.yaml()` vorbereiten (Zahlen und Daten als unquotierter Text)
+#' @noRd
+io_yaml_prepare <- function(x) {
+  if (is.null(x)) return(NULL)
+  if (inherits(x, "Date")) return(format(x, "%Y-%m-%d"))
+  if (is.list(x) && !is.data.frame(x)) {
+    if (length(x) == 0L) return(if (is.null(names(x))) list() else structure(list(),
+                                                                             names = character(0)))
+    out <- lapply(x, io_yaml_prepare)
+    names(out) <- names(x)
+    return(out)
+  }
+  if (is.numeric(x)) {
+    s <- io_fmt_num(x)
+    return(structure(s, class = "verbatim"))
+  }
+  if (is.character(x)) return(enc2utf8(x))
+  x
+}
+
+#' Kürzeste verlustfreie Zahldarstellung für YAML (4.6)
+#' @param x numerischer Vektor.
+#' @return Zeichenvektor.
+#' @noRd
+io_fmt_num <- function(x) {
+  vapply(as.double(x), function(v) {
+    if (is.na(v)) return("~")
+    if (is.infinite(v)) return(if (v > 0) ".inf" else "-.inf")
+    if (v == round(v) && abs(v) < 1e15) return(formatC(v, format = "f", digits = 0))
+    s <- NA_character_
+    for (d in 15:17) {
+      s <- formatC(v, digits = d, format = "g")
+      if (identical(as.double(s), v)) break
+    }
+    s <- trimws(s)
+    if (grepl("e", s, fixed = TRUE) && !grepl(".", s, fixed = TRUE)) {
+      s <- sub("e", ".0e", s, fixed = TRUE)
+    }
+    # Tausenderpunkt-Muster (z. B. 123.456) eindeutig machen: eine weitere Nachkommastelle
+    if (grepl("^[-+]?[1-9][0-9]{0,2}[.][0-9]{3}$", s)) s <- paste0(s, "0")
+    s
+  }, "")
 }

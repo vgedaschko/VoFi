@@ -1,0 +1,338 @@
+# Globale Defaults (Schicht 1, Spec 00 §4.7, R-85; Eigentümer WS-A, Werte nach Spec 01).
+# Vereinigung der Teile (N-04): Teil A §2.2 (Blöcke, item_defaults building/measures/building.elements),
+# Teil B §7.1 (item_defaults unit_groups, energy, energy.carriers, energy.performance_gap, energy.pv, funding,
+# building.property_tax, household, Teil-B-Felder der Vorlage building), Teil C §1.2 (stochastic.settings) und
+# Teil C §4.2 (Inhalt aller Standard-Sets, einzige Quelle, N-22, R-118).
+# Reservierte Wurzelschlüssel: defaults_meta (nie gemischt), by_project_type (unmittelbar nach dieser Datei
+# gemischt), item_defaults (nur hier; nach den Ableitungsregeln unter jedes vorhandene Element gemischt).
+# Felder der optionalen Blöcke building, household, energy stehen nur unter item_defaults (N-05).
+# Jeder from/use-Verweis MUSS gegen die Paketbibliothek auflösen (Spec 00 §4.9, R-104; test-profiles.R).
+
+defaults_meta:
+  kind: global
+  id: global
+  schema_version: 1
+  as_of: 2026-10-26
+  quality: D                       # Zusammenstellung; Einzelwerte mit Quelle im Kommentar
+  source: "Spec 01 Teil A §2.2, Teil B §7.1, Teil C §1.2, §4.2; Konzept §11.2/§11.3; Memo 03"
+  note: "Teil B ergänzt item_defaults (unit_groups, energy, household, funding, building.property_tax), Teil C stochastic.settings und Standard-Sets"
+
+project:
+  comparison_mode: absolute        # Konzept F1, R-04
+  horizon_years: 30                # Konzept A3 (Sanierung 30 J.)
+  pending_reforms: []              # D10
+  construction_delay_months: 0     # Spec 00 §3.9
+  construction_cost_factor: 1      # Konzept 3.2: Faktor im Basisfall 1
+  reference_variant: base
+  report_mode: auto
+  municipality:
+    mietpreisbremse_area: false
+    mietpreisbremse_until: null
+    kappung_15_area: false
+    index_cap_area: false
+    milieuschutz: false
+
+grid:
+  construction_months: 0
+  construction_step_months: 12     # D2, R-01
+  operation_step_months: 12
+  operation_alignment: calendar
+  periods_months: null
+
+accounts:                          # Rückfallwerte = Privatprofil; jedes Profil setzt den Block vollständig
+  deposit_rate_pa: {ref: market.mortgage_rate, anchor: 0.025, floor: 0}   # Konzept F18/A2, R-76; Untergrenze 0 (F-14, Memo 04 §1.2)
+  overdraft_rate_pa: {ref: market.mortgage_rate, anchor: 0.060}
+  overdraft_limit_eur: 0
+  penalty_spread_pa: 0.02          # Konzept A2 (+2 Pp.)
+  min_liquidity_eur: 0             # Konzept A2
+  deposit_withholding_tax_share: 0 # D5, R-40 (Vorschlagswert 0.26375)
+  deposit_tax_allowance_eur_pa: 0  # Sparer-Pauschbetrag, Spec 00 §4.3.10
+  overdraft_flag_threshold_eur: .inf
+  surplus_order: [od_repay, dep_fill_reserve, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, dep_use_reserve, equity_call]
+  prepay: {buffer_eur: 0, min_spread_pa: 0}
+
+market:                            # deterministischer Basisfall; Werte aus der Bibliothek (Teil C §3.6), Namen Spec 00 §4.3.11
+  from: prices/macro_paths_2026    # inflation, construction_price_index, maintenance_index, rent_growth (0,0175),
+  use: market                      # rent_growth_new (0,025), land_value_growth und market_value_growth (je 0,015),
+                                   # operating_cost_growth ({ref: market.inflation, offset: 0.005}) (N-16)
+  mortgage_rate:   {from: prices/interest_rates_2026_10, use: market.mortgage_rate}     # 0,041 (Konzept 3.10)
+  bund_yield_10y:  {from: prices/interest_rates_2026_10, use: market.bund_yield_10y}    # 0,034
+  mortgage_spread: {from: prices/interest_rates_2026_10, use: market.mortgage_spread}   # 0,007
+  co2_price:       {from: prices/co2_price_paths_2026, use: scenarios.mittel}           # Konzept F8
+  energy_price:    {from: prices/energy_prices_2026, use: market.energy_price}          # netto; alle 10 kanonischen Träger gas, gas_mfh, oil, lpg, power, power_mfh, heatpump_power, heatpump_power_mfh, district_heating, pellets (N-15, R-103)
+  energy_network_fee:                                                                   # netto (§ 5a CO2KostAufG, Teil B); Wachstum über shared (N-15)
+    from: prices/energy_prices_2026
+    use: market.energy_network_fee
+    gas:     {growth: {ref: shared.network_fee_growth_gas}}
+    gas_mfh: {growth: {ref: shared.network_fee_growth_gas_mfh}}
+  bio_fuel_premium: {from: prices/energy_prices_2026, use: market.bio_fuel_premium}     # Teil B (Bio-Treppe)
+  feed_in_tariff:   {from: prices/eeg_feed_in_2026, use: market.feed_in_tariff}         # partial_le10kwp, partial_10_40kwp, partial_40_100kwp, full_le10kwp (N-16)
+  vacancy_fluctuation: 1           # Faktor der jährlichen Leerstandsschwankung, Basis 1 (Ziel des iid-Prozesses, Teil C K9; N-16)
+
+shared:                            # Overlay-Ziele der Vorlage network_fee_growth (Teil C §1.9); wird nie direkt gerechnet
+  network_fee_growth_gas: 0.03     # Memo 07 §4.0 (Netzrückbau), wie prices/referenzszenarien_2026
+  network_fee_growth_gas_mfh: 0.03
+
+residual_value:
+  method: zero                     # Rückfall; jedes Profil setzt die Methode (Konzept A3)
+  sale_cost_share: {from: valuation/verkaufskosten_2026, use: sale_cost_share}          # 0,03 (Konzept A3)
+  path_pre_operation: auto         # auto | cost | method | zero (Teil A §6.2)
+  income_value:
+    variant: general               # ImmoWertV § 28 (allgemein); simplified = § 29
+    cap_rate: {from: valuation/liegenschaftszinsen_2026, use: presets.mid_city}        # 0,035 (Konzept B10)
+    remaining_life_method: anlage2 # anlage2 | linear | manual
+    remaining_life_years: null     # manual: RND am Horizont
+    remaining_life_offset_years: 0 # additiver Zuschlag (Ziel des Schocks remaining_life_shock, Teil C)
+    gnd_years: {from: valuation/immowertv_anlage1_2_2026, use: gnd_years.mfh}           # 80 (Anlage 1)
+    rnd_table: {from: valuation/immowertv_anlage1_2_2026, use: rnd_coefficients}        # Anlage 2 (deterministisch)
+    points_max: {from: valuation/immowertv_anlage1_2_2026, use: modernisation_points_max}
+    points_decay_years: null       # null = Punkte zählen ohne Alterung
+    income_basis: forward          # forward = nächste 12 Monate; trailing = letzte 12 Monate
+    forward_growth: {ref: market.rent_growth}
+    cost_forward_growth: {ref: market.inflation}
+    include_other_income: false
+    land_value_eur: {ref: building.land_value_eur}
+    land_value_growth: {ref: market.land_value_growth}
+    bwk:
+      admin_eur_unit_pa: {from: costs/bewirtschaftung_immowertv_2026, use: admin_per_unit_or_efh_eur_pa}   # 367
+      maintenance_eur_m2_pa: {from: costs/bewirtschaftung_immowertv_2026, use: maintenance_eur_m2_pa}      # 14,40
+      rent_loss_share: {from: costs/bewirtschaftung_immowertv_2026, use: rent_loss_risk_share.residential} # 0,02
+      price_base_year: 2025        # Stand 01.01.2026 = Preisstand 2026-01-01 (R-35)
+      index: {ref: market.inflation}
+      admin_source: model          # model | ledger
+      maintenance_source: model    # model | ledger
+      variant_cost_categories: [co2_cost, energy_cost, other_cost]
+      vacancy_from_ledger: true
+    bog_eur: 0                     # besondere objektspezifische Grundstücksmerkmale (+/-)
+    bog_component_residual: false  # Zeitwert der Maßnahmen zusätzlich (Doppelzählung, Teil A §6.4)
+    stranded_discount_share: 0     # Abschlag auf den Gebäudeertragswert (Konzept 3.11)
+    liquidation_floor: true
+    demolition_cost_eur: 0
+  multiplier:
+    factor: {from: valuation/kaufpreisfaktoren_2026, use: gross_rent_multiplier}       # 20 (Konzept 3.11)
+    basis: net_cold_rent_incl_levy
+    income_basis: forward
+    forward_growth: {ref: market.rent_growth}
+  exit_yield:
+    cap_rate: 0.04                 # D (NOI-Rendite am Horizont)
+    income_basis: forward
+    forward_growth: {ref: market.rent_growth}
+    cost_forward_growth: {ref: market.inflation}
+  market_growth:
+    base_value_eur: null           # null = existing_value_eur, sonst market_value_eur, sonst Investitionskosten (Teil A §6.3.4)
+    growth: {ref: market.market_value_growth}
+    uplift_share: 0
+  asset_value:
+    life_basis: gnd                # gnd | component
+    gnd_years: {ref: residual_value.income_value.gnd_years}
+    kg_include: [200, 300, 400, 500, 700]
+    include_existing: true
+    market_adjustment_factor: 1.0  # Sachwertfaktor (Memo 02 §7.3)
+    uplift_share: 0                # Effizienzzuschlag (Memo 07 S5)
+    index: {ref: market.construction_price_index}
+    land_value_eur: {ref: building.land_value_eur}
+    land_value_growth: {ref: market.land_value_growth}
+  component:
+    indexed: true                  # true: Buchwert × Baupreisindex (Konzept 3.11); false: nominaler Buchwert (R-108)
+    include_land: false
+    include_existing: auto         # auto = Bestandswert bzw. Gebäudeanteil des Kaufpreises fortgeschrieben (Teil A §6.3.7)
+    existing_growth: {ref: market.market_value_growth}
+  user_value:
+    value_eur: 0
+
+tax:
+  module: none                     # D5
+  params: {}
+
+analysis:
+  kpis: default
+  primary_kpi: auto                # Spec 00 §12.3a
+  allow_opportunity_reference: false
+  deterministic_point: mode
+  thresholds: {dscr: 1.2, burden_share: 0.40, warm_rent_increase_eur_m2: 0.50, roe_hurdle: 0.025}   # Konzept A4
+  stabilization_year: null         # erstes volles Betriebsjahr (Konzept A4)
+  lending_value_haircut: 0.10      # Konzept 2.5 (Vorschlag 10 %, Abl.)
+  rv_path_basis: auto
+  restrictions: [liquidity]
+  traffic_light: {green_prob: 0.70, red_prob: 0.40, restriction_prob: 0.30}                          # Konzept 1.4, A4
+  mandatory_sensitivities:
+    - {id: restwert_null, path: residual_value.method, value: zero, label: "Restwert = 0"}
+    - {id: stufe_2045, path: project.pending_reforms, add: stufe_2045, label: "mit 2045-Stufe (100 % klimaneutraler Brennstoff ab 2045)"}
+  tenant_view: false
+
+stochastic:
+  settings:                        # Spec 00 §4.3.15 (R-73, R-97); Semantik und Prüfungen Teil C §1.2, §6.1
+    preset: standard               # n_sim aus dem Preset (10.000); global.yaml setzt kein n_sim (R-97)
+    seed: 20261025
+    sampling: lhs
+    block_size: 200                # R-73: feste Blockgröße; F21-Modus über replicates (nie beide, Spec 00 §11.4)
+    antithetic: false
+    copula: iman_conover
+    start_year: null
+    store: bands
+    keep_runs: [p05, p50, p95]
+    keep_runs_kpi: delta_terminal_value
+    bands: [net_position, dep_balance, od_balance]
+    band_probs: [0.05, 0.25, 0.5, 0.75, 0.95]
+    auto_funding_approval: true
+    convergence: {rel_halfwidth_mean: 0.005, abs_halfwidth_prob: 0.01}   # nur Ausweis converged (R-97)
+
+# Standard-Sets: Inhalt ausschließlich nach Teil C §4.2 (einzige Quelle, N-22, R-118); werden nur auf Anforderung
+# gerechnet (vofi_compare(..., scenario_sets = ...)). Alle Werte D (eigene Ableitung), Belege in den Kommentaren.
+scenario_sets:
+  foerderstopp:
+    label: "Förderstopp: keine Förderzusage"
+    description: "Alle Förderinstrumente ohne Zusage (Konzept B12). Bei Entscheidungsknoten realisiert der Basisfall die Ausweichvariante (Spec 00 §9.11 Nr. 3)."
+    set: {funding.*.approved: 0}
+  vorsichtig:
+    label: "Vorsichtig: ungünstige Werte der fünf stärksten Treiber"
+    description: "Aus dem Tornado der Primärkennzahl: die fünf Treiber mit dem größten Ausschlag gleichzeitig auf P10 bzw. P90 (Konzept 1.4, B5)."
+    generate: {method: cautious, n_drivers: 5, probs: [0.1, 0.9], kpi: auto, params: auto, exclude: []}
+  zinsschock:
+    label: "Zinsschock: Bauzins 6,5 %"
+    description: "Bauzins und Anschlusszins dauerhaft 6,5 % (+2,4 Pp ggü. 10/2026; Größenordnung 2022: +2,7 Pp in zwölf Monaten)."
+    set: {market.mortgage_rate: 0.065}
+  zins_niedrig:
+    label: "Niedrigzins: Bauzins 2,5 %"
+    set: {market.mortgage_rate: 0.025}
+  stress_2022:
+    label: "Stress wie 2022: Energiepreis-, Inflations-, Baukosten- und Zinsschock"
+    description: "Krisenjahr 2027 nach dem Muster 2022/2023 (VPI 6,9 %/5,9 %, Baupreise 16,4 %/8,5 %, Bauzins +2,7 Pp, Energie-Commodity zweifach), danach Rückkehr auf den Trendpfad vom 12-Monats-Mittel (ohne Rückkehr zum Normalpreis)."
+    set:
+      market.inflation: {series: {2027: 0.069, 2028: 0.059, 2029: 0.022}, fill: locf, before: first}          # Destatis VPI 2022/2023
+      market.construction_price_index: {series: {2027: 0.164, 2028: 0.085, 2029: 0.031, 2030: 0.030}, fill: locf, before: first}   # Destatis Baupreise Wohngebäude 2022/2023/2024
+      market.mortgage_rate: {years: [2027, 2028, 2032, 2037], values: [0.041, 0.068, 0.060, 0.050], interpolate: linear}
+      market.energy_price.*: {growth: {series: {2027: 1.04, 2028: -0.235, 2029: -0.184, 2030: -0.150, 2031: 0.020}, fill: locf}}   # ersetzt die Ratenreihe; Faktor auf den Trendpfad start x 1,02^k: 2,0 / 1,5 / 1,2 / 1,0
+  co2_niedrig:
+    label: "CO2-Preis niedrig (Preisdämpfung)"
+    set: {market.co2_price: {years: [2026, 2027, 2028, 2030, 2032, 2035, 2040, 2045, 2050, 2060, 2070], values: [65, 55, 45, 55, 60, 75, 100, 120, 140, 170.66, 208.03], interpolate: linear}}
+  co2_hoch:
+    label: "CO2-Preis hoch (UBA/Prognos)"
+    set: {market.co2_price: {years: [2026, 2027, 2028, 2030, 2032, 2035, 2040, 2045, 2050, 2060, 2070], values: [65, 80, 95, 125, 155, 200, 275, 350, 425, 518.07, 631.53], interpolate: linear}}
+  gasnetz_rueckbau:
+    label: "Gasnetzrückbau: Netzentgelte +8 % p. a."
+    set: {market.energy_network_fee.*: {growth: 0.08}}   # Obergrenze des Dreiecks (0; 3; 8 %), Memo 07 §4.0
+  mit_2045_stufe:
+    label: "Mit 2045-Stufe (100 % klimaneutraler Brennstoff ab 2045)"
+    description: "Schaltercode stufe_2045 (Spec 00 §4.10, R-82). Ersetzt die Liste pending_reforms; zusätzliche Reformen im Set wiederholen."
+    set: {project.pending_reforms: [stufe_2045]}
+
+by_project_type:
+  neubau:        {project: {horizon_years: 40}}      # Konzept A3: Neubau 40 J. inkl. Bauzeit
+  erwerb_neubau: {project: {horizon_years: 40}}
+
+item_defaults:                     # Spec 00 §4.7 Nr. 3 (R-85); nach den Ableitungsregeln, Element gewinnt
+  building:                        # nur, wenn das Szenario building enthält (N-05); Vereinigung Teil A §2.2 und Teil B §3.2.6
+    building_id: b1
+    denkmal: false
+    wpb_flag: false
+    commercial_share: 0            # Anteil Gewerbe an der Fläche; > 0 -> Warnung Vorsteuer (Spec 00 §7.10)
+    n_parking: 0
+    efficiency_standard_after: none   # Teil B §3.2.6 (X-03)
+    serial_renovation: false
+    isfp_available: false
+    maintenance:                   # Instandhaltung (Typ maintenance, Teil A §3.3, §4.11); basis und start_event setzt rule:maintenance_from
+      enabled: true
+      rate_eur_m2_pa: {from: costs/bewirtschaftung_immowertv_2026, use: maintenance_eur_m2_pa}   # 14,40 (Anlage 3, 2026; B)
+      area_m2: {ref: building.living_area_m2}
+      price_base_year: 2026        # Jahresbetrag für 2026 (R-35/R-62: Preisstand Ende 2026 = 2027-01-01)
+      growth: {ref: market.maintenance_index}
+      to: null                     # = end_date
+      vat_rate: 0.19
+      excludes_explicit_replacements: false
+      iibv:
+        rates_eur_m2_pa: {from: costs/bewirtschaftung_ii_bv_2026, use: maintenance_eur_m2_pa}   # {lt22y: 11.50, ge22y: 14.58, ge32y: 18.62} (N-02)
+        adjust_eur_m2_pa: 0        # Zu-/Abschläge nach maintenance_adjustments_eur_m2_pa (Aufzug +1,63; Kleinreparaturen -1,70)
+        price_base_year: 2026
+        reset_by_measures: auto    # auto = Maßnahmen mit effects.maintenance.reset_age: true
+  measures:                        # je Maßnahme (Teil A §4.1); Katalog- und abgeleitete Felder setzt vorher rule:measure_catalog
+    delay_months: 0
+    active: 1
+    cost_factor: {ref: project.construction_cost_factor}
+    cost_is_net: false
+    price_index: {ref: market.construction_price_index}
+    duration_months: 0
+    payment_profile: linear
+    kg700_basis: kg300_400
+    contingency_basis: kg200_700
+    replaces_ohnehin: []
+    replaces_elements: []
+    replacement: {cost_factor: 1.0, classification: erhaltung, price_index: {ref: "measures.{id}.price_index"}}   # {id} in Flussnotation quoten (R-118)
+  "building.elements":             # je Bestandsbauteil (Teil A §3.2)
+    overdue: first_period
+    next_replacement_delay_months: 0
+    active: 1
+    price_index: {ref: market.construction_price_index}
+  "unit_groups":                   # owner_occupied und nutzungsabhängige Werte: rule:unit_group_defaults (Teil B §5.5)
+    rent_regime: paragraph_558     # Rückfall für vermietete Gruppen ohne Genossenschaft
+    increase_policy: auto
+    growth_applies_to: total
+    interval_months: 36
+    voluntary_558_cap_months: 36
+    turnover_rate_pa: 0.08
+    relet_vacancy_months: 0
+    vacancy_rate: 0.025            # Memo 03 § 11 „Deutschland-Mittel"; Selbstnutzung 0 über rule:unit_group_defaults
+    rent_default_rate: 0.01
+    lease_up_months: 0             # Neubau 3 über rule:unit_group_defaults
+    after_staffel_regime: paragraph_558
+    index_adjust_month: 1
+    after_binding_regime: paragraph_558
+    post_binding_kappung: false
+    rent_growth: {ref: market.rent_growth}
+    market_rent_growth: {ref: market.rent_growth_new}
+    index_rate: {ref: market.inflation}
+    imputed_rent_growth: {ref: market.rent_growth}
+    rent_law:
+      modernization_levy: auto
+      voluntary_cap_mode: fixed
+      hardship_share: 0
+      interest_subsidy_in_559e: true
+      kuerzung_558_5: true
+      # Auslegungen ohne Eintrag: Defaults aus dem Thema mietrecht, Teilbaum interpretation (legal/mietrecht_2026; Teil B §1.3, R-116)
+    operating:
+      admin_per_unit_eur_pa: {from: costs/bewirtschaftung_immowertv_2026, use: admin_per_unit_or_efh_eur_pa}   # 367 (N-03)
+      admin_per_parking_eur_pa: {from: costs/bewirtschaftung_immowertv_2026, use: admin_per_garage_eur_pa}    # 48 (N-03)
+      nonrecoverable_share_of_rent: 0.01
+      recoverable_opex_eur_m2_month: 1.70
+      vacancy_opex_scope: cold
+      growth: {ref: market.inflation}
+      opex_growth: {ref: market.operating_cost_growth}
+  "energy":                        # nur, wenn das Szenario einen Block energy hat
+    performance_gap: {}            # legt den Teilbaum an; Werte aus "energy.performance_gap" (R-118)
+    co2_landlord_share_reduction: 0
+    co2_hardship_5d: false
+    co2_newbuild_5b: false
+  "energy.carriers":               # class, Netzentgelt, Emissionsfaktoren: rule:carrier_defaults (Teil B §5.5)
+    price_eur_kwh: {ref: "market.energy_price.{id}"}   # Platzhalter in YAML quoten (Flow-Syntax, R-118)
+    price_includes: commodity
+    price_basis: net
+    vat_rate: 0.19                 # auch Holzpellets (19 % seit 2024, F-16)
+    fee_growth: {ref: market.inflation}
+    co2_price_eur_t: {ref: market.co2_price}
+    bio_premium_eur_kwh: {ref: market.bio_fuel_premium}
+  "energy.performance_gap":
+    prebound_factor: 0.7
+    rebound_factor: 1.0            # demand_kwh der Folgezustände enthält den Rebound (Teil B §3.2.4, F-15)
+    realisation_factor: 1
+  "energy.pv":                     # nur, wenn energy.pv existiert
+    specific_yield_kwh_kwp: 950
+    degradation_pa: 0
+    tariff_years: 20
+    post_tariff_price_eur_kwh: 0
+    internal_price_eur_kwh: 0
+    opex_share_of_cost: 0.012
+    feed_in_mode: partial
+    tax_exempt: auto
+    vat_zero_rate_attested: false
+  "funding":                       # approval_timing/-probability: rule:approval_*; tax_credit-Verzug: rule:tax_credit_defaults
+    approved: 1                    # Spec 00 § 4.3.7; Domänenblatt (Ziel des Zusageschlüssels, Bezüge wie S4 kfw358_2033)
+    on_reject: balance
+    approval_timing: auto          # dokumentiert den Default; rule:approval_timing löst vorher auf
+    payout_delay_months: 0
+    availability_after_2030: 0.7   # N-09 (Memo 07 § 4.0)
+  "building.property_tax":         # nur, wenn building.property_tax existiert (X-16)
+    growth: {ref: market.inflation}
+  "household":                     # nur, wenn household existiert (N-05; Teil B §3.10.1)
+    income_growth: {ref: market.inflation}
+    n_children_u18: 0

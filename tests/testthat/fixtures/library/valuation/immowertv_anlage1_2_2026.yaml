@@ -1,0 +1,20 @@
+# Testfixture (WS-A): gekürzte Fassung von valuation/immowertv_anlage1_2_2026 (Spec 01 Teil C §3.8).
+id: valuation/immowertv_anlage1_2_2026
+block: valuation
+schema_version: 1
+label: "ImmoWertV 2021 Anlagen 1 und 2 (Testfixture)"
+source: {document: "ImmoWertV 2021 Anlagen 1 und 2", url: "https://www.gesetze-im-internet.de/immowertv_2022/", publisher: BMJ}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2022-01-01
+valid_to: null
+quality: B
+quality_detail: {rnd_coefficients.p1: D}
+legal_state: {as_of: 2022-01-01, status: in_force, reference: "ImmoWertV vom 14.07.2021, Anlagen 1-2"}
+values:
+  gnd_years: {efh: 80, zfh: 80, mfh: 80}
+  modernisation_points_max: {roof_insulation: 4, windows_doors: 2, pipes: 2, heating: 2, facade_insulation: 4, bathrooms: 2, interior: 2, floor_plan: 2}
+  rnd_coefficients:
+    p0:  {a: 1.2500, b: 2.6250, c: 1.5250, rel_age_min: 0.60}
+    p1:  {a: 1.2500, b: 2.6250, c: 1.5250, rel_age_min: 0.60}
+    p8:  {a: 0.5000, b: 1.1000, c: 1.0000, rel_age_min: 0.20}

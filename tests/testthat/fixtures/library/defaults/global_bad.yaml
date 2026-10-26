@@ -1,0 +1,18 @@
+# Testfixture (WS-A, d5/PR7): fehlerhafte globale Defaults: veralteter Wurzelschlüssel energy_defaults,
+# optionaler Block building außerhalb von item_defaults (N-05), n_sim in stochastic.settings (R-97),
+# unzulässiger Pfad in item_defaults, by_project_type mit unbekanntem Code.
+defaults_meta: {kind: global, id: global_bad, schema_version: 1, as_of: 2026-10-26, quality: D,
+                source: "Testfixture"}
+project:
+  horizon_years: 30
+energy_defaults:
+  carriers: {gas: {vat_rate: 0.19}}
+building:
+  building_id: b1
+stochastic:
+  settings: {preset: standard, n_sim: 10000, block_size: 200}
+item_defaults:
+  measures: {delay_months: 0}
+  "accounts.prepay": {buffer_eur: 0}
+by_project_type:
+  hochhaus: {project: {horizon_years: 50}}

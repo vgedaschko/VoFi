@@ -1,0 +1,47 @@
+# Perspektiven-Profil wu_genossenschaft (Schicht 2, Spec 00 §4.7, R-76; Werte Spec 01 Teil A §2.4).
+# Zulässige Pfade (R-76): accounts.*, analysis.*, residual_value.method, residual_value.sale_cost_share,
+# project.horizon_years, project.report_mode, tax.module, scenario_sets; dasselbe gilt für by_project_type.
+defaults_meta: {kind: profile, id: wu_genossenschaft, schema_version: 1, as_of: 2026-10-26, quality: D,
+                source: "Konzept A2, A3, A4, F18, B3; Spec 01 Teil A §2.4"}
+project:
+  report_mode: auto
+accounts:
+  deposit_rate_pa: {ref: market.mortgage_rate, anchor: 0.020, floor: 0}   # Mindestverzinsung (F18); Untergrenze 0 (F-14)
+  overdraft_rate_pa: {ref: market.mortgage_rate, anchor: 0.055}
+  overdraft_limit_eur: .inf
+  penalty_spread_pa: 0.02
+  min_liquidity_eur: 0
+  deposit_withholding_tax_share: 0
+  deposit_tax_allowance_eur_pa: 0
+  overdraft_flag_threshold_eur: .inf
+  surplus_order: [od_repay, dep_fill_reserve, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, dep_use_reserve, penalty_rate]
+  prepay: {buffer_eur: 0, min_spread_pa: 0}
+residual_value:
+  method: income_value
+  sale_cost_share: 0.03
+tax:
+  module: none
+analysis:
+  kpis: [terminal_value, terminal_value_opp, delta_terminal_value, roe_mirr, roe_irr, payback_time, payback_year,
+         min_net_liquidity, max_overdraft, max_financing_need, sum_equity_calls, pv_equity_calls,
+         flag_shortfall, flag_limit_breach, flag_reserve_used, withdrawal_equivalent, npv_cf_project,
+         irr_cf_project, terminal_value_real,
+         dscr_min, dscr_mean, dscr_years_below, dscr_min_new, icr_min, ltv_max, ltv_end, lending_ratio_max,
+         warm_rent, warm_rent_y1, warm_rent_change_prepost, warm_rent_change_prepost_y1,
+         own_contribution, pv_subsidies, co2_emissions,
+         restriction_dscr, restriction_liquidity, restriction_warm_rent]
+  thresholds: {dscr: 1.2, burden_share: 0.40, warm_rent_increase_eur_m2: 0.50, roe_hurdle: 0.020}
+  restrictions: [dscr, liquidity, warm_rent]
+  tenant_view: true
+  rv_path_basis: auto
+  lending_value_haircut: 0.10
+  traffic_light: {green_prob: 0.70, red_prob: 0.40, restriction_prob: 0.30}
+  mandatory_sensitivities:
+    - {id: restwert_null, path: residual_value.method, value: zero, label: "Restwert = 0"}
+    - {id: habenzins_kalkulationszins, path: accounts.deposit_rate_pa, value: 0.035, label: "Habenzins = Kalkulationszins 3,5 %"}
+    - {id: habenzins_fk, path: accounts.deposit_rate_pa, value: {ref: market.mortgage_rate}, label: "Habenzins = vermiedener FK-Zins"}
+    - {id: stufe_2045, path: project.pending_reforms, add: stufe_2045, label: "mit 2045-Stufe (100 % klimaneutraler Brennstoff ab 2045)"}
+by_project_type:
+  heizungstausch:             {residual_value: {method: component}}   # Memo 07 S3: linearer Komponentenzeitwert
+  sanierung_einzelmassnahmen: {residual_value: {method: component}}

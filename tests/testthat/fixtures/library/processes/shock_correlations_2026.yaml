@@ -1,0 +1,14 @@
+# Testfixture (WS-A): gekürzte Korrelationsliste (Spec 01 Teil C §2.6, Sequenz ersetzt die lokale Liste).
+id: processes/shock_correlations_2026
+block: processes
+schema_version: 1
+label: "Korrelation der Jahresschocks (Testfixture)"
+source: {document: "Memo 03 §2.3, Memo 04 §2.3", url: "https://ec.europa.eu/eurostat/", publisher: "Eurostat; eigene Ableitung"}
+as_of: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+values:
+  - [inflation, mortgage_rate, 0.40]
+  - [inflation, energy_price_gas, 0.60]
+  - [mortgage_rate, energy_price_gas, 0.35]

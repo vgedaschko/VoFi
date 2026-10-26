@@ -1,0 +1,16 @@
+# Testfixture (WS-A): Nutzereintrag mit derselben id wie ein Paketeintrag (Überschattung, Schicht 4).
+id: prices/interest_rates_2026_10
+block: market
+schema_version: 1
+label: "Zinsniveaus (Nutzerannahme)"
+source: {document: "eigene Annahme", publisher: "Test"}
+as_of: 2026-10-20
+valid_from: 2026-08-01
+valid_to: null
+quality: D
+legal_state: {as_of: 2026-10-20, status: market, reference: "Annahme"}
+values:
+  market:
+    mortgage_rate: 0.05
+    bund_yield_10y: 0.04
+    mortgage_spread: 0.01

@@ -1,0 +1,21 @@
+# Testfixture (WS-A): Spec 01 Teil C §2.2 (processes/mortgage_rate_vasicek_2026), eine Vorlage ohne use.
+id: processes/mortgage_rate_vasicek_2026
+block: processes
+schema_version: 1
+label: "Bauzins 10 J.: Vasicek mit Untergrenze (Testfixture)"
+source: {document: "Deutsche Bundesbank, MFI-Zinsstatistik SUD119", url: "https://api.statistiken.bundesbank.de/", publisher: "Deutsche Bundesbank"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+quality_detail: {kappa: A, sigma: A, r0: A}
+fallback: {r0: 0.041}
+values:
+  type: vasicek
+  label: "Bauzins 10 J. Zinsbindung (Anschlusszins)"
+  r0: base
+  theta: 0.0375
+  kappa: 0.12
+  sigma: 0.007
+  floor: 0.005

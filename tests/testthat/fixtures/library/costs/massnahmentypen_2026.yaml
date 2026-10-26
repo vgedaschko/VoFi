@@ -1,0 +1,50 @@
+# Testfixture (WS-A): Kopie von Spec 01 Teil C §3.7 (costs/massnahmentypen_2026), alle 37 Codes.
+id: costs/massnahmentypen_2026
+block: costs
+schema_version: 1
+label: "Maßnahmentypen: Katalogdefaults (Testfixture)"
+source: {document: "Spec 01 Teil A §4.2", url: "docs/spec/01a_feldkatalog_projekt_investition_finanzierung.md", publisher: "eigene Ableitung"}
+as_of: 2026-10-26
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+legal_state: {as_of: 2026-10-26, status: derived, reference: "Spec 01 Teil A §4.2"}
+values:
+  types:
+    neubau: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: herstellung, useful_life_key: building_total_immowertv, ohnehin_share: 0, modernization_kind: none, vat_rate: 0.19, replacement: false}
+    erweiterung: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: herstellung, useful_life_key: building_total_immowertv, ohnehin_share: 0, modernization_kind: bgb_555b_7, vat_rate: 0.19, replacement: false}
+    aufstockung: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: herstellung, useful_life_key: building_total_immowertv, ohnehin_share: 0, modernization_kind: bgb_555b_7, vat_rate: 0.19, replacement: false}
+    rueckbau: {kg: 200, asset_type: gebaeude_wohnen, classification_existing: herstellung, useful_life: main, ohnehin_share: 0, modernization_kind: none, vat_rate: 0.19, replacement: false}
+    herrichten_erschliessung: {kg: 200, asset_type: gebaeude_wohnen, classification_existing: herstellung, useful_life: main, ohnehin_share: 0, modernization_kind: none, vat_rate: 0.19, replacement: false}
+    erwerb_grundstueck: {kg: 100, asset_type: grund_boden, classification_existing: null, ohnehin_share: null, modernization_kind: none, vat_rate: 0, replacement: false}
+    erwerb_objekt: {kg: 100, asset_type: [gebaeude_wohnen, grund_boden], classification_existing: null, ohnehin_share: null, modernization_kind: none, vat_rate: 0, replacement: false}
+    daemmung_fassade: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: etics, ohnehin_share: 0.5, modernization_kind: bgb_555b_1, points: {facade_insulation: 4}, vat_rate: 0.19, replacement: true}
+    daemmung_dach_steil: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: roof_pitched_covering, ohnehin_share: 0.7, modernization_kind: bgb_555b_1, points: {roof_insulation: 4}, vat_rate: 0.19, replacement: true}
+    daemmung_dach_flach: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: roof_flat_sealing, ohnehin_share: 0.57, modernization_kind: bgb_555b_1, points: {roof_insulation: 4}, vat_rate: 0.19, replacement: true}
+    daemmung_oberste_geschossdecke: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: insulation_roof_ceiling, ohnehin_share: 0, modernization_kind: bgb_555b_1, points: {roof_insulation: 2}, vat_rate: 0.19, replacement: true}
+    daemmung_kellerdecke: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: insulation_roof_ceiling, ohnehin_share: 0, modernization_kind: bgb_555b_1, vat_rate: 0.19, replacement: true}
+    fenster: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: windows, ohnehin_share: 0.85, modernization_kind: bgb_555b_1, points: {windows_doors: 2}, vat_rate: 0.19, replacement: true}
+    aussentueren: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: windows, ohnehin_share: 0.85, modernization_kind: bgb_555b_1, points: {windows_doors: 2}, vat_rate: 0.19, replacement: true}
+    putz_anstrich: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: plaster_paint, ohnehin_share: 1.0, modernization_kind: none, vat_rate: 0.19, replacement: true}
+    instandsetzung: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_years: 25, ohnehin_share: 1.0, modernization_kind: none, vat_rate: 0.19, replacement: true}
+    heizung_waermepumpe_luft: {kg: 400, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: hp_air_water, ohnehin_share: null, modernization_kind: bgb_555b_1a, points: {heating: 2}, vat_rate: 0.19, replacement: true, repair_key: heat_pump}
+    heizung_waermepumpe_sole: {kg: 400, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: hp_brine_water, ohnehin_share: null, modernization_kind: bgb_555b_1a, points: {heating: 2}, vat_rate: 0.19, replacement: true, repair_key: heat_pump}
+    heizung_gaskessel: {kg: 400, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: gas_boiler, ohnehin_share: 1.0, modernization_kind: none, points: {heating: 2}, vat_rate: 0.19, replacement: true, repair_key: gas_boiler}
+    heizung_pelletkessel: {kg: 400, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: pellet_boiler, ohnehin_share: null, modernization_kind: bgb_555b_1a, points: {heating: 2}, vat_rate: 0.19, replacement: true, repair_key: pellet_boiler}
+    heizung_fernwaerme: {kg: 400, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: district_heating_substation, ohnehin_share: null, modernization_kind: bgb_555b_1a, points: {heating: 2}, vat_rate: 0.19, replacement: true, repair_key: district_heating_substation}
+    heizungsverteilung: {kg: 400, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: heating_distribution, ohnehin_share: null, modernization_kind: bgb_555b_1, points: {heating: 2}, vat_rate: 0.19, replacement: true}
+    lueftung_zentral: {kg: 400, asset_type: gebaeude_wohnen, classification_existing: auto, useful_life_key: ventilation_central, ohnehin_share: 0, modernization_kind: bgb_555b_1, vat_rate: 0.19, replacement: true, repair_key: ventilation}
+    lueftung_dezentral: {kg: 400, asset_type: gebaeude_wohnen, classification_existing: auto, useful_life_key: ventilation_decentral, ohnehin_share: 0, modernization_kind: bgb_555b_1, vat_rate: 0.19, replacement: true, repair_key: ventilation}
+    pv: {kg: 400, asset_type: pv_anlage, classification_existing: herstellung, useful_life_key: pv_modules, ohnehin_share: 0, modernization_kind: none, vat_rate: 0, replacement: true}
+    pv_wechselrichter: {kg: 400, asset_type: pv_anlage, classification_existing: erhaltung, useful_life_key: pv_inverter, ohnehin_share: 0, modernization_kind: none, vat_rate: 0, replacement: true}
+    batteriespeicher: {kg: 400, asset_type: pv_anlage, classification_existing: herstellung, useful_life_key: battery, ohnehin_share: 0, modernization_kind: none, vat_rate: 0, replacement: true}
+    leitungen: {kg: 400, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: pipes, ohnehin_share: null, modernization_kind: none, points: {pipes: 2}, vat_rate: 0.19, replacement: true}
+    baeder: {kg: 400, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_key: bathrooms, ohnehin_share: null, modernization_kind: bgb_555b_4, points: {bathrooms: 2}, vat_rate: 0.19, replacement: true}
+    innenausbau: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: erhaltung, useful_life_years: 30, ohnehin_share: null, modernization_kind: none, points: {interior: 2}, vat_rate: 0.19, replacement: true}
+    grundriss: {kg: 300, asset_type: gebaeude_wohnen, classification_existing: herstellung, useful_life_key: building_total_immowertv, ohnehin_share: 0, modernization_kind: bgb_555b_4, points: {floor_plan: 2}, vat_rate: 0.19, replacement: false}
+    aufzug: {kg: 400, asset_type: gebaeude_wohnen, classification_existing: herstellung, useful_life_key: elevator, ohnehin_share: 0, modernization_kind: bgb_555b_4, vat_rate: 0.19, replacement: true}
+    ladeinfrastruktur: {kg: 400, asset_type: ladeinfrastruktur, classification_existing: herstellung, useful_life_years: 15, ohnehin_share: 0, modernization_kind: none, vat_rate: 0.19, replacement: true}
+    aussenanlagen: {kg: 500, asset_type: aussenanlage, classification_existing: herstellung, useful_life_years: 30, ohnehin_share: 0, modernization_kind: none, vat_rate: 0.19, replacement: true}
+    ausstattung: {kg: 600, asset_type: bewegliches_wg, classification_existing: herstellung, useful_life_years: 15, ohnehin_share: 0, modernization_kind: none, vat_rate: 0.19, replacement: true}
+    baunebenkosten: {kg: 700, asset_type: gebaeude_wohnen, classification_existing: main, useful_life: main, ohnehin_share: 0, modernization_kind: none, vat_rate: 0.19, replacement: false}
+    sonstige: {kg: null, asset_type: gebaeude_wohnen, classification_existing: auto, ohnehin_share: 0, modernization_kind: none, vat_rate: 0.19, replacement: false}

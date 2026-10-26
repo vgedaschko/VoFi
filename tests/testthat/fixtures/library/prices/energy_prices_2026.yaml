@@ -1,0 +1,32 @@
+# Testfixture (WS-A): vereinfachte Fassung von prices/energy_prices_2026 (Spec 01 Teil C §3.6): alle zehn
+# kanonischen Träger mit Startwert 2026 und konstanter Rate (statt der Erwartungsreihe der Mean-Reversion).
+id: prices/energy_prices_2026
+block: market
+schema_version: 1
+label: "Energiepreise 2026 netto (Testfixture)"
+source: {document: "BDEW; BNetzA; DEPI (Memo 03 §2.1-2.4)", url: "https://www.bdew.de/", publisher: "BDEW; BNetzA; DEPI"}
+as_of: 2026-10-26
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: B
+quality_detail: {market.energy_price.oil: C, market.energy_price.lpg: D, market.bio_fuel_premium: D}
+legal_state: {as_of: 2026-10-25, status: market, reference: "Marktdaten"}
+values:
+  market:
+    energy_price:
+      gas:                {start: 0.06335, base_date: 2027-01-01, growth: 0.02}
+      gas_mfh:            {start: 0.06043, base_date: 2027-01-01, growth: 0.02}
+      oil:                {start: 0.10034, base_date: 2027-01-01, growth: 0.02}
+      lpg:                {start: 0.07290829, base_date: 2027-01-01, growth: 0.02}
+      power:              {start: 0.31513, base_date: 2027-01-01, growth: 0.02}
+      power_mfh:          {start: 0.27, base_date: 2027-01-01, growth: 0.02}
+      heatpump_power:     {start: 0.21849, base_date: 2027-01-01, growth: 0.02}
+      heatpump_power_mfh: {start: 0.21008, base_date: 2027-01-01, growth: 0.02}
+      district_heating:   {start: 0.13109, base_date: 2027-01-01, growth: 0.025}
+      pellets:            {start: 0.07142857, base_date: 2027-01-01, growth: 0.025}
+    energy_network_fee:
+      gas:     {start: 0.0257, base_date: 2027-01-01, growth: 0.03}
+      gas_mfh: {start: 0.0219, base_date: 2027-01-01, growth: 0.03}
+    bio_fuel_premium: {start: 0.060, base_date: 2027-01-01, growth: 0.02}
+  vat_rate: {standard: 0.19, firewood: 0.07}

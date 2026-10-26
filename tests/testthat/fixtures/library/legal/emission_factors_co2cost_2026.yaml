@@ -1,0 +1,24 @@
+# Testfixture (WS-A): Spec 01 Teil C §3.5 (legal/emission_factors_co2cost_2026).
+id: legal/emission_factors_co2cost_2026
+block: legal
+topic: emission_factors_co2cost
+schema_version: 1
+label: "Emissionsfaktoren für CO2-Kosten (BEHG/EBeV 2030 Anlage 2, Testfixture)"
+source: {document: "EBeV 2030 Anlage 2 (Standardwerte)", url: "https://gesetze.legal/bund/ebev_2030/anlage_2", publisher: BMJ}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2021-01-01
+valid_to: null
+quality: A
+legal_state: {as_of: 2026-10-25, status: in_force, reference: "EBeV 2030 Anlage 2"}
+values:
+  natural_gas_hs: 0.1814
+  natural_gas_hi: 0.2009
+  heating_oil_hi: 0.2664
+  lpg_hi: 0.2358
+  wood: 0.0
+  biomethane: 0.0
+  conversion:
+    gas_hs_to_hi: 0.903
+    heating_oil_kwh_per_litre: 10.05
+    pellets_kwh_per_kg: 5.0

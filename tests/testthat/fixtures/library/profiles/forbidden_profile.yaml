@@ -1,0 +1,12 @@
+# Testfixture (WS-A, PR4): Profil mit unzulässigen Pfaden (R-76): market.inflation, Elementfeld einer
+# Sammlung und by_project_type mit project.valuation_date.
+defaults_meta: {kind: profile, id: forbidden_profile, schema_version: 1, as_of: 2026-10-26, quality: D,
+                source: "Testfixture"}
+accounts:
+  deposit_rate_pa: 0.02
+market:
+  inflation: 0.02
+unit_groups:
+  a: {vacancy_rate: 0.05}
+by_project_type:
+  neubau: {project: {valuation_date: 2027-01-01, horizon_years: 40}}

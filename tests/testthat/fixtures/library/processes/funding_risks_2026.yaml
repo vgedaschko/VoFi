@@ -1,0 +1,13 @@
+# Testfixture (WS-A): Spec 01 Teil C §2.7 (processes/funding_risks_2026).
+id: processes/funding_risks_2026
+block: processes
+schema_version: 1
+label: "Förder- und Vergütungsrisiken (Testfixture)"
+source: {document: "Memo 07 §4.0, Konzept B12", url: "docs/recherche/07_use_cases_referenzszenarien.md", publisher: "eigene Ableitung"}
+as_of: 2025-01-15
+valid_from: 2026-01-01
+valid_to: null
+quality: D
+values:
+  availability_after_2030: {dist: bernoulli, label: "Förderprogramm nach 2030 verfügbar", p: 0.7}
+  payout_delay:          {dist: pert, label: "Auszahlungsverzug Zuschuss nach Zusage (Monate)", min: 0, mode: 0, max: 6}

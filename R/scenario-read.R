@@ -1,28 +1,34 @@
 # Szenario einlesen und schreiben (WS-A, Spec 00 Abschnitte 4.1, 4.4, 4.6, 4.8, 4.13).
-# Phase-0-Minimalfassung, Eigentuemer: WS-A. Umgesetzt: vofi_read_scenario() fuer YAML (inkl.
-# separater Stochastik-Datei), vofi_scenario() mit Normalisierung aller Bloecke (Listen mit id
-# -> Maps, Domaenenfelder nach dem Schema aus R/schema.R, Typparameter nach der Registry,
-# Kurzform-Verteilungen ins Overlay), Herkunft der Schicht 5, vofi_example().
-# Offen fuer WS-A: Excel-Eingabe (WS-A2), vofi_write_scenario(), Zeilennummern in der Herkunft,
-# Bibliotheksverweise `from:` (Schicht 3).
+# vofi_read_scenario() fuer YAML (inkl. separater Stochastik-Datei, Zeilennummern in der
+# Herkunft; Excel ueber io_read_excel() von WS-A2, sobald vorhanden), vofi_scenario() mit
+# Normalisierung aller Bloecke (Listen mit id -> Maps, Domaenenfelder nach dem Schema aus
+# R/schema.R, Typparameter nach der Registry, uebrige numerische Blaetter als Knoten,
+# Kurzform-Verteilungen ins Overlay), Herkunft der Schichten 5 und 6, vofi_write_scenario()
+# (YAML; aufgeloeste Variante auf Wunsch), vofi_example().
 
 #' Szenario einlesen
 #'
 #' Liest ein Szenario aus YAML oder Excel, normalisiert es (Wertgrammatik, Einheiten, Aliase) und
-#' liefert das kanonische Szenario-Objekt mit Herkunft der Blätter (Spec 00, Abschnitte 4.1, 4.6).
-#' Optional wird ein separates Stochastik-Overlay gemischt (Datei gewinnt).
+#' liefert das kanonische Szenario-Objekt mit Herkunft der Blätter (Spec 00, Abschnitte 4.1,
+#' 4.6, 4.8). YAML wird UTF-8-sicher gelesen (auch unter der Locale `C`); mehrdeutige Zahlen
+#' (Dezimalkomma, Tausenderpunkt) werden nach 4.6 gemeldet bzw. abgewiesen. Optional wird ein
+#' separates Stochastik-Overlay (Wurzelschlüssel `stochastic`) über den Block der Szenariodatei
+#' gemischt (Datei gewinnt; Herkunft Schicht 6).
 #'
-#' Phase-0-Minimalfassung (Eigentümer: WS-A): YAML vollständig nach 4.6; Excel folgt mit WS-A2.
+#' Bibliotheksverweise `from:` bleiben im Szenario unaufgelöst; `vofi_resolve()` löst sie mit
+#' den hier übergebenen Bibliothekspfaden auf.
 #'
 #' @param path Pfad der Szenariodatei (`.yaml`/`.yml` oder `.xlsx`).
 #' @param format `"auto"` (nach Dateiendung), `"yaml"` oder `"excel"`.
 #' @param stochastic optional: Pfad einer YAML-Datei mit Wurzelschlüssel `stochastic`.
-#' @param library_paths Wurzeln der Nutzerbibliotheken (später gewinnt).
+#' @param library_paths Bibliothekswurzeln (Paketbibliothek und Nutzerbibliotheken; später
+#'   gewinnt).
 #' @return Objekt der Klasse `vofi_scenario`.
 #' @family Einlesen
 #' @examples
 #' sc <- vofi_read_scenario(vofi_example("skeleton"))
 #' sc$meta$scenario_id
+#' head(attr(sc, "provenance")[, c("path", "layer", "location")])
 #' @export
 vofi_read_scenario <- function(path, format = c("auto", "yaml", "excel"), stochastic = NULL,
                                library_paths = vofi_library_paths()) {
@@ -31,32 +37,64 @@ vofi_read_scenario <- function(path, format = c("auto", "yaml", "excel"), stocha
     vofi_abort("core.file_missing", path = as.character(path %||% "NULL")[1L],
                .class = "vofi_error_input")
   }
+  if (!is.character(library_paths)) {
+    vofi_abort("core.arg_character", arg = "library_paths", .class = "vofi_error_input")
+  }
   if (format == "auto") {
     ext <- tolower(tools::file_ext(path))
     format <- if (ext %in% c("xlsx", "xls")) "excel" else "yaml"
   }
-  if (format == "excel") scn_unsupported("vofi_read_scenario(format = \"excel\")")
-  raw <- io_read_yaml_utf8(path)
+  norm_path <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  locations <- character(0)
+  if (format == "excel") {
+    reader <- scn_optional_fun("io_read_excel")
+    if (is.null(reader)) scn_unsupported("vofi_read_scenario(format = \"excel\")")
+    raw <- reader(path)
+    locations <- attr(raw, "locations") %||% character(0)
+  } else {
+    txt <- io_read_lines_utf8(path)
+    raw <- io_parse_yaml_text(txt, path)
+    locations <- io_yaml_locations(txt)
+  }
   stoch_path <- NULL
+  stoch_locations <- character(0)
   if (!is.null(stochastic)) {
-    ov <- io_read_yaml_utf8(stochastic)
+    if (!utl_is_string(stochastic) || !file.exists(stochastic)) {
+      vofi_abort("core.file_missing", path = as.character(stochastic %||% "NULL")[1L],
+                 .class = "vofi_error_input")
+    }
+    stxt <- io_read_lines_utf8(stochastic)
+    ov <- io_parse_yaml_text(stxt, stochastic)
     if (!is_map(ov) || is.null(ov[["stochastic"]])) {
       vofi_abort("io.stochastic_root", path = stochastic, .class = "vofi_error_input")
     }
+    extra <- setdiff(names(ov), "stochastic")
+    if (length(extra) > 0L) {
+      vofi_abort("io.stochastic_extra_keys", path = stochastic, keys = utl_collapse(extra),
+                 .class = "vofi_error_validation")
+    }
     raw$stochastic <- deep_merge(raw$stochastic %||% list(), ov$stochastic)
     stoch_path <- normalizePath(stochastic, winslash = "/", mustWork = FALSE)
+    stoch_locations <- io_yaml_locations(stxt)
   }
   vofi_scenario(raw, source = list(
-    path = normalizePath(path, winslash = "/", mustWork = FALSE), format = "yaml",
-    read_time = Sys.time(), sha = stable_hash_file(path), stochastic_path = stoch_path
+    path = norm_path, format = format, read_time = Sys.time(),
+    sha = stable_hash_file(path), stochastic_path = stoch_path,
+    library_paths = library_paths, locations = locations,
+    stochastic_locations = stoch_locations
   ))
 }
 
 #' Szenario schreiben
 #'
-#' Schreibt ein Szenario (auf Wunsch eine aufgelöste Variante) als YAML oder Excel.
-#'
-#' Phase 0: noch nicht implementiert (Fehler `vofi_error_not_implemented`).
+#' Schreibt ein Szenario als YAML (bzw. Excel über WS-A2), auf Wunsch die aufgelöste Variante:
+#' Schichten 1–8 gemischt (Defaults-Dateien, Profil, Bibliotheksverweise aufgelöst, Szenario,
+#' Overlay, Variante, Szenario-Set, Overrides). Was beim Auflösen nach Schicht 8 entsteht, entfällt,
+#' weil es beim erneuten Auflösen wieder entsteht: Werte der Ableitungsregeln (`rule:*`), der
+#' Vorlagen `item_defaults`, der Typ-Defaults (Schicht 0) und die Expander-Komponenten. Knoten
+#' werden in die Wertgrammatik zurückgeführt. Das erneute Einlesen ergibt dieselbe kanonische
+#' Liste; bei `resolved = TRUE` ergibt das erneute Auflösen dieselbe Spezifikation (Round-Trip,
+#' Spec 00, Abschnitte 4.6, 4.14).
 #'
 #' @param scenario Objekt der Klasse `vofi_scenario`.
 #' @param path Zieldatei.
@@ -66,11 +104,111 @@ vofi_read_scenario <- function(path, format = c("auto", "yaml", "excel"), stocha
 #' @param overwrite vorhandene Datei überschreiben.
 #' @return `invisible(path)`.
 #' @family Einlesen
+#' @examples
+#' sc <- vofi_read_scenario(vofi_example("skeleton"))
+#' f <- tempfile(fileext = ".yaml")
+#' vofi_write_scenario(sc, f)
+#' identical(vofi_read_scenario(f)$components, sc$components)
 #' @export
 vofi_write_scenario <- function(scenario, path, format = c("auto", "yaml", "excel"),
                                 resolved = FALSE, variant = "base", overwrite = FALSE) {
-  vofi_abort("core.not_implemented", fun = "vofi_write_scenario",
-             .class = "vofi_error_not_implemented")
+  if (!inherits(scenario, "vofi_scenario")) {
+    vofi_abort("io.not_scenario", arg = "scenario", .class = "vofi_error_input")
+  }
+  if (!utl_is_string(path)) {
+    vofi_abort("core.arg_scalar", arg = "path", .class = "vofi_error_input")
+  }
+  if (!utl_is_flag(resolved)) {
+    vofi_abort("core.arg_scalar", arg = "resolved", .class = "vofi_error_input")
+  }
+  if (!utl_is_flag(overwrite)) {
+    vofi_abort("core.arg_scalar", arg = "overwrite", .class = "vofi_error_input")
+  }
+  format <- utl_match_arg(format, c("auto", "yaml", "excel"), "format")
+  if (format == "auto") {
+    format <- if (tolower(tools::file_ext(path)) %in% c("xlsx", "xls")) "excel" else "yaml"
+  }
+  if (file.exists(path) && !overwrite) {
+    vofi_abort("io.file_exists", path = path, .class = "vofi_error_input")
+  }
+  x <- if (resolved) scn_resolved_tree(scenario, variant) else scn_input_tree(scenario)
+  if (format == "excel") {
+    writer <- scn_optional_fun("io_write_excel")
+    if (is.null(writer)) scn_unsupported("vofi_write_scenario(format = \"excel\")")
+    writer(x, path)
+    return(invisible(path))
+  }
+  header <- lbl("io.write_header", id = as.character(x$meta$scenario_id %||% "")[1L],
+                variant = if (resolved) variant else "-")
+  io_write_yaml(scn_to_yaml(x), path, header = header)
+  invisible(path)
+}
+
+#' Eingabeform eines Szenarios (Blöcke ohne Attribute)
+#' @noRd
+scn_input_tree <- function(scenario) {
+  x <- unclass(scenario)
+  attr(x, "source") <- NULL
+  attr(x, "provenance") <- NULL
+  x
+}
+
+#' Aufgelöste Variante als Szenario-Baum
+#'
+#' Ohne Register, Rechtsstand, Expander-Komponenten und ohne die abgeleiteten Blätter
+#' (`attr(spec, "scn_state")$derived`: Ableitungsregeln, `item_defaults`, Typ-Defaults). Maps,
+#' die dadurch leer werden, bleiben als leere Maps stehen: Ein leeres Element einer Sammlung
+#' (z. B. `energy.carriers.gas: {}`) ist eine Angabe des Szenarios, und Vorlagen wie
+#' Ableitungsregeln behandeln eine leere Map wie eine fehlende.
+#' @noRd
+scn_resolved_tree <- function(scenario, variant) {
+  spec <- vofi_resolve(scenario, variant = variant)
+  derived <- attr(spec, "scn_state")$derived %||% character(0)
+  x <- unclass(spec)
+  attributes(x) <- list(names = names(x))
+  x <- x[intersect(c("schema_version", utl_scenario_blocks()), names(x))]
+  x$schema_version <- 1L
+  for (coll in c("components", "financing")) {
+    keep <- vapply(x[[coll]] %||% list(), function(c0) !identical(c0$origin, "expander"),
+                   logical(1))
+    x[[coll]] <- x[[coll]][keep]
+  }
+  x <- scn_drop_paths(x, derived)
+  x$variants <- list()
+  x$scenario_sets <- list()
+  x
+}
+
+#' Pfade entfernen (nicht vorhandene Pfade bleiben ohne Wirkung)
+#' @param x Liste.
+#' @param paths Pfade.
+#' @return `x`.
+#' @noRd
+scn_drop_paths <- function(x, paths) {
+  for (p in unique(paths)) x <- path_remove(x, p)
+  x
+}
+
+#' Szenario-Baum in YAML-Form (Knoten zurückgeführt, NULL und leere Blöcke entfallen)
+#' @noRd
+scn_to_yaml <- function(x, top = TRUE) {
+  if (node_is(x)) return(node_to_yaml(x))
+  if (!is.list(x) || is.data.frame(x)) return(x)
+  if (length(x) == 0L) return(x)
+  out <- lapply(x, function(e) scn_to_yaml(e, top = FALSE))
+  if (!is.null(names(x))) {
+    keep <- !vapply(out, is.null, logical(1))
+    if (top) keep <- keep & !vapply(out, function(e) is.list(e) && length(e) == 0L, logical(1))
+    out <- out[keep]
+  }
+  out
+}
+
+#' Optionale Funktion eines anderen Pakets im Namensraum (z. B. Excel von WS-A2)
+#' @noRd
+scn_optional_fun <- function(name) {
+  f <- get0(name, envir = asNamespace("vofi"), mode = "function", inherits = FALSE)
+  if (is.function(f)) f else NULL
 }
 
 #' Kanonisches Szenario aus einer R-Liste
@@ -79,10 +217,15 @@ vofi_write_scenario <- function(scenario, path, format = c("auto", "yaml", "exce
 #' als `Date` oder ISO-Zeichenkette, Zahlen, Wertformen der Wertgrammatik). Die Normalisierung
 #' ist idempotent: ein bereits normalisiertes Szenario bleibt unverändert.
 #'
-#' Phase-0-Minimalfassung (Eigentümer: WS-A).
+#' Sammlungen (`unit_groups`, `measures`, `funding`, `components`, `financing`, `variants`,
+#' `scenario_sets`, `building.elements`, `energy.carriers`, `energy.stages`) dürfen als Listen
+#' mit Feld `id` angegeben werden und werden Maps nach id.
+#' Felder mit Schema (Spec 00, Abschnitt 4.3; Typparameter der Registry) werden nach ihrer Art
+#' normalisiert, übrige numerische Blätter und Wertformen werden Knoten. Kurzform-Verteilungen
+#' wandern ins Overlay (Schlüssel = Zielpfad), am Ort bleibt der Basiswert.
 #'
 #' @param x Liste mit den Blöcken der obersten Ebene (Spec 00, Abschnitt 4.2).
-#' @param source optional: Herkunftsangaben (`path`, `format`, ...).
+#' @param source optional: Herkunftsangaben (`path`, `format`, `library_paths`, ...).
 #' @return Objekt der Klasse `vofi_scenario`.
 #' @family Einlesen
 #' @examples
@@ -98,8 +241,10 @@ vofi_write_scenario <- function(scenario, path, format = c("auto", "yaml", "exce
 #' @export
 vofi_scenario <- function(x, source = NULL) {
   old_source <- NULL
+  old_prov <- NULL
   if (inherits(x, "vofi_scenario")) {
     old_source <- attr(x, "source")
+    old_prov <- attr(x, "provenance")
     x <- unclass(x)
     attr(x, "source") <- NULL
     attr(x, "provenance") <- NULL
@@ -112,16 +257,35 @@ vofi_scenario <- function(x, source = NULL) {
                                           read_time = Sys.time(), sha = stable_hash(x),
                                           stochastic_path = NULL)
   file <- if (utl_is_string(src$path)) basename(src$path) else NA_character_
-  new_vofi_scenario(x, source = src,
-                    provenance = scn_provenance(x, layer = 5L, source_type = "scenario",
-                                                file = file))
+  prov <- if (is.null(source) && !is.null(old_prov)) {
+    old_prov
+  } else {
+    scn_scenario_provenance(x, src, file)
+  }
+  new_vofi_scenario(x, source = src, provenance = prov)
+}
+
+#' Herkunft eines eingelesenen Szenarios (Schicht 5; Overlay Schicht 6 mit eigener Datei)
+#' @noRd
+scn_scenario_provenance <- function(x, src, file) {
+  top <- setdiff(names(x), c("variants", "scenario_sets"))
+  tree <- x[top]
+  st_file <- if (utl_is_string(src$stochastic_path)) basename(src$stochastic_path) else file
+  prov <- scn_provenance(tree, layer = c(stochastic = 6L), source_type = c(stochastic = "overlay"),
+                         file = file, files = c(stochastic = st_file),
+                         locations = src$locations)
+  if (length(src$stochastic_locations) > 0L && nrow(prov) > 0L) {
+    st <- startsWith(prov$path, "stochastic.")
+    prov$location[st] <- vapply(prov$path[st], function(p) {
+      io_location_of(src$stochastic_locations, p)
+    }, "", USE.NAMES = FALSE)
+  }
+  prov
 }
 
 #' Mitgelieferte Beispielszenarien
 #'
 #' Liefert den Pfad eines mitgelieferten Beispielszenarios bzw. die Namen aller Beispiele.
-#'
-#' Phase-0-Minimalfassung (Eigentümer: WS-A).
 #'
 #' @param name Name des Beispiels (z. B. `"skeleton"`) oder `NULL`.
 #' @return Zeichenkette (Pfad) bzw. Zeichenvektor der Namen.
@@ -144,7 +308,7 @@ vofi_example <- function(name = NULL) {
   file.path(dir, hit[order(!grepl("\\.ya?ml$", hit))][1L])
 }
 
-#' Funktion bzw. Eingabeform ist in Phase 0 noch nicht verfügbar
+#' Funktion bzw. Eingabeform ist noch nicht verfügbar (Lieferung eines anderen Pakets)
 #' @noRd
 scn_unsupported <- function(what) {
   vofi_abort("core.not_implemented", fun = what, .class = "vofi_error_not_implemented")
@@ -154,11 +318,17 @@ scn_unsupported <- function(what) {
 # Normalisierung (4.4, 4.5, 4.6)
 # ---------------------------------------------------------------------------------------------
 
-#' Sammlungen nach id (4.4 Nr. 1)
+#' Oberste Sammlungen nach id (4.4 Nr. 1); verschachtelte: `scn_nested_collections()`
 #' @noRd
 scn_collections <- function() {
   c("unit_groups", "measures", "funding", "components", "financing", "variants",
     "scenario_sets")
+}
+
+#' Verschachtelte Sammlungen nach id (4.4 Nr. 1; `utl_merge_collections()`)
+#' @noRd
+scn_nested_collections <- function() {
+  grep(".", utl_merge_collections(), fixed = TRUE, value = TRUE)
 }
 
 #' Liste mit Feld `id` in eine Map nach id umwandeln (Reihenfolge bleibt erhalten)
@@ -175,6 +345,10 @@ scn_as_map <- function(x, block) {
 }
 
 #' Alle Blöcke eines Szenarios normalisieren (idempotent)
+#'
+#' Domänenblöcke mit Schema (`val_domain_schema()`) nach ihren Feldarten; Sammlungen der Domäne
+#' (`unit_groups`, `measures`, `funding`) je Element nach dem Schema des Sammlungsnamens, falls
+#' WS-B es führt, sonst nach der allgemeinen Wertgrammatik; Komponenten nach den Typparametern.
 #' @param x Liste der Blöcke (Rohform oder bereits normalisiert).
 #' @return normalisierte Liste.
 #' @noRd
@@ -183,9 +357,24 @@ scn_normalize <- function(x) {
     x$schema_version <- node_integer(x$schema_version, "schema_version")
   }
   for (b in intersect(scn_collections(), names(x))) x[[b]] <- scn_as_map(x[[b]], b)
+  for (cp in scn_nested_collections()) {
+    v <- path_get(x, cp)
+    if (!is.null(v) && !is_map(v)) x <- path_set(x, cp, scn_as_map(v, cp))
+  }
   for (b in c("meta", "project", "grid", "building", "household", "accounts",
               "residual_value", "tax", "analysis")) {
     if (!is.null(x[[b]])) x[[b]] <- scn_normalize_block(x[[b]], b, val_domain_schema(b))
+  }
+  for (b in c("unit_groups", "measures", "funding")) {
+    sch <- val_domain_schema(b)
+    for (id in names(x[[b]])) {
+      el <- x[[b]][[id]]
+      if (is.null(el)) next
+      x[[b]][[id]] <- scn_normalize_block(el, path_join(b, id), sch)
+    }
+  }
+  if (!is.null(x$energy)) {
+    x$energy <- scn_normalize_block(x$energy, "energy", val_domain_schema("energy"))
   }
   for (coll in c("components", "financing")) {
     for (id in names(x[[coll]])) {
@@ -214,15 +403,18 @@ scn_market_rate_names <- function() {
 }
 
 #' Felder eines Blocks nach Schema normalisieren; übrige numerische Blätter als Knoten
+#'
+#' Bibliotheksverweise (`{from: <id>, ...}`) bleiben Rohform; ihre lokalen Schlüssel werden
+#' wie Felder des Blocks normalisiert.
 #' @noRd
 scn_normalize_block <- function(x, block, schema) {
   if (!is_map(x)) {
     vofi_abort("io.not_map", path = block, .class = "vofi_error_input")
   }
   for (f in names(x)) {
-    if (is.null(x[[f]])) next
+    if (is.null(x[[f]]) || f %in% c("from", "use")) next
     p <- path_join(block, f)
-    if (!is.null(schema[[f]])) {
+    if (!is.null(schema[[f]]) && !scn_is_library_ref(x[[f]])) {
       x[f] <- list(node_normalize(x[[f]], schema[[f]], p))
     } else {
       x[f] <- list(scn_normalize_values(x[[f]], p))
@@ -240,7 +432,14 @@ scn_normalize_values <- function(x, path) {
     return(node_normalize(x, NULL, path))
   }
   if (is_map(x) && length(x) > 0L) {
-    if (!is.na(utl_value_form_kind(x))) return(node_normalize(x, NULL, path))
+    kind <- utl_value_form_kind(x)
+    if (identical(kind, "from")) {
+      for (f in setdiff(names(x), c("from", "use"))) {
+        if (!is.null(x[[f]])) x[f] <- list(scn_normalize_values(x[[f]], path_join(path, f)))
+      }
+      return(x)
+    }
+    if (!is.na(kind)) return(node_normalize(x, NULL, path))
     for (f in names(x)) {
       if (!is.null(x[[f]])) x[f] <- list(scn_normalize_values(x[[f]], path_join(path, f)))
     }
@@ -262,14 +461,14 @@ scn_normalize_component <- function(comp, id, coll) {
   def <- scn_type_def(type, coll)
   for (f in setdiff(names(comp), "id")) {
     v <- comp[[f]]
-    if (is.null(v)) next
+    if (is.null(v) || f %in% c("from", "use")) next
     p <- path_join(path, f)
     comp[f] <- list(
       if (f == "after") {
         node_ids(v, p)
       } else if (f %in% reg_reserved_fields()) {
         node_string(v, p)
-      } else if (!is.null(def) && !is.null(def$params[[f]])) {
+      } else if (!is.null(def) && !is.null(def$params[[f]]) && !scn_is_library_ref(v)) {
         node_normalize(v, def$params[[f]], p)
       } else {
         scn_normalize_values(v, p)
@@ -288,15 +487,30 @@ scn_type_def <- function(type, coll) {
   NULL
 }
 
-#' Stochastik-Overlay normalisieren (Einstellungen nach Schema, Parameter als Zahlen)
+#' Stochastik-Overlay normalisieren
+#'
+#' Einstellungen mit Schema nach ihrer Art, übrige Einstellungen (z. B. `preset`, `band_probs`,
+#' `convergence`) als Werte ohne Knoten; Overlay-Einträge als Maps nach Schlüssel.
 #' @noRd
 scn_normalize_stochastic <- function(x) {
   if (!is_map(x)) {
     vofi_abort("io.not_map", path = "stochastic", .class = "vofi_error_input")
   }
   if (!is.null(x$settings)) {
-    x$settings <- scn_normalize_block(x$settings, "stochastic.settings",
-                                      val_domain_schema("stochastic.settings"))
+    if (!is_map(x$settings)) {
+      vofi_abort("io.not_map", path = "stochastic.settings", .class = "vofi_error_input")
+    }
+    schema <- val_domain_schema("stochastic.settings")
+    for (f in names(x$settings)) {
+      v <- x$settings[[f]]
+      if (is.null(v)) next
+      p <- path_join("stochastic.settings", f)
+      x$settings[f] <- list(if (!is.null(schema[[f]])) {
+        node_normalize(v, schema[[f]], p)
+      } else {
+        io_unmark(v, p)
+      })
+    }
   }
   for (b in c("parameters", "processes")) {
     if (is.null(x[[b]])) next
@@ -348,58 +562,4 @@ scn_find_nodes <- function(x, kind, path = "") {
     scn_find_nodes(x[[nm]], kind, path_join(path, nm))
   })
   unlist(out, use.names = FALSE) %||% character(0)
-}
-
-#' Blattpfade (Knoten, Werte und Wertformen gelten als Blätter)
-#' @noRd
-scn_leaves <- function(x, path = "") {
-  if (is.null(x)) return(character(0))
-  if (node_is(x) || !is_map(x) || length(x) == 0L ||
-        (nzchar(path) && is_value_form(x, path, kind_of = scn_kind_of))) {
-    return(if (nzchar(path)) path else character(0))
-  }
-  unlist(lapply(names(x), function(nm) scn_leaves(x[[nm]], path_join(path, nm))),
-         use.names = FALSE) %||% character(0)
-}
-
-#' Herkunftstabelle (4.8)
-#' @param x Liste.
-#' @param layer Schicht je Blatt (Skalar oder benannter Vektor nach Pfad).
-#' @param source_type Quellart je Blatt (Skalar oder benannter Vektor).
-#' @param file Datei.
-#' @param variant Variante.
-#' @param entry `NULL` oder benannter Vektor Blattpfad -> Eintrag (z. B. `"rule:dates"`).
-#' @return Data Frame nach 4.8.
-#' @noRd
-scn_provenance <- function(x, layer = 5L, source_type = "scenario", file = NA_character_,
-                           variant = NA_character_, entry = NULL, files = NULL) {
-  paths <- scn_leaves(x)
-  pick <- function(v, default) {
-    if (length(v) == 1L && is.null(names(v))) return(rep(v, length(paths)))
-    out <- rep(default, length(paths))
-    for (i in seq_along(paths)) {
-      segs <- path_split(paths[i])
-      for (k in rev(seq_along(segs))) {
-        key <- paste(segs[seq_len(k)], collapse = ".")
-        if (key %in% names(v)) {
-          out[i] <- v[[key]]
-          break
-        }
-      }
-    }
-    out
-  }
-  na_date <- as.Date(rep(NA_character_, length(paths)))
-  data.frame(
-    path = paths, layer = as.integer(pick(layer, 5L)),
-    source_type = as.character(pick(source_type, "scenario")),
-    file = if (length(files) == 0L) rep(as.character(file), length(paths)) else
-      as.character(pick(files, as.character(file))),
-    entry = if (length(entry) == 0L) rep(NA_character_, length(paths)) else
-      as.character(unname(entry[paths])),
-    location = rep(NA_character_, length(paths)),
-    variant = rep(as.character(variant), length(paths)), valid_from = na_date,
-    valid_to = na_date, as_of = na_date, accessed = na_date,
-    quality = rep(NA_character_, length(paths)), stringsAsFactors = FALSE
-  )
 }

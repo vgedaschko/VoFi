@@ -1,11 +1,13 @@
-# Wertgrammatik -> Knoten (WS-A, Spec 00 Abschnitte 4.5, 4.6).
-# Phase-0-Minimalfassung, Eigentuemer: WS-A. Umgesetzt: alle Wertformen aus 4.5 als Knoten
-# (const, series_t, series_year, points, schedule, ref, growth, expr, quantity, auto/topup,
-# Kurzform-Verteilung als Markierungsknoten "dist"), die nicht-numerischen Parameterarten aus 5.4
-# und die Zahlenregeln aus 4.6 (Dezimalkomma, Tausenderpunkt, Prozentzeichen, Raten > 1).
-# Offen fuer WS-A: Bibliotheksverweise `from:` (bleiben Rohform und werden in Schicht 3
-# aufgeloest), feinere Meldungen mit Fundstelle (location), Pruefung der Elementformen nach
-# Regel 4 (zeitabhaengige Elemente) bereits beim Einlesen.
+# Wertgrammatik -> Knoten (WS-A, Spec 00 Abschnitte 4.5, 4.6, 6.4).
+# Umgesetzt: alle Wertformen aus 4.5 als Knoten (const, series_t, series_year, points, schedule,
+# ref, growth, expr, quantity, auto/topup, Kurzform-Verteilung als Markierungsknoten "dist"),
+# Knoten als Elemente (Regel 4: nur skalare Knoten const/ref/expr), die nicht-numerischen
+# Parameterarten aus 5.4 und die Zahlenregeln aus 4.6 (Dezimalkomma, Tausenderpunkt,
+# Prozentzeichen, Raten > 1). Bibliotheksverweise `from:` bleiben Rohform und werden in Schicht 3
+# aufgeloest (R/scenario-library.R). Die Normalisierung ist idempotent und vervollstaendigt auch
+# Knoten, in die eine Teil-Map ohne Wertform gemischt wurde (z. B. `{growth: ...}` in eine
+# Wachstumsform, 4.7). Knotenkonstruktoren fuer bctx (6.4): node_const, node_ref, node_schedule,
+# node_growth, node_expr. Umkehrung fuer das Schreiben: node_to_yaml().
 
 #' Knotenarten der Wertgrammatik (4.5)
 #' @noRd
@@ -13,6 +15,10 @@ node_kinds <- function() {
   c("const", "series_t", "series_year", "points", "schedule", "ref", "growth", "expr",
     "quantity", "auto", "dist")
 }
+
+#' Knotenarten, die als Elemente von `values`/`series` zulässig sind (4.5 Regel 4)
+#' @noRd
+node_scalar_kinds <- function() c("const", "ref", "expr")
 
 #' Ist `x` ein normalisierter Knoten (`list(kind = ...)`)?
 #' @noRd
@@ -22,8 +28,6 @@ node_is <- function(x) {
 }
 
 #' Rohwert der Wertgrammatik in einen Knoten überführen (Spec 00, Abschnitte 4.5, 4.6)
-#'
-#' Phase-0-Minimalfassung, Eigentümer: WS-A.
 #'
 #' Vertrag (vom Prüfkit vorausgesetzt): numerische Arten (`number`, `amount`, `rate`, `share`,
 #' `value`, `schedule`; `param = NULL` = allgemeine Wertgrammatik) liefern einen Knoten
@@ -41,9 +45,11 @@ node_normalize <- function(x, param = NULL, path = NULL) {
   if (is.null(x)) return(NULL)
   kind <- if (is.null(param)) "value" else param$kind
   if (kind %in% c("number", "amount", "rate", "share", "value", "schedule")) {
-    eur <- identical(kind, "amount") || identical(param$unit, "EUR") || io_path_is_eur(path)
+    unit <- param$unit
+    eur <- identical(kind, "amount") || (utl_is_string(unit) && startsWith(unit, "EUR")) ||
+      io_path_is_eur(path)
     node <- node_value(x, path, eur = eur, allow_auto = isTRUE(param$allow_auto))
-    node_check_rate(node, kind, path, eur)
+    node_check_rate(node, kind, path, eur, unit = unit)
     return(node)
   }
   switch(kind,
@@ -98,8 +104,8 @@ node_value <- function(x, path, eur = FALSE, allow_auto = FALSE) {
       points = node_points_raw(x, path, eur),
       schedule = node_schedule_raw(x, path, eur),
       growth = node_growth_raw(x, path, eur),
-      quantity = list(kind = "quantity", value = node_scalar(x[["value"]], path, eur),
-                      per = node_string(x[["per"]], path_join(path, "per"))),
+      quantity = list(kind = "quantity", value = node_quantity_value(x[["value"]], path, eur),
+                      per = node_quantity_per(x[["per"]], path_join(path, "per"))),
       dist = node_dist_raw(x, path),
       from = x
     ))
@@ -108,14 +114,70 @@ node_value <- function(x, path, eur = FALSE, allow_auto = FALSE) {
              .class = "vofi_error_input")
 }
 
-#' Bereits normalisierten Knoten bereinigen (Idempotenz; numerische Felder als double)
+#' Bereits normalisierten Knoten vervollständigen (Idempotenz)
+#'
+#' Numerische Felder werden double; Kindknoten, die nach dem Mischen einer Teil-Map (4.7) noch
+#' Rohform haben, werden normalisiert.
 #' @noRd
 node_tidy <- function(x, path, eur) {
   switch(x$kind,
-    const = node_const(x$value),
+    const = node_const(node_number(x$value, path, eur)),
     series_t = {
       x$values <- node_elements(if (is.list(x$values)) x$values else as.list(x$values), path,
                                 eur)
+      x
+    },
+    series_year = {
+      if (!is.integer(x$years)) x$years <- as.integer(x$years)
+      x$values <- node_elements(if (is.list(x$values)) x$values else as.list(x$values),
+                                path_join(path, "series"), eur)
+      x$fill <- x$fill %||% "locf"
+      x$before <- x$before %||% "first"
+      x
+    },
+    points = {
+      if (!is.integer(x$years)) x$years <- as.integer(x$years)
+      x$values <- node_elements(if (is.list(x$values)) x$values else as.list(x$values),
+                                path_join(path, "values"), eur)
+      x$interpolate <- x$interpolate %||% "linear"
+      x
+    },
+    schedule = {
+      if (!inherits(x$dates, "Date")) {
+        x$dates <- do.call(c, lapply(as.list(x$dates), function(d) node_timing(d, path)))
+      }
+      is_eur <- eur && !identical(x$unit, "share")
+      x$amounts <- node_elements(if (is.list(x$amounts)) x$amounts else as.list(x$amounts),
+                                 path_join(path, "schedule"), is_eur, node_schedule_kinds())
+      x
+    },
+    ref = {
+      num <- function(v, d) if (is.null(v)) d else node_number(v, path)
+      x$path <- node_string(x$path, path_join(path, "ref"))
+      x$scale <- num(x$scale, 1)
+      x$offset <- num(x$offset, 0)
+      x$floor <- num(x$floor, -Inf)
+      x$cap <- num(x$cap, Inf)
+      if (!is.null(x$anchor)) x$anchor <- node_number(x$anchor, path_join(path, "anchor"))
+      x
+    },
+    growth = {
+      x$start <- node_scalar_node(x$start, path_join(path, "start"), eur)
+      x$growth <- node_growth_rate(x$growth, path_join(path, "growth"))
+      if (!is.null(x$base_date) && !inherits(x$base_date, "Date")) {
+        x$base_date <- node_timing(x$base_date, path_join(path, "base_date"))
+      }
+      x$real <- if (is.null(x$real)) FALSE else node_logical(x$real, path_join(path, "real"))
+      x$index <- x$index %||% "calendar_year"
+      x
+    },
+    expr = {
+      if (!inherits(x$ast, "vofi_expr")) x <- node_expr(node_string(x$text, path))
+      x
+    },
+    quantity = {
+      x$value <- node_quantity_value(x$value, path, eur)
+      x$per <- node_quantity_per(x$per, path_join(path, "per"))
       x
     },
     x
@@ -134,36 +196,85 @@ node_number <- function(x, path, eur = FALSE) {
 }
 
 #' Skalares Element (Zahl oder skalarer Knoten, Regel 4)
+#'
+#' Elemente von `series_t`, `points` und `series_year` sind Zahlen oder die skalaren Knoten
+#' `const`, `ref`, `expr` (4.5 Regel 4); Beträge eines Zahlungsplans dürfen zusätzlich ein
+#' Mengenbezug sein (4.5 "Beträge dürfen selbst value sein", Spec 01 Teil A 4.6.1). Eine
+#' Kurzform-Verteilung als Betrag eines Zahlungsplans ist `io.schedule_amount_form` (bei
+#' Maßnahmen der Schlüssel `validation.measures.schedule_amount_form`, X-28).
+#' @param allow zulässige Knotenarten.
 #' @noRd
-node_scalar <- function(x, path, eur = FALSE) {
+node_scalar <- function(x, path, eur = FALSE, allow = node_scalar_kinds()) {
   if (io_is_raw_num(x) || is.numeric(x) || utl_is_string(x)) {
     return(node_number(x, path, eur))
   }
-  node_value(x, path, eur)
+  node <- node_value(x, path, eur)
+  if (!(node$kind %in% allow)) {
+    if ("quantity" %in% allow) {
+      primary <- if (startsWith(path, "measures.")) {
+        "validation.measures.schedule_amount_form"
+      } else {
+        "io.schedule_amount_form"
+      }
+      scn_signal("abort", primary, "io.schedule_amount_form", path = path, kind = node$kind,
+                 form = node$kind, .class = "vofi_error_validation")
+    }
+    vofi_abort("io.element_not_scalar", path = path, kind = node$kind,
+               .class = "vofi_error_input")
+  }
+  node
 }
 
-#' Elemente von series_t/points/series_year: double-Vektor oder Liste skalarer Knoten
+#' Skalares Element als Knoten (Zahl -> const)
 #' @noRd
-node_elements <- function(x, path, eur = FALSE) {
-  out <- lapply(seq_along(x), function(i) node_scalar(x[[i]], path_join(path, i), eur))
+node_scalar_node <- function(x, path, eur = FALSE) {
+  v <- node_scalar(x, path, eur)
+  if (is.numeric(v)) node_const(v) else v
+}
+
+#' Elemente von series_t/points/series_year bzw. Beträge eines Zahlungsplans: double-Vektor
+#' oder Liste skalarer Knoten
+#' @param allow zulässige Knotenarten (`node_scalar()`).
+#' @noRd
+node_elements <- function(x, path, eur = FALSE, allow = node_scalar_kinds()) {
+  out <- lapply(seq_along(x), function(i) node_scalar(x[[i]], path_join(path, i), eur, allow))
   if (all(vapply(out, function(e) is.numeric(e) && length(e) == 1L, logical(1)))) {
     return(as.double(unlist(out)))
   }
   lapply(out, function(e) if (is.numeric(e)) node_const(e) else e)
 }
 
+#' Zulässige Knotenarten der Beträge eines Zahlungsplans
+#' @noRd
+node_schedule_kinds <- function() c(node_scalar_kinds(), "quantity")
+
+#' Wert eines Mengenbezugs `{value: x, per}`: jede skalare oder zeitabhängige Wertform außer
+#' Mengenbezug, Verteilung und `auto` (Spec 01 Teil A 3.5, Prüffall Q6)
+#' @noRd
+node_quantity_value <- function(x, path, eur = FALSE) {
+  if (io_is_raw_num(x) || is.numeric(x) && length(x) == 1L || utl_is_string(x)) {
+    return(node_number(x, path, eur))
+  }
+  node <- node_value(x, path, eur)
+  if (node$kind %in% c("quantity", "dist", "auto")) {
+    vofi_abort("io.element_not_scalar", path = path, kind = node$kind,
+               .class = "vofi_error_input")
+  }
+  node
+}
+
 #' Raten und Anteile > 1 sind ein Eingabefehler (4.6)
 #'
-#' Maßgeblich ist die Parameterart (`rate`, `share`); ohne diese Art das Schlüsselsuffix
-#' `_pa`/`_share`, außer bei EUR-Beträgen (Einheit EUR, Art amount, Suffix `_eur_pa` wie
-#' `deposit_tax_allowance_eur_pa` bzw. Jahresbeträge wie `contributions_pa` mit Einheit EUR).
+#' Maßgeblich ist zuerst die Parameterart: `rate` und `share` sind Raten, `amount` und
+#' EUR-Beträge (Einheit `EUR*`, Schlüsselsegment `_eur`) nie. Nennt das Schema eine Einheit,
+#' entscheidet sie (`rate_pa`, `rate`, `share` sind Raten; `kWh_pa`, `EUR_pa`, `m2` usw. nicht).
+#' Ohne Art und Einheit gilt das Schlüsselsuffix `_pa`/`_share` (4.6), außer wenn davor ein
+#' Einheitensegment steht (`kwh_pa`, `quantity_kwh_pa`, `maintenance_eur_m2_pa`; Mengen und
+#' Beträge je Jahr sind keine Raten).
+#' @param unit `NULL` oder Einheit des Parameterschemas.
 #' @noRd
-node_check_rate <- function(node, kind, path, eur = FALSE) {
-  segs <- path_split(path)
-  last <- if (length(segs) > 0L) segs[length(segs)] else ""
-  is_rate <- kind %in% c("rate", "share") ||
-    (!isTRUE(eur) && grepl("(_pa|_share)$", last) && !grepl("_eur", last, fixed = TRUE))
-  if (!is_rate || !is.list(node)) return(invisible(TRUE))
+node_check_rate <- function(node, kind, path, eur = FALSE, unit = NULL) {
+  if (!node_is_rate_target(kind, path, eur, unit) || !is.list(node)) return(invisible(TRUE))
   vals <- if (identical(node$kind, "const")) {
     node$value
   } else if (node$kind %in% c("series_t", "series_year", "points") && is.numeric(node$values)) {
@@ -177,6 +288,49 @@ node_check_rate <- function(node, kind, path, eur = FALSE) {
                .class = "vofi_error_input")
   }
   invisible(TRUE)
+}
+
+#' Ist das Ziel eine Rate bzw. ein Anteil (Prüfung > 1 nach 4.6)?
+#' @inheritParams node_check_rate
+#' @return `TRUE`/`FALSE`.
+#' @noRd
+node_is_rate_target <- function(kind, path, eur = FALSE, unit = NULL) {
+  if (kind %in% c("rate", "share")) return(TRUE)
+  if (isTRUE(eur) || identical(kind, "amount")) return(FALSE)
+  if (utl_is_string(unit) && nzchar(unit)) return(unit %in% node_rate_units())
+  segs <- path_split(path)
+  segs <- segs[!grepl("^[0-9]+$", segs)]
+  last <- if (length(segs) > 0L) segs[length(segs)] else ""
+  if (!grepl("(_pa|_share)$", last)) return(FALSE)
+  stem <- strsplit(sub("(_pa|_share)$", "", last), "_", fixed = TRUE)[[1L]]
+  !any(stem %in% node_unit_tokens())
+}
+
+#' Einheiten des Parameterschemas, die Raten bzw. Anteile bezeichnen (4.6)
+#' @noRd
+node_rate_units <- function() c("rate_pa", "rate", "share", "share_pa")
+
+#' Einheitensegmente in Schlüsseln, vor denen `_pa` keine Rate bezeichnet (4.6)
+#' @noRd
+node_unit_tokens <- function() {
+  c("eur", "ct", "kwh", "mwh", "kw", "kwp", "kg", "t", "m2", "m3", "l")
+}
+
+#' Mengenbezug `per` prüfen: Code aus `quantity_per`, Bauteilcode bei `m2_component:<b>`
+#' (4.5, Spec 01 Teil A 3.1.1, 3.5)
+#' @noRd
+node_quantity_per <- function(x, path) {
+  per <- node_string(x, path)
+  ok <- vocab_has("quantity_per", per)
+  if (ok && startsWith(per, "m2_component:")) {
+    ok <- vocab_has("component_area", sub("^m2_component:", "", per))
+  }
+  if (!isTRUE(ok)) {
+    vofi_abort("io.quantity_per_unknown", path = path, per = per,
+               suggestion = utl_suggest_text(per, vocab_codes("quantity_per")),
+               .class = "vofi_error_input")
+  }
+  per
 }
 
 #' Bezug {ref, scale, offset, floor, cap, anchor}
@@ -249,12 +403,17 @@ node_schedule_raw <- function(x, path, eur) {
                                                                    values = "vocab:schedule_unit"),
                                                         path_join(path, "unit"))
   is_eur <- eur && !identical(unit, "share")
-  node <- node_schedule(dates, node_elements(unname(s), path_join(path, "schedule"), is_eur))
+  node <- node_schedule(dates, node_elements(unname(s), path_join(path, "schedule"), is_eur,
+                                             node_schedule_kinds()))
   node$unit <- unit
   node
 }
 
-#' Wachstum {start, growth, base_date, real}
+#' Wachstum {start, growth, base_date, real, index}
+#'
+#' Die Rate `growth` ist eine Jahresrate; Werte über 1 sind zulässig (Krisenjahr mit
+#' Verdopplung, Set `stress_2022`, Spec 01 Teil C §4.2), eine konstante Rate ≤ −1 nicht (der
+#' Index würde null bzw. negativ).
 #' @noRd
 node_growth_raw <- function(x, path, eur) {
   bd <- if (is.null(x[["base_date"]])) NULL else node_timing(x[["base_date"]],
@@ -265,16 +424,27 @@ node_growth_raw <- function(x, path, eur) {
     vofi_abort("io.growth_index_invalid", path = path_join(path, "index"), value = idx,
                .class = "vofi_error_input")
   }
-  node <- node_growth(node_scalar(x[["start"]], path_join(path, "start"), eur),
-                      node_scalar(x[["growth"]], path_join(path, "growth"), FALSE),
+  node <- node_growth(node_scalar_node(x[["start"]], path_join(path, "start"), eur),
+                      node_growth_rate(x[["growth"]], path_join(path, "growth")),
                       base_date = bd, index = idx)
-  if (is.numeric(node$start)) node$start <- node_const(node$start)
-  if (is.numeric(node$growth)) node$growth <- node_const(node$growth)
-  # growth ist eine Jahresrate (4.5): |g| > 1 ist ein Eingabefehler (4.6)
-  node_check_rate(node$growth, "rate", path_join(path, "growth"))
   node$real <- if (is.null(x[["real"]])) FALSE else node_logical(x[["real"]],
                                                                  path_join(path, "real"))
   node
+}
+
+#' Rate einer Wachstumsform: skalarer Knoten oder Pfadform (series_year, points, series_t)
+#' @noRd
+node_growth_rate <- function(x, path) {
+  g <- if (io_is_raw_num(x) || is.numeric(x) || utl_is_string(x)) {
+    node_const(node_number(x, path))
+  } else {
+    node_value(x, path)
+  }
+  if (identical(g$kind, "const") && is.finite(g$value) && g$value <= -1) {
+    vofi_abort("io.growth_rate_invalid", path = path, value = g$value,
+               .class = "vofi_error_input")
+  }
+  g
 }
 
 #' Kurzform-Verteilung {dist, base, <Parameter>} als Markierungsknoten
@@ -287,7 +457,7 @@ node_dist_raw <- function(x, path) {
   par <- lapply(stats::setNames(names(par), names(par)), function(nm) {
     v <- par[[nm]]
     if (io_is_raw_num(v) || (is.numeric(v) && length(v) == 1L)) node_number(v, path_join(path, nm))
-    else v
+    else io_unmark(v, path_join(path, nm))
   })
   list(kind = "dist", dist = node_string(x[["dist"]], path_join(path, "dist")), par = par,
        base = if (is.null(x[["base"]])) NULL else node_number(x[["base"]],
@@ -299,6 +469,7 @@ node_dist_raw <- function(x, path) {
 #' @noRd
 node_integer <- function(x, path) {
   if (is.integer(x) && length(x) == 1L) return(x)
+  if (node_is(x) && identical(x$kind, "const")) return(node_integer(x$value, path))
   if (is.numeric(x) && length(x) > 1L) {
     return(as.integer(vapply(x, function(e) node_integer(e, path), integer(1))))
   }
@@ -343,6 +514,7 @@ node_date <- function(x, path) {
 node_timing <- function(x, path) {
   if (inherits(x, "Date") && length(x) == 1L && !is.na(x)) return(x)
   if (identical(x, "completion")) return("completion")
+  if (node_is(x) && identical(x$kind, "const")) return(node_timing(x$value, path))
   if (is_map(x) && length(x) == 1L && names(x) %in% c("date", "year")) {
     return(node_timing(x[[1L]], path))
   }
@@ -410,6 +582,10 @@ node_map <- function(x, param, path) {
   x
 }
 
+# ---------------------------------------------------------------------------------------------
+# Knotenkonstruktoren (4.5, 6.4; auch in bctx)
+# ---------------------------------------------------------------------------------------------
+
 #' Konstantenknoten (4.5)
 #' @param x Zahl.
 #' @return `list(kind = "const", value = <double>)`.
@@ -441,6 +617,8 @@ node_schedule <- function(dates, amounts) {
 #' @return `list(kind = "growth", start, growth, base_date, real = FALSE, index)`.
 #' @noRd
 node_growth <- function(start, growth, base_date = NULL, index = "calendar_year") {
+  if (is.numeric(start)) start <- node_const(start)
+  if (is.numeric(growth)) growth <- node_const(growth)
   list(kind = "growth", start = start, growth = growth, base_date = base_date, real = FALSE,
        index = index)
 }
@@ -451,4 +629,79 @@ node_growth <- function(start, growth, base_date = NULL, index = "calendar_year"
 #' @noRd
 node_expr <- function(text) {
   list(kind = "expr", text = text, ast = expr_parse(text))
+}
+
+# ---------------------------------------------------------------------------------------------
+# Hilfen fuer Vorlagen und das Schreiben
+# ---------------------------------------------------------------------------------------------
+
+#' Platzhalter `{id}` in Pfaden von Bezugs- und Ausdrucksknoten ersetzen (4.7 Nr. 3, R-118)
+#'
+#' Wirkt rekursiv auf Rohformen (`{ref: "market.energy_price.{id}"}`, `{expr: "..."}`) und auf
+#' normalisierte Knoten; andere Zeichenketten bleiben unverändert.
+#' @param x Teilbaum einer Vorlage.
+#' @param id Element-id.
+#' @return Teilbaum mit ersetztem Platzhalter.
+#' @noRd
+node_subst_id <- function(x, id) {
+  if (!is.list(x) || is.data.frame(x) || io_is_raw_num(x)) return(x)
+  if (node_is(x)) {
+    if (identical(x$kind, "ref") && utl_is_string(x$path)) {
+      x$path <- gsub("{id}", id, x$path, fixed = TRUE)
+    } else if (identical(x$kind, "expr") && utl_is_string(x$text) &&
+                 grepl("{id}", x$text, fixed = TRUE)) {
+      return(node_expr(gsub("{id}", id, x$text, fixed = TRUE)))
+    }
+  } else if (is_map(x)) {
+    for (f in c("ref", "expr")) {
+      if (utl_is_string(x[[f]])) x[[f]] <- gsub("{id}", id, x[[f]], fixed = TRUE)
+    }
+  }
+  for (i in seq_along(x)) {
+    if (!is.null(x[[i]]) && is.list(x[[i]])) x[[i]] <- node_subst_id(x[[i]], id)
+  }
+  x
+}
+
+#' Knoten in die YAML-Form zurückführen (Umkehrung von `node_normalize()`)
+#'
+#' Defaults der Knotenfelder (scale 1, offset 0, floor -Inf, cap Inf, fill locf, before first,
+#' interpolate linear, index calendar_year, real false) entfallen; das erneute Einlesen ergibt
+#' denselben Knoten (Round-Trip 4.14).
+#' @param x Knoten bzw. beliebiger Wert.
+#' @return YAML-Form.
+#' @noRd
+node_to_yaml <- function(x) {
+  if (!node_is(x)) return(x)
+  elements <- function(v) if (is.list(v)) lapply(v, node_to_yaml) else as.list(as.double(v))
+  switch(x$kind,
+    const = as.double(x$value),
+    series_t = if (is.numeric(x$values)) as.double(x$values) else elements(x$values),
+    series_year = c(list(series = stats::setNames(elements(x$values), as.character(x$years))),
+                    if (!identical(x$fill, "locf")) list(fill = x$fill),
+                    if (!identical(x$before, "first")) list(before = x$before)),
+    points = c(list(years = as.integer(x$years), values = elements(x$values)),
+               if (!identical(x$interpolate, "linear")) list(interpolate = x$interpolate)),
+    schedule = c(list(schedule = stats::setNames(elements(x$amounts),
+                                                 format(x$dates, "%Y-%m-%d"))),
+                 if (!is.null(x$unit)) list(unit = x$unit)),
+    ref = c(list(ref = x$path),
+            if (!identical(as.double(x$scale %||% 1), 1)) list(scale = x$scale),
+            if (!identical(x$offset %||% 0, 0)) list(offset = x$offset),
+            if (!identical(x$floor %||% -Inf, -Inf)) list(floor = x$floor),
+            if (!identical(x$cap %||% Inf, Inf)) list(cap = x$cap),
+            if (!is.null(x$anchor)) list(anchor = x$anchor)),
+    growth = c(list(start = node_to_yaml(x$start), growth = node_to_yaml(x$growth)),
+               if (!is.null(x$base_date)) list(base_date = x$base_date),
+               if (isTRUE(x$real)) list(real = TRUE),
+               if (!identical(x$index %||% "calendar_year", "calendar_year")) {
+                 list(index = x$index)
+               }),
+    expr = list(expr = x$text),
+    quantity = list(value = node_to_yaml(x$value), per = x$per),
+    auto = x$mode,
+    dist = c(list(dist = x$dist), x$par, if (!is.null(x$base)) list(base = x$base),
+             if (!is.null(x$label)) list(label = x$label)),
+    x
+  )
 }

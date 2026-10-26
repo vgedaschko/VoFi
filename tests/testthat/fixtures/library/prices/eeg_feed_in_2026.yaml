@@ -1,0 +1,21 @@
+# Testfixture (WS-A): Spec 01 Teil C §3.6 (prices/eeg_feed_in_2026), befristet bis 2027-02-01.
+id: prices/eeg_feed_in_2026
+block: market
+schema_version: 1
+label: "EEG-Einspeisevergütung (Testfixture)"
+source: {document: "DGS-Arbeitshilfe EEG-Vergütungssätze 01.08.2026", url: "https://www.dgs.de/", publisher: "DGS"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-08-01
+valid_to: 2027-02-01
+quality: C
+legal_state: {as_of: 2026-08-01, status: in_force, reference: "EEG 2023 §§ 48, 49"}
+values:
+  market:
+    feed_in_tariff:
+      partial_le10kwp: 0.0770
+      partial_10_40kwp: 0.0666
+      partial_40_100kwp: 0.0545
+      full_le10kwp: 0.1222
+  degression_per_half_year: 0.01
+  fixed_years: 20

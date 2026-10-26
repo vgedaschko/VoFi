@@ -1,0 +1,16 @@
+# Testfixture (WS-A): Qualität C, Freigabe ausstehend (Spec 01 Teil C §3.5).
+id: legal/grunderwerbsteuer_2026
+block: legal
+topic: grunderwerbsteuer
+schema_version: 1
+label: "Grunderwerbsteuersätze der Länder (Testfixture)"
+source: {document: "Landesgesetze; Übersicht baufi24", url: "https://www.baufi24.de/grunderwerbsteuer/", publisher: "baufi24"}
+as_of: 2026-10-25
+valid_from: 2025-07-01
+valid_to: null
+quality: C
+release: {status: pending, by: null, date: null}
+legal_state: {as_of: 2025-07-01, status: in_force, reference: "GrEStG § 11"}
+values:
+  rates: {BW: 0.050, BY: 0.035, BE: 0.060, NW: 0.065}
+  exemption_threshold_eur: 2500

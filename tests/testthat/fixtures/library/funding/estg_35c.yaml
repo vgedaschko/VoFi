@@ -1,0 +1,18 @@
+# Testfixture (WS-A): gekürzte Fassung von funding/estg_35c (Spec 01 Teil C §3.4), befristet bis 2030-01-01.
+id: funding/estg_35c
+block: funding
+schema_version: 1
+label: "Steuerermäßigung § 35c EStG (Testfixture)"
+source: {document: "EStG § 35c", url: "https://www.gesetze-im-internet.de/estg/__35c.html", publisher: BMJ}
+as_of: 2026-10-25
+valid_from: 2020-01-01
+valid_to: 2030-01-01
+quality: B
+legal_state: {as_of: 2026-10-25, status: in_force, reference: "EStG § 35c"}
+values:
+  instrument_type: tax_credit
+  provider: Finanzamt
+  credit:
+    total_share: 0.20
+    schedule_shares: [0.07, 0.07, 0.06]
+    cap_per_object_eur: 40000

@@ -1,0 +1,18 @@
+# Testfixture (WS-A): Spec 01 Teil C §3.7 (costs/erwerbsnebenkosten_2026).
+id: costs/erwerbsnebenkosten_2026
+block: costs
+schema_version: 1
+label: "Erwerbsnebenkosten ohne Grunderwerbsteuer (Testfixture)"
+source: {document: "Kaufnebenkostenrechner 2026 (Memo 03 §10.4)", url: "https://baufivergleich.de/kaufnebenkosten-rechner/", publisher: "baufivergleich.de"}
+as_of: 2026-10-25
+accessed: 2026-10-25
+valid_from: 2026-01-01
+valid_to: null
+quality: C
+quality_detail: {other_share: D, notary_share: D, land_registry_share: D}
+legal_state: {as_of: 2026-10-25, status: market, reference: "Marktdaten"}
+values:
+  notary_share: 0.010
+  land_registry_share: 0.005
+  broker_share: 0.0357
+  other_share: 0.005
