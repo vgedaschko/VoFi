@@ -1,0 +1,26 @@
+---
+# Berichtsvorlage des Pakets vofi (WS-H2; Spec 00 Abschnitt 14 Nr. 26, Konzept 5.5).
+# vofi_report() kopiert diese Datei in ein temporäres Verzeichnis und rendert sie mit
+# rmarkdown::render(). Titel (pagetitle), Sprache und Stil (vofi_bericht.css) setzt
+# vofi_report() über das Ausgabeformat; der Inhalt entsteht vollständig im Paket als
+# Pandoc-Markdown und steht im Parameter body.
+#
+# Eigene Vorlagen (vofi_report(..., template = "meine_vorlage.Rmd")) deklarieren die
+# Parameter, die sie benötigen:
+#   body   - fertiger Berichtsinhalt (Pandoc-Markdown, UTF-8)
+#   report - Berichtsmodell: list(meta = list(title, kind, mode, kind_text, lines, logo,
+#            pretax), sections = list(list(id, title, blocks)), x)
+#   x      - Ergebnisobjekt (vofi_result, vofi_mc_result oder vofi_comparison); damit
+#            lassen sich die exportierten Funktionen vofi_table(), vofi_kpis(), vofi_plot()
+#            usw. direkt verwenden.
+# Ohne eigenes output-Feld im YAML-Kopf gilt das HTML-Format des Pakets.
+lang: de
+params:
+  body: ""
+  report: null
+  x: null
+---
+
+```{r vofi-bericht, echo = FALSE}
+knitr::asis_output(params$body)
+```
