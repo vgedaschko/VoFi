@@ -1,4 +1,55 @@
-# Übergreifende Texte der Kennzahlen (WS-D2, Spec 00 Abschnitt 12). Phase-0-Minimalfassung.
+# Übergreifende Texte der Kennzahlen (WS-D2, Spec 00 Abschnitt 12). NA-Begründungen stehen
+# ausschließlich unter vocab.na_reasons.* (2.10); Typlabels unter types.kpi.<name>.*.
 not_kpi_value: "Kennzahl '{kpi}': compute() liefert kein Objekt der Klasse vofi_kpi_value."
-length: "Kennzahl '{kpi}': erwartet {n} Werte (ein Wert je Lauf)."
+length: "Kennzahl '{kpi}': erwartet {n:int} Werte (ein Wert je Lauf)."
+shape: "Kennzahl '{kpi}': Form '{actual}' passt nicht zur Deklaration '{expected}'."
 rv_independent: "unabhängig vom Restwert"
+label_ex_rv: "{label} (ohne Restwert)"
+notes:
+  contains_existing: "enthält Bestandszahlungen, nicht als Vorteilhaftigkeit lesbar"
+  vs_sale: "gegenüber Verkauf zum Stichtag"
+  project_simplified: "finanzierungsneutral, vereinfachte Annahmen"
+  censored: "nicht definierte Renditen sind ausgeblendet (keine -100 %)"
+errors:
+  not_result: "vofi_kpis(): 'x' muss ein Ergebnis sein (vofi_result, vofi_mc_result oder vofi_comparison), nicht '{cls}'."
+  which: "vofi_kpis(): 'which' muss NULL oder ein Zeichenvektor ohne NA sein."
+  unknown: "Kennzahl '{kpi}' ist im Ergebnis nicht vorhanden.{suggestion}"
+  per_missing: "Kennzahlen je {per}: '{field}' fehlt oder ist nicht positiv."
+  register_name: "vofi_register_kpi(): ungültiger Name '{name}' (Muster ^[a-z][a-z0-9_]*$, höchstens 40 Zeichen, ohne Endung _ex_rv)."
+  register_compute: "vofi_register_kpi('{name}'): 'compute' muss eine Funktion mit den Argumenten (core, ctx) sein."
+  register_field: "vofi_register_kpi('{name}'): ungültiger Wert für '{field}'."
+  solver_args: "Löser der Kennzahlen: ungültige Argumente (Funktion, Suchintervall bzw. Toleranz)."
+compare:
+  delta_vs_reference:
+    label: "Endwertdifferenz gegenüber der Referenz"
+    description: "Vergleichsregel: Endwertdifferenz der Variante minus Endwertdifferenz der Referenzvariante, jede gegen ihre eigene Unterlassungsalternative."
+  prob_better_than_ref:
+    label: "Wahrscheinlichkeit besser als Referenz"
+    description: "Anteil der Läufe mit positiver Endwertdifferenz gegenüber der Referenz."
+  payback_vs_reference:
+    label: "Amortisation gegenüber der Referenz"
+    description: "Jahre bis zur dauerhaften Vermögensamortisation gegenüber der Referenzvariante (mit Restwertpfad)."
+  payback_year_vs_reference:
+    label: "Amortisationsjahr gegenüber der Referenz"
+    description: "Kalenderjahr der dauerhaften Vermögensamortisation gegenüber der Referenzvariante."
+  incremental_return:
+    label: "Rendite der Mehrinvestition"
+    description: "Habenzins, bei dem die Endwertdifferenz gegenüber der Referenz null wird."
+  co2_reduction:
+    label: "CO₂-Minderung"
+    description: "Treibhausgasemissionen der Referenz minus der Variante über den Horizont (t CO₂-Äq.)."
+  co2_abatement_cost:
+    label: "CO₂-Vermeidungskosten"
+    description: "Barwert des Nachteils gegenüber der Referenz je Tonne CO₂-Minderung (EUR/t)."
+  monthly_saving_y1:
+    label: "Ersparnis pro Monat (erstes volles Jahr)"
+    description: "Monatliche Belastung der Referenz minus der Variante im ersten vollen Nutzungsjahr; positiv = Ersparnis."
+  monthly_saving_avg10:
+    label: "Ersparnis pro Monat (Mittel 10 Jahre)"
+    description: "Monatliche Belastung der Referenz minus der Variante im Mittel der ersten zehn vollen Nutzungsjahre."
+  monthly_cashflow_change_y1:
+    label: "Änderung des monatlichen Cashflows (erstes volles Jahr)"
+    description: "Monatlicher Cashflow nach Kapitaldienst der Variante minus der Referenz; positiv = mehr Überschuss."
+  warm_rent_change_y1:
+    label: "Warmmietenänderung gegenüber der Referenz"
+    description: "Warmmiete der Variante minus der Referenz im ersten vollen Betriebsjahr (EUR/m² und Monat)."

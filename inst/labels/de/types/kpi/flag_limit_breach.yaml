@@ -1,0 +1,3 @@
+# Labels der Kennzahl flag_limit_breach (WS-D2, Spec 00 Abschnitt 12.3).
+label: "Limitüberschreitung"
+description: "1, wenn in einer Periode die Strafzinstranche des Kontokorrents genutzt wird."

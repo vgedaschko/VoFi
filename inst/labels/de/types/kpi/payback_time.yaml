@@ -1,0 +1,3 @@
+# Labels der Kennzahl payback_time (WS-D2, Spec 00 Abschnitt 12.3).
+label: "Amortisationsdauer"
+description: "Jahre bis zur dauerhaften Vermögensamortisation gegenüber der Unterlassungsalternative (mit Restwertpfad bzw. ohne Restwert nur Guthaben und Schulden)."
