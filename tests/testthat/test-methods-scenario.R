@@ -110,7 +110,11 @@ test_that("print.vofi_model", {
   expect_true(any(grepl("bank (bullet_loan)", out, fixed = TRUE)))
   expect_true(any(grepl("od_repay > dep_invest", out, fixed = TRUE)))
   expect_true(any(grepl(m$hash, out, fixed = TRUE)))
-  expect_true(paste0("  ", lbl("report.model.no_sampler")) %in% out)
+  # model$sampler ist stets ein smp_plan (Spec 00 4.13, 9.1 Stufe 7); das Gerüst ist
+  # deterministisch und hat einen Plan ohne Ziele
+  expect_s3_class(m$sampler, "smp_plan")
+  expect_true(paste0("  ", lbl("report.model.sampler", n = 0L)) %in% out)
+  expect_false(paste0("  ", lbl("report.model.no_sampler")) %in% out)
   # Plan nach 11.2: statische Ziehungen (static) und Prozesse (processes)
   m$sampler <- list(settings = list(n_sim = 100L),
                     static = data.frame(key = c("a", "b"), target = c("x.a", "x.b"),
@@ -122,6 +126,10 @@ test_that("print.vofi_model", {
   m$sampler$processes <- list()
   out3 <- capture.output(print(m))
   expect_true(paste0("  ", lbl("report.model.sampler", n = 0L)) %in% out3)
+  # ohne Plan (kein smp_plan, z. B. von Hand gebautes Modell): Zweig no_sampler
+  m$sampler <- NULL
+  out4 <- capture.output(print(m))
+  expect_true(paste0("  ", lbl("report.model.no_sampler")) %in% out4)
 })
 
 test_that("Snapshots von print() und summary() eines Szenarios (15.6)", {

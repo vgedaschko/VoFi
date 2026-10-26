@@ -167,11 +167,21 @@ test_that("1.6 Nr. 6/7: Mietbindung und warmmietenneutrale Obergrenze", {
 })
 
 test_that("Neubau: Mietbeginn und Kostenbeginn zum Token completion; id-Länge der Gruppe", {
+  # Fertigstellung 2028-01-01: Bezugsfertigkeit Jahr(completion_date - 1 Tag) = 2027
+  # (rule:first_occupancy, Spec 01a 1.4); das Baujahr darf nicht danach liegen (01a 3.1:
+  # first_occupancy_year >= construction_year, sonst E im Bau)
   x <- e2_scenario(perspective = "wu_privat", project_type = "neubau", horizon_years = 5L,
                    grid = list(construction_months = 12L),
-                   building = e2_ug_bld(construction_year = 2028L),
+                   building = e2_ug_bld(construction_year = 2027L),
                    unit_groups = list(g = e2_ug(rent_eur_m2_month = 13)))
   spec <- e2_resolve(x)
+  expect_identical(spec$building$first_occupancy_year, 2027L)
+  # Gegenprobe: Baujahr 2028 nach der Bezugsfertigkeit 2027 ist ein E der Validierung
+  bad <- x
+  bad$building$construction_year <- 2028L
+  rep <- e2_capture(vofi_validate(e2_resolve(bad)))$value
+  expect_true("validation.building.occupancy_before_construction" %in%
+                rep$code[rep$severity == "error"])
   expect_identical(spec$components$u_g_rent$rent_start, "completion")
   expect_identical(spec$components$u_g_opex$start_event, "completion")
   expect_true(spec$components$u_g_rent$first_use_after_2014_10_01)
