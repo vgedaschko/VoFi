@@ -7,7 +7,7 @@
 #'
 #' Startet den Shiny-Viewer. In v1 ist die Funktion ein Platzhalter mit Hinweis auf v1.1.
 #'
-#' Phase 0: noch nicht implementiert (Fehler `vofi_error_not_implemented`).
+#' v1: Platzhalter (Fehler `vofi_error_not_implemented` mit Hinweis auf v1.1).
 #'
 #' @param scenario optional: Szenario oder Pfad.
 #' @param launch.browser Browser öffnen.
@@ -16,6 +16,5 @@
 #' @family Berichten
 #' @export
 vofi_app <- function(scenario = NULL, launch.browser = interactive(), ...) { # nolint
-  vofi_abort("core.not_implemented", fun = "vofi_app",
-             .class = "vofi_error_not_implemented")
+  vofi_abort("core.app_not_available", .class = "vofi_error_not_implemented")
 }

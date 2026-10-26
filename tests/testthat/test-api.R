@@ -86,6 +86,12 @@ test_that("S3-Methoden des Integrators und Steuer-Generics sind registriert", {
   expect_s3_class(m, c("tax_none", "vofi_tax_module"), exact = TRUE)
 })
 
+test_that("vofi_app ist in v1 ein Platzhalter mit Hinweis auf v1.1", {
+  expect_error(vofi_app(), class = "vofi_error_not_implemented")
+  e <- tryCatch(vofi_app(), error = identity)
+  expect_match(conditionMessage(e), "1.1", fixed = TRUE)
+})
+
 test_that("Stubs melden vofi_error_not_implemented (Phase 0)", {
   ns <- asNamespace("vofi")
   stubs <- names(api_signatures)[vapply(names(api_signatures), is_stub, logical(1))]

@@ -20,7 +20,7 @@ kein Rückgabewert (v1: Fehler \code{vofi_error_not_implemented}).
 Startet den Shiny-Viewer. In v1 ist die Funktion ein Platzhalter mit Hinweis auf v1.1.
 }
 \details{
-Phase 0: noch nicht implementiert (Fehler \code{vofi_error_not_implemented}).
+v1: Platzhalter (Fehler \code{vofi_error_not_implemented} mit Hinweis auf v1.1).
 }
 \seealso{
 Other Berichten: 

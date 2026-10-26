@@ -2,6 +2,7 @@
 # Platzhalter: {name}, {name:int}, {name:num}, {name:pct}, {name:eur}, {name:date}, {name:raw}.
 
 not_implemented: "Die Funktion {fun}() ist noch nicht implementiert (Phase 0)."
+app_not_available: "Der Shiny-Viewer vofi_app() ist für Version 1.1 vorgesehen und in Version 1 nicht verfügbar."
 suggests_missing: "Für {fun}() wird das Paket '{pkg}' benötigt. Bitte installieren: install.packages(\"{pkg}\")."
 did_you_mean: " Meinten Sie '{suggestion}'?"
 file_missing: "Die Datei '{path}' existiert nicht."
