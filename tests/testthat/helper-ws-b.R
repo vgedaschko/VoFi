@@ -213,6 +213,21 @@ wsb_spec_with_library <- function(spec, rows) {
 #' Alle Meldungsschlüssel der Validierung (Blätter von inst/labels/de/validation.yaml)
 wsb_label_keys <- function() lbl_keys("validation")
 
+#' Schlüssel der Befunde aus den validate()-Funktionen der Typen (R-104)
+#'
+#' Sie stehen in validation.yaml, ausgelöst werden sie in den Typtests: Kredite (WS-F) in
+#' test-type-inst-loan-core.R ("jeder Meldungscode ... über vofi_validate()"), die
+#' Zahlungsbausteine (WS-E-INV, Liste in fixtures/ws-e-inv/validation_stubs.yaml) in
+#' test-type-flow-*.R. Die Abdeckungsprüfung von WS-B (15.6) verlangt sie daher nicht von den
+#' Prüffällen hier.
+wsb_type_keys <- function() {
+  stubs <- utl_flatten_labels(
+    utl_read_yaml(testthat::test_path("fixtures", "ws-e-inv", "validation_stubs.yaml")),
+    "validation"
+  )
+  unique(c(inst_loan_val_key(names(inst_loan_val_codes())), names(stubs)))
+}
+
 # ---------------------------------------------------------------------------------------------
 # Prüffälle Ebene 1 (Struktur, Varianten, Sets, Auflösung, Defaults-Dateien, Bibliothek)
 # ---------------------------------------------------------------------------------------------
@@ -285,22 +300,56 @@ wsb_cases_structure <- function() {
                                       from = "completion")
                x
              })),
-    wsb_case("Auflösung: Variante mit fehlendem Pfad", "validation.resolve_failed",
+    # seit der Integration hat die Meldung von WS-A einen eigenen Schlüssel (val_resolve_finding())
+    wsb_case("Auflösung: Variante mit fehlendem Pfad", "validation.variants.path_missing",
              sk(function(x) {
                x$variants <- list(falsch = list(label = "f",
                                                 set = list("components.gibtsnicht.values" = 1)))
                x
              })),
+    # Fehler des Resolvers ohne eigenen Schlüssel validation.* (hier io.variant_path_exists)
+    wsb_case("Auflösung: Fehler ohne eigenen Schlüssel", "validation.resolve_failed",
+             sk(function(x) {
+               x$variants <- list(doppelt = list(label = "d", add = list(
+                 "components.z" = list(type = "custom_series", values = c(0, 1, 2, 3))
+               )))
+               x
+             })),
     wsb_case("Auflösung: Schlüssel des Resolvers", c("validation.library.entry_unknown",
-                                                     "validation.stochastic.template_use_missing"),
+                                                     "validation.stochastic.template_use_missing",
+                                                     "validation.library.cycle",
+                                                     "validation.library.entry_invalid",
+                                                     "validation.library.use_missing",
+                                                     "validation.library.local_keys",
+                                                     "validation.variants.path_missing"),
              fun = function() {
                sc <- wsb_with("skeleton")
                out <- character(0)
+               # Argumente wie in den Meldungen von WS-A (scn_signal(), Integration Stufe I)
                conds <- list(list("validation.library.entry_unknown",
                                   list(path = "funding.f.from", value = "funding/gibts")),
                              list("validation.stochastic.template_use_missing",
                                   list(path = "stochastic.parameters.k.use",
-                                       entry = "processes/cost_risks_2026")))
+                                       entry = "processes/cost_risks_2026")),
+                             list("validation.library.cycle",
+                                  list(path = "funding.f.from", value = "funding/a",
+                                       chain = "funding/a -> funding/b -> funding/a")),
+                             list("validation.library.entry_invalid",
+                                  list(path = "funding.f.from", id = "funding/a",
+                                       value = "funding/a", detail = "values fehlt")),
+                             list("validation.library.use_missing",
+                                  list(path = "stochastic.parameters.k.use",
+                                       id = "processes/cost_risks_2026",
+                                       entry = "processes/cost_risks_2026", use = "gibts",
+                                       value = "gibts")),
+                             list("validation.library.local_keys",
+                                  list(path = "market.inflation", id = "prices/macro_paths_2026",
+                                       entry = "prices/macro_paths_2026", keys = "x, y",
+                                       value = "x, y")),
+                             list("validation.variants.path_missing",
+                                  list(variant = "falsch", op = "set",
+                                       path = "components.gibtsnicht.values",
+                                       value = "components.gibtsnicht.values")))
                for (k in conds) {
                  f <- function(...) {
                    do.call(vofi_abort, c(list(k[[1L]]), k[[2L]],
@@ -901,7 +950,7 @@ wsb_cases_refs <- function() {
                                                 "validation.kpi_unknown",
                                                 "validation.scenario_set.generate_param_unknown",
                                                 "validation.scenario_set.quantile_path_unavailable",
-                                                "validation.resolve_failed"),
+                                                "validation.variants.path_missing"),
              sk(function(x) {
                x$market <- list(p = 0.05, f = 0.01)
                x$stochastic <- list(processes = list(fp = list(target = "market.f",
@@ -1980,7 +2029,11 @@ wsb_cases_review <- function() {
                x$components$acq <- list(type = "acquisition_cost", basis_eur = 500000,
                                         date = "2027-01-01")
                x
-             }), allow = "validation.type_unknown")
+             }),
+             # mit dem Typ von WS-E-INV meldet dessen validate() zusätzlich das inaktive Thema
+             # grunderwerbsteuer (legal/grunderwerbsteuer_2026: Qualität C, nicht freigegeben;
+             # Teil A 4.13, spezifikationsgemäß)
+             allow = c("validation.type_unknown", "validation.acquisition.grest_inactive"))
   )
 }
 

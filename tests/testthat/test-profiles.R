@@ -183,12 +183,17 @@ test_that("PR7: jeder from/use-Verweis löst gegen die Paketbibliothek auf (WS-L
                     names(spec$market$energy_price)))
 })
 
-test_that("A-11: die Schemabrücke verdeckt nur Felder der Defaults und Regeln (bis WS-B)", {
+test_that("A-11: das Schema kennt alle Felder der Defaults und Regeln (Brücke entfallen)", {
   local_ws_a_library()
-  orig <- ws_a_schema_state$orig
-  skip_if(is.null(orig), "Schemabrücke nicht geladen")
-  testthat::local_mocked_bindings(val_known_extra_fields = orig)
-  extra <- ws_a_extra_fields(orig)
+  # Seit der Integration von WS-B gibt es keine Schemabrücke mehr: das ungepatchte Schema muss
+  # jedes Feld aus global.yaml, den Profilen und den Ableitungsregeln kennen.
+  # ws_a_extra_fields() vergleicht mit der Sicht val_domain_schema() (ohne freie Maps und
+  # Sequenzen); was dort fehlt, muss im vollständigen Katalog stehen (z. B. tax.params)
+  extra <- ws_a_extra_fields()
+  catalog <- val_schema_catalog()
+  for (b in names(extra)) {
+    expect_true(all(extra[[b]] %in% names(catalog[[b]])), info = paste(b, utl_collapse(extra[[b]])))
+  }
   sc <- vofi_scenario(ws_a_scenario(
     building = list(construction_year = 1972L, living_area_m2 = 800),
     measures = list(wp = list(measure_type = "heizung_waermepumpe_luft", year = 2028,
@@ -203,5 +208,5 @@ test_that("A-11: die Schemabrücke verdeckt nur Felder der Defaults und Regeln (
     }, logical(1)))
   }, logical(1))
   expect_true(all(covered), info = utl_collapse(uf[!covered]))
-  if (length(extra) == 0L) expect_length(uf, 0L)            # Schema von WS-B: keine Brücke
+  expect_length(uf, 0L)                                     # Schema von WS-B: keine Brücke
 })

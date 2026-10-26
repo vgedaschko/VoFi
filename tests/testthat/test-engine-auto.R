@@ -129,14 +129,21 @@ test_that("ctx$auto hebt den auto-Plan des Basisfalls auf n Läufe", {
 test_that("Zulässigkeit: höchstens ein auto, kein existing, kein Auszahlungsplan, Start t0", {
   two <- auto_scenario(extra = list(type = "bullet_loan", amount_eur = "auto", rate_pa = 0.06,
                                     term_years = 3, payments_per_year = 1L))
-  expect_error(vofi_build(two), "topup", class = "vofi_error_validation")
+  # Seit der Integration von WS-B meldet die Validierung (Ebene 3, Spec 00 8.7) die Verstöße mit
+  # den Schlüsseln validation.auto_multiple bzw. validation.auto_conflict vor der Engine-Prüfung
+  # (die eng_auto_ids() im nächsten Test direkt prüft); die Fundstelle steht in der Meldung.
+  expect_error(vofi_build(two), "'financing.extra.amount_eur'", fixed = TRUE,
+               class = "vofi_error_validation")
   ex <- auto_scenario(bank = list(existing = TRUE))
-  expect_error(vofi_build(ex), "mit existing", class = "vofi_error_validation")
+  expect_error(vofi_build(ex), "'financing.bank.existing'", fixed = TRUE,
+               class = "vofi_error_validation")
   late <- auto_scenario(bank = list(start = "2028-01-01"))
-  expect_error(vofi_build(late), "mit start", class = "vofi_error_validation")
+  expect_error(vofi_build(late), "'financing.bank.start'", fixed = TRUE,
+               class = "vofi_error_validation")
   sched <- auto_scenario(bank = list(draw_schedule = list(schedule = list("2027-01-01" = 1),
                                                           unit = "share")))
-  expect_error(vofi_build(sched), "mit draw_schedule", class = "vofi_error_validation")
+  expect_error(vofi_build(sched), "'financing.bank.draw_schedule'", fixed = TRUE,
+               class = "vofi_error_validation")
 })
 
 test_that("eng_auto_ids: Ergebnis und Fehlerschlüssel", {

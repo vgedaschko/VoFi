@@ -309,7 +309,8 @@ test_that("vofi_validate(): Befunde der Typen erscheinen im Bericht unter valida
   expect_identical(nrow(hit), 1L)
   expect_identical(hit$severity, "error")
   expect_identical(hit$path, "components.wp")
-  expect_match(hit$message, "'wp'", fixed = TRUE)
+  # Text aus validation.yaml (WS-B): die Fundstelle nennt die Komponente
+  expect_match(hit$message, "'components.wp'", fixed = TRUE)
 })
 
 test_that("Bau über vofi_build()/vofi_run(): Investitionszeile im Ledger mit Tags", {

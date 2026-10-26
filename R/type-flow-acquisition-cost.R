@@ -103,7 +103,7 @@ acquisition_cost_validate <- function(spec, scenario) {
   }
   due <- is.null(kp) || any(kp + cb > rule_grest_threshold_default())
   if (due && !has_rate && !utl_is_string(fs)) {
-    v$add("error", "federal_state_missing", "federal_state")
+    v$add("error", "federal_state_missing", "federal_state", measure = v$id)
   }
   legal <- scenario[["legal"]]
   if (due && !has_rate && is.null(legal[["grunderwerbsteuer"]])) {
@@ -122,7 +122,7 @@ acquisition_cost_validate <- function(spec, scenario) {
   vd <- typ_valuation_date(scenario)
   d <- typ_spec_date(spec[["date"]])
   if (!is.null(vd) && !is.null(d) && d < vd) {
-    v$add("error", "measures.before_valuation", "date", date = d)
+    v$add("error", "measures.before_valuation", "date", date = d, value = d)
   }
   v$out
 }

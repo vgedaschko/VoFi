@@ -58,7 +58,8 @@ test_that("R-115: Bezüge nur in gelesenen Knoten (Methode, enabled, Anschlusszi
     x$financing$bank$followup_rate_pa <- list(ref = "market.gibts_nicht")
     x
   }))
-  expect_identical(nrow(late), 0L)
+  # kein Bezugsfehler; der Hinweis fixed_after_horizon der Kreditprüfung (WS-F) ist zulässig
+  expect_identical(setdiff(late$code, "validation.financing.fixed_after_horizon"), character(0))
 })
 
 test_that("Bezüge: transitiv, Zyklen mit Kette, Codes in Ausdrücken (R-91)", {

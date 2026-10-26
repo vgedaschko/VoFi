@@ -972,7 +972,11 @@ test_that("Validierung: Tilgungszuschuss (Angabe, Termin)", {
 
 test_that("Validierung \u00fcber vofi_validate(): Pfade, Schl\u00fcssel validation.financing.*", {
   sc <- vofi_read_scenario(vofi_example("skeleton"))
-  expect_identical(nrow(vofi_validate(sc)), 0L)
+  # Gerüst ohne Fehler; die W liquidity_unchecked des Profils wu_privat ist spezifikationsgemäß
+  # (Teil A 5.7, R-101) und betrifft keinen Kredit
+  v0 <- vofi_validate(sc)
+  expect_identical(sum(v0$severity == "error"), 0L)
+  expect_false(any(startsWith(v0$path, "financing.")))
   bad <- sc
   bad$financing$bank$amount_eur <- -60000
   vv <- vofi_validate(bad)

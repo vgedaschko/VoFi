@@ -6,12 +6,16 @@ decision_scenario <- function(approved = 0, p = 0.7, fallback_ops = NULL, fundin
                      ek = list(type = "equity", amount_eur = 100000),
                      accounts = list(overdraft_limit_eur = Inf, overdraft_rate_pa = 0.08))
   raw <- unclass(sc)
-  raw$funding <- funding %||% list(kfw = list(approval_timing = "before_start",
+  # Pflichtfelder nach Spec 01 Teil B 4.1 (instrument_type, measures) bzw. Spec 00 4.11 (label
+  # der Variante); die Maßnahme erzeugt ohne Expander (WS-E2) keine Zahlungen
+  raw$measures <- list(m1 = list(measure_type = "sonstige", year = 2027L, cost_eur = 1000))
+  raw$funding <- funding %||% list(kfw = list(instrument_type = "grant", measures = list("m1"),
+                                              approval_timing = "before_start",
                                               fallback_variant = "ohne", approved = approved,
                                               approval_probability = p))
-  raw$variants <- list(ohne = fallback_ops %||%
-                         list(remove = "funding.kfw",
-                              replace = list("financing.ek.amount_eur" = 90000)))
+  ops <- fallback_ops %||% list(remove = "funding.kfw",
+                                replace = list("financing.ek.amount_eur" = 90000))
+  raw$variants <- list(ohne = c(list(label = "Ohne Förderung"), ops))
   vofi_scenario(raw)
 }
 
@@ -119,8 +123,10 @@ test_that("Entscheidungsknoten: Ausweichvariante, Zusage im Modell V gleich 1 (9
 
 test_that("Entscheidungsknoten: Fehlerfälle (9.11 Nr. 1)", {
   expect_error(vofi_build(decision_scenario(approved = 0.5)), class = "vofi_error_validation")
-  two <- list(kfw = list(approval_timing = "before_start", fallback_variant = "ohne"),
-              beg = list(approval_timing = "before_start", fallback_variant = "ohne"))
+  two <- list(kfw = list(instrument_type = "grant", measures = list("m1"),
+                         approval_timing = "before_start", fallback_variant = "ohne"),
+              beg = list(instrument_type = "grant", measures = list("m1"),
+                         approval_timing = "before_start", fallback_variant = "ohne"))
   expect_error(vofi_build(decision_scenario(funding = two)), class = "vofi_error_validation")
   # Ausweichvariante enthält den Knoten selbst: verschachtelt (keine Rekursion)
   keep <- list(replace = list("financing.ek.amount_eur" = 90000))

@@ -549,7 +549,8 @@ tk_linked_def <- function(name = "tk_linked", rho = 0, quantile = c("ok", "no_ba
 
 test_that("Prozess mit linked: P4 mit par$.base und simuliertem Basisprozess (R-114, P0-14)", {
   local_registry()
-  vofi_register_type(tk_ar1_def())
+  # Basis ist der eingebaute Prozesstyp ar1 (WS-C); eine eigene Registrierung unter diesem Namen
+  # kollidiert seit der Integration mit dem eingebauten Typ (C-08)
   f <- findings_of("ar1")
   expect_true(all(f$ok), info = paste(f$check[!f$ok], f$message[!f$ok]))
   # ohne und mit Schockkorrelation zur Basis; .base ist kein Parameter (C3)

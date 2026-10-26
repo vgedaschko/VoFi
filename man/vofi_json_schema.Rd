@@ -13,11 +13,29 @@ vofi_json_schema(path = NULL)
 Zeichenkette (JSON) bzw. \code{invisible(path)}.
 }
 \description{
-Erzeugt das Eingabeschema als JSON-Schema für Editoren (Autovervollständigung und Prüfung von
-YAML-Szenarien).
+Erzeugt das Eingabeschema des Szenarios (Schema v1, Spec 00 Abschnitt 4.2) als JSON-Schema
+(Draft 2020-12) für Editoren mit YAML-Language-Server (Autovervollständigung und Prüfung von
+YAML-Szenarien). Grundlage sind der Feldkatalog (Spec 01) und die zum Aufrufzeitpunkt
+registrierten Typen der Registry: Komponenten (\code{components}) und Finanzierungsbausteine
+(\code{financing}) werden je Typ mit ihren Parametern beschrieben. Die Wertgrammatik (Spec 00
+Abschnitt 4.5) erscheint als gemeinsame Definition \code{value}. Das ausgelieferte Schema
+\code{inst/schema/vofi-scenario.schema.json} erzeugt \code{data-raw/build_schema.R}.
+}
+\details{
+Die Validierung des Pakets (\code{vofi_validate()}) prüft mehr als das JSON-Schema (Querbezüge,
+Plausibilität) und ist allein maßgeblich.
+}
+\examples{
+if (requireNamespace("jsonlite", quietly = TRUE)) {
+  s <- vofi_json_schema()
+  substr(s, 1, 60)
+}
 }
 \seealso{
 Other Validieren: 
+\code{\link{as.data.frame.vofi_validation}()},
+\code{\link{format.vofi_validation}()},
+\code{\link{print.vofi_validation}()},
 \code{\link{vofi_validate}()}
 }
 \concept{Validieren}

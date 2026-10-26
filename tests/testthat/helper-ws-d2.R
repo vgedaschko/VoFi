@@ -6,14 +6,6 @@
 #   die Orakel-Fixtures von WS-T), gerechnet mit der Engine (alle Kennzahlen: analysis.kpis
 #   default). Die Engine stammt in Welle 1 aus dem Walking Skeleton bzw. von WS-D.
 
-# vofi_kpis() und vofi_register_kpi() sind geliefert (WS-D2) und keine Stubs mehr. Bis der
-# Integrator sie beim Wellen-Merge aus vofi_stubs() (helper-contracts.R) streicht, nimmt diese
-# Hülle sie aus der Liste; sie ist idempotent und verkettbar (setdiff auf die vorige Fassung).
-vofi_stubs <- local({
-  previous <- vofi_stubs
-  function() setdiff(previous(), c("vofi_kpis", "vofi_register_kpi"))
-})
-
 #' Ledger-Zeile für d2_core(): Abschnitt, Kategorie, Werte (Länge T+1 oder n x (T+1))
 d2_row <- function(section, category, values, asset = NA, measure = NA, extra = NULL) {
   list(section, category, values, asset, measure, extra)
@@ -141,8 +133,15 @@ d2_accounts <- function(h, s, limit = Inf, spread = 0,
        surplus_order = c("od_repay", "dep_invest"), deficit_order = deficit)
 }
 
+#' Alle registrierten Kennzahlen (die Engine filtert nach Perspektive und requires, 9.1 Stufe 9)
+#'
+#' `analysis.kpis: default` ist seit der Integration von WS-A die Kennzahlenliste des Profils
+#' (Spec 01 Teil A 2.1, PR3); die Orakeltests rechnen alle Kennzahlen und nennen sie daher
+#' ausdrücklich.
+d2_all_kpis <- function() reg_list("kpi")$name
+
 d2_scenario <- function(id, horizon, components, financing, accounts, perspective = "wu_privat",
-                        project_type = "neubau", analysis = list(kpis = "default"), ...) {
+                        project_type = "neubau", analysis = list(kpis = d2_all_kpis()), ...) {
   c(list(schema_version = 1L, meta = list(scenario_id = id, title = id),
          project = list(perspective = perspective, project_type = project_type,
                         valuation_date = "2027-01-01", horizon_years = as.integer(horizon)),
@@ -193,6 +192,7 @@ d2_oracle_b <- function(effect = "shorten_term") {
                              values = c(rep(0, 10), 60000))),
               list(ek = list(type = "equity", amount_eur = 50000),
                    foe = list(type = "installment_loan", amount_eur = 150000, rate_pa = 0.02,
+                              funding_id = "foe",          # Tilgungszuschuss: Teil A 5.4, R-119
                               term_years = 10, grace_years = 2, payments_per_year = 1L,
                               repayment_grant = list(amount_eur = 22500, date = "2028-01-01",
                                                      effect = effect))),
@@ -264,6 +264,11 @@ d2_oracle_in_kind <- function(existing_value = 500000) {
                                     rate_pa = 0.03, term_years = 5, payments_per_year = 1L)),
                     d2_accounts(0.02, 0.08), project_type = "sanierung_einzelmassnahmen",
                     residual_value = list(sale_cost_share = 0.03))
-  if (!is.null(existing_value)) sc$building <- list(existing_value_eur = existing_value)
+  # Pflichtangaben bei Block building (Spec 01 Teil A 3.3, 3.4, 6.2; WS-B): Baujahr bzw. WE-Zahl,
+  # Instandhaltungspauschale abgeschaltet; ohne Expander (WS-E2) ohne Zahlungswirkung
+  if (!is.null(existing_value)) {
+    sc$building <- list(existing_value_eur = existing_value, construction_year = 1972L,
+                        n_units = 6L, maintenance = list(enabled = FALSE))
+  }
   sc
 }

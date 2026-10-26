@@ -351,8 +351,10 @@ test_that("Sacheinlage (Bestandswert): equity_in_kind und Verkauf in der Alterna
   sc <- wsd_scenario(c(-100000, 20000, 120000),
                      ek = list(type = "equity", amount_eur = 100000),
                      accounts = list(overdraft_limit_eur = Inf))
-  sc$building <- list(existing_value_eur = 50000)
-  sc$residual_value <- list(sale_cost_share = 0.04)
+  # Pflichtangaben bei Block building (Spec 01 Teil A 3.3, 3.4, 6.2; WS-B): Baujahr bzw. WE-Zahl,
+  # Instandhaltungspauschale abgeschaltet; ohne Expander (WS-E2) ohne Zahlungswirkung
+  sc$building <- list(existing_value_eur = 50000, maintenance = list(enabled = FALSE))
+  sc$residual_value <- list(method = "zero", sale_cost_share = 0.04)
   res <- vofi_run(vofi_build(sc))
   expect_equal(res$ledger$values$equity_in_kind[1, ], c(50000, 0, 0))
   opp <- res$opportunity$ledger$values

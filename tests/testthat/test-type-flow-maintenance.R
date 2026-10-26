@@ -150,7 +150,8 @@ test_that("M6/M7: Doppelzählung Pauschale/Ersatz und Kennwert der expliziten Er
   # 2043-01-01 (je 60.000) im Horizont 2027-2057: 120.000 / (30 x 1.000)
   expect_equal(hit$args$value, 4)
   expect_identical(hit$code, "validation.maintenance.replacements_excluded")
-  expect_type(do.call(msg, c(list(hit$code), hit$args)), "character")
+  # wie vofi_validate(): Fundstelle als Platzhalter path (Text aus validation.yaml, WS-B)
+  expect_type(do.call(msg, c(list(hit$code, path = hit$path), hit$args)), "character")
   # Erhaltungsmaßnahme (Ohnehin-Anteil 1) zählt ebenfalls
   sc2 <- make_spec(g)
   sc2$components$dach <- make_component("capex", date = 2030, cost_eur = 1, ohnehin_share = 1,

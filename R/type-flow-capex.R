@@ -524,12 +524,16 @@ capex_validate <- function(spec, scenario) {
   has_date <- !is.null(spec[["date"]])
   sched <- spec[["payment_schedule"]]
   has_sched <- !is.null(sched)
-  if (has_date + has_sched != 1L) v$add("error", "timing")
+  if (has_date + has_sched != 1L) v$add("error", "timing", value = has_date + has_sched)
   unit <- if (has_sched && is.list(sched)) sched[["unit"]] %||% "eur" else NA_character_
   kg <- spec[["cost_kg"]]
   has_kg <- is.list(kg) && length(kg) > 0L
   n_cost <- (!is.null(spec[["cost_eur"]])) + has_kg + identical(unit, "eur")
-  if (n_cost != 1L) v$add("error", "cost_source")
+  if (n_cost != 1L) {
+    src <- c(cost_eur = !is.null(spec[["cost_eur"]]), cost_kg = has_kg,
+             payment_schedule = identical(unit, "eur"))
+    v$add("error", "cost_source", value = utl_collapse(names(src)[src]))
+  }
   if (has_kg) {
     for (k in setdiff(names(kg), capex_kg_codes())) {
       if (identical(k, "kg800")) {
@@ -556,7 +560,9 @@ capex_validate <- function(spec, scenario) {
     v$add("warning", "contingency_ignored", "contingency_share")
   }
   dur <- spec[["duration_months"]] %||% 0L
-  if (has_sched && is.numeric(dur) && dur > 0) v$add("error", "timing", "duration_months")
+  if (has_sched && is.numeric(dur) && dur > 0) {
+    v$add("error", "timing", "duration_months", value = has_date + has_sched)
+  }
   vd <- typ_valuation_date(scenario)
   d <- typ_spec_date(spec[["date"]])
   first <- NULL
@@ -567,16 +573,20 @@ capex_validate <- function(spec, scenario) {
   }
   if (!is.null(vd) && !is.null(first) && first < vd) {
     v$add("error", "before_valuation", if (has_sched) "payment_schedule" else "date",
-          date = first)
+          date = first, value = first)
   }
   cd <- typ_spec_date(spec[["completion_date"]])
   if (!is.null(cd) && !is.null(first)) {
     pay1 <- if (!is.null(d) && is.numeric(dur) && dur > 0) grid_add_months(d, 1L - dur) else
       first
-    if (cd < pay1) v$add("error", "completion_order", "completion_date", date = cd)
+    if (cd < pay1) {
+      v$add("error", "completion_order", "completion_date", date = cd, value = cd, first = pay1)
+    }
   }
   a <- base(bp("active"))
-  if (!is.null(a) && any(!(a %in% c(0, 1)))) v$add("warning", "active_fraction", "active")
+  if (!is.null(a) && any(!(a %in% c(0, 1)))) {
+    v$add("warning", "active_fraction", "active", value = a[!(a %in% c(0, 1))][1L])
+  }
   if (is.null(spec[["asset_id"]]) || is.null(spec[["measure_id"]])) {
     v$add("error", "ids_missing")
   }

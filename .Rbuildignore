@@ -12,3 +12,4 @@
 ^vofi_.*\.tar\.gz$
 ^CLAUDE\.md$
 ^\.claude$
+^\.git$

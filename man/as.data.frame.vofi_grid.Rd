@@ -26,6 +26,8 @@ as.data.frame(vofi_time_grid("2027-01-01", 3))
 }
 \seealso{
 Other Rechnen: 
+\code{\link{as.data.frame.vofi_draws}()},
+\code{\link{print.vofi_draws}()},
 \code{\link{print.vofi_grid}()},
 \code{\link{vofi_build}()},
 \code{\link{vofi_opportunity}()},

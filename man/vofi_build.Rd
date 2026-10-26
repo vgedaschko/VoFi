@@ -34,7 +34,9 @@ names(model$nodes)
 }
 \seealso{
 Other Rechnen: 
+\code{\link{as.data.frame.vofi_draws}()},
 \code{\link{as.data.frame.vofi_grid}()},
+\code{\link{print.vofi_draws}()},
 \code{\link{print.vofi_grid}()},
 \code{\link{vofi_opportunity}()},
 \code{\link{vofi_run}()},

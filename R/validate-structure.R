@@ -259,6 +259,9 @@ val_resolve_finding <- function(cond, variant) {
     args <- cond$args %||% list()
     path <- args$path %||% ""
     args$path <- NULL
+    # Argumente mit dem Namen eines Formals von val_finding() (z. B. variant aus den Meldungen
+    # der Varianten, WS-A) beschreiben den Befund selbst und sind keine Platzhalter
+    args[intersect(names(args), c("severity", "code", "layer", "variant", "location"))] <- NULL
     return(do.call(val_finding, c(list("error", key, path), args,
                                   list(variant = variant))))
   }

@@ -316,16 +316,8 @@ eng_result <- function(model, res, mode, store, seed, runtime) {
     report_mode <- if (utl_is_string(persp) && startsWith(persp, "wu_")) "expert" else
       "household"
   }
-  existing <- vocab("project_type")$existing_building
-  primary <- spec$analysis$primary_kpi %||% "auto"
-  if (identical(primary, "auto")) {
-    primary <- if ((p$project_type %||% "") %in% existing &&
-                     identical(p$comparison_mode %||% "absolute", "absolute")) {
-      "delta_vs_reference"
-    } else {
-      "delta_terminal_value"
-    }
-  }
+  # Primärkennzahl nach 12.3a: Regel an einer Stelle (kpi_primary(), WS-D2-08)
+  primary <- kpi_primary(spec)$kpi
   meta <- list(
     package_version = as.character(utils::packageVersion("vofi")),
     contract_version = VOFI_CONTRACT_VERSION, schema_version = 1L,

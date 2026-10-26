@@ -73,6 +73,10 @@ test_that("validate(): Kategorie, Steuerkategorie, Einheit", {
   expect_identical(unname(f["components.category_invalid"]), "error")
   expect_length(wsei_findings("custom_series", values = c(0, -1, 0, 0),
                               category = "other_cost"), 0L)
+  # Abschnitt außerhalb von project, grants, memo (Abdeckung der Meldung, Spec 00 15.6)
+  f <- wsei_findings("custom_series", values = c(0, 1, 0, 0), section = "loans",
+                     category = "draw")
+  expect_identical(unname(f["components.section_invalid"]), "error")
 })
 
 test_that("Fehlende Werte sind ein Vertragsfehler; Batch-Invarianz", {

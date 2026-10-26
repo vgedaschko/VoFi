@@ -236,11 +236,12 @@ is_stub <- function(fun) {
 #' test-api.R, dass jede gelistete Funktion tatsächlich `vofi_error_not_implemented` meldet;
 #' eine gelieferte, aber noch gelistete Funktion fällt dort auf.
 vofi_stubs <- function() {
+  # Stufe I geliefert und gestrichen: vofi_json_schema (WS-B), vofi_kpis, vofi_register_kpi
+  # (WS-D2), vofi_library, vofi_write_scenario (WS-A), vofi_opportunity,
+  # vofi_register_tax_module, vofi_sim, vofi_tax_module_simple (WS-D)
   c("vofi_compare", "vofi_excel_template", "vofi_export_excel", "vofi_household_view",
-    "vofi_json_schema", "vofi_kpis", "vofi_ledger", "vofi_library", "vofi_mc",
-    "vofi_opportunity", "vofi_plot", "vofi_register_kpi", "vofi_register_tax_module",
-    "vofi_report", "vofi_sensitivity", "vofi_sim", "vofi_solve", "vofi_table",
-    "vofi_tax_module_simple", "vofi_tenant_view", "vofi_write_scenario")
+    "vofi_ledger", "vofi_mc", "vofi_plot", "vofi_report", "vofi_sensitivity", "vofi_solve",
+    "vofi_table", "vofi_tenant_view")
 }
 
 #' Test überspringen, solange eine der Funktionen ein Stub ist

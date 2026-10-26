@@ -66,13 +66,15 @@ test_that("Varianten: Struktur je Variante, Auflösung nur ohne Strukturfehler",
   expect_setequal(cyc$variant, c("a", "b"))
   expect_match(cyc$message[1], "a -> b -> a", fixed = TRUE)
   expect_false(any(v$code == "validation.resolve_failed" & v$variant %in% c("a", "b")))
-  rf <- v[v$code == "validation.resolve_failed", , drop = FALSE]
+  # fehlender Pfad: eigener Schlüssel der Meldung von WS-A (val_resolve_finding())
+  rf <- v[v$code == "validation.variants.path_missing", , drop = FALSE]
   expect_identical(rf$variant, "falsch")
   expect_match(rf$message, "gibts", fixed = TRUE)
   expect_false(any(v$variant == "ok", na.rm = TRUE))
   # Auswahl der Varianten: nur base und ok
   v2 <- wsb_validate(sc, variant = c("base", "ok"))
-  expect_false("validation.resolve_failed" %in% v2$code)
+  expect_false(any(c("validation.resolve_failed", "validation.variants.path_missing") %in%
+                     v2$code))
   # vofi_build einer gültigen Variante scheitert nicht an fehlerhaften anderen Varianten
   expect_s3_class(vofi_build(sc, variant = "ok"), "vofi_model")
 })

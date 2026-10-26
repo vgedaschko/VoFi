@@ -74,7 +74,8 @@ test_that("Operationen set, add, overrides (extends-Kette), remove, replace (4.1
   e <- expect_error(quiet_resolve(sc, "tippfehler"), class = "vofi_error_validation")
   expect_identical(e$key, "io.variant_key_unknown")
   v <- suppressMessages(vofi_validate(sc, variant = c("base", "falsch")))
-  expect_true("validation.resolve_failed" %in% v$code)
+  # eigener Schlüssel der Meldung (validation.yaml), nicht resolve_failed (val_resolve_finding())
+  expect_true("validation.variants.path_missing" %in% v$code)
   e <- expect_error(var_apply_ops(list(a = list(b = 1)), list(add = list("a.b" = 2)), "v"),
                     class = "vofi_error_validation")
   expect_identical(e$key, "io.variant_path_exists")
@@ -293,8 +294,14 @@ test_that("A-06: Validierungsschlüssel von WS-B werden mit ihren Platzhaltern g
     "validation.stochastic.template_use_missing" = "'{path}': {entry} ohne use."
   )
   env <- lbl_state$labels
+  # vorhandene Texte (validation.yaml von WS-B) sichern und danach wiederherstellen
+  old <- mget(names(wsb), envir = env, ifnotfound = list(NULL))
   for (k in names(wsb)) assign(k, wsb[[k]], envir = env)
-  withr::defer(rm(list = names(wsb), envir = env))
+  withr::defer({
+    for (k in names(wsb)) {
+      if (is.null(old[[k]])) rm(list = k, envir = env) else assign(k, old[[k]], envir = env)
+    }
+  })
   local_vofi_options(vofi.strict_labels = TRUE)
   key_of <- function(expr) tryCatch(expr, error = function(e) e$key)
   # Profilpfad (PR4)

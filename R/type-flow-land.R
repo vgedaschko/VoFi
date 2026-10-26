@@ -52,7 +52,7 @@ land_validate <- function(spec, scenario) {
   vd <- typ_valuation_date(scenario)
   d <- typ_spec_date(spec[["date"]])
   if (!is.null(vd) && !is.null(d) && d < vd) {
-    v$add("error", "before_valuation", "date", date = d)
+    v$add("error", "before_valuation", "date", date = d, value = d)
   }
   m <- spec[["measure_id"]]
   if (is.null(m)) v$add("error", "measure_missing")
@@ -66,7 +66,7 @@ land_validate <- function(spec, scenario) {
   pt <- scenario[["project"]][["project_type"]]
   if (utl_is_string(pt) && !(pt %in% c("erwerb_sanierung", "erwerb_neubau", "neubau"))) {
     v$add("warning", "type_project_mismatch", "measure_id", project_type = pt,
-          measure_type = mt %||% "-")
+          measure_type = mt %||% "-", value = mt %||% "-")
   }
   v$out
 }

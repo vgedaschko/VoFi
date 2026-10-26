@@ -19,8 +19,12 @@ test_that("Orakel (a): Endwert, Unterlassung, Endwertdifferenz, Amortisation, Ka
   expect_identical(r$kpi_na$payback_year_ex_rv, "no_payback")
   expect_equal(r$kpis$npv_cf_project, o$npv_cf_project, tolerance = tol / o$npv_cf_project)
   expect_equal(r$kpis$npv_cf_project, 10195.96, tolerance = 0.005 / 10195.96)
-  expect_true(is.na(r$kpis$terminal_value_real))
-  expect_identical(r$kpi_na$terminal_value_real, "no_inflation_path")
+  # global.yaml setzt market.inflation (prices/macro_paths_2026, Schicht 1; Integration WS-A):
+  # der reale Endwert ist definiert und liegt bei positiver Inflation unter dem nominalen;
+  # den Code no_inflation_path prüft der Einheitstest unten mit einer Spezifikation ohne Pfad
+  expect_true(is.finite(r$kpis$terminal_value_real))
+  expect_lt(r$kpis$terminal_value_real, r$kpis$terminal_value)
+  expect_true(is.na(r$kpi_na$terminal_value_real))
   expect_equal(r$kpis$pv_subsidies, 0)
   # Struktur wie die Fixture example_result() (Tabellenwerte von Orakel (a))
   # (die Fixture führt withdrawal_equivalent_ex_rv als nicht berechnet)

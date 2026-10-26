@@ -63,7 +63,8 @@ test_that("Stochastik-Datei: gemischt, Herkunft Schicht 6, nur Wurzelschlüssel 
                       "      dist: normal", "      mean: 0.05", "      sd: 0.01"))
   sc <- vofi_read_scenario(vofi_example("skeleton"), stochastic = ov)
   expect_identical(sc$stochastic$parameters$zins$target, "financing.bank.rate_pa")
-  expect_identical(sc$stochastic$settings$seed, node_const(42))
+  # seed ist eine ganze Zahl, kein Wertknoten (Spec 01 Teil C 1.2, Schema WS-B)
+  expect_identical(sc$stochastic$settings$seed, 42L)
   expect_identical(attr(sc, "source")$stochastic_path,
                    normalizePath(ov, winslash = "/", mustWork = FALSE))
   prov <- attr(sc, "provenance")
@@ -99,7 +100,7 @@ test_that("vofi_scenario: Sammlungen nach id, Kurzformen ins Overlay, idempotent
   )
   sc <- vofi_scenario(x)
   expect_identical(names(sc$measures), "wp")
-  expect_identical(sc$measures$wp$year, node_const(2028))
+  expect_identical(sc$measures$wp$year, 2028L)                       # int (Teil A 4.1)
   expect_identical(sc$measures$wp$cost_eur, node_const(2))
   ent <- sc$stochastic$parameters[["measures.wp.cost_eur"]]
   expect_identical(ent$target, "measures.wp.cost_eur")
@@ -122,7 +123,8 @@ test_that("vofi_scenario: Sammlungen nach id, Kurzformen ins Overlay, idempotent
   bad <- vofi_scenario(c(x, list(item_defaults = list())))
   expect_true("item_defaults" %in% names(bad))
   v <- suppressMessages(vofi_validate(bad, variant = character(0)))
-  expect_true("validation.unknown_key" %in% v$code)
+  # reservierter Wurzelschlüssel im Szenario: eigener Fehler (4.2 Fußnote 3, WS-B)
+  expect_true("validation.reserved_root_key" %in% v$code)
 })
 
 test_that("vofi_write_scenario: Round-Trip der Eingabeform und der aufgelösten Variante (4.14)", {

@@ -129,7 +129,10 @@ test_that("Sperre nach Perspektive: vofi_error_validation mit Bericht (10.2)", {
   reg_add(def, source = "user", overwrite = TRUE)
   sc <- tax_test_scenario(module = "test_gesperrt")
   e <- expect_error(vofi_build(sc), class = "vofi_error_validation")
-  expect_identical(e$data$report$code, "validation.tax_module_blocked")
+  # der Bericht enthält alle Befunde (z. B. die W liquidity_unchecked des Profils); Fehler ist nur
+  # die Sperre
+  rep <- e$data$report
+  expect_identical(rep$code[rep$severity == "error"], "validation.tax_module_blocked")
   def$perspectives <- NULL
   def$blocked_regimes <- "privat_vermieter"
   reg_add(def, source = "user", overwrite = TRUE)

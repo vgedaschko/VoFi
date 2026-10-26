@@ -621,7 +621,6 @@ inst_loan_init <- function(spec, ctx, repayment) {
     if (identical(pp$unit, "share")) planned <- planned * dp$commitment
   }
   approved <- if (existing) rep(1, n) else as.double(ctx$param(spec, "approved") %||% rep(1, n))
-  st <- list(m_rep = m_rep, m_mat = m_mat, pay_interval = pay_int)
   new_vofi_inst_state(list(
     B = zero, drawn = zero, commitment = dp$commitment, i_pa = as.double(rate[, j_rate]),
     inst = rep(NA_real_, n), accrued = zero, tz_amount = tz_amount, approved = approved,
@@ -644,7 +643,9 @@ inst_loan_init <- function(spec, ctx, repayment) {
       cap_share = as.double(ctx$param(spec, "prepay_cap_share_pa") %||% rep(1, n)),
       installment = if (has_inst) as.double(ctx$param(spec, "installment_eur")) else NULL,
       round = isTRUE(ctx$setting(spec, "round_payments")), has_planned = !is.null(pp),
-      n_s = inst_loan_n_rem(st, m_rep),
+      # n_s = (m_mat - m_rep) / pay_interval (Spec 00 8.6); geht die Division nicht auf, bleibt
+      # n_s gebrochen und der Rest wird bei Faelligkeit als Schlusstilgung (8.5 (f)) gezahlt
+      n_s = if (is.finite(m_mat)) (m_mat - m_rep) / pay_int else Inf,
       plan = inst_loan_plan(g, m_start, m_rep, m_mat, pay_int, resets, fee_free_until)
     )
   ))

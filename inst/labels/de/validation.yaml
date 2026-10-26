@@ -96,6 +96,11 @@ library:
   outdated: "'{path}': der Bibliothekseintrag {entry} gilt am maßgeblichen Datum {date} nicht (außerhalb [valid_from, valid_to))."
   stale: "'{path}': der Stand des Bibliothekseintrags {entry} ({as_of}) ist älter als {months} Monate vor dem Rechtsstand."
   unreleased_used: "'{path}' enthält den Sammelcode unreleased: nicht freigegebene C-Einträge sind aktiv (nur für Prüfrechnungen)."
+  # Auflösung von from:/use: (WS-A, Spec 00 4.9, R-87)
+  cycle: "'{path}': Zyklus in der from-Kette der Bibliothekseinträge: {chain}."
+  entry_invalid: "'{path}': der Bibliothekseintrag '{id}' ist fehlerhaft: {detail}"
+  use_missing: "'{path}': der Unterpfad use: '{use}' fehlt in der Nutzlast von '{id}'."
+  local_keys: "'{path}': die Nutzlast von '{id}' ist keine Map und ersetzt den Knoten; weitere Schlüssel ({keys}) sind nicht zulässig (R-87)."
 
 # --- Varianten und Szenario-Sets --------------------------------------------------------
 variants:
@@ -106,6 +111,7 @@ variants:
   add_not_collection: "'{path}': add legt nur Elemente von Sammlungen an (<sammlung>.<id>); '{value}' ist keines."
   existing_value_changed: "Die Variante {value} ändert building.existing_value_eur; der Bestandswert ist in allen Varianten gleich (Spec 01 Teil A 4.9)."
   existing_debt_changed: "Die Variante {value} ändert, entfernt oder ergänzt das Bestandsdarlehen '{path}'; Bestandsdarlehen sind in allen Varianten gleich (Spec 01 Teil A 5.3)."
+  path_missing: "Operation {op}: der Pfad '{path}' existiert nicht (set und overrides verlangen ein vorhandenes Elternelement und ein Feld des Katalogs bzw. der Vorlage, replace und remove einen vorhandenen Teilbaum; Spec 00 4.11, R-112)."
 scenario_set:
   path_forbidden: "'{path}': Szenario-Sets setzen keine shared-Blätter ('{value}'). Einen szenarioeigenen market-Pfad anlegen, auf den das Domänenfeld per ref zeigt, und diesen im Set ändern (R-109)."
   path_not_allowed: "'{path}': Szenario-Sets ändern nur market, funding, accounts, residual_value, stochastic, tax und project.pending_reforms ('{value}')."
@@ -168,6 +174,39 @@ financing:
   fee_high: "'{path}': ungewöhnlich hohe Gebühren (Bearbeitung > 2 % bzw. Bereitstellung > 0,5 % je Monat)."
   amount_overlay: "'{path}' verweist auf das Overlay-Ziel '{target}'; der Kreditbetrag bleibt in allen Läufen fest (Spec 00 8.2)."
   delay_fixed_dates: "'{path}': die Maßnahme {measure} verschiebt sich je Lauf, die Kredittermine bleiben fest (Spec 00 3.9)."
+  # Prüfungen der Kredittypen (validate() von annuity_loan, installment_loan, bullet_loan; WS-F, R-104)
+  payments_per_year: "'{path}': payments_per_year muss 1, 4 oder 12 sein (erhalten: {value})."
+  amount_nonpositive: "'{path}': der Kreditbetrag muss größer als 0 sein."
+  months_fraction: "'{path}' muss ein Vielfaches von 1/12 Jahr sein (erhalten: {value:raw})."
+  term_missing: "'{path}' fehlt (Pflicht bei Raten- und endfälligen Darlehen sowie bei Annuitätendarlehen ohne initial_repayment_pa und ohne installment_eur)."
+  term_nonpositive: "'{path}': die Laufzeit muss größer als 0 sein (erhalten: {value:raw})."
+  grace_too_long: "'{path}': die tilgungsfreie Zeit ({value:raw} Jahre) muss kürzer als die Laufzeit ({term:raw} Jahre) sein."
+  fixed_nonpositive: "'{path}': die Zinsbindung muss größer als 0 sein (erhalten: {value:raw})."
+  installment_nonpositive: "'{path}': die vertragliche Rate muss größer als 0 sein."
+  refi_rule_invalid: "'{path}': {rule} ist bei Ratendarlehen nicht zulässig (keep_term oder keep_payment)."
+  tau_missing: "'{path}': keep_tilg_rate braucht initial_repayment_pa oder followup_repayment_pa."
+  keep_term_needs_term: "'{path}': keep_term braucht eine endliche Laufzeit term_years (mit vertraglicher Rate ohne Laufzeit nur keep_payment oder keep_tilg_rate)."
+  rate_path: "'{path}': ein zeitabhängiger Sollzins ist nur bei amount_eur: topup zulässig (Spec 00 8.7)."
+  payout_rate_range: "'{path}': der Auszahlungskurs muss größer als 0,9 und höchstens 1 sein (erhalten: {value:raw})."
+  commitment_date_range: "'{path}': das Zusagedatum {value:date} muss zwischen Bewertungsstichtag und start liegen."
+  repayment_grant_empty: "'{path}': der Tilgungszuschuss braucht genau eines von share und amount_eur."
+  repayment_grant_date_year: "'{path}': repayment_grant.date und repayment_grant.year schließen sich aus."
+  repayment_grant_before_start: "'{path}': der Gutschrifttermin {value:date} liegt vor start."
+  followup_repayment_unused: "'{path}' wirkt nur mit refi_rule: keep_tilg_rate."
+  auto_params_unused: "'{path}' wirkt nur mit amount_eur: auto oder topup."
+  rate_high: "'{path}': der Sollzins {value:pct} ist ungewöhnlich hoch."
+  prepay_exceeds: "'{path}': die geplanten Sondertilgungen ({value:eur}) übersteigen die Zusage ({amount:eur})."
+  existing_installment_missing: "'{path}' fehlt beim Bestandsdarlehen: die Rate wird aus der Restlaufzeit berechnet."
+  draw_after_horizon: "'{path}': Auszahlungen ab {value:date} liegen nach dem Horizontende und entfallen; die Tilgung beginnt nach dem Horizont."
+  commitment_fee_window: "'{path}': ohne Auszahlungsplan fällt die Bereitstellungsprovision nur zwischen Zusagedatum und Vollauszahlung bei start an."
+  fixed_after_horizon: "'{path}': die Zinsbindung ({value:raw} Jahre) endet nach dem Horizont."
+  followup_truncated: "'{path}': die letzte Anschlussbindung ({value:raw} Jahre) reicht über die Fälligkeit hinaus und wird gekürzt."
+  prepay_capped: "'{path}': geplante Sondertilgungen über prepay_cap_share_pa je Vertragsjahr werden gekappt."
+  repayment_grant_after_horizon: "'{path}': der Gutschrifttermin {value:date} liegt nach dem Horizontende; der Tilgungszuschuss entfällt."
+  # Prüfungen der Zahlungsbausteine im Block financing (validate() der Typen; WS-E-INV, R-104)
+  negative: "Komponente '{id}': '{param}' muss Beträge >= 0 enthalten (das Vorzeichen setzt der Typ)."
+  start_after_to: "Komponente '{id}': der Beginn der laufenden Beträge liegt nicht vor dem Ende (start_event < to)."
+  in_kind_double: "Komponente '{id}': der Bestandswert building.existing_value_eur ist bereits Sacheinlage (equity_in_kind); als Bareinlage zählt er doppelt."
 building:
   type_missing: "'{path}' fehlt (Kostenfunktionen, Gesamtnutzungsdauer, Förderung)."
   construction_year_missing: "'{path}' fehlt; das Baujahr ist bei Bestandsprojekten und bei Instandhaltung nach II. BV Pflicht."
@@ -242,6 +281,17 @@ measures:
   declaration_early: "'{path}' ({value}) liegt vor der Fertigstellung."
   levy_effective_early: "'{path}' ({value}) liegt vor Stichtag + 1 Monat."
   works_after_completion: "'{path}' ({value}) liegt nach der Fertigstellung."
+  # Prüfungen der Investitionsbausteine (validate() von capex, replacement, land; WS-E-INV, R-104)
+  contingency_ignored: "Komponente '{id}': contingency_share wirkt nicht bei einem Zahlungsplan mit Beträgen (unit: eur); den Zuschlag in die Beträge einrechnen."
+  ids_missing: "Komponente '{id}': asset_id und measure_id sind Pflicht für Investitionszeilen."
+  vat_unusual: "Komponente '{id}': ungewöhnlicher Umsatzsteuersatz {value:raw} (üblich 0, 0,07 oder 0,19)."
+  life_nonpositive: "Komponente '{id}': die Nutzungsdauer muss größer als 0 sein."
+  life_short: "Komponente '{id}': die Nutzungsdauer von {value} Jahren liegt unter 5 Jahren."
+  first_before_install: "Komponente '{id}': der erste Ersatztermin {date} liegt vor dem Einbau."
+  no_capex: "Komponente '{id}': include_initial = true verlangt capex_id."
+  many_events: "Komponente '{id}': {value:int} Ersatztermine im Horizont (mehr als 10)."
+  measure_missing: "Komponente '{id}': measure_id ist Pflicht für die Gebäudezeile (Kategorie capex)."
+  land_share_extreme: "Komponente '{id}': Bodenanteil {value:pct} beim Erwerb eines bebauten Grundstücks; Kaufpreisaufteilung prüfen (BMF-Arbeitshilfe)."
 acquisition:
   federal_state_missing: "Grunderwerbsteuer fällt an (Maßnahme bzw. Komponente {measure}), '{path}' fehlt und grest_rate ist nicht gesetzt."
   grest_inactive: "'{path}': das Thema grunderwerbsteuer ist inaktiv (kein freigegebener Eintrag); grest_rate angeben oder legal/grunderwerbsteuer_2026 freigeben."
@@ -250,6 +300,7 @@ acquisition:
   uniform_without_construction: "'{path}' = true ohne Bauleistung in uniform_contract_measures."
   land_share_extreme: "'{path}' = {value:raw} beim Objekterwerb: Kaufpreisaufteilung prüfen."
   ancillary_sum: "'{path}': Notar und Grundbuch zusammen {value:raw} liegen außerhalb [0,011; 0,025]."
+  rate_deviates: "Komponente '{id}': grest_rate {value:pct} weicht vom Landessatz {state_rate:pct} ab."
 maintenance:
   window: "'{path}' ({value}) muss nach start_event liegen."
   double_count: "'{path}': Die Pauschale enthält die Erneuerung von Bauteilen; explizite Ersatz- und Instandsetzungsmaßnahmen zusätzlich führen zu Doppelzählung. Satz mindern und excludes_explicit_replacements: true setzen oder Ersatz abschalten."
@@ -257,6 +308,12 @@ maintenance:
   default_rate: "'{path}': Instandhaltungspauschale nach ImmoWertV Anl. 3 bzw. II. BV aus den Defaults angesetzt; projektbezogenen Satz angeben."
   service_double: "'{path}': Instandsetzung der Maßnahme zusätzlich zur Pauschale; Doppelzählung prüfen."
   service_double_energy: "'{path}': Wartung doppelt? share_of_cost_pa der Maßnahme {measure} umfasst nur die Instandsetzung; Wartung steht im Energiezustand bzw. PV-Betrieb."
+  rate_missing: "Komponente '{id}': basis rate verlangt rate_eur_m2_pa."
+  area_missing: "Komponente '{id}': die Bezugsfläche area_m2 fehlt."
+  iibv_rates_missing: "Komponente '{id}': basis iibv verlangt iibv_rates."
+  share_incomplete: "Komponente '{id}': basis share_of_cost verlangt share_pa und capex_id."
+  start_after_to: "Komponente '{id}': der Beginn liegt nicht vor dem Ende (start_event < to)."
+  factor_years_nonpositive: "Komponente '{id}': die Wirkungsdauer '{path}' muss größer als 0 sein (erhalten: {value:raw})."
 quantity:
   reference_missing: "'{path}': die Bezugsgröße für per: {per} fehlt am Bezugsobjekt und im Gebäude."
 unit_groups:
@@ -362,6 +419,34 @@ residual:
   existing_excluded: "'{path}' = false bei gesetztem Bestandswert: Sacheinlage ohne Gegenwert am Horizont."
   no_useful_life: "'{path}' fehlt; die Maßnahme trägt keinen Zeitwert bei."
   rnd_target: "'{path}': '{target}' ist bei remaining_life_method ungleich manual kein Overlay- oder Designziel; remaining_life_offset_years verwenden (R-109)."
+  # Prüfungen des Typs residual_value (validate(); WS-E-INV, R-104)
+  rnd_manual_missing: "Komponente '{id}': remaining_life_method manual verlangt income_value.remaining_life_years."
+  fictitious_and_points: "Komponente '{id}': fiktives Baujahr und Modernisierungspunkte zugleich zählen die Modernisierung doppelt."
+  cap_rate_unusual: "Komponente '{id}': Liegenschaftszinssatz {value:pct} außerhalb von 1,5 % bis 6 %."
+  factor_unusual: "Komponente '{id}': Vervielfältiger {value} außerhalb von 10 bis 35."
+  existing_without_value: "Komponente '{id}': Sacheinlage ohne Gegenwert am Horizont (component.include_existing false bei gesetztem Bestandswert)."
+  points_capped: "Komponente '{id}': Modernisierungspunkte für '{element}' außerhalb der Höchstpunkte; sie werden begrenzt."
+  sale_cost_high: "Komponente '{id}': Verkaufskosten über 8 %."
+
+# --- Zahlungskomponenten (validate() von custom_series, recurring, share_of; WS-E-INV, R-104) ---
+components:
+  section_invalid: "Komponente '{id}': Abschnitt '{value}' ist nicht zulässig (zulässig: {allowed})."
+  category_invalid: "Komponente '{id}': Kategorie '{value}' gehört nicht zu {section} oder ist der Engine vorbehalten.{suggestion}"
+  tax_category_invalid: "Komponente '{id}': Steuerkategorie '{value}' ist für die Kategorie '{category}' nicht zulässig (zulässig: {allowed})."
+  memo_cash: "Komponente '{id}': Merkzeilen (Abschnitt memo) sind nie zahlungswirksam (cash: false)."
+  sign: "Komponente '{id}': das Vorzeichen widerspricht der Kategorie '{category}'."
+  unit_invalid: "Komponente '{id}': unbekannte Einheit '{value}'."
+  amount_form: "Komponente '{id}': amount_eur muss ein fester Jahresbetrag sein (Wertform '{form}'); Wachstum ausschließlich über growth angeben."
+  direction_missing: "Komponente '{id}': die Kategorie '{category}' hat kein festes Vorzeichen; direction (inflow oder outflow) angeben."
+  direction_conflict: "Komponente '{id}': direction '{direction}' widerspricht dem Vorzeichen der Kategorie '{category}'."
+  start_after_to: "Komponente '{id}': der Beginn liegt nicht vor dem Ende (start_event < to)."
+  category_assumed: "Komponente '{id}': keine Kategorie angegeben, other_cost angenommen (geht in den Reinertrag NOI ein)."
+  no_source: "Komponente '{id}': keine Quellkomponente (of) angegeben."
+  of_not_after: "Komponente '{id}': die Quellkomponenten {value} müssen auch in after stehen."
+  source_unknown: "Komponente '{id}': die Quellkomponente '{value}' existiert nicht."
+  source_residual: "Komponente '{id}': die Restwertkomponente '{value}' darf keine Quelle sein."
+  source_self: "Komponente '{id}': eine Komponente kann nicht Anteil an sich selbst sein."
+  lag_negative: "Komponente '{id}': lag_periods muss eine ganze Zahl >= 0 sein."
 
 # --- Stochastik-Overlay (Spec 01 Teil C 1.11) -------------------------------------------
 stochastic:

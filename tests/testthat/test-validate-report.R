@@ -90,7 +90,8 @@ test_that("Jede Meldung der Validierung wird von mindestens einem Prüffall ausg
   keys <- wsb_label_keys()
   expect_true(length(keys) > 300L)
   covered <- unique(unlist(lapply(wsb_all_cases(), `[[`, "codes")))
-  expect_identical(setdiff(keys, covered), character(0))
+  # Befunde der Typprüfungen (validate() der Typen) decken die Typtests ab (wsb_type_keys())
+  expect_identical(setdiff(keys, c(covered, wsb_type_keys())), character(0))
   # Keine Prüffälle mit Codes außerhalb des Katalogs
   expect_identical(setdiff(covered, keys), character(0))
 })

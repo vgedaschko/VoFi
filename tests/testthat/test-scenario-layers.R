@@ -59,7 +59,10 @@ test_that("PR8: Gerüst ohne building: kein Block building, Herkunft der Projekt
   mute <- function(w) invokeRestart("muffleWarning")
   v <- withCallingHandlers(vofi_validate(vofi_read_scenario(vofi_example("skeleton"))),
                            vofi_warning_library_outdated = mute)
-  expect_identical(nrow(v), 0L)
+  # keine Fehler; einziger Befund ist die spezifikationsgemäße W liquidity_unchecked des Profils
+  # wu_privat (Limit .inf, restrictions mit liquidity; Teil A 5.7, R-101)
+  expect_identical(sum(v$severity == "error"), 0L)
+  expect_identical(unique(v$code), "validation.accounts.liquidity_unchecked")
 })
 
 test_that("GA1-GA3: Horizont aus by_project_type, Rasterende fest über Varianten (Teil A 1.3)", {

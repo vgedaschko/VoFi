@@ -199,6 +199,10 @@ test_that("Kennzahlen: Filter nach requires (9.1 Stufe 9), uses_inputs am Steuer
   expect_true(all(c("terminal_value", "delta_terminal_value") %in% names(m$kpis)))
   sc$components$mv <- list(type = "custom_series", section = "memo", category = "market_value",
                            values = c(100000, 101000, 102000, 103000))
+  # "default" ist die Kennzahlenliste des Profils (Teil A 2.1, PR3) und enthält tk_mv nicht;
+  # ausdrücklich angefordert und mit Datengrundlage wird sie berechnet
+  expect_false("tk_mv" %in% names(vofi_build(sc)$kpis))
+  sc$analysis$kpis <- c("terminal_value", "tk_mv")
   expect_true("tk_mv" %in% names(vofi_build(sc)$kpis))
   sc2 <- example_scenario("skeleton")
   sc2$analysis$kpis <- c("terminal_value", "tk_mv")

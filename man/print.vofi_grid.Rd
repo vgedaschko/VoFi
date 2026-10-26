@@ -25,7 +25,9 @@ print(vofi_time_grid("2027-01-01", 30, construction_months = 9,
 }
 \seealso{
 Other Rechnen: 
+\code{\link{as.data.frame.vofi_draws}()},
 \code{\link{as.data.frame.vofi_grid}()},
+\code{\link{print.vofi_draws}()},
 \code{\link{vofi_build}()},
 \code{\link{vofi_opportunity}()},
 \code{\link{vofi_run}()},

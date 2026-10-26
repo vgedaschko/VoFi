@@ -1,30 +1,11 @@
 # Testhelfer von WS-A (Eingabe, Schichten, Bibliothek; Spec 00 Abschnitt 15.1).
 #
-# Abhängigkeiten zu anderen Paketen (im Bericht an den Integrator genannt):
-# 1. helper-contracts.R (Integrator) führt vofi_library() und vofi_write_scenario() noch als
-#    Stubs; WS-A liefert beide. vofi_stubs() wird hier um diese Namen verkleinert (verkettbar
-#    und idempotent wie die gleichartigen Hüllen von WS-D und WS-D2), bis der Integrator die
-#    Liste beim Merge anpasst; test-api.R prüft sonst, dass jede gelistete Funktion
-#    vofi_error_not_implemented meldet.
-# 2. Das Phase-0-Schema von WS-B (val_domain_schema(), val_known_extra_fields()) kennt Felder aus
-#    global.yaml, den Profilen und den Ableitungsregeln (z. B. building.maintenance,
-#    residual_value.income_value, Spec 01 Teil A 2.2, 6.1) noch nicht; vofi_validate() meldet
-#    dafür validation.unknown_field (falsch positiv). Das Schema von WS-B (ws/ws-b) kennt alle
-#    diese Felder. Brücke bis zum Merge:
-#    - WS-A-Tests rufen local_ws_a_schema() je Test auf.
-#    - Für die übrigen Testdateien (z. B. test-validate-structure.R, test-type-inst-loan-core.R,
-#      die aufgelöste Szenarien ohne Befund erwarten) ergänzt ws_a_schema_bridge() dieselben
-#      Felder für die Suite, aber nur, solange das Schema sie nicht kennt; mit dem Schema von
-#      WS-B ist die Liste leer und die Brücke tut nichts. test-profiles.R ("A-11") prüft mit dem
-#      ungepatchten Schema, dass die Brücke genau diese Befunde und keine anderen verdeckt.
-#    Der Integrator löscht die Brücke beim Merge mit WS-B (Bericht WS-A).
-
-if (exists("vofi_stubs", mode = "function")) {
-  vofi_stubs <- local({
-    orig_stubs <- vofi_stubs
-    function() setdiff(orig_stubs(), c("vofi_library", "vofi_write_scenario"))
-  })
-}
+# Integration (Stufe I): vofi_library() und vofi_write_scenario() stehen nicht mehr in
+# vofi_stubs() (helper-contracts.R); die frühere Hülle um vofi_stubs() und die Schemabrücke
+# ws_a_schema_bridge() sind entfallen, weil das Schema von WS-B alle Felder aus global.yaml, den
+# Profilen und den Ableitungsregeln kennt. ws_a_extra_fields() und local_ws_a_schema() bleiben
+# als Prüfwerkzeug: test-profiles.R ("A-11") verlangt, dass die Liste der unbekannten Felder leer
+# ist.
 
 #' Felder aus global.yaml, Profilen und Ableitungsregeln, die das Schema noch nicht kennt
 #' @param known_extra Funktion `val_known_extra_fields()` (Default: die aktuelle Bindung).
@@ -75,24 +56,6 @@ local_ws_a_schema <- function(env = parent.frame()) {
                                   .env = env)
   invisible(extra)
 }
-
-#' Ungepatchte Fassung von val_known_extra_fields() (für die Prüfung der Brücke)
-ws_a_schema_state <- new.env(parent = emptyenv())
-
-#' Brücke für die Suite, solange das Schema die Felder der Defaults nicht kennt (siehe oben)
-ws_a_schema_bridge <- function() {
-  ns <- asNamespace("vofi")
-  if (is.null(ws_a_schema_state$orig)) {
-    ws_a_schema_state$orig <- get("val_known_extra_fields", envir = ns)
-  }
-  extra <- ws_a_extra_fields(ws_a_schema_state$orig)
-  ws_a_schema_state$extra <- extra
-  if (length(extra) == 0L) return(invisible(NULL))
-  utils::assignInNamespace("val_known_extra_fields",
-                           ws_a_patched_known_extra(ws_a_schema_state$orig, extra), ns = "vofi")
-  invisible(extra)
-}
-ws_a_schema_bridge()
 
 #' Wurzel der Testbibliothek (tests/testthat/fixtures/library)
 ws_a_lib <- function(...) testthat::test_path("fixtures", "library", ...)

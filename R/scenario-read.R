@@ -415,10 +415,32 @@ scn_normalize_block <- function(x, block, schema) {
     if (is.null(x[[f]]) || f %in% c("from", "use")) next
     p <- path_join(block, f)
     if (!is.null(schema[[f]]) && !scn_is_library_ref(x[[f]])) {
-      x[f] <- list(node_normalize(x[[f]], schema[[f]], p))
+      x[f] <- list(scn_normalize_field(x[[f]], schema[[f]], p))
     } else {
       x[f] <- list(scn_normalize_values(x[[f]], p))
     }
+  }
+  x
+}
+
+#' Feld eines Domänenblocks nach Schema normalisieren
+#'
+#' Wie `node_normalize()`; bei verschachtelten Feldern der Art `map` werden die Unterfelder,
+#' die die Sicht `val_domain_schema()` nicht führt (freie Maps, Sequenzen, z. B.
+#' `energy.before.consumption_kwh.<träger>` oder `extra_consumption.<x>.kwh_pa`), wie auf der
+#' obersten Ebene nach der allgemeinen Wertgrammatik normalisiert (Vertrag der Sicht, WS-B).
+#' @noRd
+scn_normalize_field <- function(x, param, path) {
+  if (!identical(param$kind, "map") || !is_map(x)) return(node_normalize(x, param, path))
+  fields <- param$fields %||% list()
+  for (f in names(x)) {
+    if (is.null(x[[f]]) || f %in% c("from", "use")) next
+    p <- path_join(path, f)
+    x[f] <- list(if (!is.null(fields[[f]]) && !scn_is_library_ref(x[[f]])) {
+      scn_normalize_field(x[[f]], fields[[f]], p)
+    } else {
+      scn_normalize_values(x[[f]], p)
+    })
   }
   x
 }

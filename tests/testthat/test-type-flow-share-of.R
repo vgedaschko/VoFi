@@ -80,6 +80,9 @@ test_that("validate(): Quellen, after, Zyklus auf sich selbst, Verzögerung", {
   expect_identical(unname(f["components.category_invalid"]), "error")
   expect_length(wsei_findings("share_of", of = "miete", after = "miete", share = 0.1, id = "x",
                               scenario = sc), 0L)
+  # leere Quellenliste (Abdeckung der Meldung, Spec 00 15.6)
+  f <- wsei_findings("share_of", of = list(), share = 0.1, id = "x", scenario = sc)
+  expect_identical(unname(f["components.no_source"]), "error")
 })
 
 test_that("Batch-Invarianz", {

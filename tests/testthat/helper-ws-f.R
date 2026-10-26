@@ -298,11 +298,14 @@ loan_ref_clock <- function(grid, type, a, followup = a$followup_rate_pa %||% 0.0
         if (m > m_rep && ((m - m_rep) %% pint) == 0 && m <= m_mat) {
           if (!inst_set) {
             basis <- if (has_tz && effect == "reduce_installment") b else amount * approved
+            # n_s = (m_mat - m_rep) / pay_interval (Spec 00 8.6), auch wenn die Division nicht
+            # aufgeht (Rest als Schlusstilgung bei Fälligkeit)
+            n_s <- max((m_mat - m_rep) / pint, 1)
             inst <- if (!is.null(a$installment_eur)) a$installment_eur else
               rnd(switch(repay,
                          annuity = if (has_tau) basis * (i + tau) / ppy else
-                           ann(basis, i / ppy, n_rem(m_rep)),
-                         installment = basis / n_rem(m_rep), 0))
+                           ann(basis, i / ppy, n_s),
+                         installment = basis / n_s, 0))
             inst_set <- TRUE
           }
           r <- switch(repay, annuity = min(max(inst - accrued, 0), b),

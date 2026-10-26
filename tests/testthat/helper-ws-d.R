@@ -1,16 +1,5 @@
 # Hilfsfunktionen der Engine-Tests (WS-D, Spec 00 Abschnitte 6, 8.7-8.9, 9, 10).
 
-# Von WS-D gelieferte Funktionen der Phase-0-Stubliste (helper-contracts.R, gepflegt vom
-# Integrator): bis zum Wellen-Merge hier aus der Liste genommen, damit test-api.R die
-# gelieferten Funktionen nicht als Stubs prüft. Die Liste des Integrators bleibt maßgeblich.
-wsd_delivered <- function() {
-  c("vofi_opportunity", "vofi_register_tax_module", "vofi_sim", "vofi_tax_module_simple")
-}
-if (exists("vofi_stubs", mode = "function", inherits = TRUE)) {
-  wsd_stubs_orig <- vofi_stubs
-  vofi_stubs <- function() setdiff(wsd_stubs_orig(), wsd_delivered())
-}
-
 #' Kleines Jahresszenario: Zahlungsfolge z, optional Restwert, Eigenkapital und Konten
 #' @param z Zahlungsfolge je Periode (Länge T + 1).
 #' @param rv optionale Restwertfolge (Kategorie residual_value).
@@ -75,7 +64,12 @@ wsd_in_kind_scenario <- function(existing_value = 500000) {
                                 rate_pa = 0.03, term_years = 5, payments_per_year = 1L)),
     project = list(project_type = "sanierung_einzelmassnahmen")
   )
-  if (!is.null(existing_value)) sc$building <- list(existing_value_eur = existing_value)
+  # Pflichtangaben bei Block building (Spec 01 Teil A 3.3, 3.4, 6.2; WS-B): Baujahr bzw. WE-Zahl,
+  # Instandhaltungspauschale abgeschaltet; ohne Expander (WS-E2) ohne Zahlungswirkung
+  if (!is.null(existing_value)) {
+    sc$building <- list(existing_value_eur = existing_value, construction_year = 1972L,
+                        n_units = 6L, maintenance = list(enabled = FALSE))
+  }
   sc$residual_value <- list(sale_cost_share = 0.03)
   sc
 }

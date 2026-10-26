@@ -2001,6 +2001,11 @@ ref_gen_stochastic <- function(sc, k) {
     if (!is.null(L$repayment_grant) && coin(0.7)) {
       par[[paste0("kuerzung_", id)]] <- list(target = tgt("repayment_grant.cut_share"),
                                              dist = "uniform", min = 0, max = round(ru(0.1, 1), 2))
+      # Overlay-Ziele müssen im Szenario existieren (Spec 01 Teil C 1.3, R-16; Prüfung WS-B):
+      # das verschachtelte Feld wird mit seinem Typ-Default 0 ausdrücklich gesetzt
+      if (is.null(L$repayment_grant$cut_share)) {
+        sc$financing[[id]]$repayment_grant$cut_share <- 0
+      }
     }
   }
   acc <- sc$accounts

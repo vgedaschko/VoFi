@@ -142,10 +142,26 @@ val_ref_roots <- function(vc) {
       if (identical(def$kind, "instrument") && !val_loan_resets(vc, comp)) {
         skip <- c("followup_rate_pa", "followup_spread_pa", "followup_repayment_pa")
       }
+      if (identical(def$kind, "flow") && identical(def$name, "residual_value")) {
+        skip <- c(skip, val_rv_component_unread(comp))
+      }
       for (p in setdiff(names(comp), skip)) collect(comp[[p]], path_join(coll, id, p))
     }
   }
   unique(out)
+}
+
+#' Ungelesene Parameter einer Komponente vom Typ residual_value (R-115)
+#'
+#' Gelesen wird nur die Untermap der gewählten Methode; `n_units` und `living_area_m2` liest nur
+#' die Bewirtschaftungskostenrechnung der Methode `income_value` (Spec 01 Teil A 6.2).
+#' @noRd
+val_rv_component_unread <- function(comp) {
+  method <- val_str(comp$method) %||% "zero"
+  methods <- val_codes("vocab:residual_method") %||% character(0)
+  out <- setdiff(intersect(names(comp), methods), method)
+  if (!identical(method, "income_value")) out <- c(out, "n_units", "living_area_m2")
+  out
 }
 
 #' Hat ein Kredit eine Zinsanpassung im Horizont? (Anschlusszins wird gelesen, R-115)

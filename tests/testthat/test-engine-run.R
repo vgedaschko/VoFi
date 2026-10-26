@@ -185,9 +185,12 @@ test_that("Entscheidungsknoten: Werte je Lauf und Einzellauf des realisierten Zw
                      ek = list(type = "equity", amount_eur = 100000),
                      accounts = list(overdraft_limit_eur = Inf, overdraft_rate_pa = 0.08))
   raw <- unclass(sc)
-  raw$funding <- list(kfw = list(approval_timing = "before_start", fallback_variant = "ohne",
+  # Pflichtfelder nach Spec 01 Teil B 4.1 bzw. Spec 00 4.11 (siehe test-engine-build.R)
+  raw$measures <- list(m1 = list(measure_type = "sonstige", year = 2027L, cost_eur = 1000))
+  raw$funding <- list(kfw = list(instrument_type = "grant", measures = list("m1"),
+                                 approval_timing = "before_start", fallback_variant = "ohne",
                                  approved = 1))
-  raw$variants <- list(ohne = list(remove = "funding.kfw",
+  raw$variants <- list(ohne = list(label = "Ohne Förderung", remove = "funding.kfw",
                                    replace = list("financing.ek.amount_eur" = 90000)))
   model <- vofi_build(vofi_scenario(raw))
   model$sampler <- list(settings = list(block_size = 3L))

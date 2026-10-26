@@ -56,11 +56,15 @@ Beschreibt einen Parameter eines Typs der Registry (Parameter-DSL, Spec 00 Absch
 Grenzen, zulässige Formen (\code{shapes}) und der Stochastik-Hinweis haben artabhängige Defaults.
 \code{deterministic_only = TRUE} ist die harte Sperre gegen Overlay-, Kurzform- und Designziele; sie
 gilt implizit für die Arten \code{integer}, \code{enum}, \code{logical}, \code{date}, \code{string}, \code{timing}, \code{ref} und
-\code{ids}. \code{stochastic} ist nur ein Hinweis (Excel-Vorlage, Regler, Vorschläge).
+\code{ids}. \code{stochastic} ist nur ein Hinweis (Excel-Vorlage, Regler, Vorschläge). Weitere benannte
+Angaben (\code{...}) stehen im Feld \code{extra}; die Validierung wertet u. a. \code{excl_min}, \code{excl_max}
+(ausschließliche Grenzen), \code{warn} (Plausibilitätsbereich \code{c(lo, hi)}) und \code{allowed}
+(zulässige Werte) aus.
 }
 \examples{
 vofi_param("rate", required = TRUE, unit = "rate_pa")
 vofi_param("enum", values = "vocab:refi_rule", default = "keep_term")
+vofi_param("number", min = 0, excl_min = TRUE, warn = c(5, 80), unit = "years")
 }
 \seealso{
 Other Erweitern: 

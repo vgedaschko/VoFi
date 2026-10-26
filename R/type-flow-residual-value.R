@@ -875,7 +875,7 @@ residual_value_validate <- function(spec, scenario) {
   if (method %in% c("income_value", "multiplier", "exit_yield") &&
         (identical(scenario[["project"]][["perspective"]], "selbstnutzer") ||
            !rv_has_rent_source(scenario))) {
-    v$add("warning", "no_rent", "method", method = method)
+    v$add("warning", "no_rent", "method", method = method, value = method)
   }
   if (identical(method, "income_value")) {
     rlm <- iv[["remaining_life_method"]] %||% "anlage2"

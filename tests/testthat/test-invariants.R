@@ -63,7 +63,10 @@ inv_sach_scenario <- function(with_value = TRUE) {
                       analysis = list(kpis = "terminal_value",
                                       allow_opportunity_reference = TRUE))
   raw$project$project_type <- "sanierung_einzelmassnahmen"
-  raw$building <- list(maintenance = list(enabled = FALSE))
+  # Pflichtangaben bei Block building (Spec 01 Teil A 3.3, 3.4, 6.2; WS-B): Baujahr bzw. WE-Zahl,
+  # Instandhaltungspauschale abgeschaltet; ohne Expander (WS-E2) ohne Zahlungswirkung
+  raw$building <- list(construction_year = 1972L, n_units = 6L,
+                       maintenance = list(enabled = FALSE))
   if (with_value) raw$building$existing_value_eur <- 500000
   raw
 }
@@ -532,8 +535,19 @@ test_that("G: Modus full mit Zinspfaden, fallenden Limits und gezielten Fällen;
   }
   # stochastic = TRUE: gleiche Szenarien, zusätzlich Block stochastic und shared.rv
   b <- ref_scenario_generator(42L, 36L, "full", stochastic = TRUE)
+  # einziger Unterschied in financing: das Overlay-Ziel repayment_grant.cut_share steht mit seinem
+  # Typ-Default 0 ausdrücklich im Szenario (R-16, ref_gen_stochastic())
+  drop_cut <- function(fin, orig) {
+    for (k in names(fin)) {
+      rg <- fin[[k]]$repayment_grant
+      if (!is.null(rg) && identical(rg$cut_share, 0) && is.null(orig[[k]]$repayment_grant$cut_share)) {
+        fin[[k]]$repayment_grant$cut_share <- NULL
+      }
+    }
+    fin
+  }
   for (q in seq_along(scs)) {
-    expect_identical(b[[q]]$financing, scs[[q]]$financing)
+    expect_identical(drop_cut(b[[q]]$financing, scs[[q]]$financing), scs[[q]]$financing)
     expect_identical(b[[q]]$accounts, scs[[q]]$accounts)
     expect_identical(b[[q]]$components$z, scs[[q]]$components$z)
     st <- b[[q]]$stochastic

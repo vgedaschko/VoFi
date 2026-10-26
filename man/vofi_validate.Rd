@@ -9,19 +9,33 @@ vofi_validate(x, variant = NULL, min_severity = c("info", "warning", "error"))
 \arguments{
 \item{x}{Objekt der Klasse \code{vofi_scenario} oder \code{vofi_spec}.}
 
-\item{variant}{\code{NULL} (alle Varianten) oder Name einer Variante.}
+\item{variant}{\code{NULL} (Basis, alle Varianten und alle statischen Szenario-Sets),
+\code{character(0)} (nur Struktur) oder Zeichenvektor mit Namen von Varianten.}
 
 \item{min_severity}{kleinste ausgegebene Schwere: \code{"info"}, \code{"warning"} oder \code{"error"}.}
 }
 \value{
-Objekt der Klasse \code{vofi_validation}.
+Objekt der Klasse \code{vofi_validation} (Data Frame mit den Spalten \code{severity}, \code{code},
+\code{path}, \code{location}, \code{message}, \code{layer}, \code{variant}).
 }
 \description{
-Prüft ein Szenario bzw. eine aufgelöste Spezifikation auf vier Ebenen (Struktur, Typen, Bezüge,
-Plausibilität) und sammelt alle Befunde (Spec 00, Abschnitte 2.9, 13.5).
+Prüft ein Szenario bzw. eine aufgelöste Spezifikation auf vier Ebenen und sammelt alle
+Befunde (Spec 00, Abschnitte 2.9 und 13.5): (1) Struktur (unbekannte Schlüssel, reservierte
+Wurzelschlüssel, Varianten und Szenario-Sets), (2) Typen, Einheiten und Wertebereiche nach den
+Feldtabellen von Spec 01 und dem Parameterschema der Typen, (3) Querbezüge (Bezüge und
+Ausdrücke einschließlich Zyklen, ids und erzeugte ids, Overlay-Ziele, Entscheidungsknoten,
+Referenzvariante, Gleichheit von Bestandswert und Bestandsdarlehen über die Varianten),
+(4) Plausibilität (Warnungen und Hinweise). Ein Szenario wird je Variante aufgelöst
+(\code{\link[=vofi_resolve]{vofi_resolve()}}); Fehler beim Auflösen erscheinen als Befund.
 }
 \details{
-Phase-0-Minimalfassung (Eigentümer: WS-B): Struktur, Typen und Kettenregeln.
+Die Meldungen stehen im Label-Katalog unter \verb{validation.<block>.<code>} bzw.
+blockübergreifend unter \verb{validation.<code>} (Spec 00, Abschnitt 2.10).
+
+Ohne Auswahl (\code{variant = NULL}) wird jedes statische Szenario-Set des Szenarios wie ein
+eigener Planungsfall aufgelöst (Basis mit dem Set) und auf den Ebenen 2 bis 4 geprüft; seine
+Befunde tragen in der Spalte \code{variant} den Namen des Sets. \code{variant = character(0)} prüft nur
+die Struktur (Ebene 1, wie in Phase 0).
 }
 \examples{
 v <- vofi_validate(vofi_read_scenario(vofi_example("skeleton")))
@@ -29,6 +43,9 @@ nrow(v)
 }
 \seealso{
 Other Validieren: 
+\code{\link{as.data.frame.vofi_validation}()},
+\code{\link{format.vofi_validation}()},
+\code{\link{print.vofi_validation}()},
 \code{\link{vofi_json_schema}()}
 }
 \concept{Validieren}

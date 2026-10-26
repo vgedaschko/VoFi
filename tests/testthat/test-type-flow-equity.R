@@ -88,8 +88,11 @@ test_that("X1: Sacheinlage des Bestandswerts mit Bestandsdarlehen (Engine, R-68)
     schema_version = 1L, meta = list(scenario_id = "x1", title = "X1"),
     project = list(perspective = "kleinvermieter", project_type = "sanierung_eh",
                    valuation_date = as.Date("2027-01-01"), horizon_years = 2L),
-    building = list(existing_value_eur = 2000000),
-    residual_value = list(sale_cost_share = 0.03),
+    # Pflichtangaben bei Block building (Spec 01 Teil A 3.3, 6.2; WS-B): Baujahr, Pauschale aus,
+    # Restwertmethode ohne Bodenwert; ohne Expander (WS-E2) ohne Zahlungswirkung
+    building = list(existing_value_eur = 2000000, construction_year = 1972L,
+                    maintenance = list(enabled = FALSE)),
+    residual_value = list(method = "zero", sale_cost_share = 0.03),
     components = list(z = list(type = "custom_series", label = "Zahlungsfolge",
                                values = c(-10000, 50000, 50000))),
     financing = list(

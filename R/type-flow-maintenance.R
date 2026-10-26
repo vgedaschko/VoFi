@@ -291,7 +291,7 @@ maintenance_validate <- function(spec, scenario) {
     f <- base(path_join(path, "factors", c))
     if (!is.null(f) && any(f < 0)) {
       v$add("error", "validation.range", paste0("factors.", c), value = min(f), min = "0",
-            max = "Inf")
+            max = "Inf", interval = val_interval(0, Inf))
     }
   }
   for (c in names(spec[["factor_years"]])) {

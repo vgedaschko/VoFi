@@ -821,7 +821,8 @@ eng_balance <- function(model, ctx, exo, extra_out = NULL, book = TRUE, engine_e
       if (!(id %in% ids) || use_cache) {
         vofi_abort("engine.flow_key_unknown", row = k, .class = "vofi_error_contract")
       }
-      loan[[id]]$prepay[, j] <- pv[[k]]
+      # Ue3 ergaenzt die geplanten Sondertilgungen aus step() in derselben Zeile (7.4)
+      loan[[id]]$prepay[, j] <- loan[[id]]$prepay[, j] + pv[[k]]
     }
     gk <- names(ch$flags)
     for (i in which(gk %in% names(fl))) fl[[gk[i]]] <- fl[[gk[i]]] | ch$flags[[i]]
