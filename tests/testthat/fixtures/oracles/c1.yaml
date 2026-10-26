@@ -1,0 +1,35 @@
+# Orakel (c1): 100 % Fremdfinanzierung, Annuitätendarlehen 300.000 zu 3,8 % mit anfänglicher
+# Tilgung 2 % (Jahresannuität 17.400, Bindung über den Horizont), h = 2,5 %, s = 9 %,
+# Kontokorrent unbegrenzt (Memo 01 §10.4, Spec 00 §15.3; WS-T). NOI 12.000 · 1,02^(t−1) als
+# recurring der Kategorie rent; Marktwert V_t = 280.000 · 1,02^t als Merkzeile market_value
+# (Wachstumsform mit index: period_end, R-91); Restwert V_10 · 0,97 = 331.078,88 in T = 10.
+# Kernwerte: EW 34.957,28; EW_U 0; ΔEW 34.957,28; R1/R2/R3 no_equity; max. KK 59.114,48;
+# Entnahme-Äquivalent 2.300,89; LTV t = 0: 107,14 %; IZF 5,1616 %; DSCR min 0,69.
+schema_version: 1
+meta: {scenario_id: oracle_c1, title: "Orakel (c1): 100 % Fremdfinanzierung, Kontokorrent unbegrenzt"}
+project: {perspective: wu_privat, project_type: neubau, valuation_date: 2027-01-01, horizon_years: 10}
+components:
+  inv: {type: custom_series, label: "Gesamtinvestition", values: [-300000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
+  noi: {type: recurring, label: "Reinertrag", category: rent, amount_eur: 12000, growth: 0.02, base_date: 2028-01-01, start_event: 2027-01-01}
+  rv:  {type: custom_series, label: "Restwert", category: residual_value, values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 331078.8844705761]}
+  mv:  {type: custom_series, label: "Marktwert", section: memo, category: market_value, values: {start: 280000, growth: 0.02, base_date: 2027-01-01, index: period_end}}
+financing:
+  ann: {type: annuity_loan, label: "Annuitätendarlehen", amount_eur: 300000, rate_pa: 0.038, initial_repayment_pa: 0.02, payments_per_year: 1}
+accounts:
+  deposit_rate_pa: 0.025
+  overdraft_rate_pa: 0.09
+  overdraft_limit_eur: .inf
+  min_liquidity_eur: 0
+  deposit_withholding_tax_share: 0
+  surplus_order: [od_repay, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+residual_value: {method: zero}
+tax: {module: none}
+analysis:
+  thresholds: {dscr: 1.2}
+  lending_value_haircut: 0.2
+  kpis: [terminal_value, terminal_value_opp, delta_terminal_value, roe_classic, roe_mirr, roe_irr,
+         payback_time, payback_year, min_net_liquidity, max_overdraft, max_financing_need,
+         sum_equity_calls, pv_equity_calls, flag_shortfall, flag_limit_breach, flag_reserve_used,
+         withdrawal_equivalent, npv_cf_project, irr_cf_project, dscr_min, dscr_mean,
+         dscr_years_below, dscr_min_new, icr_min, ltv_max, ltv_end, lending_ratio_max]

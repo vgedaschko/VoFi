@@ -1,0 +1,42 @@
+# Orakel (e): nicht äquidistantes Raster, Bauphase quartalsweise (4 Quartale), Betrieb jährlich
+# (Memo 01 §10.6, Spec 00 §15.3, Raster G3; WS-T). Baudarlehen 400.000 in 4 Tranchen zu je
+# 25 % am 2027-01-01, -04-01, -07-01, -10-01; 3,6 % nominal (Monatsuhr i/12), anfängliche
+# Tilgung 2 %, ein tilgungsfreies Quartal nach der letzten Auszahlung, Jahresannuität 22.400;
+# Bereitstellungsprovision 0,25 % je Monat (0,75 % je Quartal) auf den nicht abgerufenen Betrag
+# nach 3 bereitstellungsfreien Monaten; h = 2,5 %, s = 9 % effektiv p. a.
+# Kernwerte: EW 156.540,56; EW_U 110.381,29; ΔEW 46.159,27; R3 11,8553 %; payback_time 4;
+# max. KK 11.530,53; Provision t = 2: −1.500, t = 3: −750; Periodenhabenzins Quartal 0,0061922463.
+schema_version: 1
+meta: {scenario_id: oracle_e, title: "Orakel (e): Bauphase quartalsweise, Betrieb jährlich"}
+project: {perspective: wu_privat, project_type: neubau, valuation_date: 2027-01-01, horizon_years: 4}
+grid: {construction_months: 12, periods_months: [3, 3, 3, 3, 12, 12, 12]}
+components:
+  z:  {type: custom_series, label: "Zahlungsfolge", values: [-200000, -100000, -100000, -100000, 0, 30000, 30600, 31212]}
+  rv: {type: custom_series, label: "Restwert", category: residual_value, values: [0, 0, 0, 0, 0, 0, 0, 520000]}
+financing:
+  ek: {type: equity, amount_eur: 100000}
+  bau:
+    type: annuity_loan
+    label: "Baudarlehen"
+    amount_eur: 400000
+    rate_pa: 0.036
+    initial_repayment_pa: 0.02
+    grace_years: 0.25
+    payments_per_year: 1
+    draw_schedule: {schedule: {2027-01-01: 0.25, 2027-04-01: 0.25, 2027-07-01: 0.25, 2027-10-01: 0.25}, unit: share}
+    fees: {commitment_fee_rate_month: 0.0025, commitment_free_months: 3}
+accounts:
+  deposit_rate_pa: 0.025
+  overdraft_rate_pa: 0.09
+  overdraft_limit_eur: .inf
+  min_liquidity_eur: 0
+  deposit_withholding_tax_share: 0
+  surplus_order: [od_repay, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+residual_value: {method: zero}
+tax: {module: none}
+analysis:
+  kpis: [terminal_value, terminal_value_opp, delta_terminal_value, roe_classic, roe_mirr, roe_irr,
+         payback_time, payback_year, min_net_liquidity, max_overdraft, max_financing_need,
+         sum_equity_calls, pv_equity_calls, flag_shortfall, flag_limit_breach, flag_reserve_used,
+         withdrawal_equivalent, npv_cf_project, irr_cf_project]

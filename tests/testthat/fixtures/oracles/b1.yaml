@@ -1,0 +1,42 @@
+# Orakel (b1): Ratentilgung 150.000 zu 2 %, 10 Jahre, davon 2 tilgungsfrei, Tilgungszuschuss
+# 22.500 am Ende von t = 1 (Termin 2028-01-01), Wirkung shorten_term; h = 2 %, s = 8 %
+# (Memo 01 §10.3, Spec 00 §15.3; WS-T). Einzahlungsüberschüsse 14.000 · 1,02^(t−1) als
+# recurring der Kategorie rent (NOI-relevant, DSCR), Restwert 60.000 in T = 10.
+# Kernwerte: EW 70.432,51; EW_U 60.949,72; ΔEW 9.482,79; R3 3,4857 %; max. KK 6.421,70;
+# Entnahme-Äquivalent 731,23; DSCR min 0,68; KW(2 %) −13.524,20; IZF 0,9458 %.
+schema_version: 1
+meta: {scenario_id: oracle_b1, title: "Orakel (b1): Förderdarlehen mit Tilgungszuschuss (Laufzeitverkürzung)"}
+project: {perspective: wu_privat, project_type: neubau, valuation_date: 2027-01-01, horizon_years: 10}
+components:
+  inv: {type: custom_series, label: "Vollkosten", values: [-200000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
+  noi: {type: recurring, label: "Einzahlungsüberschüsse", category: rent, amount_eur: 14000, growth: 0.02, base_date: 2028-01-01, start_event: 2027-01-01}
+  rv:  {type: custom_series, label: "Restwert", category: residual_value, values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 60000]}
+financing:
+  ek:  {type: equity, amount_eur: 50000}
+  foe:
+    type: installment_loan
+    label: "Förderdarlehen"
+    funding_id: foe
+    amount_eur: 150000
+    rate_pa: 0.02
+    term_years: 10
+    grace_years: 2
+    payments_per_year: 1
+    repayment_grant: {amount_eur: 22500, date: 2028-01-01, effect: shorten_term}
+accounts:
+  deposit_rate_pa: 0.02
+  overdraft_rate_pa: 0.08
+  overdraft_limit_eur: .inf
+  min_liquidity_eur: 0
+  deposit_withholding_tax_share: 0
+  surplus_order: [od_repay, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+residual_value: {method: zero}
+tax: {module: none}
+analysis:
+  thresholds: {dscr: 1.2}
+  kpis: [terminal_value, terminal_value_opp, delta_terminal_value, roe_classic, roe_mirr, roe_irr,
+         payback_time, payback_year, min_net_liquidity, max_overdraft, max_financing_need,
+         sum_equity_calls, pv_equity_calls, flag_shortfall, flag_limit_breach, flag_reserve_used,
+         withdrawal_equivalent, npv_cf_project, irr_cf_project, dscr_min, dscr_mean,
+         dscr_years_below, dscr_min_new, icr_min]

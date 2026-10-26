@@ -1,0 +1,28 @@
+# Orakel (f): Monatsannuität 100.000 zu 3,6 % nominal, 240 Monate, auf dem Jahresraster
+# aggregiert (Memo 01 §10.7, Spec 00 §8.10, §15.3; WS-T), eingebettet in einen vollständigen
+# VoFi (Zahlungsfolge −120.000 und 8.000 je Jahr, EK 20.000, h = 2 %, s = 8 %).
+# Prüfwerte des Instruments: Rate 585,11; Zinsen Jahr 1: 3.542,98; Tilgung Jahr 1: 3.478,36;
+# Restschuld Ende Jahr 1: 96.521,64.
+schema_version: 1
+meta: {scenario_id: oracle_f, title: "Orakel (f): Monatsannuität auf Jahresraster"}
+project: {perspective: wu_privat, project_type: neubau, valuation_date: 2027-01-01, horizon_years: 20}
+components:
+  z: {type: custom_series, label: "Zahlungsfolge", values: [-120000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000]}
+financing:
+  ek:  {type: equity, amount_eur: 20000}
+  ann: {type: annuity_loan, label: "Annuitätendarlehen monatlich", amount_eur: 100000, rate_pa: 0.036, term_years: 20, payments_per_year: 12}
+accounts:
+  deposit_rate_pa: 0.02
+  overdraft_rate_pa: 0.08
+  overdraft_limit_eur: .inf
+  min_liquidity_eur: 0
+  deposit_withholding_tax_share: 0
+  surplus_order: [od_repay, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+residual_value: {method: zero}
+tax: {module: none}
+analysis:
+  kpis: [terminal_value, terminal_value_opp, delta_terminal_value, roe_classic, roe_mirr, roe_irr,
+         payback_time, payback_year, min_net_liquidity, max_overdraft, max_financing_need,
+         sum_equity_calls, pv_equity_calls, flag_shortfall, flag_limit_breach, flag_reserve_used,
+         withdrawal_equivalent, npv_cf_project, irr_cf_project]
