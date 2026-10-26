@@ -1,0 +1,159 @@
+# Reichhaltiges Szenario für den Round-Trip YAML -> XLSX -> Liste (WS-A2, Spec 00 Abschnitt 4.14).
+# Enthält alle Blöcke, alle Wertformen, Sammlungen in Schlüssel-Wert- und breiten Blättern,
+# Zahlen mit Tausenderpunkt-Muster und voller Genauigkeit, Varianten, Szenario-Sets und das
+# Stochastik-Overlay (Parameter, Prozesse, Korrelationen). Das Szenario dient dem Rundweg und
+# muss nicht rechenbar sein.
+schema_version: 1
+meta:
+  scenario_id: rich_excel
+  title: "Rundweg Excel: Blöcke, Wertformen, Varianten, Overlay"
+  author: "WS-A2"
+  description: "Zwei Zeilen\nmit Umlauten äöü ß und Euro €"
+  created_date: 2026-10-26
+  tags: [roundtrip, excel]
+project:
+  perspective: wu_privat
+  project_type: sanierung_eh
+  valuation_date: 2027-01-01
+  horizon_years: 10
+  application_date: 2026-12-01
+  pending_reforms: []
+  federal_state: BE
+  municipality: {mietpreisbremse_area: true, mietpreisbremse_until: 2029-12-31, kappung_15_area: true}
+  construction_delay_months: 0
+  construction_cost_factor: 1.05
+  reference_variant: base
+  report_mode: expert
+grid: {construction_months: 6, construction_step_months: 3}
+building:
+  building_type: MFH
+  construction_year: 1972
+  n_units: 12
+  living_area_m2: 840.5
+  net_floor_area_m2: 1000
+  component_areas_m2: {roof: 300, facade: 650.25}
+  land_area_m2: 900
+  land_value_eur_m2: 450
+  existing_value_eur: 1200000
+  consumption_kwh: {gas: 140000}
+  heating_existing: {carrier: gas, installation_year: 1998, type: central}
+  denkmal: false
+  maintenance: {enabled: true, rate_eur_m2_pa: {ref: market.maint_rate}, start_event: 2027-01-01}
+  elements:
+    fenster_alt: {label: "Fenster", measure_type: fenster, installed_year: 1990, replacement_cost_eur: 80000}
+household:
+  net_income_month_eur: 5200
+  n_children_u18: 2
+  contribution_from: 2028
+energy:
+  carriers:
+    gas: {}
+    heatpump_power_mfh: {vat_rate: 0.19, price_eur_kwh: {ref: market.energy_price.heatpump_power_mfh, scale: 1.05}}
+  before: {demand_kwh: 140000, carrier_shares: {gas: 1}, efficiency: 0.9}
+  after: {demand_kwh: 70000, jaz: 3.1250, heat_pump_carrier: heatpump_power_mfh}
+  performance_gap: {prebound_factor: 0.7}
+unit_groups:
+  a:
+    label: "Gruppe A"
+    n_units: 8
+    living_area_m2: 560
+    rent_eur_m2_month: 7.1250     # 7.125 (in YAML ohne Nachkommanull mehrdeutig; Excel-Zahlenzelle eindeutig)
+    rent_regime: paragraph_558
+    rent_growth: {ref: market.rent_growth}
+    vacancy_rate: 0.03
+    operating: {admin_per_unit_eur_pa: 350, recoverable_opex_eur_m2_month: 2.1}
+    rent_law: {modernization_levy: auto, hardship_share: 0.1}
+  b:
+    n_units: 4
+    living_area_m2: 280.5
+    rent_eur_m2_month: {start: 6.5, growth: 0.02}
+    owner_occupied: false
+measures:
+  wp:
+    measure_type: heizung_waermepumpe_luft
+    year: 2027
+    cost_eur: 180000
+    useful_life_years: 20
+    effects: {maintenance: {factor: 0.5}}
+  huelle:
+    label: "Gebäudehülle"
+    measure_type: daemmung_fassade
+    payment_schedule: {schedule: {2027-07-01: 0.4, 2028: 0.6}, unit: share}
+    cost_kg: {kg300: 300000, kg700: 40000}
+    rent_law: {levy: auto}
+    replaces_ohnehin: []
+funding:
+  kfw: {from: funding/kfw_261_wg_kredit_2026, measures: [wp, huelle], amount_eur: 150000}
+  land: {instrument_type: grant, label: "Zuschuss Land", measures: [wp], amount_eur: 20000, approved: 1}
+components:
+  zrs: {type: custom_series, label: "Sonderzahlung", values: [0, -1000, 0, 0, 0, 0, 0, 0, 0, 0, 0], category: other_cost}
+  wart: {type: recurring, label: "Wartung", amount_eur: {value: 2.5, per: m2_living_area}, growth: {series: {2027: 0.02, 2030: 0.03}, fill: linear}, start_event: 2027-07-01, category: other_cost}
+  zins: {type: recurring, amount_eur: {expr: "building.living_area_m2 * 1.5"}, start_event: completion, after: [wart]}
+financing:
+  ek: {type: equity, amount_eur: 200000, contributions: {schedule: {2028: 10000}}}
+  bank:
+    type: annuity_loan
+    amount_eur: auto
+    rate_pa: 0.041
+    term_years: 25
+    fixed_years: 10
+    payments_per_year: 12
+    initial_repayment_pa: 0.02
+    followup_rate_pa: {ref: market.mortgage_rate, offset: 0.005}
+    fees: {processing_fee_share: 0.01}
+    draw_schedule: {schedule: {2027-01-01: 0.5, 2027-07-01: 0.5}, unit: share}
+  alt: {type: bullet_loan, label: "Bestandsdarlehen", amount_eur: 100000, rate_pa: 0.02, term_years: 5, existing: true}
+accounts:
+  deposit_rate_pa: {ref: market.mortgage_rate, anchor: 0.025, floor: 0}
+  overdraft_limit_eur: .inf
+  surplus_order: [od_repay, dep_invest]
+  deficit_order: [dep_withdraw, od_draw, penalty_rate]
+market:
+  inflation: 0.02
+  rent_growth: {series: {2027: 0.02, 2028: 0.025}, fill: locf, before: zero}
+  mortgage_rate: {years: [2027, 2030], values: [0.041, {ref: shared.zins_2030}], interpolate: step}
+  co2_price: {from: prices/co2_price_paths_2026, use: scenarios.mittel}
+  energy_price: {heatpump_power_mfh: 0.27, gas: {start: 0.1, growth: {ref: market.inflation}, index: period_end}}
+  maint_rate: 14.4
+  precise: 0.30000000000000004
+  tiny: 1.0e-17
+  huge: 3000000000
+  thousands_like: 123.4560
+  label_text: "123"
+  flags: [true, false]
+shared: {zins_2030: 0.045}
+residual_value: {method: income_value, sale_cost_share: 0.03, income_value: {cap_rate: 0.035}}
+tax: {module: none, params: {}}
+analysis:
+  kpis: [terminal_value, delta_terminal_value]
+  primary_kpi: auto
+  thresholds: {dscr: 1.2}
+  mandatory_sensitivities:
+    - {id: zins_hoch, path: market.mortgage_rate, delta: 0.01, label: "Zins +1 Pp"}
+stochastic:
+  settings: {preset: custom, n_sim: 500, seed: 42, sampling: lhs, block_size: 100, band_probs: [0.1, 0.5, 0.9], keep_runs: [p05, p95], convergence: {rel_halfwidth_mean: 0.01}}
+  parameters:
+    kosten: {target: measures.wp.cost_eur, label: "Kosten WP", dist: pert, min: 160000, mode: 180000, max: 230000}
+    zins: {target: shared.zins_2030, dist: normal, mean: 0.045, sd: 0.005, apply: replace}
+    diskret: {target: market.inflation, dist: discrete, values: [0.01, 0.02, 0.03], probs: [0.2, 0.5, 0.3]}
+    lognorm: {target: market.maint_rate, dist: lognormal, mean: 14.4, sd: 2}
+  processes:
+    zinspfad: {target: market.mortgage_rate, type: vasicek, label: "Zinspfad", r0: 0.041, theta: 0.0375, kappa: 0.2, sigma: 0.008, floor: 0}
+  correlations:
+    parameters: [[kosten, zins, 0.3], [kosten, diskret, -0.2]]
+    shocks: {from: processes/shock_correlations_2026}
+variants:
+  v1:
+    label: "Variante mit mehr Dämmung"
+    description: "Variante: Hülle teurer"
+    set: {measures.huelle.cost_eur: 400000, market.inflation: {ref: market.rent_growth, scale: 0.5}}
+    add: {measures.fenster: {measure_type: fenster, year: 2028, cost_eur: 50000}}
+    remove: [components.zins]
+    overrides: {project: {horizon_years: 12}, components: {wart: {growth: ~}}}
+  v2:
+    extends: v1
+    label: "Variante 2"
+    replace: {financing.bank.rate_pa: 0.035}
+scenario_sets:
+  zins_hoch: {label: "Zins hoch", set: {market.mortgage_rate: 0.07, funding.*.approved: 0}}
+  vorsicht: {label: "Vorsichtig", generate: {method: cautious, n_drivers: 3, probs: [0.1, 0.9], kpi: auto, params: auto, exclude: []}}
