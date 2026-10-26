@@ -1,0 +1,72 @@
+# Labels des Zahlungstyps replacement (WS-E, Spec 01 Teil A 4.10).
+label: "Ersatzinvestition"
+description: "Ersatzinvestitionen im Nutzungsdauerzyklus einer Maßnahme bzw. eines Bestandsbauteils mit laufspezifischer Nutzungsdauer, Preisindex zum Ersatztermin und Zeitwertpfad für den Restwert."
+params:
+  capex_id:
+    label: "Erstinvestition"
+    help: "id der zugehörigen capex-Komponente (Kostenbasis und Fertigstellung der Erstinvestition)."
+  enabled:
+    label: "Ersatz erzeugen"
+    help: "FALSE: keine Ersatzzahlungen, nur Zeitwertpfad der Erstinvestition."
+  cost_eur:
+    label: "Kosten je Ersatz"
+    help: "Ersatzkosten in Preisen von price_base_year; Default Grundkosten der Erstinvestition x cost_factor."
+  cost_factor:
+    label: "Kostenfaktor des Ersatzes"
+    help: "Ersatzkosten relativ zu den Erstkosten."
+  price_base_year:
+    label: "Preisstand"
+    help: "Jahr Y des Preisstands (1. Januar Y+1); Default project.price_base_year."
+  price_index:
+    label: "Preisindex p. a."
+    help: "Preisindexrate bis zum Ersatztermin."
+  vat_rate:
+    label: "Umsatzsteuersatz"
+    help: "In den Kosten enthaltener Satz (Basisfallwert)."
+  install_date:
+    label: "Einbau bzw. Fertigstellung"
+    help: "Termin der Erstinvestition bzw. Einbaujahr des Bestandsbauteils (1. Januar)."
+  install_shift_months:
+    label: "Verschiebung des Einbaus in Monaten"
+    help: "Laufspezifische Verschiebung der Fertigstellung (>= 0)."
+  useful_life_years:
+    label: "Nutzungsdauer in Jahren"
+    help: "Nutzungsdauer L (stochastisch zulässig), gerundet auf ganze Monate."
+  first_date:
+    label: "Erster Ersatztermin"
+    help: "Überschreibt Einbau + Nutzungsdauer (Bauteil: next_replacement)."
+  first_shift_months:
+    label: "Verschiebung des ersten Ersatzes in Monaten"
+    help: "Laufspezifische Verschiebung des ersten Ersatztermins (>= 0)."
+  until_date:
+    label: "Ende des Zyklus"
+    help: "Fertigstellung einer ersetzenden Maßnahme; danach kein Ersatz und kein Zeitwert."
+  until_shift_months:
+    label: "Verschiebung des Zyklusendes in Monaten"
+    help: "Laufspezifische Verschiebung des Zyklusendes (>= 0)."
+  include_initial:
+    label: "Wertpfad mit Erstinvestition"
+    help: "TRUE für Maßnahmen (Erstinvestition aus capex_id), FALSE für Bestandsbauteile."
+  overdue:
+    label: "Überfälliger Ersatz"
+    help: "first_period (Ende Periode 1), valuation (Stichtag) oder skip (entfällt)."
+  classification:
+    label: "Steuerliche Einordnung"
+    help: "erhaltung (sofort abziehbar) oder herstellung."
+  active:
+    label: "Aktivierungsfaktor"
+    help: "0/1; wirkt auf cost_eur (bei Kosten aus der Erstinvestition bereits enthalten)."
+rows:
+  cost: "Ersatzinvestition"
+msg:
+  no_life: "Komponente '{id}': useful_life_years fehlt."
+  no_capex: "Komponente '{id}': include_initial verlangt eine Erstinvestition (capex_id)."
+  no_cost: "Komponente '{id}': keine Ersatzkosten (cost_eur oder capex_id angeben)."
+errors:
+  life_nonpositive: "Komponente '{id}': die Nutzungsdauer muss > 0 sein."
+  life_short: "Komponente '{id}': Nutzungsdauer {value} Jahre unter 5 Jahren."
+  first_before_install: "Komponente '{id}': erster Ersatztermin {date} liegt vor dem Einbau."
+  shift_negative: "Komponente '{id}': Verschiebungen müssen >= 0 sein (früherer Basistermin mit Verschiebung >= 0)."
+  no_capex: "Komponente '{id}': include_initial = TRUE verlangt capex_id."
+  element_cost_missing: "Komponente '{id}': Ersatzkosten fehlen (cost_eur bzw. replacement_cost_eur des Bauteils angeben)."
+  many_events: "Komponente '{id}': {value:int} Ersatztermine im Horizont (mehr als 10)."

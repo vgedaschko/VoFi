@@ -1,0 +1,72 @@
+# Labels des Zahlungstyps maintenance (WS-E, Spec 01 Teil A 4.11).
+label: "Instandhaltung"
+description: "Laufende Instandhaltung als Pauschale je m² (ImmoWertV Anlage 3), nach II. BV mit Altersklassen ab Bezugsfertigkeit oder bauteilbezogen in % der Investition (Instandsetzung nach VDI 2067)."
+params:
+  basis:
+    label: "Bemessung"
+    help: "rate (Satz x Fläche), iibv (Altersklassen der II. BV) oder share_of_cost (Anteil der Investition)."
+  rate_eur_m2_pa:
+    label: "Instandhaltungssatz je m² und Jahr"
+    help: "Jahresbetrag je m² im Preisstand price_base_year (Pfad zulässig)."
+  area_m2:
+    label: "Bezugsfläche"
+    help: "Fläche in m², z. B. {ref: building.living_area_m2}."
+  iibv_rates:
+    label: "Sätze der II. BV"
+    help: "lt22y, ge22y, ge32y: Sätze nach Bezugsfertigkeit unter 22, ab 22 und ab 32 Jahren."
+  iibv_adjust_eur_m2_pa:
+    label: "Zu- und Abschläge der II. BV"
+    help: "z. B. Aufzug +1,63, Kleinreparaturen durch Mieter −1,70 EUR/m² und Jahr."
+  reference_year:
+    label: "Jahr der Bezugsfertigkeit"
+    help: "Bezug der Altersklassen; Default building.first_occupancy_year."
+  reset_capex_ids:
+    label: "Maßnahmen mit Alters-Reset"
+    help: "capex-Komponenten, deren Fertigstellung das Alter zurücksetzt (Vollsanierung)."
+  share_pa:
+    label: "Anteil der Investition je Jahr"
+    help: "Instandsetzung in % der Investition (VDI 2067, ohne Wartung)."
+  capex_id:
+    label: "Investition"
+    help: "capex-Komponente mit Kostenbasis und Wirkungsbeginn (bei share_of_cost)."
+  factors:
+    label: "Faktoren wirkender Maßnahmen"
+    help: "Map capex-id -> Faktor auf die Pauschale ab Wirkungsbeginn der Maßnahme."
+  factor_years:
+    label: "Wirkungsdauer der Faktoren"
+    help: "Map capex-id -> Jahre; fehlt = bis zum Horizont."
+  price_base_year:
+    label: "Preisstand"
+    help: "Jahr Y des Jahresbetrags (Preisstand Ende Y = 1. Januar Y+1)."
+  growth:
+    label: "Fortschreibung p. a."
+    help: "Kalenderjahresindex, z. B. {ref: market.maintenance_index}."
+  start_event:
+    label: "Beginn"
+    help: "Datum, Jahr oder completion (Neubau: ab Fertigstellung)."
+  to:
+    label: "Ende"
+    help: "Default Horizontende."
+  vat_rate:
+    label: "Umsatzsteuersatz"
+    help: "In den Kosten enthaltener Satz (Basisfallwert)."
+  tax_category:
+    label: "Steuerkategorie"
+    help: "Default expense_deductible, Selbstnutzer expense_nondeductible."
+rows:
+  cost: "Instandhaltung"
+msg:
+  no_reference_year: "Komponente '{id}': kein Jahr der Bezugsfertigkeit (reference_year bzw. building.first_occupancy_year) für die II. BV."
+  no_iibv_rates: "Komponente '{id}': die Sätze iibv_rates.lt22y, .ge22y und .ge32y fehlen."
+  no_in_operation: "Komponente '{id}': die Komponente '{component}' liefert keinen Wirkungspfad (aux$in_operation)."
+  share_incomplete: "Komponente '{id}': share_of_cost verlangt share_pa und capex_id."
+  no_area: "Komponente '{id}': Bezugsfläche area_m2 fehlt."
+  no_rate: "Komponente '{id}': Instandhaltungssatz rate_eur_m2_pa fehlt."
+errors:
+  rate_missing: "Komponente '{id}': basis rate verlangt rate_eur_m2_pa."
+  area_missing: "Komponente '{id}': die Bezugsfläche area_m2 fehlt."
+  iibv_rates_missing: "Komponente '{id}': basis iibv verlangt iibv_rates."
+  share_incomplete: "Komponente '{id}': basis share_of_cost verlangt share_pa und capex_id."
+  start_after_to: "Komponente '{id}': der Beginn liegt nicht vor dem Ende (start_event < to)."
+  double_count: "Komponente '{id}': Die Pauschale enthält die Erneuerung von Bauteilen; explizite Ersatz- und Instandsetzungsmaßnahmen zusätzlich führen zu Doppelzählung. Satz mindern und excludes_explicit_replacements: true setzen oder Ersatz abschalten."
+  replacements_excluded: "Komponente '{id}': explizit modellierte Erneuerungen im Horizont entsprechen {value} EUR/m² und Jahr (Preisstand, ohne Index). Ist der Satz darum gemindert?"

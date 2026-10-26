@@ -1,0 +1,36 @@
+# Labels des Zahlungstyps land (WS-E, Spec 01 Teil A 4.7).
+label: "Kaufpreis (Erwerb)"
+description: "Kaufpreis eines Grundstücks bzw. bebauten Grundstücks zum Besitzübergang mit Aufteilung in Grund und Boden und Gebäude."
+params:
+  purchase_price_eur:
+    label: "Kaufpreis"
+    help: "Vertragspreis in EUR (nominal, nicht indexiert)."
+  land_share:
+    label: "Bodenanteil"
+    help: "Anteil Grund und Boden am Kaufpreis (Kaufpreisaufteilung)."
+  date:
+    label: "Zahlungstermin"
+    help: "Besitzübergang (Datum, Jahr oder completion)."
+  delay_months:
+    label: "Verschiebung in Monaten"
+    help: "Laufspezifische Verschiebung des Termins (>= 0)."
+  active:
+    label: "Aktivierungsfaktor"
+    help: "0/1: Erwerb findet statt."
+  land_asset_id:
+    label: "Anlage Grund und Boden"
+    help: "Default <building_id>_land."
+  building_asset_id:
+    label: "Anlage Gebäude"
+    help: "Default <building_id>_building."
+rows:
+  price_land: "Kaufpreis Grund und Boden"
+  price_building: "Kaufpreis Gebäude"
+msg:
+  after_horizon: "Komponente '{id}': der Kaufpreis fällt jenseits des Horizonts an und entfällt (Anteil der Läufe {share:pct})."
+  no_date: "Komponente '{id}': Zahlungstermin date fehlt."
+  no_price: "Komponente '{id}': Kaufpreis purchase_price_eur fehlt."
+errors:
+  before_valuation: "Komponente '{id}': der Zahlungstermin {date} liegt vor dem Bewertungsstichtag."
+  shift_negative: "Komponente '{id}': die Verschiebung delay_months muss >= 0 sein."
+  measure_missing: "Komponente '{id}': measure_id ist Pflicht für die Gebäudezeile (Kategorie capex)."

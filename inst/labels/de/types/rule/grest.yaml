@@ -1,0 +1,8 @@
+# Labels der Rechtsregel grest (WS-E, Spec 01 Teil A 4.8, 7).
+label: "Grunderwerbsteuer"
+description: "Grunderwerbsteuer auf die Gegenleistung mit dem Satz des Bundeslandes (bzw. ausdrücklichem Satz) und der Freigrenze nach § 3 Nr. 1 GrEStG."
+msg:
+  rate_missing: "Grunderwerbsteuer: kein Steuersatz für das Land '{state}' (Satz grest_rate angeben oder Land prüfen)."
+versions:
+  "20250701":
+    note: "Sätze nach Landesrecht ab 1. Juli 2025 (Bremen 5,5 %), Freigrenze 2.500 EUR."

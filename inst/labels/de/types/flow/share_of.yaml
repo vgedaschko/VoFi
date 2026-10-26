@@ -1,0 +1,49 @@
+# Labels des Zahlungstyps share_of (WS-E, Spec 01 Teil A 4.15).
+label: "Anteil an anderen Zeilen"
+description: "Anteil an Zeilen anderer Komponenten, z. B. Verwaltungskosten in % der Miete oder Mietausfallwagnis als Kosten."
+params:
+  of:
+    label: "Quellkomponenten"
+    help: "ids der Komponenten, deren Zeilen die Basis bilden (zugleich in after)."
+  categories:
+    label: "Kategorien der Basis"
+    help: "Filter nach Kategorie; leer = alle."
+  local_rows:
+    label: "Zeilen der Basis"
+    help: "Filter nach lokalem Zeilennamen; leer = alle."
+  share:
+    label: "Anteil"
+    help: "Anteil an der Basis (Pfad zulässig)."
+  invert:
+    label: "Vorzeichen umkehren"
+    help: "TRUE: Kosten als Anteil von Erlösen."
+  lag_periods:
+    label: "Verzögerung in Perioden"
+    help: "Ganze Zahl >= 0."
+  category:
+    label: "Kategorie der Zielzeile"
+    help: "Default other_cost."
+  tax_category:
+    label: "Steuerkategorie"
+    help: "Default der Kategorie."
+  section:
+    label: "Abschnitt der Zielzeile"
+    help: "project, grants oder memo."
+rows:
+  value: "Anteil"
+msg:
+  no_source: "Komponente '{id}': keine Quellkomponente (of) angegeben."
+  no_share: "Komponente '{id}': der Anteil share fehlt."
+  sign: "Komponente '{id}': das Vorzeichen des Anteils widerspricht der Kategorie '{category}' (invert prüfen)."
+errors:
+  no_source: "Komponente '{id}': keine Quellkomponente (of) angegeben."
+  of_not_after: "Komponente '{id}': die Quellkomponenten {value} müssen auch in after stehen."
+  source_unknown: "Komponente '{id}': die Quellkomponente '{value}' existiert nicht."
+  source_residual: "Komponente '{id}': die Restwertkomponente '{value}' darf keine Quelle sein."
+  source_self: "Komponente '{id}': eine Komponente kann nicht Anteil an sich selbst sein."
+  lag_negative: "Komponente '{id}': lag_periods muss eine ganze Zahl >= 0 sein."
+  section_invalid: "Komponente '{id}': Abschnitt '{value}' ist nicht zulässig (zulässig: {allowed})."
+  category_invalid: "Komponente '{id}': Kategorie '{value}' gehört nicht zum Abschnitt '{section}' oder ist der Engine vorbehalten.{suggestion}"
+  tax_category_invalid: "Komponente '{id}': Steuerkategorie '{value}' ist für die Kategorie '{category}' nicht zulässig (zulässig: {allowed})."
+  memo_cash: "Komponente '{id}': Merkzeilen sind nie zahlungswirksam."
+  sign: "Komponente '{id}': das Vorzeichen widerspricht der Kategorie '{category}'."

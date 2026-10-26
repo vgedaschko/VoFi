@@ -1,0 +1,80 @@
+# Labels des Zahlungstyps residual_value (WS-E, Spec 01 Teil A 6).
+label: "Restwert"
+description: "Restwert des Objekts am Horizont nach der gewählten Methode (Ertragswert, Sachwert, Komponenten-Zeitwert, Vervielfältiger, Exit-Rendite, Marktwertfortschreibung, Vorgabe) mit Verkaufskosten, Marktwertpfad und Restwertpfad je Periode."
+params:
+  method:
+    label: "Restwertmethode"
+    help: "zero, income_value, market_growth, multiplier, exit_yield, asset_value, component oder user_value."
+  sale_cost_share:
+    label: "Verkaufskosten"
+    help: "Anteil am Wert bei Verkauf (Default 3 %)."
+  path_pre_operation:
+    label: "Wertpfad vor Betriebsbeginn"
+    help: "auto (Neubau: Kosten, sonst Methode), cost, method oder zero."
+  income_value:
+    label: "Ertragswertverfahren"
+    help: "Parameter nach ImmoWertV §§ 27–34 (Liegenschaftszins, Restnutzungsdauer nach Anlage 2, Bewirtschaftungskosten nach Anlage 3, Bodenwert)."
+  multiplier:
+    label: "Rohertragsvervielfältiger"
+    help: "factor, basis, income_basis, forward_growth."
+  exit_yield:
+    label: "Exit-Rendite"
+    help: "cap_rate (NOI-Rendite am Horizont), income_basis, forward_growth, cost_forward_growth."
+  market_growth:
+    label: "Marktwertfortschreibung"
+    help: "base_value_eur, growth, uplift_share."
+  asset_value:
+    label: "Sachwertverfahren (linear)"
+    help: "life_basis, gnd_years, kg_include, include_existing, market_adjustment_factor, uplift_share, index, Bodenwert."
+  component:
+    label: "Komponenten-Zeitwert"
+    help: "indexed, include_land, include_existing, existing_growth."
+  user_value:
+    label: "Vorgegebener Wert"
+    help: "value_eur (Konstante oder Pfad)."
+  n_units:
+    label: "Wohneinheiten"
+    help: "Bezug der Verwaltungskosten (Default building.n_units)."
+  living_area_m2:
+    label: "Wohnfläche"
+    help: "Bezug der Instandhaltungskosten (Default building.living_area_m2)."
+  construction_year:
+    label: "Baujahr"
+    help: "Baujahr des Gebäudes (Alter für die Restnutzungsdauer)."
+  fictitious_construction_year:
+    label: "Fiktives Baujahr"
+    help: "ersetzt das Baujahr nach einer Kernsanierung."
+  points_before:
+    label: "Modernisierungspunkte des Bestands"
+    help: "Punkte je Element vor den Maßnahmen (ImmoWertV Anlage 2)."
+  points_measures:
+    label: "Modernisierungspunkte der Maßnahmen"
+    help: "Map Maßnahme -> Element -> Punkte, wirksam ab Wirkungsbeginn der Maßnahme."
+  existing_value_eur:
+    label: "Bestandswert"
+    help: "Verkehrswert des Bestands zum Stichtag (Ausgangswert von market_growth, Bestand bei component und asset_value)."
+rows:
+  value: "Restwert"
+  sale_cost: "Verkaufskosten"
+  market_value: "Marktwert (Wertpfad)"
+  path_method: "Restwertpfad (Methode, nach Verkaufskosten)"
+  path_measures: "Restwertpfad (Zeitwert der Maßnahmen, nach Verkaufskosten)"
+msg:
+  land_value_missing: "Komponente '{id}': der Bodenwert land_value_eur fehlt (building.land_value_eur angeben)."
+  construction_year_missing: "Komponente '{id}': das Baujahr fehlt (construction_year bzw. building.construction_year) für die Restnutzungsdauer."
+  rnd_manual_missing: "Komponente '{id}': remaining_life_method manual verlangt remaining_life_years."
+  liquidation_floor: "Komponente '{id}': Liquidationswert greift am Horizont (Gebäudeertragswert unter dem Bodenwert abzüglich Freilegung; Anteil der Läufe {share:pct})."
+  noi_nonpositive: "Komponente '{id}': Reinertrag am Horizont <= 0, Restwert 0 (Anteil der Läufe {share:pct})."
+  no_useful_life: "Komponente '{id}': Maßnahmen ohne Nutzungsdauer gehen mit ihrem Herstellungswert ohne Abschreibung ein ({components})."
+  negative_value: "Komponente '{id}': rechnerisch negativer Wert auf 0 begrenzt (Anteil der Läufe {share:pct})."
+  method_unknown: "Komponente '{id}': unbekannte Restwertmethode '{method}'."
+errors:
+  rnd_manual_missing: "Komponente '{id}': remaining_life_method manual verlangt income_value.remaining_life_years."
+  construction_year_missing: "Komponente '{id}': für die Restnutzungsdauer (anlage2, linear) fehlt das Baujahr."
+  double_count: "Komponente '{id}': Ertragswert und Komponenten-Zeitwert zugleich (bog_component_residual) zählen die Maßnahmen doppelt."
+  fictitious_and_points: "Komponente '{id}': fiktives Baujahr und Modernisierungspunkte zugleich zählen die Modernisierung doppelt."
+  cap_rate_unusual: "Komponente '{id}': Liegenschaftszinssatz {value:pct} außerhalb von 1,5 % bis 6 %."
+  factor_unusual: "Komponente '{id}': Vervielfältiger {value} außerhalb von 10 bis 35."
+  existing_without_value: "Komponente '{id}': Sacheinlage ohne Gegenwert am Horizont (component.include_existing false bei gesetztem Bestandswert)."
+  points_capped: "Komponente '{id}': Modernisierungspunkte für '{element}' außerhalb der Höchstpunkte; sie werden begrenzt."
+  sale_cost_high: "Komponente '{id}': Verkaufskosten über 8 %."
