@@ -18,6 +18,7 @@ jobs:
           r-version: "4.3.3"
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::devtools, any::roxygen2, any::testthat, any::withr
+          # roxygen2 auf die lokale Entwicklungsversion gepinnt (8.x schreibt NAMESPACE/Rd anders)
+          extra-packages: any::devtools, roxygen2@7.3.1, any::testthat, any::withr
       - name: Paket prüfen
         run: tools/check.sh

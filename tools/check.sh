@@ -38,7 +38,8 @@ echo "== roxygen2::roxygenise() =="
 # Pruefsummen vor und nach roxygenise(): Unterschiede bedeuten, dass der eingecheckte Stand
 # veraltet war (2.6 Nr. 1). Im CI (Variable CI gesetzt) ist ein veraltetes NAMESPACE ein Fehler;
 # man/ nur ein Hinweis, weil andere roxygen2-Versionen die Rd-Dateien anders formatieren koennen.
-ns_sum() { cksum < NAMESPACE; }
+# Vergleich ohne Kommentarzeilen und unabhaengig von der Reihenfolge der Direktiven
+ns_sum() { grep -v '^#' NAMESPACE | sort | cksum; }
 man_sum() { cat man/*.Rd 2>/dev/null | cksum; }
 NS_BEFORE="$(ns_sum)"
 MAN_BEFORE="$(man_sum)"
