@@ -36,6 +36,12 @@
       Monte-Carlo-Simulation: testkit (oracle_a), Variante base
       200 Läufe, Seed 20261025, Verfahren lhs, 1 Replikat(e) zu 200 Läufen
       
+      Ampel
+        Gesamt: gelb (Wirtschaftlichkeit: gelb; Grundlage: Monte-Carlo-Simulation)
+        Ergebnis hängt am Restwert
+        Restriktion nicht prüfbar: Kapitaldienstdeckung unter Schwelle
+        Restriktion nicht prüfbar: Liquiditätsengpass bzw. Kontokorrent über Limit
+      
       Risiko in Worten
         - In 7 von 10 simulierten Zukünften ist die Endwertdifferenz positiv.
         - Wahrscheinlichkeit eines negativen Werts: 26,50 % ± 3,12 Prozentpunkte (MC-Fehler).

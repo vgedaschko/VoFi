@@ -22,7 +22,8 @@ test_that("Vergleichbarkeit: Befunde, ungleiche Nachsch\u00fcsse (9.6 Nr. 2)", {
                          location = NA_character_, message = c("Horizont", "Konten"),
                          layer = 3L, variant = "a", stringsAsFactors = FALSE)
   cmp$comparability <- new_vofi_validation(findings)
-  calls <- data.frame(variant = c("base", "a"), kpi = "sum_equity_calls", value = c(0, 3000))
+  calls <- data.frame(variant = c("base", "a"), scenario_set = NA_character_,
+                      kpi = "sum_equity_calls", value = c(0, 3000), na_reason = NA_character_)
   cmp$kpi_table <- rbind(cmp$kpi_table, calls)
   lines <- rep_cmp_comparability(cmp)
   expect_identical(lines[1L], lbl("report.compare.findings", errors = 1L, warnings = 1L,

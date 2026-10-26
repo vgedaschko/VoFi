@@ -255,7 +255,11 @@ example_mc_result <- function(n_sim = 200L) {
   checks$n_runs <- n_sim
   model <- vofi_build(vofi_read_scenario(testthat::test_path("fixtures", "scenarios",
                                                              "oracle_a.yaml")))
-  new_vofi_mc_result(list(
+  # Hinweise und Meta-Felder wie mc_assemble() (WS-G): ohne sim_index, mit n_chunks, preview,
+  # se_rough, kpis_mc
+  se_notes <- c(if (r_blocks < 10L) lbl("mc.notes.se_rough", r = r_blocks),
+                if (r_blocks == 1L) lbl("mc.notes.se_naive"))
+  res <- new_vofi_mc_result(list(
     spec = det$spec, grid = det$grid, model = model, kpis = kpis, kpi_na = kpi_na,
     kpi_series = list(),
     inputs = data.frame(sim = i, `components.z.values` = 1 + 0.05 * sc, check.names = FALSE),
@@ -267,13 +271,23 @@ example_mc_result <- function(n_sim = 200L) {
     runs = list(p05 = det, p50 = det, p95 = det), run_index = run_idx,
     deterministic = det, stats = stats, checks = checks, ledger = NULL, decision = NULL,
     traffic_light = NULL,
-    meta = c(det$meta[setdiff(names(det$meta), c("seed", "n_sim", "mode", "store"))],
+    meta = c(det$meta[setdiff(names(det$meta), c("seed", "n_sim", "mode", "store", "sim_index",
+                                                 "notes"))],
              list(seed = 20261025, n_sim = n_sim, mode = "mc", store = "bands",
                   sampling = "lhs", replicates = r_blocks, block_size = bs,
                   copula = "iman_conover", antithetic = FALSE, chunk_size = 2000L,
+                  n_chunks = as.integer(ceiling(n_sim / 2000L)),
                   repaired = list(), rng_kind = c("Mersenne-Twister", "Inversion", "Rejection"),
-                  plan_hash = "example", keep_runs_kpi = "delta_terminal_value"))
+                  plan_hash = "example", keep_runs_kpi = "delta_terminal_value",
+                  preview = FALSE, se_rough = r_blocks < 10L,
+                  kpis_mc = setdiff(names(kpis), c("sim", "block")),
+                  notes = c(det$meta$notes %||% character(0), se_notes)))
   ))
+  # Ampel der Primärkennzahl wie in vofi_mc() (12.9, 13.2)
+  if (identical(kpi_primary(res$spec)$kpi, "delta_terminal_value")) {
+    res$traffic_light <- cmp_traffic_light(res)
+  }
+  res
 }
 
 #' Synthetischer, vertragsgemäßer Vergleich zweier Varianten (deterministisch)
@@ -283,12 +297,13 @@ example_comparison <- function() {
   a$meta$variant <- "a"
   a$kpis$terminal_value <- base$kpis$terminal_value + 2000
   a$kpis$delta_terminal_value <- base$kpis$delta_terminal_value + 2000
+  # Spalten wie vofi_compare() (WS-G): scenario_set (NA ohne Set), na_reason (deterministisch)
   kpi_table <- data.frame(
-    variant = rep(c("base", "a"), each = 2L),
+    variant = rep(c("base", "a"), each = 2L), scenario_set = NA_character_,
     kpi = rep(c("terminal_value", "delta_terminal_value"), 2L),
     value = c(base$kpis$terminal_value, base$kpis$delta_terminal_value,
               a$kpis$terminal_value, a$kpis$delta_terminal_value),
-    stringsAsFactors = FALSE
+    na_reason = NA_character_, stringsAsFactors = FALSE
   )
   dvr <- matrix(a$kpis$delta_terminal_value - base$kpis$delta_terminal_value, nrow = 1L,
                 dimnames = list(NULL, "a"))
@@ -301,17 +316,25 @@ example_comparison <- function() {
                             q50 = dvr[1L, 1L], q75 = dvr[1L, 1L], q95 = dvr[1L, 1L],
                             prob_better = 1, stringsAsFactors = FALSE),
     ranking = data.frame(variant = c("a", "base"), rank = 1:2,
-                         criterion = "delta_vs_reference", stringsAsFactors = FALSE),
+                         criterion = "delta_vs_reference", value = c(dvr[1L, 1L], 0),
+                         stringsAsFactors = FALSE),
     diff_table = NULL, comparability = new_vofi_validation(),
     traffic_light = data.frame(variant = "a", level = "yellow", stage1 = "yellow",
                                basis = "base_only", kpi = "delta_vs_reference",
-                               rv_dependent = TRUE, ko_codes = "", stringsAsFactors = FALSE),
+                               rv_dependent = TRUE, ko_codes = "",
+                               notes = paste(lbl("mc.traffic_light.no_robustness"),
+                                             lbl("mc.traffic_light.rv_dependent"), sep = "; "),
+                               stringsAsFactors = FALSE),
     restrictions = data.frame(variant = character(0), code = character(0),
                               violated_base = logical(0), prob = numeric(0),
                               year = integer(0), value = numeric(0), threshold = numeric(0),
                               ko = logical(0), stringsAsFactors = FALSE),
     conditional = NULL, crn = TRUE,
     meta = list(seed = NULL, n_sim = 1L, mode = "deterministic", allow_unequal = FALSE,
-                created = as.POSIXct("2026-10-25 12:00:00", tz = "UTC"))
+                created = as.POSIXct("2026-10-25 12:00:00", tz = "UTC"),
+                cases = data.frame(case = c("base", "a"), variant = c("base", "a"),
+                                   scenario_set = NA_character_, reference = "base",
+                                   stringsAsFactors = FALSE),
+                cautious = list(), notes = character(0), runtime_sec = 0, differential = FALSE)
   ))
 }

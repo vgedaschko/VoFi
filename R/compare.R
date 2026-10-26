@@ -1097,7 +1097,9 @@ cmp_traffic_light_core <- function(p_base, p_base_ex_rv = p_base, mc = NULL, p_c
     rs$ko <- (!is.na(vb) & vb) | (!is.na(pr) & pr >= thresholds$restriction_prob)
     rs$ko[unchecked] <- FALSE
     for (cd in rs$code[unchecked]) {
-      notes <- c(notes, lbl("mc.traffic_light.restriction_unchecked", code = cd))
+      # deutsche Bezeichnung der Restriktion (Label-Katalog der Ausgabeschicht), sonst Code
+      notes <- c(notes, lbl("mc.traffic_light.restriction_unchecked",
+                            code = lbl(paste0("report.traffic.restriction_", cd), .default = cd)))
     }
     for (i in which(rs$ko)) {
       notes <- c(notes, cmp_restriction_note(rs[i, , drop = FALSE]))

@@ -54,7 +54,8 @@ test_that("Ampel im Basisfall (12.9 base_only): gelb/rot, Restwertregel, K.-o., 
   expect_identical(tl$level, "yellow")
   expect_identical(tl$basis, "base_only")
   expect_true(tl$rv_dependent)
-  expect_true("report.traffic.no_robustness" %in% tl$notes)
+  # seit WS-G liefert cmp_traffic_light() die Ampel (Hinweise als Text, 12.9)
+  expect_true(lbl("mc.traffic_light.no_robustness") %in% tl$notes)
   x$kpis$delta_terminal_value <- -1
   expect_identical(rep_traffic_light(x)$level, "red")
   expect_false(rep_traffic_light(x)$rv_dependent)
@@ -72,6 +73,7 @@ test_that("Ampel im Basisfall (12.9 base_only): gelb/rot, Restwertregel, K.-o., 
   expect_identical(rep_traffic_light(x)$level, "green")
   # Bestandsprojekt (Primärkennzahl delta_vs_reference): Ampel nur im Vergleich
   y <- example_result()
+  y$spec$project$project_type <- "sanierung_eh"   # Primärkennzahl aus der Spezifikation (12.3a)
   y$meta$primary_kpi <- "delta_vs_reference"
   expect_null(rep_traffic_light(y))
 })

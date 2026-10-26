@@ -330,9 +330,10 @@ rep_sens_matrix <- function(x, n, unit) {
   g <- g[order(-abs(g$spearman), method = "radix"), , drop = FALSE]
   g <- utils::head(g, n)
   cols <- intersect(c("spearman", "src", "srrc", "prcc", "s1_binned"), names(g))
-  m <- cbind(as.character(g$input), vapply(cols, function(cc) fmt_num(g[[cc]], 3),
-                                           character(nrow(g))))
-  if (nrow(g) == 1L) m <- matrix(m, nrow = 1L)
+  # vapply() liefert bei einer Eingangsgröße einen Vektor statt einer Matrix
+  vals <- matrix(vapply(cols, function(cc) fmt_num(g[[cc]], 3), character(nrow(g))),
+                 nrow = nrow(g))
+  m <- cbind(as.character(g$input), vals)
   colnames(m) <- c(lbl("report.sensitivity.input"),
                    vapply(cols, function(cc) lbl(paste0("report.sensitivity.", cc)), ""))
   m

@@ -46,7 +46,7 @@ cautious:
 traffic_light:
   no_robustness: "keine Robustheitsprüfung (nur Basisfall)"
   rv_dependent: "Ergebnis hängt am Restwert"
-  restriction_unchecked: "Restriktion {code} nicht prüfbar"
+  restriction_unchecked: "Restriktion nicht prüfbar: {code}"
   ko_dscr: "Restriktion DSCR verletzt: {value} im Jahr {year} (Schwelle {threshold}; Wahrscheinlichkeit {prob})"
   ko_liquidity: "Restriktion Liquidität verletzt: Kontokorrent {value} € im Jahr {year} (Schwelle {threshold}; Wahrscheinlichkeit {prob})"
   ko_warm_rent: "Restriktion Warmmiete verletzt: Anstieg {value} €/m² im Jahr {year} (Schwelle {threshold}; Wahrscheinlichkeit {prob})"

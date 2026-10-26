@@ -61,10 +61,10 @@
       
       Ampel
         Gesamt: gelb (Wirtschaftlichkeit: gelb; Grundlage: nur Basisfall)
-        Keine Robustheitsprüfung (weder Simulation noch Szenario-Set „vorsichtig“); die Ampel ist höchstens gelb.
-        Ergebnis hängt am Restwert.
-        Restriktion nicht prüfbar: Kapitaldienstdeckung unter Schwelle.
-        Restriktion nicht prüfbar: Liquiditätsengpass bzw. Kontokorrent über Limit.
+        keine Robustheitsprüfung (nur Basisfall)
+        Ergebnis hängt am Restwert
+        Restriktion nicht prüfbar: Kapitaldienstdeckung unter Schwelle
+        Restriktion nicht prüfbar: Liquiditätsengpass bzw. Kontokorrent über Limit
       
       Kennzahlen mit Restwert
         Endwert                                 38.504,63 €
