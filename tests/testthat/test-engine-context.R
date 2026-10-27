@@ -149,3 +149,82 @@ test_that("ctx$auto: Plan auf n Läufe gehoben, falsche Längen und NA sind Vert
               list(commitment = NA_real_, draws = plan))
   for (b in bad) expect_error(mk(b)$auto("x"), class = "vofi_error_contract")
 })
+
+test_that("Zeilengleiche Eingaben: eng_rows_equal, eng_uniform_rows, eng_expand_rows (9.10)", {
+  u <- matrix(rep(c(1, 2.5, -0), each = 4L), 4L)
+  expect_true(eng_rows_equal(u))
+  expect_true(eng_rows_equal(matrix(7, 3L, 2L)))
+  expect_true(eng_rows_equal(u[1L, , drop = FALSE]))
+  v <- u
+  v[4L, 2L] <- 3
+  expect_false(eng_rows_equal(v))
+  v <- u
+  v[2L, 3L] <- 1
+  expect_false(eng_rows_equal(v))
+  v <- u
+  v[2L, 1L] <- NA
+  expect_false(eng_rows_equal(v))
+  one <- eng_uniform_rows(structure(u, path = "p"), 4L)
+  expect_identical(one, structure(u[1L, , drop = FALSE], path = "p"))
+  ab <- matrix(c(0.01, 0.02), 4L, 2L, byrow = TRUE)
+  one_ab <- eng_uniform_rows(structure(u, annual_before = ab), 4L)
+  expect_identical(attr(one_ab, "annual_before"), ab[1L, , drop = FALSE])
+  expect_null(eng_uniform_rows(structure(u, annual_before = ab[1:3, ]), 4L))
+  expect_null(eng_uniform_rows(u, 1L))
+  expect_null(eng_uniform_rows(u, 3L))
+  expect_null(eng_uniform_rows(v, 4L))
+  expect_null(eng_uniform_rows(matrix(1L, 4L, 2L), 4L))
+  named <- u
+  rownames(named) <- letters[1:4]
+  expect_null(eng_uniform_rows(named, 4L))
+  expect_identical(eng_uniform_rows(rep(0.3, 4L), 4L), 0.3)
+  expect_null(eng_uniform_rows(c(0.3, 0.3, 0.3, 0.4), 4L))
+  expect_identical(eng_expand_rows(matrix(1:3 / 7, 1L), 3L), matrix(1:3 / 7, 3L, 3L, byrow = TRUE))
+  expect_null(eng_expand_rows(matrix(1, 2L, 2L), 3L))
+  expect_null(eng_expand_rows(structure(matrix(1, 1L, 2L), path = "p"), 3L))
+  expect_null(eng_expand_rows(1, 3L))
+  # eng_by_unique: je verschiedenem Wert einmal, Ergebnis wie die Funktion selbst
+  f <- function(m) cbind(m * 2, m + 1)
+  m <- c(3, 1, 3, 3, 1)
+  expect_identical(eng_by_unique(m, f), f(m))
+  expect_identical(eng_by_unique(m, function(x) x^2), m^2)
+  expect_identical(eng_by_unique(c(1, 2), f), f(c(1, 2)))
+  expect_identical(eng_by_unique(5, f), f(5))
+})
+
+test_that("Rasterfunktionen des Kontexts = direkte Rechnung mit allen Zeilen (9.10)", {
+  model <- suppressMessages(vofi_build(wsd_bench_scenario(20L, 12L)))
+  g <- model$grid
+  n_t <- g$T + 1L
+  for (uniform in c(TRUE, FALSE)) {
+    dr <- wsp_draws(model, 5L, uniform = uniform)
+    env <- eng_engine_env(model, quiet = TRUE)
+    ctx <- eng_context(model, dr, env)
+    x <- dr$paths[["market.rent_growth"]]
+    xa <- structure(x, annual_before = matrix(0.01, 5L, 2L, dimnames = list(NULL, c("2025",
+                                                                                    "2026"))))
+    bd <- as.Date("2026-01-01")
+    info <- paste("uniform", uniform)
+    # Hinweise zum Vorlauf vor dem Stichtag (fehlende Jahreswerte) sind hier erwartet
+    q <- function(e) suppressMessages(e)
+    expect_identical(q(ctx$index(x)), q(grid_index(g, x)), info = info)
+    expect_identical(q(ctx$index(x, bd)), q(grid_index(g, x, bd)), info = info)
+    expect_identical(q(ctx$index_year(x, bd)), q(grid_index_year(g, x, bd)), info = info)
+    expect_identical(q(ctx$index_year(xa, bd)), q(grid_index_year(g, xa, bd)), info = info)
+    expect_identical(ctx$rate_eff(x), grid_rate_eff(g, x), info = info)
+    expect_identical(ctx$rate_nom(x), grid_rate_nom(g, x), info = info)
+    expect_identical(ctx$per_period(x), grid_per_period(g, x), info = info)
+    expect_identical(ctx$rate_eff(0.03), grid_rate_eff(g, rep(0.03, 5L)), info = info)
+    expect_identical(q(ctx$index_year(0.02)), q(grid_index_year(g, rep(0.02, 5L))), info = info)
+    months <- if (uniform) rep(3, 5L) else c(0, 3, 3, 14, 0)
+    d0 <- g$valuation_date
+    expect_identical(ctx$shift_period(d0, months), grid_shift_period(g, d0, months),
+                     info = info)
+    expect_identical(ctx$shift_overlap(d0, months), grid_shift_overlap(g, d0, months),
+                     info = info)
+    expect_identical(ctx$shift_months(d0, months, g$end_date),
+                     grid_shift_months(g, d0, months, g$end_date), info = info)
+    expect_identical(ctx$zeros(), matrix(0, 5L, n_t))
+    expect_identical(ctx$by_period(g$delta), grid_by_period(g, g$delta, 5L))
+  }
+})

@@ -200,7 +200,7 @@ kpi_sum <- function(core, ...) {
 #' @noRd
 kpi_sum_keys <- function(core, keys) {
   if (length(keys) == 0L) return(kpi_zeros(core))
-  Reduce(`+`, core$ledger$values[keys])
+  eng_fold_sum(core$ledger$values[keys])
 }
 
 #' Zahlungswirksame Zeilen der Kategorien mit Merkmal `noi` bzw. `burden` (7.6)
@@ -237,12 +237,21 @@ kpi_ns <- function(core) kpi_sum(core, section = "equity", category = c("equity_
 kpi_q <- function(core) {
   h <- core$rates$h_net %||% core$rates$h
   if (is.null(h)) h <- kpi_zeros(core)
+  # Leistung (9.10): mehrere Kennzahlen und beide Sichten eines Chunks teilen h_net; das
+  # Ergebnis des letzten h wird wiederverwendet (identische Eingabe, gleiche Rechnung)
+  if (identical(kpi_q_memo$h, h)) return(kpi_q_memo$q)
   q <- matrix(1, nrow(h), ncol(h))
   if (ncol(h) > 1L) {
     for (j in seq.int(2L, ncol(h))) q[, j] <- q[, j - 1L] * (1 + h[, j])
   }
+  kpi_q_memo$h <- h
+  kpi_q_memo$q <- q
   q
 }
+
+#' Zwischenspeicher von `kpi_q()` (letzte Eingabe und Ergebnis)
+#' @noRd
+kpi_q_memo <- new.env(parent = emptyenv())
 
 #' Horizont in Jahren T_J = tau[T + 1]
 #' @noRd
@@ -288,7 +297,7 @@ kpi_market_value <- function(core) kpi_sum(core, category = "market_value")
 kpi_loan_balance <- function(core) {
   b <- core$stocks$B
   if (length(b) == 0L) return(kpi_zeros(core))
-  Reduce(`+`, b)
+  eng_fold_sum(unname(b))
 }
 
 #' Basis des Restwertpfads (`analysis.rv_path_basis`; `auto`: Haushaltsmodus -> `measures`)
@@ -390,6 +399,7 @@ kpi_stab_mask <- function(oy, ctx) {
 #' @param m n x k; @param mask n x k logisch.
 #' @noRd
 kpi_row_min <- function(m, mask = !is.na(m)) {
+  if (missing(mask) && kpi_row_ext_ok(m)) return(kpi_row_ext(m, min = TRUE))
   x <- m
   x[!mask] <- Inf
   out <- rep(Inf, nrow(m))
@@ -401,10 +411,34 @@ kpi_row_min <- function(m, mask = !is.na(m)) {
 #' Zeilenmaximum über die maskierten Spalten (keine Spalte: `NA`)
 #' @noRd
 kpi_row_max <- function(m, mask = !is.na(m)) {
+  if (missing(mask) && kpi_row_ext_ok(m)) return(kpi_row_ext(m, min = FALSE))
   x <- m
   x[!mask] <- -Inf
   out <- rep(-Inf, nrow(m))
   for (j in seq_len(ncol(m))) out <- pmax(out, x[, j])
+  out[!is.finite(out)] <- NA_real_
+  out
+}
+
+#' Schneller Weg für Zeilenminimum bzw. -maximum ohne Maske (Leistung 9.10)?
+#'
+#' Nur double-Matrizen mit mindestens einer Spalte und ohne `NA`/`NaN` (dann ist die Maske
+#' überall `TRUE`).
+#' @noRd
+kpi_row_ext_ok <- function(m) {
+  is.matrix(m) && is.double(m) && ncol(m) > 0L && nrow(m) > 0L && !anyNA(m)
+}
+
+#' Zeilenminimum bzw. -maximum über `max.col(ties.method = "first")` (Leistung 9.10)
+#'
+#' Wie die Spaltenschleife mit `pmin()`/`pmax()`: Wert der ersten Spalte mit dem Extremwert
+#' (exakter Vergleich), nicht endliche Ergebnisse werden `NA`.
+#' @param m double-Matrix ohne `NA`.
+#' @param min `TRUE`: Minimum (über `-m`), sonst Maximum.
+#' @noRd
+kpi_row_ext <- function(m, min = FALSE) {
+  j <- max.col(if (min) -m else m, ties.method = "first")
+  out <- m[cbind(seq_len(nrow(m)), j)]
   out[!is.finite(out)] <- NA_real_
   out
 }

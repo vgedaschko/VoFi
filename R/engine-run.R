@@ -319,7 +319,9 @@ eng_result <- function(model, res, mode, store, seed, runtime) {
   # Primärkennzahl nach 12.3a: Regel an einer Stelle (kpi_primary(), WS-D2-08)
   primary <- kpi_primary(spec)$kpi
   meta <- list(
-    package_version = as.character(utils::packageVersion("vofi")),
+    package_version = eng_memo("package_version", list(), function() {
+      as.character(utils::packageVersion("vofi"))
+    }),
     contract_version = VOFI_CONTRACT_VERSION, schema_version = 1L,
     scenario_id = spec$meta$scenario_id %||% NA_character_,
     project_id = spec$meta$project_id %||% spec$meta$scenario_id %||% NA_character_,

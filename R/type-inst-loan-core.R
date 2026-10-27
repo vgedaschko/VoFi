@@ -464,9 +464,8 @@ inst_loan_draw_plan <- function(spec, ctx, existing, auto_mode, t_start) {
                   inactive = FALSE), at(max(win))))
   }
   commitment <- rep_len(as.double(ctx$param_base(spec, "amount_eur")), n)
-  draws <- matrix(0, n, n_t)
   if (existing) {
-    return(list(commitment = commitment, draws = draws, t_first = 0L, t_last = 0L,
+    return(list(commitment = commitment, draws = matrix(0, n, n_t), t_first = 0L, t_last = 0L,
                 m_last = 0L, d_last = g$valuation_date, inactive = FALSE))
   }
   none <- function(dr) {
@@ -475,6 +474,7 @@ inst_loan_draw_plan <- function(spec, ctx, existing, auto_mode, t_start) {
   }
   sched <- path_get(spec, "draw_schedule")
   if (is.null(sched)) {
+    draws <- matrix(0, n, n_t)
     if (is.na(t_start)) return(none(draws))
     draws[, t_start + 1L] <- commitment
     return(c(list(commitment = commitment, draws = draws, t_first = as.integer(t_start),
@@ -615,8 +615,9 @@ inst_loan_init <- function(spec, ctx, repayment) {
     }
   }
   pp <- path_get(spec, "planned_prepayments")
-  planned <- matrix(0, n, n_t)
-  if (!is.null(pp)) {
+  if (is.null(pp)) {
+    planned <- matrix(0, n, n_t)
+  } else {
     planned <- ctx$param(spec, "planned_prepayments", "path")
     if (identical(pp$unit, "share")) planned <- planned * dp$commitment
   }
@@ -646,7 +647,13 @@ inst_loan_init <- function(spec, ctx, repayment) {
       # n_s = (m_mat - m_rep) / pay_interval (Spec 00 8.6); geht die Division nicht auf, bleibt
       # n_s gebrochen und der Rest wird bei Faelligkeit als Schlusstilgung (8.5 (f)) gezahlt
       n_s = if (is.finite(m_mat)) (m_mat - m_rep) / pay_int else Inf,
-      plan = inst_loan_plan(g, m_start, m_rep, m_mat, pay_int, resets, fee_free_until)
+      # Ereignisplan: rein aus Raster und Terminen, je Modell gleich (Zwischenspeicher, 9.10)
+      plan = eng_memo("loan_plan",
+                      list(g$month_end, g$months, m_start, m_rep, m_mat, pay_int, resets,
+                           fee_free_until),
+                      function() {
+                        inst_loan_plan(g, m_start, m_rep, m_mat, pay_int, resets, fee_free_until)
+                      })
     )
   ))
 }
@@ -816,8 +823,11 @@ inst_loan_months <- function(st, ev, t, ctx) {
     accrued <- accrued + z
   }
   p_sum <- zero
-  if (ev$n_fee > 0L) {
-    p_sum <- p$fee_rate * pmax(st$commitment * st$approved - st$drawn, 0) * ev$n_fee
+  # ohne Bereitstellungszins (Satz überall 0) ist das Produkt 0 (bis auf das Vorzeichen der
+  # Null): Rechnung entfällt (Leistung 9.10)
+  fr <- p$fee_rate
+  if (ev$n_fee > 0L && !isTRUE(length(fr) > 0L && max(fr) == 0 && min(fr) == 0)) {
+    p_sum <- fr * pmax(st$commitment * st$approved - st$drawn, 0) * ev$n_fee
   }
   if (ev$ytd) st$prepaid_ytd <- zero
   st$B <- b
@@ -825,6 +835,44 @@ inst_loan_months <- function(st, ev, t, ctx) {
   st$accrued <- accrued
   st$inst <- inst
   list(state = st, Z = z_sum, R = r_sum, RB = rb_sum, P = p_sum)
+}
+
+#' Ruhende Periode eines Kredits (Leistung, Spec 00 9.10)
+#'
+#' Eine Periode ruht, wenn der Bestand in allen Läufen 0 ist, sie keine Ereignismonate
+#' (Zinsanpassung, Tilgungsbeginn, Vertragszahlung, Fälligkeit) enthält, keine Auszahlung,
+#' Übernahme, Bearbeitungsgebühr oder Tilgungszuschuss fällig ist und keine
+#' Bereitstellungsprovision anfällt (Satz 0 oder nichts offen). Dann sind alle Flüsse, Merkzeilen
+#' und der Bestand 0, und der Zustand bleibt bis auf `prepaid_ytd` (Jahresende) unverändert;
+#' `inst_loan_step()` rechnet die Periode ohne die Monatsuhr (bis auf das Vorzeichen der Null
+#' dasselbe Ergebnis).
+#' @return `TRUE` oder `FALSE`.
+#' @noRd
+inst_loan_idle <- function(st, p, ev, t, j) {
+  b <- st$B
+  if (length(b) == 0L || !isTRUE(max(b) == 0 && min(b) == 0)) return(FALSE)
+  existing <- isTRUE(p$existing)
+  inactive <- isTRUE(p$inactive)
+  if (existing && t == 0L) return(FALSE)
+  if (isTRUE(p$has_tz) && !is.na(st$t_tz) && t == st$t_tz) return(FALSE)
+  if (!existing && !inactive) {
+    if (!is.na(st$t_first_draw) && t == st$t_first_draw) return(FALSE)
+    if (!is.matrix(st$draws)) return(FALSE)
+    dj <- st$draws[, j]
+    if (!isTRUE(max(dj) == 0 && min(dj) == 0)) return(FALSE)
+  }
+  if (!is.null(ev) && !inactive) {
+    if (length(ev$m) > 0L) return(FALSE)
+    if (ev$n_fee > 0L) {
+      fr <- p$fee_rate
+      if (length(fr) == 0L) return(FALSE)
+      if (!isTRUE(max(fr) == 0 && min(fr) == 0)) {
+        u <- st$commitment * st$approved - st$drawn
+        if (!isTRUE(max(u) <= 0)) return(FALSE)
+      }
+    }
+  }
+  TRUE
 }
 
 #' Ein Schritt des Automaten (Spec 00 8.5)
@@ -839,8 +887,19 @@ inst_loan_step <- function(state, t, ctx) {
   n <- length(st$B)
   j <- t + 1L
   zero <- rep(0, n)
-  z_sum <- r_sum <- rb_sum <- p_sum <- zero
   ev <- p$plan[[j]]
+  if (inst_loan_idle(st, p, ev, t, j)) {
+    # ruhende Periode (vor der Auszahlung bzw. nach der Tilgung): alle Zeilen 0
+    if (!is.null(ev) && !isTRUE(p$inactive) && isTRUE(ev$ytd)) st$prepaid_ytd <- zero
+    return(list(
+      state = st,
+      flows = list(draw = zero, repay = zero, repay_balloon = zero, prepay = zero,
+                   interest = zero, fees = zero),
+      memo = list(repayment_grant = zero, disagio = zero, assumed = zero),
+      stocks = list(balance = zero)
+    ))
+  }
+  z_sum <- r_sum <- rb_sum <- p_sum <- zero
   if (!is.null(ev) && !isTRUE(p$inactive)) {
     mo <- inst_loan_months(st, ev, t, ctx)
     st <- mo$state
@@ -892,13 +951,65 @@ inst_loan_step <- function(state, t, ctx) {
   }
   st$B <- b
   kappa <- p$kappa
+  # Auszahlungskurs überall 1: kappa * d = d und (1 - kappa) * d = 0 (d >= 0; bis auf das
+  # Vorzeichen der Null), ohne die beiden Produkte (Leistung 9.10)
+  full <- isTRUE(is.double(kappa) && length(kappa) > 0L && max(kappa) == 1 && min(kappa) == 1)
   list(
     state = st,
-    flows = list(draw = kappa * d, repay = -r_sum, repay_balloon = -rb_sum, prepay = -stp,
-                 interest = -z_sum, fees = -p_sum),
-    memo = list(repayment_grant = tz, disagio = (1 - kappa) * d, assumed = assumed),
+    flows = list(draw = if (full) d else kappa * d, repay = -r_sum, repay_balloon = -rb_sum,
+                 prepay = -stp, interest = -z_sum, fees = -p_sum),
+    memo = list(repayment_grant = tz, disagio = if (full) zero else (1 - kappa) * d,
+                assumed = assumed),
     stocks = list(balance = b)
   )
+}
+
+#' Zustand mit einer Zeile, wenn alle Läufe gleich sind (Leistung, Spec 00 9.10)
+#'
+#' Der Instrument-Cache (Spec 00 9.3) rechnet einen Kredit, dessen Zustand nach `init()` in
+#' allen n Läufen gleich ist (z. B. fester Zins ohne Ziehungen), mit einer Zeile und hebt die
+#' Ergebnisse auf n Zeilen; `step()` rechnet zeilenweise ohne Bezug zwischen den Läufen, das
+#' Ergebnis ist daher identisch. Erkannt werden nur Zustände aus `inst_loan_init()` mit genau den
+#' bekannten Feldern; sonst und bei verschiedenen Läufen `NULL`.
+#' @param st Zustand aus `inst_loan_init()`.
+#' @param n Zahl der Läufe.
+#' @return `vofi_inst_state` mit einer Zeile oder `NULL`.
+#' @noRd
+inst_loan_state_one <- function(st, n) {
+  vec <- c("B", "drawn", "commitment", "i_pa", "inst", "accrued", "tz_amount", "approved",
+           "prepaid_ytd", "tau", "neg_amort")
+  mat <- c("draws", "planned", "followup")
+  fixed <- c("repayment", "ppy", "pay_interval", "t_first_draw", "m_start", "m_A", "m_rep",
+             "m_mat", "reset_months", "fee_free_until", "inst_set", "t_tz", "par")
+  pvec <- c("kappa", "spread", "tau2", "tz_share", "tz_cut", "tz_approved", "fee_share",
+            "fee_rate", "cap_share", "installment")
+  pfixed <- c("type", "id", "rep_code", "refi_rule", "existing", "inactive", "has_tau",
+              "effect", "has_tz", "tz_by_amount", "prepay_allowed", "round", "has_planned",
+              "n_s", "plan")
+  if (n < 2L || !inherits(st, "vofi_inst_state") || !is.list(st$par) ||
+        !setequal(names(st), c(vec, mat, fixed)) ||
+        !setequal(names(st$par), c(pvec, pfixed)) || isTRUE(st$inst_set)) {
+    return(NULL)
+  }
+  # n-Vektor ohne Attribute mit gleichen Elementen (identical: auch NA gleicher Art)
+  same <- function(x) {
+    length(x) == n && is.null(attributes(x)) && (is.double(x) || is.logical(x)) &&
+      identical(x, rep.int(x[[1L]], n))
+  }
+  for (f in vec) if (!same(st[[f]])) return(NULL)
+  for (f in pvec) if (!is.null(st$par[[f]]) && !same(st$par[[f]])) return(NULL)
+  for (f in mat) {
+    m <- st[[f]]
+    if (!is.matrix(m) || !is.double(m) || nrow(m) != n || !is.null(dimnames(m)) ||
+          !eng_rows_equal(m)) {
+      return(NULL)
+    }
+  }
+  one <- st
+  for (f in vec) one[[f]] <- st[[f]][[1L]]
+  for (f in pvec) if (!is.null(st$par[[f]])) one$par[[f]] <- st$par[[f]][[1L]]
+  for (f in mat) one[[f]] <- st[[f]][1L, , drop = FALSE]
+  one
 }
 
 #' Zulässige Sondertilgung (Spec 00 8.4, capacity)

@@ -81,3 +81,55 @@ test_that("eng_tax_report_rows: Merkzeilen tax_report_<name> mit Label oder Name
   expect_identical(rows$label_key, c("types.tax.test_x.report.a", "types.tax.test_x.report.b"))
   expect_null(eng_tax_report_rows(m, character(0)))
 })
+
+test_that("eng_fold_sum: bitgleich zur Linksfaltung, auch über Blöcke von 100 Summanden", {
+  set.seed(11)
+  mk <- function() {
+    m <- matrix(stats::rnorm(12) * 10^sample(-8:8, 12, TRUE), 3L, 4L)
+    m[sample(12, 2)] <- c(0, -0)
+    m
+  }
+  for (k in c(1L, 2L, 3L, 99L, 100L, 101L, 250L)) {
+    x <- lapply(seq_len(k), function(i) mk())
+    expect_identical(eng_fold_sum(x), Reduce(`+`, x), info = k)
+  }
+  # Sonderwerte
+  x <- list(matrix(c(Inf, 1, -0, 0), 2L), matrix(c(1, -Inf, -0, -0), 2L), matrix(0, 2L, 2L))
+  expect_identical(eng_fold_sum(x), Reduce(`+`, x))
+  expect_identical(1 / eng_fold_sum(list(matrix(-0), matrix(-0))), matrix(-Inf))
+  # Abzug: gleich bis auf das Vorzeichen der Null
+  a <- lapply(1:5, function(i) mk())
+  m <- lapply(1:3, function(i) mk())
+  expect_identical(eng_fold_sum(a, minus = m), Reduce(`-`, m, Reduce(`+`, a)))
+  expect_identical(eng_fold_sum(list(), minus = m), Reduce(`-`, m, matrix(0, 3L, 4L)))
+  expect_null(eng_fold_sum(list()))
+  one <- mk()
+  expect_identical(eng_fold_sum(list(one)), one)
+  # ledger_sum nutzt die Faltung
+  led <- new_vofi_ledger(new_ledger_rows(c("a", "b", "c"), "project",
+                                         c("rent", "operating_cost", "rent")),
+                         list(a = matrix(1, 2L, 3L), b = matrix(-0.5, 2L, 3L),
+                              c = matrix(0.25, 2L, 3L)), n = 2L, T = 2L)
+  expect_identical(ledger_sum(led, section = "project"),
+                   (matrix(1, 2L, 3L) + matrix(-0.5, 2L, 3L)) + matrix(0.25, 2L, 3L))
+})
+
+test_that("eng_df = data.frame() für einfache Spalten, sonst über data.frame()", {
+  for (n in c(1L, 7L)) {
+    cols <- list(a = rep(TRUE, n), b = seq_len(n) / 3, c = seq_len(n), d = rep("x", n))
+    expect_identical(eng_df(cols, n), data.frame(cols, stringsAsFactors = FALSE), info = n)
+  }
+  # benannte Vektoren (Zeilennamen), Recycling und ungültige Namen: Weg über data.frame()
+  named <- list(a = c(x = 1, y = 2), b = c(TRUE, FALSE))
+  expect_identical(eng_df(named, 2L), data.frame(named, stringsAsFactors = FALSE))
+  rec <- list(a = c(1, 2), b = TRUE)
+  expect_identical(eng_df(rec, 2L), data.frame(rec, stringsAsFactors = FALSE))
+  odd <- list(`a b` = c(1, 2))
+  expect_identical(eng_df(odd, 2L), data.frame(odd, stringsAsFactors = FALSE))
+  # Prüfungen und Markierungen eines Laufs sind gewöhnliche Data Frames
+  p <- wsd_parts(wsd_skeleton())
+  ck <- eng_checks(p$core)
+  expect_identical(ck, data.frame(invariant = ck$invariant, max_dev = ck$max_dev, tol = ck$tol,
+                                  ok = ck$ok, stringsAsFactors = FALSE))
+  expect_identical(p$core$flags, data.frame(as.list(p$core$flags)))
+})

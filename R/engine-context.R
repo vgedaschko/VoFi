@@ -81,6 +81,16 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
     for (a in c("annual_before", "path")) if (!is.null(at[[a]])) attr(y, a) <- at[[a]]
     y
   }
+  # Leistung (9.10): zeilengleiche Eingaben (alle Laeufe gleich) einmal mit einer Zeile rechnen
+  # und das Ergebnis auf n Zeilen heben; die Rasterfunktionen rechnen zeilenweise, das Ergebnis
+  # ist daher identisch zur Rechnung mit n Zeilen. keep_attr = TRUE: die Funktion uebernimmt
+  # Attribute einer Matrix-Eingabe (Raten), dann nur fuer Matrizen ohne weitere Attribute.
+  by_rows <- function(x, fun, keep_attr = FALSE) {
+    if (keep_attr && is.matrix(x) && !identical(names(attributes(x)), "dim")) return(fun(x))
+    one <- eng_uniform_rows(x, n)
+    if (is.null(one)) return(fun(x))
+    eng_expand_rows(fun(one), n) %||% fun(x)
+  }
   value_at <- function(path, shape, base, node = NULL) {
     key <- paste(if (base) "b" else "v", shape, path, sep = "|")
     hit <- get0(key, envir = cache, inherits = FALSE)
@@ -200,8 +210,20 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
     eng_lift_flows(fl, n)
   }
   ctx$market <- function(name) ctx$value(paste0("market.", name), "path")
-  ctx$index <- function(g, base_date = NULL) grid_index(grid, lift(g), base_date)
-  ctx$index_year <- function(g, base_date = NULL) grid_index_year(grid, lift(g), base_date)
+  # Indizes und Verschiebungen: mit einer Zeile (bzw. wenigen Werten) ueber Laeufe hinweg im
+  # Zwischenspeicher (reine Rasterrechnungen, eng_memo())
+  ctx$index <- function(g, base_date = NULL) {
+    by_rows(lift(g), function(x) {
+      eng_grid_memo("grid_index", list(grid, x, base_date), NROW(x) == 1L,
+                    function() grid_index(grid, x, base_date))
+    })
+  }
+  ctx$index_year <- function(g, base_date = NULL) {
+    by_rows(lift(g), function(x) {
+      eng_grid_memo("grid_index_year", list(grid, x, base_date), NROW(x) == 1L,
+                    function() grid_index_year(grid, x, base_date))
+    })
+  }
   ctx$timing <- function(spec, name) {
     v <- raw_setting(spec, name)
     if (is.null(v)) return(NULL)
@@ -213,12 +235,24 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
     if (utl_is_string(v) && !is.null(grid_date(v))) v <- grid_date(v)
     list(date = utl_as_date(v, name), shift = rep(0, n))
   }
-  ctx$shift_period <- function(date, months) grid_shift_period(grid, date, rep_len(months, n))
+  # Verschiebungen: je verschiedenem Wert einmal gerechnet (zeilenweise Rasterfunktionen, 9.10)
+  ctx$shift_period <- function(date, months) {
+    eng_by_unique(rep_len(months, n), function(m) {
+      eng_grid_memo("grid_shift_period", list(grid, date, m), length(m) <= 4L,
+                    function() grid_shift_period(grid, date, m))
+    })
+  }
   ctx$shift_overlap <- function(from, months, to = NULL) {
-    grid_shift_overlap(grid, from, rep_len(months, n), to)
+    eng_by_unique(rep_len(months, n), function(m) {
+      eng_grid_memo("grid_shift_overlap", list(grid, from, m, to), length(m) <= 4L,
+                    function() grid_shift_overlap(grid, from, m, to))
+    })
   }
   ctx$shift_months <- function(from, months, to = NULL) {
-    grid_shift_months(grid, from, rep_len(months, n), to)
+    eng_by_unique(rep_len(months, n), function(m) {
+      eng_grid_memo("grid_shift_months", list(grid, from, m, to), length(m) <= 4L,
+                    function() grid_shift_months(grid, from, m, to))
+    })
   }
   ctx$rebalance <- function(extra_out = NULL) {
     if (!is.environment(engine_env) || !identical(engine_env$stage, "kpi")) {
@@ -226,12 +260,34 @@ eng_context_from_parts <- function(grid, spec, draws = NULL, components = list()
     }
     engine_env$rebalance(extra_out)
   }
-  ctx$zeros <- function() grid_zeros(grid, n)
+  # Nullmatrix und Periodenlaengen je Kontext einmal (Kopie erst bei Aenderung durch den Aufrufer)
+  ctx$zeros <- function() {
+    z <- get0("zeros", envir = cache, inherits = FALSE)
+    if (is.null(z)) {
+      z <- grid_zeros(grid, n)
+      assign("zeros", z, envir = cache)
+    }
+    z
+  }
   ctx$by_sim <- function(x) grid_by_sim(grid, x, n)
-  ctx$by_period <- function(x) grid_by_period(grid, x, n)
-  ctx$rate_eff <- function(r_pa) grid_rate_eff(grid, lift(r_pa))
-  ctx$rate_nom <- function(r_pa) grid_rate_nom(grid, lift(r_pa))
-  ctx$per_period <- function(x_pa) grid_per_period(grid, lift(x_pa))
+  ctx$by_period <- function(x) {
+    if (!identical(x, grid$delta)) return(grid_by_period(grid, x, n))
+    d <- get0("by_period_delta", envir = cache, inherits = FALSE)
+    if (is.null(d)) {
+      d <- grid_by_period(grid, x, n)
+      assign("by_period_delta", d, envir = cache)
+    }
+    d
+  }
+  ctx$rate_eff <- function(r_pa) {
+    by_rows(lift(r_pa), function(x) grid_rate_eff(grid, x), keep_attr = TRUE)
+  }
+  ctx$rate_nom <- function(r_pa) {
+    by_rows(lift(r_pa), function(x) grid_rate_nom(grid, x), keep_attr = TRUE)
+  }
+  ctx$per_period <- function(x_pa) {
+    by_rows(lift(x_pa), function(x) grid_per_period(grid, x), keep_attr = TRUE)
+  }
   ctx$period_of <- function(date) grid_period_of(grid, date)
   ctx$period_of_year <- function(year) grid_period_of_year(grid, year)
   ctx$overlap <- function(from = NULL, to = NULL) grid_overlap(grid, from, to)
@@ -360,4 +416,82 @@ eng_rule_for <- function(name, spec) {
   vf <- vapply(ok, function(d) as.numeric(d$valid_from), double(1))
   rf <- vapply(ok, function(d) !is.null(d$reform), logical(1))
   ok[[order(rf, vf, method = "radix")[length(ok)]]]$fun
+}
+
+#' Erste Zeile einer zeilengleichen Eingabe (Leistung 9.10)
+#'
+#' Sind alle n Zeilen einer double-Matrix n x k (bzw. alle Elemente eines double-n-Vektors)
+#' gleich, liefert die Funktion die erste Zeile als 1 x k-Matrix (bzw. das erste Element) mit den
+#' Attributen `annual_before` (erste Zeile) und `path`, sonst `NULL`. Nicht endliche Werte,
+#' Zeilen- oder Spaltennamen, ein nicht zeilengleiches oder anders geformtes `annual_before` und
+#' n < 2 ergeben `NULL` (die Rasterfunktion rechnet dann wie bisher mit allen Zeilen).
+#' @param x Matrix bzw. Vektor.
+#' @param n Zahl der Läufe.
+#' @noRd
+eng_uniform_rows <- function(x, n) {
+  if (n < 2L || !is.double(x)) return(NULL)
+  if (is.matrix(x)) {
+    if (nrow(x) != n || !is.null(dimnames(x)) || !eng_rows_equal(x)) return(NULL)
+    one <- x[1L, , drop = FALSE]
+  } else {
+    if (length(x) != n || !isTRUE(x[[1L]] == x[[n]]) || !isTRUE(all(x == x[[1L]]))) {
+      return(NULL)
+    }
+    one <- x[[1L]]
+  }
+  ab <- attr(x, "annual_before")
+  if (!is.null(ab)) {
+    if (!is.matrix(ab) || !is.double(ab)) return(NULL)
+    if (nrow(ab) == n) {
+      if (!eng_rows_equal(ab)) return(NULL)
+      ab <- ab[1L, , drop = FALSE]
+    } else if (nrow(ab) != 1L) {
+      return(NULL)
+    }
+    attr(one, "annual_before") <- ab
+  }
+  if (!is.null(attr(x, "path"))) attr(one, "path") <- attr(x, "path")
+  one
+}
+
+#' Sind alle Zeilen einer Matrix gleich (`==`, nicht endliche Werte: `FALSE`)?
+#'
+#' Prüft zuerst die erste gegen die letzte Zeile (schneller Ausschluss), dann alle Zeilen.
+#' @param x numerische Matrix mit mindestens einer Zeile.
+#' @noRd
+eng_rows_equal <- function(x) {
+  n <- nrow(x)
+  if (n < 2L) return(TRUE)
+  first <- x[1L, ]
+  if (!isTRUE(all(first == x[n, ]))) return(FALSE)
+  # konstante Matrix: ohne Hilfsmatrix (zwei Durchlaeufe)
+  if (isTRUE(min(x) == max(x))) return(TRUE)
+  isTRUE(all(x == rep(first, each = n)))
+}
+
+#' Ergebnis einer Zeile auf n Zeilen heben (Leistung 9.10, zu `eng_uniform_rows()`)
+#'
+#' Hat das Ergebnis nicht die Form 1 x k ohne weitere Attribute, ist der Weg über eine Zeile
+#' nicht anwendbar (`NULL`; der Aufrufer rechnet dann mit allen Zeilen).
+#' @param r Ergebnis für eine Zeile.
+#' @noRd
+eng_expand_rows <- function(r, n) {
+  if (!is.matrix(r) || nrow(r) != 1L || !identical(names(attributes(r)), "dim")) return(NULL)
+  r[rep.int(1L, n), , drop = FALSE]
+}
+
+#' Zeilenweise Funktion je verschiedenem Wert einmal auswerten (Leistung 9.10)
+#'
+#' `fun(m)` liefert je Element von `m` ein Element bzw. eine Matrixzeile (zeilenweise
+#' Rasterfunktionen wie `grid_shift_period()`); das Ergebnis ist identisch zu `fun(m)`.
+#' @param m n-Vektor.
+#' @param fun Funktion.
+#' @noRd
+eng_by_unique <- function(m, fun) {
+  if (length(m) < 2L) return(fun(m))
+  u <- unique(m)
+  if (length(u) == length(m)) return(fun(m))
+  r <- fun(u)
+  i <- match(m, u)
+  if (is.matrix(r)) r[i, , drop = FALSE] else r[i]
 }

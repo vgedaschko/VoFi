@@ -113,7 +113,63 @@ ledger_select <- function(led, section = NULL, category = NULL, tax_category = N
 ledger_sum <- function(led, ...) {
   keys <- ledger_select(led, ...)
   if (length(keys) == 0L) return(matrix(0, led$n, led$T + 1L))
-  Reduce(`+`, led$values[keys])
+  eng_fold_sum(led$values[keys])
+}
+
+#' Summe gleich großer Matrizen mit einer Allokation (Leistung 9.10)
+#'
+#' Rechnet die Linksfaltung ((x1 + x2) + x3) + ... als geschachtelten Ausdruck
+#' xk + (... + (x3 + (x2 + x1))). Die Gleitkomma-Addition ist kommutativ (IEEE 754, auch für
+#' vorzeichenbehaftete Nullen); das Ergebnis ist daher bitgleich zu `Reduce(`+`, x)`. Weil das
+#' Zwischenergebnis rechts steht und keine Bindung hat, verwendet R seinen Speicher wieder: eine
+#' Allokation je Block von 100 Summanden statt einer je Summand. Danach werden die Matrizen
+#' `minus` abgezogen, gerechnet als -(m - s); das ist gleich s - m bis auf das Vorzeichen einer
+#' Null (nur für Prüfungen über Beträge, `eng_checks()`).
+#' @param x Liste von Matrizen gleicher Dimension.
+#' @param minus Liste abzuziehender Matrizen.
+#' @return Matrix bzw. `NULL` bei leeren Listen; bei genau einem Summanden ohne `minus` dieser
+#'   selbst.
+#' @noRd
+eng_fold_sum <- function(x, minus = list()) {
+  if (length(x) == 0L) {
+    if (length(minus) == 0L) return(NULL)
+    x <- list(array(0, dim(minus[[1L]])))
+  }
+  fold <- function(acc, b, op) {
+    while (length(b) > 0L) {
+      k <- min(100L, length(b))
+      e <- quote(a)
+      for (i in seq_len(k)) {
+        term <- call("[[", quote(blk), i)
+        e <- if (op == "+") call("+", term, e) else call("-", call("-", term, e))
+      }
+      acc <- eval(e, list(a = acc, blk = b[seq_len(k)]), baseenv())
+      b <- b[-seq_len(k)]
+    }
+    acc
+  }
+  acc <- fold(x[[1L]], x[-1L], "+")
+  if (length(minus) > 0L) acc <- fold(acc, minus, "-")
+  acc
+}
+
+#' Data Frame aus benannten Spalten gleicher Länge (Leistung 9.10)
+#'
+#' Gleich `data.frame(<cols>, stringsAsFactors = FALSE)` für Spalten, die atomare Vektoren der
+#' Länge n >= 1 ohne Attribute sind und syntaktisch gültige, eindeutige Namen haben (dann hat
+#' `data.frame()` nichts zu prüfen oder umzuwandeln); sonst über `data.frame()`.
+#' @param cols benannte Liste der Spalten.
+#' @param n Zeilenzahl.
+#' @return Data Frame.
+#' @noRd
+eng_df <- function(cols, n) {
+  nm <- names(cols)
+  plain <- n >= 1L && length(cols) > 0L && !is.null(nm) && identical(make.names(nm, TRUE), nm) &&
+    all(vapply(cols, function(x) {
+      is.atomic(x) && length(x) == n && is.null(attributes(x))
+    }, logical(1), USE.NAMES = FALSE))
+  if (!plain) return(do.call(data.frame, c(cols, list(stringsAsFactors = FALSE))))
+  structure(cols, class = "data.frame", row.names = c(NA_integer_, -as.integer(n)))
 }
 
 #' Ledger auf einzelne Läufe einschränken
