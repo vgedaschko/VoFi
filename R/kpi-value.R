@@ -67,8 +67,14 @@ typedef_kpi_terminal_value_real <- function() {
 kpi_payback_col <- function(core, ctx) {
   bsu <- core$opp$BS
   if (is.null(bsu)) bsu <- kpi_zeros(core)
-  d <- kpi_wealth(core, ctx) - bsu
-  kpi_first_permanent(d >= -1e-9 * pmax(1, abs(bsu)))
+  # ohne Restwertpfad ist W = BS + 0; der Vergleich unten ist davon unabhängig (Leistung 9.10:
+  # keine Null- und Summenmatrix)
+  no_rwp <- is.null(core$ledger) ||
+    length(ledger_select(core$ledger, category = "residual_path",
+                         rv_basis = kpi_rv_basis(ctx))) == 0L
+  w <- if (identical(core$view, "ex_rv") || no_rwp) core$stocks$BS else kpi_wealth(core, ctx)
+  d <- w - bsu
+  kpi_first_permanent(d >= -1e-9 * pmax.int(1, abs(bsu)))
 }
 
 #' @noRd

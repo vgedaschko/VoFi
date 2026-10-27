@@ -363,3 +363,151 @@ test_that("Sacheinlage (Bestandswert): equity_in_kind und Verkauf in der Alterna
   expect_identical(orows$category[orows$key == "opp_in_kind_sale"], "equity_in")
   expect_true(all(res$checks$ok))
 })
+
+# ---------------------------------------------------------------------------------------------
+# Schnelle Wege (WS-PERF, 9.10): gleiche Ergebnisse wie die allgemeine Rechnung
+# ---------------------------------------------------------------------------------------------
+
+test_that("Instrument-Cache: zeilengleiche Kredite mit einer Zeile = Rechnung mit n Zeilen", {
+  model <- suppressMessages(vofi_build(wsd_bench_scenario(20L, 12L)))
+  for (uniform in c(TRUE, FALSE)) {
+    dr <- wsp_draws(model, 30L, uniform = uniform)
+    ctx <- eng_context(model, dr, eng_engine_env(model, quiet = TRUE))
+    fast <- eng_inst_cache(model, ctx)
+    slow <- local({
+      local_mocked_bindings(inst_loan_state_one = function(st, n) NULL)
+      eng_inst_cache(model, ctx)
+    })
+    info <- paste("uniform", uniform)
+    expect_identical(names(fast), names(slow), info = info)
+    for (id in names(fast)) {
+      wsp_expect_same(fast[[id]]$flows, slow[[id]]$flows, paste(info, id))
+      wsp_expect_same(fast[[id]]$memo, slow[[id]]$memo, paste(info, id))
+      expect_identical(fast[[id]]$balance, slow[[id]]$balance, info = paste(info, id))
+      expect_identical(fast[[id]]$neg_amort, slow[[id]]$neg_amort, info = paste(info, id))
+    }
+    wsp_expect_same(attr(fast, "totals"), attr(slow, "totals"), info)
+  }
+  # zeilengleicher Zustand wird erkannt, verschiedene Läufe nicht
+  ctx_u <- eng_context(model, wsp_draws(model, 4L, uniform = TRUE), NULL)
+  ctx_v <- eng_context(model, wsp_draws(model, 4L), NULL)
+  k <- model$instruments$kfw
+  one <- inst_loan_state_one(k$def$init(k$spec, ctx_u), 4L)
+  expect_identical(length(one$B), 1L)
+  expect_identical(nrow(one$draws), 1L)
+  expect_null(inst_loan_state_one(k$def$init(k$spec, ctx_v), 4L))
+  expect_null(inst_loan_state_one(k$def$init(k$spec, ctx_u), 1L))
+  expect_true(eng_inst_builtin(k$def))
+  expect_false(eng_inst_builtin(utils::modifyList(k$def, list(step = function(state, t, ctx) {
+    inst_loan_step(state, t, ctx)
+  }))))
+})
+
+test_that("Wiederholungsläufe: schnelle Schleife = allgemeine Periodenschleife (12.8)", {
+  model <- suppressMessages(vofi_build(wsd_bench_scenario(20L, 12L)))
+  for (n in c(1L, 40L)) {
+    dr <- if (n == 1L) NULL else wsp_draws(model, n)
+    p <- suppressWarnings(suppressMessages(wsd_parts(model, dr)))
+    delta <- p$ctx$by_period(p$ctx$grid$delta)
+    for (amt in c(0, 2500, 40000)) {
+      eo <- -p$ctx$by_sim(amt) * delta
+      run <- function() {
+        eng_balance(model, p$ctx, p$exo$ledger, extra_out = eo, book = FALSE,
+                    engine_env = p$env)
+      }
+      expect_true(eng_fast_loop_ok(p$env$setup$inv$chains, FALSE, TRUE, TRUE))
+      a <- run()
+      b <- local({
+        local_mocked_bindings(eng_fast_loop_ok = function(...) FALSE)
+        run()
+      })
+      wsp_expect_same(a, b, paste(n, amt))
+    }
+  }
+})
+
+test_that("tax_none ohne Aufruf je Periode = Aufruf über das Generic (10.6)", {
+  model <- suppressMessages(vofi_build(wsd_bench_scenario(20L, 12L)))
+  expect_s3_class(model$tax, "tax_none")
+  via_generic <- model
+  class(via_generic$tax) <- c("vofi_test_none", class(model$tax))
+  expect_false(identical(eng_tax_fun(via_generic$tax, "tax_step"), tax_step.tax_none))
+  for (n in c(1L, 70L)) {
+    dr <- if (n == 1L) NULL else wsp_draws(model, n)
+    a <- suppressWarnings(suppressMessages(eng_run_draws(model, dr, store = "full")))
+    b <- suppressWarnings(suppressMessages(eng_run_draws(via_generic, dr, store = "full")))
+    wsp_expect_same(a$ledger$values, b$ledger$values, paste(n, "Ledger"))
+    expect_identical(a$ledger$rows, b$ledger$rows)
+    wsp_expect_same(wsp_chunk_parts(a), wsp_chunk_parts(b), paste(n, "Ergebnis"))
+  }
+})
+
+test_that("eng_sum_last = letzte Spalte von ledger_sum()", {
+  p <- suppressWarnings(suppressMessages(wsd_parts(
+    suppressMessages(vofi_build(wsd_bench_scenario(20L, 12L))),
+    NULL
+  )))
+  led <- p$exo$ledger
+  keys <- ledger_select(led, section = "project")
+  expect_gt(length(keys), 2L)
+  expect_identical(eng_sum_last(led, keys), ledger_sum(led, section = "project")[, led$T + 1L])
+  expect_identical(eng_sum_last(led, keys[1L]), led$values[[keys[1L]]][, led$T + 1L])
+  expect_identical(eng_sum_last(led, character(0)), numeric(led$n))
+})
+
+test_that("Ketten ohne Betrag (8.9): übersprungene Glieder liefern dieselben Flüsse", {
+  acc <- wsd_acc(g = c(0, 40, 10, 100), kk = c(20, 0, 5, 0), kkp = c(0, 10, 0, 0),
+                 lmin = c(0, 10, 20, 0), kl = c(100, 30, Inf, 0), thr = 15)
+  rt <- eng_chain_consts(acc)
+  chains <- list(
+    list(c("od_repay", "dep_invest"), c("dep_withdraw", "od_draw", "equity_call")),
+    list(c("od_repay", "dep_fill_reserve", "dep_invest"),
+         c("dep_withdraw", "od_draw", "dep_use_reserve", "penalty_rate")),
+    list(c("od_repay", "dep_invest"), c("dep_withdraw", "dep_use_reserve", "stop"))
+  )
+  amounts <- list(rep(0, 4L), c(-10, -3, 0, -0.5), c(5, 0, 12, 1), c(-10, 4, 0, 2))
+  for (ch in chains) {
+    cc <- eng_chain_compile(eng_build_chain(ch[[1L]]), eng_build_chain(ch[[2L]]))
+    gen <- cc
+    gen$s$all_inline <- FALSE
+    gen$d$all_inline <- FALSE
+    for (amt in amounts) for (skip in c(FALSE, TRUE)) {
+      a <- eng_chain_step(cc, acc$G, acc$KK, acc$KKP, amt, 1L, 2L, NULL, NULL, rt,
+                          acc$Lmin[, 2L], acc$KL[, 2L], collect = TRUE, skip_external = skip)
+      b <- eng_chain_step(gen, acc$G, acc$KK, acc$KKP, amt, 1L, 2L, NULL, NULL, rt,
+                          acc$Lmin[, 2L], acc$KL[, 2L], collect = TRUE, skip_external = skip)
+      info <- paste(c(unlist(ch), amt, skip), collapse = " ")
+      for (f in c("G", "KK", "KKP", "rest_sur", "rest_def", "ext", "flows", "flags")) {
+        expect_identical(a[[f]], b[[f]], info = paste(info, f))
+      }
+      # markierte Flüsse übersprungener Glieder sind in allen Läufen 0
+      expect_true(all(vapply(a$flows[a$fz], function(x) all(x == 0), logical(1))), info = info)
+      expect_false(any(b$fz), info = info)
+      if (all(amt <= 0)) expect_true(any(a$fz), info = info)
+    }
+  }
+})
+
+test_that("Markierungen je Lauf: Kontokorrent-Schwelle, Strafzinstranche, Nachschuss (9.8)", {
+  # Schwelle und Limit so, dass ein Teil der Läufe sie überschreitet (gemischte Markierungen)
+  sc <- wsd_bench_scenario(20L, 12L)
+  sc$accounts$overdraft_flag_threshold_eur <- 96000
+  sc$accounts$overdraft_limit_eur <- 97000
+  model <- suppressWarnings(suppressMessages(vofi_build(sc)))
+  dr <- wsp_draws(model, 60L)
+  p <- suppressWarnings(suppressMessages(wsd_parts(model, dr)))
+  st <- p$core$stocks
+  fl <- p$core$flags
+  zero <- vofi_tol$zero_abs
+  expect_true(any(fl$overdraft_threshold) && !all(fl$overdraft_threshold))
+  expect_true(any(fl$limit_breach) && !all(fl$limit_breach))
+  expect_identical(fl$overdraft_threshold, rowSums((st$KK + st$KKP) > 96000) > 0)
+  expect_identical(fl$limit_breach, rowSums(st$KKP > zero) > 0)
+  ns <- ledger_sum(p$core$ledger, section = "equity", category = c("equity_call", "shortfall"))
+  expect_identical(fl$shortfall, rowSums(ns > zero) > 0 | fl$limit_breach)
+  # ohne Schwelle (Inf) und ohne Strafzinstranche: alle FALSE
+  p0 <- suppressWarnings(suppressMessages(wsd_parts(
+    suppressMessages(vofi_build(wsd_bench_scenario(20L, 12L))), wsp_draws(model, 5L)
+  )))
+  expect_false(any(p0$core$flags$overdraft_threshold))
+})

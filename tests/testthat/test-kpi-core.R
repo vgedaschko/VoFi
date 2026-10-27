@@ -518,3 +518,40 @@ test_that("kpi_compare_values: Vergleichsregel (Orakel (g)), CRN, CO2, Haushalt"
   expect_equal(out$kpis$warm_rent_change_y1, c(0.5, 0.8))
   expect_identical(names(out$kpis), names(out$na))
 })
+
+test_that("Zeilenminimum und -maximum: schneller Weg = Spaltenschleife (9.10)", {
+  set.seed(5)
+  m <- matrix(round(stats::rnorm(60), 1), 6L, 10L)
+  m[2L, ] <- 0.5
+  m[3L, c(2L, 7L)] <- c(-Inf, Inf)
+  m[4L, ] <- c(-0, 0, rep(1, 8))
+  m[5L, ] <- Inf
+  all_cols <- matrix(TRUE, nrow(m), ncol(m))
+  expect_true(kpi_row_ext_ok(m))
+  expect_identical(kpi_row_min(m), kpi_row_min(m, all_cols))
+  expect_identical(kpi_row_max(m), kpi_row_max(m, all_cols))
+  expect_identical(kpi_row_min(m), apply(m, 1L, function(x) {
+    v <- min(x)
+    if (is.finite(v)) v else NA_real_
+  }))
+  # mit NA bzw. ohne Spalten: Spaltenschleife
+  m_na <- m
+  m_na[1L, 3L] <- NA
+  expect_false(kpi_row_ext_ok(m_na))
+  expect_identical(kpi_row_max(m_na), kpi_row_max(m_na, !is.na(m_na)))
+  expect_false(kpi_row_ext_ok(matrix(0, 3L, 0L)))
+  expect_identical(kpi_row_min(matrix(0, 3L, 0L)), rep(NA_real_, 3L))
+  expect_false(kpi_row_ext_ok(matrix(1L, 2L, 2L)))
+})
+
+test_that("Aufzinsfaktoren q: Zwischenspeicher der letzten Eingabe (9.10)", {
+  core <- function(h) list(rates = list(h_net = h), grid = NULL)
+  h1 <- matrix(c(0, 0.02, 0.03, 0, 0.01, 0.01), 2L, 3L, byrow = TRUE)
+  h2 <- h1 * 2
+  q1 <- kpi_q(core(h1))
+  expect_identical(q1, cbind(1, 1 * (1 + h1[, 2L]), (1 * (1 + h1[, 2L])) * (1 + h1[, 3L])))
+  expect_identical(kpi_q(core(h1 + 0)), q1)
+  q2 <- kpi_q(core(h2))
+  expect_identical(q2[, 3L], (1 + h2[, 2L]) * (1 + h2[, 3L]))
+  expect_identical(kpi_q(core(h1)), q1)
+})

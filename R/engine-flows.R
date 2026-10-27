@@ -10,8 +10,10 @@
 #' Felder: `stage` (`"flows"`, `"balance"`, `"kpi"`), `components` (gebaute `vofi_flows`),
 #' `current`/`deps` (gerade gebaute Komponente und ihre deklarierten Abhängigkeiten),
 #' `inst_cache` (Instrument-Cache, 9.3), `setup` (Vorbereitung der Periodenschleife je Lauf),
-#' `acc_rates` (Kontoraten), `topup` (Nachfinanzierung des Chunks, 8.7), `quiet` (Hinweise der
-#' Auflösung unterdrücken), `rebalance(extra_out)` und `auto(id)`.
+#' `acc_rates` (Kontoraten), `col_cache` (Spaltenlisten der Kontoraten) und `memo` (weitere
+#' Zwischenspeicher je Kontext, `eng_env_memo()`; Leistung 9.10), `topup` (Nachfinanzierung
+#' des Chunks, 8.7), `quiet` (Hinweise der Auflösung unterdrücken), `rebalance(extra_out)` und
+#' `auto(id)`.
 #' @param model `vofi_model`.
 #' @param quiet Hinweise der Auflösung unterdrücken (Laufkontexte; der Basisfall meldet sie).
 #' @noRd
@@ -24,6 +26,8 @@ eng_engine_env <- function(model, quiet = FALSE) {
   env$inst_cache <- NULL
   env$setup <- list()
   env$acc_rates <- NULL
+  env$col_cache <- list()
+  env$memo <- list()
   env$topup <- NULL
   env$quiet <- isTRUE(quiet)
   env$rebalance <- function(extra_out = NULL) {
@@ -71,18 +75,31 @@ eng_flows <- function(model, ctx, engine_env, extra_rows = NULL) {
     engine_env$components[[id]] <- fl
     assets <- c(assets, fl$assets)
     measures <- c(measures, fl$measures)
+    # alles, wovon eng_flow_row_meta() ausser der Zeile abhaengt (klein, keine Werte), auch der
+    # geladene Label-Katalog (lbl_load() ersetzt die Umgebung, identical() vergleicht Zeiger)
+    node_key <- list(nd$spec[c("id", "asset_id", "measure_id", "program", "origin", "label")],
+                     nd$def$name, nd$def$kind, nd$def$rows, nd$def$labels$rows, nd$position,
+                     lbl_state$labels)
     for (r in fl$rows) {
       key <- paste0(id, "__", r$key)
-      meta[[key]] <- eng_flow_row_meta(key, r, nd)
+      # Metadaten (Tags, Labels, Ordnung) haengen nicht von den Werten ab: Zwischenspeicher
+      # ueber Laeufe hinweg (Leistung 9.10)
+      rk <- r
+      rk$values <- NULL
+      meta[[key]] <- eng_memo("flow_row_meta", list(key, rk, node_key), function() {
+        eng_flow_row_meta(key, r, nd)
+      }, size = 512L)
       values[[key]] <- r$values
     }
   }
   engine_env$current <- NULL
   engine_env$deps <- NULL
-  rows <- eng_flow_rows_df(meta)
-  ord <- order(rows$order, method = "radix")
-  rows <- rows[ord, , drop = FALSE]
-  rownames(rows) <- NULL
+  rows <- eng_memo("flow_rows", list(meta), function() {
+    rws <- eng_flow_rows_df(meta)
+    rws <- rws[order(rws$order, method = "radix"), , drop = FALSE]
+    rownames(rws) <- NULL
+    rws
+  }, size = 16L)
   led <- new_vofi_ledger(rows, values[rows$key], n = n, T = big_t)
   if (!is.null(extra_rows)) led <- eng_add_extra_rows(led, extra_rows)
   list(ledger = led,

@@ -10,9 +10,10 @@
 #' der Zeile als Quelle. Ohne Abbruch (`stop_on_error = FALSE`) gehen nicht endliche Werte nicht
 #' in die übrigen Abweichungen ein.
 #'
-#' Leistung (9.10): Jede zahlungswirksame Zeile wird genau einmal gelesen (Summe der Zeilen ohne
-#' Tilgung für I2, Summe der Tilgungszeilen; beide prüfen zugleich N1), jede übrige Zeile über
-#' eine Summe. I1, I2 und N2 werden zuerst mit dem Volumen 1 geprüft (Toleranz
+#' Leistung (9.10): Die Zeilen der I2-Summe (zahlungswirksam ohne Tilgung, Tilgungszuschuss,
+#' Disagio, Übernahme) werden einmal gelesen (eine Faltung mit einer Allokation, deren Summe
+#' zugleich N1 prüft), jede übrige Zeile über eine Summe; nur wenn eine Summe nicht endlich ist,
+#' sucht N1 Zeile für Zeile. I1, I2 und N2 werden zuerst mit dem Volumen 1 geprüft (Toleranz
 #' `balance_rel * max(1, Volumen)` ist mindestens `balance_rel`); nur wenn eine dieser
 #' Abweichungen die Toleranz überschreitet, wird das Volumen (2.13) berechnet und die Prüfung
 #' exakt wiederholt. `max_dev` ist daher für I1, I2 und N2 die relative Abweichung bzw., solange
@@ -29,21 +30,23 @@ eng_checks <- function(core, stop_on_error = TRUE) {
   v <- led$values
   n <- led$n
   n_t <- led$T + 1L
-  z <- matrix(0, n, n_t)
+  zm <- function() matrix(0, n, n_t)
   bal_secs <- c("project", "grants", "equity", "loans", "overdraft", "deposit", "tax")
   cash <- rows$cash & rows$section %in% bal_secs
   ck <- rows$key[cash]
   nonp <- rows$tax_category[cash] != "principal"
-  # ein Durchlauf: zahlungswirksame Zeilen ohne Tilgung (I2) und Tilgungszeilen (nur N1)
-  flow <- z
-  pflow <- z
-  for (i in seq_along(ck)) {
-    if (nonp[i]) flow <- flow + v[[ck[i]]] else pflow <- pflow + v[[ck[i]]]
-  }
-  # N1: zahlungswirksame Zeilen ueber die beiden Summen, die uebrigen je Zeile
-  other <- setdiff(names(v), ck)
-  n1_ok <- is.finite(sum(flow)) && is.finite(sum(pflow)) &&
-    all(vapply(other, function(k) is.finite(sum(v[[k]])), logical(1)))
+  # I2: zahlungswirksame Zeilen ohne Tilgung + Tilgungszuschuss - Disagio - Bestandsübernahme
+  # in einem Ausdruck mit einer Allokation (eng_fold_sum(); I2 vergleicht Beträge, das
+  # Vorzeichen einer Null ist ohne Bedeutung)
+  fold_plus <- c(ck[nonp], rows$key[rows$category == "repayment_grant"])
+  fold_minus <- rows$key[rows$category %in% c("disagio", "assumed")]
+  flow <- eng_fold_sum(v[fold_plus], minus = v[fold_minus]) %||% zm()
+  # N1: die Zeilen der Faltung über deren Summe, alle übrigen über eine Summe je Zeile (ohne
+  # Hilfsmatrix; eine Summe ist nicht endlich, wenn ein Element NA/NaN/Inf ist oder sie
+  # überläuft); ist eine Summe nicht endlich, entscheidet die Prüfung Zeile für Zeile
+  rest <- v[setdiff(names(v), c(fold_plus, fold_minus))]
+  n1_ok <- is.finite(sum(flow)) &&
+    all(vapply(rest, function(m) is.finite(sum(m)), logical(1), USE.NAMES = FALSE))
   bad_row <- NULL
   if (!n1_ok) {
     for (k in names(v)) {
@@ -58,12 +61,10 @@ eng_checks <- function(core, stop_on_error = TRUE) {
                .data = list(invariant = "N1", row = bad_row))
   }
   n1 <- is.null(bad_row)
-  for (k in rows$key[rows$category == "repayment_grant"]) flow <- flow + v[[k]]
-  for (k in rows$key[rows$category %in% c("disagio", "assumed")]) flow <- flow - v[[k]]
   # Volumen zunaechst 1 (untere Schranke), exakt nur bei Bedarf (siehe oben)
   vol <- rep(1, n)
   volume <- function() {
-    abs_sum <- z
+    abs_sum <- zm()
     for (k in ck) abs_sum <- abs_sum + abs(v[[k]])
     pmax.int(1, eng_rowmax(abs_sum))
   }
@@ -74,19 +75,26 @@ eng_checks <- function(core, stop_on_error = TRUE) {
   dev <- list(
     I1 = function() abs(v$balance_check) / vol,
     I2 = function() abs(bs - lag1(bs) - (flow - (tl - lag1(tl)))) / vol,
+    # nicht anwendbare Pruefungen: Abweichung 0 (kleine Nullmatrix genuegt)
     I3a = function() {
-      if (length(stock_keys) > 0L) -eng_pmin_mat(v[stock_keys]) else z
+      if (length(stock_keys) > 0L) -eng_pmin_mat(v[stock_keys]) else matrix(0, 1L, 1L)
     },
-    I3b = function() if (isTRUE(core$limits$lmin_zero)) eng_pmin_mat(list(g, kk)) else z,
-    I3c = function() if (!is.null(core$limits$KL)) v$od_balance - core$limits$KL else z,
+    I3b = function() {
+      if (!isTRUE(core$limits$lmin_zero)) return(matrix(0, 1L, 1L))
+      g <- v$dep_balance
+      m <- pmin.int(g, v$od_balance + v$odp_balance)
+      dim(m) <- dim(g)
+      m
+    },
+    I3c = function() {
+      if (!is.null(core$limits$KL)) v$od_balance - core$limits$KL else matrix(0, 1L, 1L)
+    },
     N2 = function() {
       te <- core$terminal_ex_rv
       matrix(abs(te$BS - (bs[, n_t] - te$rv)) / vol, n, 1L)
     }
   )
   stock_keys <- rows$key[rows$section == "stocks" & rows$category == "balance"]
-  g <- v$dep_balance
-  kk <- v$od_balance + v$odp_balance
   mx <- function(m) max(m, 0, na.rm = TRUE)
   rel <- c(I1 = mx(dev$I1()), I2 = mx(dev$I2()), N2 = mx(dev$N2()))
   if (any(rel > tol$balance_rel)) {
@@ -98,15 +106,12 @@ eng_checks <- function(core, stop_on_error = TRUE) {
   } else {
     0
   }
-  out <- data.frame(
-    invariant = c("I1", "I2", "I3a", "I3b", "I3c", "N1", "N2"),
-    max_dev = c(rel[["I1"]], rel[["I2"]], i3a, mx(dev$I3b()), mx(dev$I3c()),
-                if (n1) 0 else Inf, rel[["N2"]]),
-    tol = c(tol$balance_rel, tol$balance_rel, tol$stock_abs, tol$stock_abs, tol$stock_abs, 0,
-            tol$balance_rel),
-    stringsAsFactors = FALSE
-  )
-  out$ok <- out$max_dev <= out$tol
+  max_dev <- c(rel[["I1"]], rel[["I2"]], i3a, mx(dev$I3b()), mx(dev$I3c()), if (n1) 0 else Inf,
+               rel[["N2"]])
+  tols <- c(tol$balance_rel, tol$balance_rel, tol$stock_abs, tol$stock_abs, tol$stock_abs, 0,
+            tol$balance_rel)
+  out <- eng_df(list(invariant = c("I1", "I2", "I3a", "I3b", "I3c", "N1", "N2"),
+                     max_dev = max_dev, tol = tols, ok = max_dev <= tols), 7L)
   if (stop_on_error && !all(out$ok)) {
     bad <- out$invariant[!out$ok][1L]
     m <- dev[[bad]]()

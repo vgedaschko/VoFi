@@ -1,10 +1,19 @@
-# Leistungsmessung der Analyse (WS-G, Spec 00 Abschnitt 9.10).
+# Leistungsmessung der Analyse (WS-G, WS-PERF; Spec 00 Abschnitt 9.10).
 #
 # Aufruf aus der Paketwurzel:
 #   Rscript bench/bench_mc.R                         # installiertes Paket vofi (byte-kompiliert)
 #   VOFI_BENCH_LOAD_ALL=1 Rscript bench/bench_mc.R   # Quellbaum ueber pkgload::load_all()
 #   VOFI_BENCH_PROFILE=1 ...                         # zusaetzlich Rprof-Profil der MC 10.000 x 53
 #   VOFI_BENCH_QUICK=1 ...                           # je Messung eine Wiederholung
+#   VOFI_BENCH_CHUNKS=1 ...                          # zusaetzlich MC und Vergleich mit
+#                                                    # 2.000, 5.000 und 10.000 Laeufen je Chunk
+#
+# Vor der Tabelle stehen Rechner und Last (loadavg vor und nach der Messung); die Spalte
+# gc_anteil ist der Anteil der Speicherbereinigung an der CPU-Zeit der schnellsten Wiederholung.
+# Auf geteilten Rechnern schwanken die Zeiten mit der Last um 20-40 %; der Status richtet sich
+# nach der kleinsten CPU-Zeit. Groessere Chunks (Option vofi.chunk_size, Default 2000L in
+# R/zzz.R) verteilen die festen Kosten je Chunk (Vorbereitung, Kennzahlen, Alternative) auf mehr
+# Laeufe und senken die Zahl der Speicherbereinigungen, brauchen aber proportional mehr Speicher.
 #
 # Gemessen werden (verstrichene Zeit und CPU-Zeit, ohne Einlesen und Modellbau) mit vofi_mc()
 # einschliesslich Sampler (statische Groessen mit Iman-Conover-Korrelation, drei Prozesse mit
@@ -41,14 +50,27 @@ quiet <- function(expr) {
 timing <- function(fun, n) {
   tt <- lapply(seq_len(n), function(i) {
     gc(FALSE)
+    g0 <- gc.time()[[1L]]
     t0 <- proc.time()
     fun()
     d <- proc.time() - t0
-    c(elapsed = d[["elapsed"]], cpu = d[["user.self"]] + d[["sys.self"]])
+    c(elapsed = d[["elapsed"]], cpu = d[["user.self"]] + d[["sys.self"]],
+      gc = gc.time()[[1L]] - g0)
   })
   m <- do.call(rbind, tt)
-  1000 * c(elapsed = stats::median(m[, "elapsed"]), cpu = min(m[, "cpu"]))
+  best <- which.min(m[, "cpu"])
+  1000 * c(elapsed = stats::median(m[, "elapsed"]), cpu = m[[best, "cpu"]],
+           gc = m[[best, "gc"]])
 }
+
+load_avg <- function() {
+  la <- tryCatch(readLines("/proc/loadavg", n = 1L, warn = FALSE), error = function(e) "")
+  if (length(la) == 0L || !nzchar(la)) return("unbekannt")
+  paste(strsplit(la, " ")[[1L]][1:3], collapse = " / ")
+}
+gc_share <- function(t) if (is.na(t[["cpu"]])) "" else sprintf("%.0f %%", 100 * t[["gc"]] /
+                                                                 max(t[["cpu"]], 1e-9))
+load_before <- load_avg()
 
 #' Benchmark-Szenario (wie bench_engine.R) mit Stochastik-Overlay
 bench_mc_scenario <- function(horizon, construction_months, variants = list(),
@@ -220,11 +242,17 @@ res <- data.frame(
                t_caut[["elapsed"]], t_inc[["elapsed"]]), 2),
   cpu_ms = round(c(t_mc53[["cpu"]], t_mc83[["cpu"]], t_cmp[["cpu"]], t_tor[["cpu"]], NA,
                    t_dec[["cpu"]] / t_dec0[["cpu"]], t_caut[["cpu"]], t_inc[["cpu"]]), 2),
+  gc_anteil = c(gc_share(t_mc53), gc_share(t_mc83), gc_share(t_cmp), gc_share(t_tor), "", "",
+                gc_share(t_caut), gc_share(t_inc)),
   ziel = c(1500, 3000, 8000, 1000, 1024, 2, 1500, 1500),
   stringsAsFactors = FALSE
 )
 val <- ifelse(is.na(res$cpu_ms), res$ms, res$cpu_ms)
 res$status <- ifelse(val <= res$ziel, "ok", "ueber Ziel")
+cat(sprintf("vofi %s, %s, %d Kerne, Last (1/5/15 min) vorher %s, nachher %s\n",
+            as.character(utils::packageVersion("vofi")), R.version.string,
+            parallel::detectCores(), load_before, load_avg()))
+cat("Zeiten in ms: ms = Median verstrichen, cpu_ms = kleinste CPU-Zeit (Status danach)\n\n")
 print(res, row.names = FALSE)
 
 # Anteile eines Chunks: Sampler (smp_sample + smp_materialize) und Engine (eng_run_draws)
@@ -242,6 +270,21 @@ cat("\nAnteile eines Chunks 2.000 x 53 (CPU-ms):\n")
 print(round(c(sampler_roh = t_smp[["cpu"]], sampler_materialisieren = t_mat[["cpu"]],
               engine_kpis = t_eng[["cpu"]]), 1))
 cat(sprintf("Speicher vor dem Lauf %.1f MB, Spitze %.1f MB\n", mem0, mem_peak))
+
+if (nzchar(Sys.getenv("VOFI_BENCH_CHUNKS"))) {
+  cat("\nChunk-Groesse (Option vofi.chunk_size): CPU-ms (gc-Anteil)\n")
+  old <- options(vofi.chunk_size = 2000L)
+  for (cs in c(2000L, 5000L, 10000L)) {
+    options(vofi.chunk_size = cs)
+    a <- timing(function() mc_run(m53), reps(2L))
+    b <- timing(function() {
+      quiet(vofi_compare(sc53, n_sim = 10000L, seed = 20261025L, store = "kpi"))
+    }, 1L)
+    cat(sprintf("  %5d Laeufe je Chunk: MC 10.000 x 53 %6.0f ms (gc %s), Vergleich %6.0f ms\n",
+                cs, a[["cpu"]], gc_share(a), b[["cpu"]]))
+  }
+  options(old)
+}
 
 if (nzchar(Sys.getenv("VOFI_BENCH_PROFILE"))) {
   prof <- tempfile(fileext = ".out")

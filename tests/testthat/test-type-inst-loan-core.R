@@ -1316,3 +1316,115 @@ test_that("Engine: Ledger-Zeilen der Kredite = Instrument, Invarianten, \u00dc3 
   # Zinsen der Folgeperiode auf den verringerten Bestand (Wirkung ab t + 1, 8.1 Nr. 4)
   expect_equal(-pv$loan_bul_interest[1L, 3:9], 0.06 * bal[2:8], tolerance = 1e-9)
 })
+
+# ---------------------------------------------------------------------------------------------
+# Schnelle Wege (WS-PERF, Spec 00 9.10): ruhende Perioden, Auszahlungskurs 1, Provision 0
+# ---------------------------------------------------------------------------------------------
+
+test_that("Ruhende Perioden (vor der Auszahlung, nach der Tilgung) = Rechnung mit Monatsuhr", {
+  g3 <- vofi_time_grid(as.Date("2027-01-01"), 12L, construction_months = 6L,
+                       construction_step_months = 1L)
+  g30 <- make_grid("annual", T = 30L)
+  dr <- fake_draws(3L, g30, static = list("financing.k.approved" = c(0, 1, 1)))
+  cases <- list(
+    ann = list("annuity_loan", amount_eur = 100000, rate_pa = 0.03, term_years = 5,
+               payments_per_year = 12L, grid = make_grid("annual", T = 10L)),
+    ann_late = list("annuity_loan", amount_eur = 100000, rate_pa = 0.03, term_years = 4,
+                    payments_per_year = 4L, start = "2030-01-01", fixed_years = 2,
+                    followup_rate_pa = 0.05, grid = make_grid("annual", T = 12L)),
+    sched_fee = list("annuity_loan", amount_eur = 300000, rate_pa = 0.02,
+                     payments_per_year = 12L, term_years = 5, grace_years = 1,
+                     start = "2027-02-01",
+                     draw_schedule = list(schedule = list("2027-02-01" = 100000,
+                                                          "2027-05-01" = 100000),
+                                          unit = "eur"),
+                     fees = list(commitment_fee_rate_month = 0.0015,
+                                 commitment_free_months = 2L, commitment_date = "2027-01-01"),
+                     grid = g3),
+    bullet = list("bullet_loan", amount_eur = 100000, rate_pa = 0.05, payments_per_year = 4L,
+                  term_years = 5, payout_rate = 0.97, fees = list(processing_fee_share = 0.01),
+                  grid = make_grid("annual", T = 9L)),
+    planned = list("annuity_loan", amount_eur = 100000, rate_pa = 0.03, term_years = 4,
+                   payments_per_year = 12L, prepay_cap_share_pa = 0.05,
+                   planned_prepayments = list(schedule = list("2029-01-01" = 10000,
+                                                              "2033-01-01" = 5000)),
+                   grid = make_grid("annual", T = 8L)),
+    existing = list("annuity_loan", amount_eur = 40000, rate_pa = 0.025, existing = TRUE,
+                    installment_eur = 2000, payments_per_year = 12L,
+                    grid = make_grid("annual", T = 6L)),
+    grant = list("installment_loan", amount_eur = 120000, rate_pa = 0.02,
+                 payments_per_year = 1L, term_years = 4, measure_id = "m1",
+                 repayment_grant = list(amount_eur = 12000, year = 2029L,
+                                        effect = "reduce_installment"),
+                 grid = make_grid("annual", T = 8L)),
+    approved = c(list("annuity_loan"),
+                 l1_args(start = "2028-01-01", term_years = 10,
+                         fees = list(commitment_fee_rate_month = 0.0015,
+                                     commitment_free_months = 6L,
+                                     commitment_date = "2027-01-01")),
+                 list(grid = g30, n = 3L, draws = dr))
+  )
+  for (nm in names(cases)) {
+    a <- do.call(loan_run, cases[[nm]])
+    b <- local({
+      local_mocked_bindings(inst_loan_idle = function(...) FALSE)
+      do.call(loan_run, cases[[nm]])
+    })
+    wsp_expect_same(a$m, b$m, nm)
+    # Zustand am Ende (ohne den Ereignisplan, der in beiden Läufen derselbe ist)
+    sa <- unclass(a$state)
+    sb <- unclass(b$state)
+    expect_identical(sa[names(sa) != "par"], sb[names(sb) != "par"], info = nm)
+    # ruhende Perioden: nicht bei offener Zusage mit Provision (sched_fee) und nicht beim
+    # Bestandsdarlehen ohne Laufzeit (Vertragszahlungen bleiben Ereignisse)
+    idle <- vapply(seq_along(a$states)[-1L], function(j) {
+      st <- a$states[[j - 1L]]
+      inst_loan_idle(st, st$par, st$par$plan[[j]], j - 1L, j)
+    }, logical(1))
+    expect_identical(any(idle), !(nm %in% c("sched_fee", "existing")), info = nm)
+  }
+})
+
+test_that("inst_loan_idle: keine Ruhe bei Bestand, Auszahlung, Zuschuss oder Provision", {
+  r <- loan_run("annuity_loan", amount_eur = 100000, rate_pa = 0.03, term_years = 3,
+                payments_per_year = 1L, start = "2029-01-01",
+                fees = list(commitment_fee_rate_month = 0.001, commitment_date = "2027-01-01"),
+                grid = make_grid("annual", T = 8L))
+  st0 <- r$states[[1L]]
+  p <- st0$par
+  # vor der Auszahlung (t = 1): Provision auf die offene Zusage, keine Ruhe
+  expect_false(inst_loan_idle(st0, p, p$plan[[2L]], 1L, 2L))
+  # Auszahlung in t = 2
+  expect_false(inst_loan_idle(r$states[[2L]], p, p$plan[[3L]], 2L, 3L))
+  # mit Bestand
+  expect_false(inst_loan_idle(r$states[[3L]], p, p$plan[[4L]], 3L, 4L))
+  # nach der Tilgung (t = 6): Ruhe, alle Zeilen 0
+  expect_true(inst_loan_idle(r$states[[6L]], p, p$plan[[7L]], 6L, 7L))
+  for (x in loan_cols()) expect_true(all(r$m[[x]][, 7:9] == 0), info = x)
+  # ohne Provision ruht auch die Zeit vor der Auszahlung
+  r0 <- loan_run("annuity_loan", amount_eur = 100000, rate_pa = 0.03, term_years = 3,
+                 payments_per_year = 1L, start = "2029-01-01",
+                 grid = make_grid("annual", T = 8L))
+  p0 <- r0$states[[1L]]$par
+  expect_true(inst_loan_idle(r0$states[[1L]], p0, p0$plan[[2L]], 1L, 2L))
+  # Zustand mit nicht endlichem Bestand: kein schneller Weg
+  bad <- r0$states[[1L]]
+  bad$B <- NA_real_
+  expect_false(inst_loan_idle(bad, p0, p0$plan[[2L]], 1L, 2L))
+})
+
+test_that("Auszahlungskurs 1 und Provision 0: Disagio 0, Auszahlung = Ziehung (8.4)", {
+  r <- loan_run("annuity_loan", amount_eur = 50000, rate_pa = 0.04, term_years = 5,
+                payments_per_year = 12L, grid = make_grid("annual", T = 6L), n = 2L)
+  expect_identical(r$m$draw[, 1L], c(50000, 50000))
+  expect_true(all(r$m$disagio == 0))
+  expect_true(all(r$m$fees == 0))
+  r97 <- loan_run("annuity_loan", amount_eur = 50000, rate_pa = 0.04, term_years = 5,
+                  payments_per_year = 12L, payout_rate = 0.97,
+                  fees = list(commitment_fee_rate_month = 0.001,
+                              commitment_date = "2027-01-01"),
+                  start = "2028-01-01", grid = make_grid("annual", T = 6L))
+  expect_equal(r97$m$draw[1L, 2L], 0.97 * 50000)
+  expect_equal(r97$m$disagio[1L, 2L], 0.03 * 50000)
+  expect_equal(r97$m$fees[1L, 2L], -12 * 0.001 * 50000)
+})

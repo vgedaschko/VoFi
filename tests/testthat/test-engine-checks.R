@@ -58,6 +58,29 @@ test_that("I3b (G * KK = 0 bei L_min = 0), I3c (KK <= KL), N1 (endlich)", {
   expect_identical(e1$data$row, "tax")
 })
 
+test_that("N1 über die Summen (9.10): Zeile außerhalb der I2-Summe, Überlauf ohne Befund", {
+  core <- wsd_parts(wsd_skeleton())$core
+  rows <- core$ledger$rows
+  # Bestand (keine Zahlungszeile): Prüfung über die Summe der Zeile
+  s <- core
+  s$ledger$values$dep_balance[1, 3] <- Inf
+  e <- expect_error(eng_checks(s), class = "vofi_error_contract")
+  expect_identical(e$data$row, "dep_balance")
+  # Tilgungszeile (nicht in der I2-Summe)
+  pk <- rows$key[rows$cash & rows$tax_category == "principal"][1L]
+  skip_if(is.na(pk), "keine Tilgungszeile")
+  p <- core
+  p$ledger$values[[pk]][1, 2] <- -Inf
+  e2 <- expect_error(eng_checks(p), class = "vofi_error_contract")
+  expect_identical(e2$data$row, pk)
+  # endliche Werte, deren Summe überläuft: kein N1-Befund (Zeile für Zeile endlich)
+  o <- core
+  o$ledger$values$z__value[1, 2] <- 1.7e308
+  o$ledger$values$tax[1, 2] <- 1.7e308
+  chk <- eng_checks(o, stop_on_error = FALSE)
+  expect_true(chk$ok[chk$invariant == "N1"])
+})
+
 test_that("eng_rowmax und eng_pmin_mat", {
   m <- rbind(c(1, 5, 2), c(-3, -1, -2))
   expect_equal(eng_rowmax(m), c(5, -1))

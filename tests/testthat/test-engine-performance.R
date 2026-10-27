@@ -1,12 +1,19 @@
-# Leistungsbudget der Engine (WS-D; Spec 00 Abschnitte 9.10, 12.8, 15.6; Pflichttest mit
-# skip_on_cran()). Gemessen wird die kleinste CPU-Zeit (Nutzer + System) aus mehreren
-# Wiederholungen gegen das Budget aus 9.10 mal einem Toleranzfaktor für die Grundlast geteilter
-# Rechner (Umgebungsvariable VOFI_PERF_FACTOR, Default 4; VOFI_SKIP_PERF = true überspringt).
-# Szenario wie bench/bench_engine.R: 83 Perioden (Bauphase 24 Monate monatlich, Betrieb jährlich),
-# vier Kredite (Annuität mit Anschlusszins, Raten- und Endfälligkeitsdarlehen), Ausgleich mit
-# Strafzinstranche. Die MC wird als Engine-Anteil eines Chunks (2.000 Läufe x 53 Perioden mit
-# vorgegebenen Ziehungen) gemessen; der Sampler (WS-C) und vofi_mc() (WS-G) messen bench_mc.R
-# bzw. die Tests von WS-G.
+# Leistungsbudget der Engine (WS-D, WS-PERF; Spec 00 Abschnitte 9.10, 12.8, 15.6; Pflichttest
+# mit skip_on_cran()).
+#
+# Gemessen wird die kleinste CPU-Zeit (Nutzer + System) aus mehreren Wiederholungen gegen das
+# Budget aus 9.10 mal einem Toleranzfaktor für die Grundlast geteilter Rechner:
+#   VOFI_PERF_FACTOR  Faktor auf alle Zeitbudgets (Default 4: geteilte VMs und CI mit
+#                     schwankender Last; Abnahme auf einem ruhigen Rechner mit 1). Der
+#                     Speicherbudget hat keinen Faktor.
+#   VOFI_SKIP_PERF    "true" überspringt alle Leistungstests.
+# Szenario wie bench/bench_engine.R (wsd_bench_scenario()): 83 Perioden (Bauphase 24 Monate
+# monatlich, Betrieb jährlich) bzw. 53 und 83 Jahresperioden, vier Kredite (Annuität mit
+# Anschlusszins, Raten- und Endfälligkeitsdarlehen), Ausgleich mit Strafzinstranche. Die MC wird
+# als Engine-Anteil je Chunk (2.000 Läufe mit vorgegebenen Ziehungen, wsp_draws()) gegen ein
+# Fünftel des MC-Budgets gemessen (10.000 Läufe = 5 Chunks); den Sampler (WS-C) und vofi_mc()
+# bzw. vofi_compare() (WS-G) prüfen test-mc.R und test-compare.R, die Tabelle gegen alle Budgets
+# geben bench/bench_engine.R und bench/bench_mc.R aus.
 
 perf_factor <- function() {
   f <- suppressWarnings(as.double(Sys.getenv("VOFI_PERF_FACTOR", "4")))
@@ -30,36 +37,27 @@ perf_cpu_ms <- function(f, reps = 5L) {
   1000 * min(tt)
 }
 
-perf_draws <- function(model, n) {
-  g <- model$grid
-  u <- (seq_len(n) - 0.5) / n
-  st <- list("components.rent.amount_eur" = 185000 * (0.85 + 0.3 * u),
-             "financing.kfw.rate_pa" = 0.015 + 0.01 * u)
-  pa <- list("market.mortgage_rate" = matrix(0.03 + 0.03 * u, n, g$T + 1L),
-             "market.rent_growth" = matrix(0.005 + 0.02 * rev(u), n, g$T + 1L))
-  keys <- c(names(st), names(pa))
-  targets <- data.frame(key = keys, target = keys,
-                        kind = c(rep("static", length(st)), rep("process", length(pa))),
-                        apply = "replace", stringsAsFactors = FALSE)
-  new_vofi_draws("mc", n = n, sims = seq_len(n), blocks = seq_len(max(1L, n %/% 200L)),
-                 block_size = min(n, 200L), static = st, paths = pa, targets = targets,
-                 years = g$years)
+perf_quiet <- function(expr) suppressMessages(suppressWarnings(expr))
+
+perf_chunk <- function(model, draws) {
+  perf_quiet(eng_run_draws(model, draws, store = "bands",
+                           bands = c("net_position", "dep_balance", "od_balance")))
 }
 
-test_that("9.10: deterministischer Lauf mit 83 Perioden", {
+test_that("9.10: deterministischer Lauf mit 83 Perioden (< 50 ms)", {
   perf_skip()
-  model <- suppressMessages(vofi_build(wsd_bench_scenario(61L, 24L)))
+  model <- perf_quiet(vofi_build(wsd_bench_scenario(61L, 24L)))
   expect_identical(model$grid$T, 83L)
-  run <- function() suppressMessages(suppressWarnings(vofi_run(model)))
+  run <- function() perf_quiet(vofi_run(model))
   invisible(run())
-  ms <- perf_cpu_ms(run)
-  expect_lt(ms, 50 * perf_factor(), label = sprintf("deterministischer Lauf %.0f ms", ms))
+  ms <- perf_cpu_ms(function() for (i in 1:5) run()) / 5
+  expect_lt(ms, 50 * perf_factor(), label = sprintf("deterministischer Lauf %.1f ms", ms))
 })
 
-test_that("9.10, 12.8: Entnahme-Äquivalent mit 40 Wiederholungsläufen (Instrument-Cache)", {
+test_that("9.10, 12.8: Entnahme-Äquivalent, 40 Wiederholungsläufe (< 100 ms, je Lauf < 1 ms)", {
   perf_skip()
-  model <- suppressMessages(vofi_build(wsd_bench_scenario(61L, 24L)))
-  p <- suppressMessages(suppressWarnings(wsd_parts(model)))
+  model <- perf_quiet(vofi_build(wsd_bench_scenario(61L, 24L)))
+  p <- perf_quiet(wsd_parts(model))
   delta <- p$ctx$by_period(p$ctx$grid$delta)
   rebal <- function() {
     for (k in seq_len(40L)) {
@@ -69,32 +67,40 @@ test_that("9.10, 12.8: Entnahme-Äquivalent mit 40 Wiederholungsläufen (Instrum
   }
   invisible(rebal())
   ms <- perf_cpu_ms(rebal)
-  expect_lt(ms, 100 * perf_factor(), label = sprintf("40 Wiederholungsläufe %.0f ms", ms))
+  expect_lt(ms, 100 * perf_factor(), label = sprintf("40 Wiederholungsläufe %.1f ms", ms))
+  expect_lt(ms / 40, 1 * perf_factor(), label = sprintf("je Wiederholungslauf %.2f ms", ms / 40))
 })
 
-test_that("9.10: Design-Lauf mit 41 Zeilen und einer Kennzahl", {
+test_that("9.10: Design-Lauf mit 41 Zeilen und einer Kennzahl (< 1 s)", {
   perf_skip()
-  model <- suppressMessages(vofi_build(wsd_bench_scenario(53L, 0L)))
-  d <- perf_draws(model, 41L)
+  model <- perf_quiet(vofi_build(wsd_bench_scenario(53L, 0L)))
+  d <- wsp_draws(model, 41L)
   run <- function() {
-    suppressMessages(suppressWarnings(
-      eng_run_draws(model, d, store = "kpi", kpis = "delta_terminal_value")
-    ))
+    perf_quiet(eng_run_draws(model, d, store = "kpi", kpis = "delta_terminal_value"))
   }
   invisible(run())
   ms <- perf_cpu_ms(run, 3L)
   expect_lt(ms, 1000 * perf_factor(), label = sprintf("Design-Lauf %.0f ms", ms))
 })
 
-test_that("9.10: Engine-Anteil eines MC-Chunks (2.000 x 53, Budget 1,5 s je 10.000 Läufe)", {
+test_that("9.10: Engine-Anteil MC 10.000 x 53 (Chunk 2.000 x 53 < 1,5 s / 5)", {
   perf_skip()
-  model <- suppressMessages(vofi_build(wsd_bench_scenario(53L, 0L)))
-  d <- perf_draws(model, 2000L)
-  run <- function() {
-    suppressMessages(suppressWarnings(
-      eng_run_draws(model, d, store = "bands", bands = c("net_position", "dep_balance"))
-    ))
-  }
-  ms <- perf_cpu_ms(run, 2L)
-  expect_lt(ms, 1500 / 5 * perf_factor(), label = sprintf("MC-Chunk %.0f ms", ms))
+  model <- perf_quiet(vofi_build(wsd_bench_scenario(53L, 0L)))
+  d <- wsp_draws(model, 2000L)
+  invisible(perf_chunk(model, d))
+  ms <- perf_cpu_ms(function() perf_chunk(model, d), 3L)
+  expect_lt(ms, 1500 / 5 * perf_factor(), label = sprintf("MC-Chunk 2.000 x 53 %.0f ms", ms))
+})
+
+test_that("9.10: Engine-Anteil MC 10.000 x 83 (Chunk 2.000 x 83 < 3 s / 5), Speicher < 1 GB", {
+  perf_skip()
+  model <- perf_quiet(vofi_build(wsd_bench_scenario(83L, 0L)))
+  expect_identical(model$grid$T, 83L)
+  d <- wsp_draws(model, 2000L)
+  invisible(perf_chunk(model, d))
+  invisible(gc(reset = TRUE))
+  ms <- perf_cpu_ms(function() perf_chunk(model, d), 2L)
+  peak_mb <- sum(gc()[, 6L])
+  expect_lt(ms, 3000 / 5 * perf_factor(), label = sprintf("MC-Chunk 2.000 x 83 %.0f ms", ms))
+  expect_lt(peak_mb, 1024, label = sprintf("Spitzenspeicher %.0f MB", peak_mb))
 })
