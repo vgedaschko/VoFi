@@ -1,0 +1,180 @@
+# inst/extdata/examples/s3_eg_waermepumpe_pv.yaml
+schema_version: 1
+meta:
+  scenario_id: s3_eg_waermepumpe_pv
+  title: "S3 – Genossenschaft: Heizungstausch Gas auf Wärmepumpe mit PV im 12-WE-Gebäude (§ 559e)"
+  author: "WS-S (Referenzszenario, Memo 07 §4.3)"
+  created_date: 2026-10-25
+  tags: [referenzszenario, s3, bestand, heizungstausch, genossenschaft]
+project:
+  perspective: wu_genossenschaft
+  project_type: heizungstausch
+  comparison_mode: absolute
+  valuation_date: 2027-01-01
+  horizon_years: 20                         # 2027-2046, Horizontende 2047-01-01
+  application_date: 2027-01-15              # KfW 459 vor Absenkung zum 01.02.2027
+  legal_state: 2026-10-25
+  price_base_year: 2026
+  reference_variant: base                   # V1 Gas-Brennwert (Ohnehin)
+  report_mode: expert
+grid: {construction_months: 0}
+building:
+  building_type: MFH
+  construction_year: 1985
+  n_units: 12
+  living_area_m2: 840
+  heating_existing: {carrier: gas_mfh, installation_year: 2002}   # Vorlauf 70 °C, Heizlast ≈ 42 kW
+  consumption_kwh: {gas_mfh: 109200}
+  maintenance: {basis: none}                # Memo 07 S3 ohne Instandhaltungspauschale (Differenz V2 − V1 unberührt; F-21)
+unit_groups:
+  mitglieder:
+    label: "12 Genossenschaftswohnungen"
+    n_units: 12
+    living_area_m2: 840
+    rent_regime: cooperative_fee
+    rent_eur_m2_month: 6.40                 # Nutzungsentgelt, 64.512 EUR/a
+    increase_policy: fixed_growth
+    rent_growth: 0.015
+    growth_from: 2028-01-01
+    vacancy_rate: 0.01
+    rent_default_rate: 0
+    rent_law:
+      modernization_levy: auto
+      voluntary_cap_per_m2: null            # V2: 0.35 (Vorstandsbeschluss)
+      hardship_share: 0
+measures:
+  gas_bw:
+    label: "Gas-Brennwertkessel inkl. Abgas und Planung (Ohnehin)"
+    measure_type: heizung_gaskessel
+    year: 2027
+    completion_date: 2027-10-01
+    cost_eur: 45360                         # 38.000 + 4.000 + 8 % Planung
+    ohnehin_share: 1
+    classification: erhaltung
+    useful_life_years: 20                   # Memo 07 (F19)
+shared:
+  from: prices/referenzszenarien_2026
+  use: shared
+  cost_factor_v2: 1
+energy:
+  carriers:
+    gas_mfh: {emission_factor_kg_kwh: 0.181}
+    heatpump_power_mfh: {}
+  before:
+    efficiency: 0.87                        # 109.200 kWh -> Nutzwärme 95.004 kWh
+    flow_temperature_c: 70
+    service_eur_pa: 714.28571429            # 600 + 250 EUR brutto
+  after:
+    measure: gas_bw
+    demand_kwh: 95000                       # -> 100.000 kWh Gas bei η 0,95
+    heating_carrier: gas_mfh
+    efficiency: 0.95
+financing:
+  ek: {type: equity, amount_eur: 50000}     # V1: 45.360 eingesetzt, Rest Geldanlage
+accounts:
+  deposit_rate_pa: {ref: market.mortgage_rate, anchor: 0.02, floor: 0}     # Mindestverzinsung (= Profil wu_genossenschaft, F-14)
+  overdraft_rate_pa: {ref: market.mortgage_rate, anchor: 0.055}
+market:
+  from: prices/referenzszenarien_2026
+  use: market
+  co2_price: {from: prices/co2_price_path_referenzszenarien_2026}
+  pv_internal_price_s3: 0                   # Verrechnungspreis PV-Strom an Mitglieder (Konzept B3); Set pv_verrechnung_20ct
+residual_value:
+  method: component                         # linearer Komponentenzeitwert, kein Gebäudewerteffekt (= Profil für heizungstausch)
+  sale_cost_share: 0
+  component: {indexed: false}               # nominaler Buchwert × Restanteil (S3-T8; R-108, N-24)
+tax: {module: none}
+analysis:
+  stabilization_year: 2028
+stochastic:
+  settings: {n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200, store: bands}
+  processes:
+    inflation: {target: market.inflation, from: processes/inflation_ar1_2026}
+    energy_price_gas_mfh: {target: market.energy_price.gas_mfh, from: processes/energy_prices_mr_2026, use: gas_mfh, p_norm: base}
+    energy_price_heatpump_power_mfh: {target: market.energy_price.heatpump_power_mfh, from: processes/energy_prices_mr_2026, use: heatpump_power_mfh, p_norm: base}
+  parameters:
+    co2_2030: {target: shared.co2_2030, label: "CO2-Preis 2030", dist: triangular, min: 60, mode: 90, max: 200}
+    co2_2040: {target: shared.co2_2040, label: "CO2-Preis 2040", dist: triangular, min: 80, mode: 150, max: 300}
+    network_fee_growth_gas_mfh: {target: shared.network_fee_growth_gas_mfh, from: processes/energy_prices_mr_2026, use: network_fee_growth}
+    bio_premium_factor: {target: shared.bio_premium_factor, from: processes/energy_prices_mr_2026, use: bio_premium_factor, apply: replace}
+    hardship: {target: unit_groups.mitglieder.rent_law.hardship_share, label: "Anteil WE mit Härtefall", dist: beta, mean: 0.05, sd: 0.03}
+  correlations:
+    parameters: [[co2_2030, co2_2040, 0.8]]
+    shocks: {from: processes/shock_correlations_2026}
+variants:
+  v2_wp_pv:
+    label: "V2 Wärmepumpen-Kaskade mit PV 30 kWp (KfW 459, § 559e)"
+    remove: [measures.gas_bw]
+    replace:
+      energy.after:
+        measure: heizung_wp
+        demand_kwh: 95000
+        heating_carrier: heatpump_power_mfh
+        jaz: 3.1
+        jaz_plan: 3.1
+        flow_temperature_c: 55
+        service_eur_pa: 756.30252101        # 900 EUR brutto
+    set:
+      unit_groups.mitglieder.rent_law.voluntary_cap_per_m2: 0.35   # Beschluss: 3.528 EUR/a ab 2028
+      energy.pv:                            # optionaler Block, keine Sammlung: set statt add (Spec 00 4.11, R-112; WS-S)
+        kwp: 30
+        measure: pv
+        commissioning_date: 2027-01-01
+        specific_yield_kwh_kwp: 900
+        self_consumption_share: 0.30        # WP und Allgemeinstrom
+        tariff_years: 20                    # Vergütung (10 x 7,70 + 20 x 6,66)/30 = 7,0067 ct (Default-Ausdruck 01b 3.9.1)
+        internal_price_eur_kwh: {ref: market.pv_internal_price_s3}   # Konzept B3: 0 (Memo 07: 0,20)
+        opex_share_of_cost: 0.015           # 577,50 EUR/a
+    add:
+      measures.heizung_wp:
+        label: "WP-Kaskade 2 x 22 kW, Heizkörper, Frischwasserstation, Elektro, Demontage, Planung"
+        measure_type: heizung_waermepumpe_luft
+        year: 2027
+        completion_date: 2027-10-01
+        cost_eur: 153560                    # 88.000 + 21.600 + 18.000 + 8.000 + 4.000 + 10 % = 13.960
+        cost_factor: {ref: shared.cost_factor_v2}
+        ohnehin_cost_eur: 45360             # nur für den Rückfall auf § 559 (01b 1.9.2)
+        modernization_kind: bgb_555b_1a     # Verfahren auto -> § 559e (Drittmittel)
+        useful_life_years: 20               # Memo 07 (F19)
+      measures.pv:
+        label: "PV 30 kWp (1.150 EUR/kWp) + Messkonzept"
+        measure_type: pv
+        year: 2027
+        completion_date: 2027-01-01         # IBN bis 31.01.2027 (Vergütungssatz), 20 Jahre genutzt
+        cost_eur: 38500
+        cost_factor: {ref: shared.cost_factor_v2}
+        ohnehin_share: 0  # explizit (= Katalogwert), W validation.measures.ohnehin_catalog bei wu_* (01a 4.1; WS-S)
+        vat_rate: 0                         # § 12 Abs. 3 UStG (<= 30 kWp)
+        useful_life_years: 25
+      funding.kfw459:
+        from: funding/kfw_459_heizung_unternehmen
+        measures: [heizung_wp]
+        application_date: 2027-01-15
+        approval_timing: before_start       # ausdrücklich (R-111): Vorhabenbeginn nach dem Antrag; year: 2027 ist nur der Kostenansatz zum 1. Januar (Memo 07), daher keine W
+        payout: {lag_months: 3}             # Termin 2027-10-01 + 3 Monate = 2028-01-01 -> t = 1 (Periode 2027, R-98; 01b F-1, N-13)
+        approval_probability: 1.0           # Memo 07: kein Zusagerisiko
+      financing.bank:
+        type: annuity_loan
+        label: "Bankdarlehen"
+        amount_eur: 142060
+        start: 2027-01-01
+        rate_pa: 0.039
+        term_years: 15
+        fixed_years: 15
+        payments_per_year: 1
+      stochastic.parameters.jaz: {target: energy.after.jaz, label: "JAZ realisiert", dist: triangular, min: 2.6, mode: 3.1, max: 3.4}
+      stochastic.parameters.pv_self_share: {target: energy.pv.self_consumption_share, label: "Eigenverbrauchsquote PV", dist: triangular, min: 0.20, mode: 0.30, max: 0.40}
+      stochastic.parameters.pv_yield: {target: energy.pv.specific_yield_kwh_kwp, label: "PV-Ertrag", dist: normal, mean: 900, sd: 60}
+      stochastic.parameters.cost_factor_v2: {target: shared.cost_factor_v2, label: "Kostenabweichung Komponententausch", from: processes/cost_risks_2026, use: overrun_component, apply: replace}
+  v2_jaz_test:
+    label: "Testfall § 559f: Plan-JAZ 2,4, Vorlauf 70 °C"
+    extends: v2_wp_pv
+    set:
+      project.pending_reforms: [unreleased]   # Thema mietrecht_559f ist C ohne Freigabe (Spec 00 §4.10)
+      energy.after.jaz_plan: 2.4
+      energy.after.flow_temperature_c: 70
+      unit_groups.mitglieder.rent_law.voluntary_cap_per_m2: null
+scenario_sets:
+  pv_verrechnung_20ct:
+    label: "PV-Strom an Mitglieder zu 20 ct/kWh (Memo 07, rechtlich prüfen)"
+    set: {market.pv_internal_price_s3: 0.20}

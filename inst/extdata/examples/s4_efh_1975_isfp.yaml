@@ -1,0 +1,265 @@
+# inst/extdata/examples/s4_efh_1975_isfp.yaml
+schema_version: 1
+meta:
+  scenario_id: s4_efh_1975_isfp
+  title: "S4 – Selbstnutzer EFH Baujahr 1975: stufenweise Sanierung nach iSFP gegenüber Gaskessel behalten"
+  author: "WS-S (Referenzszenario, Memo 07 §4.4)"
+  created_date: 2026-10-25
+  tags: [referenzszenario, s4, bestand, selbstnutzer, haushaltsmodus]
+project:
+  perspective: selbstnutzer
+  project_type: sanierung_stufenweise
+  comparison_mode: absolute
+  valuation_date: 2027-01-01
+  horizon_years: 25                         # 2027-2051, Horizontende 2052-01-01
+  application_date: 2026-12-15              # KfW 458: Bonus 16 % und Höchstkosten 28.000 EUR
+  legal_state: 2026-10-25
+  price_base_year: 2026                     # laufende Beträge Preisbasis 2026
+  reference_variant: base                   # V0 Gaskessel behalten
+  report_mode: household
+grid: {construction_months: 0}
+building:
+  building_type: EFH
+  construction_year: 1975
+  n_units: 1
+  living_area_m2: 140
+  component_areas_m2: {roof: 160, windows: 28, facade: 180, basement_ceiling: 75}
+  heating_existing: {carrier: gas, installation_year: 2005}   # 21 Jahre: Klimageschwindigkeitsbonus
+  consumption_kwh: {gas: 24500}             # Hs, Nutzwärme 21.560 kWh (iSFP-Bedarf 230 kWh/m2 a -> Prebound ≈ 0,76)
+  isfp_available: true                      # iSFP liegt vor (Bonus BAFA, Default funding.<f>.facts.isfp)
+  maintenance: {basis: none}                # Memo 07 ohne Pauschale; V0 trägt die Instandsetzung über die expliziten Ohnehin-Maßnahmen (F-21)
+household:
+  taxable_income_avg_eur: 58000             # Ø 2023/2024; minus 10.000 bei mindestens einem Kind (F-01) -> 48.000 -> Einkommensbonus 10 %
+  n_children_u18: 1
+  net_income_month_eur: 4800
+  savings_eur: 60000                        # Erspartes (Expander household -> equity)
+unit_groups:
+  haus:
+    label: "Selbstgenutztes EFH"
+    n_units: 1
+    living_area_m2: 140
+    owner_occupied: true                    # rule:unit_group_defaults: Verwaltung, Leerstand, Mietausfall 0 (N-08)
+    operating: {recoverable_opex_eur_m2_month: 0}   # Memo 07 S4 ohne weitere Nebenkosten (F-11)
+measures:
+  gaskessel:
+    label: "Gas-Brennwertkessel nach Ausfall des Altkessels"
+    measure_type: heizung_gaskessel
+    year: 2028                              # frühester Ausfalltermin
+    delay_months: 24                        # Basisfall 2030 (Memo 07); MC 0 ... 60 (Ausfalljahr 2028-2033), >= 0 (R-105)
+    cost_eur: 12500                         # Kostenstand 2026 -> 14.068,86 (Termin 2030-01-01, Index zum verschobenen Termin)
+    price_base_year: 2025
+    classification: erhaltung
+    useful_life_years: 20
+    replacement: {enabled: false}           # Ersatz explizit (wp_2050)
+  dach_2032:
+    label: "Dach-Neueindeckung mit GModG-Mindestdämmung (U <= 0,24)"
+    measure_type: daemmung_dach_steil
+    year: 2032
+    cost_eur: 40000                         # -> 47.762,09
+    price_base_year: 2025
+    ohnehin_share: 1
+    classification: erhaltung
+    useful_life_years: 50
+  anstrich_2033:
+    label: "Fassadenanstrich inkl. Gerüst"
+    measure_type: putz_anstrich
+    year: 2033
+    cost_eur: 11600                         # -> 14.266,54
+    price_base_year: 2025
+    classification: erhaltung
+    useful_life_years: 15
+    replacement: {enabled: false}           # Memo 07 ohne Folgeanstrich 2048
+  fenster_2042:
+    label: "Fenstertausch 2-fach (U_w 1,3)"
+    measure_type: fenster
+    year: 2042
+    cost_eur: {value: 700, per: "m2_component:windows"}   # 19.600 -> 31.452,25
+    price_base_year: 2025
+    ohnehin_share: 1
+    classification: erhaltung
+    useful_life_years: 35
+  wp_2050:
+    label: "Heizungsersatz durch Wärmepumpe (Ende Nutzungsdauer Kessel)"
+    measure_type: heizung_waermepumpe_luft
+    year: 2048                              # Basistermin; + 24 Monate = 2050 (N-26)
+    delay_months: {ref: measures.gaskessel.delay_months}
+    cost_eur: 32000                         # -> 65.049,41 (2050); ohne Förderung (Memo 07)
+    price_base_year: 2025
+    useful_life_years: 20
+shared:
+  from: prices/referenzszenarien_2026
+  use: shared
+  saving_stage2: 0.25
+  saving_stage3: 0.28
+energy:
+  carriers:
+    gas: {emission_factor_kg_kwh: 0.181, base_fee_eur_pa: 151.26050420}     # 180 EUR brutto
+    heatpump_power: {base_fee_eur_pa: 117.64705882}                         # 140 EUR brutto
+  before:
+    efficiency: 0.88
+    service_eur_pa: 252.10084034            # 300 EUR brutto
+  after:
+    measure: gaskessel
+    demand_kwh: 21560
+    heating_carrier: gas                    # neue Heizung: § 43, Bio-Treppe
+    efficiency: 0.94
+  stages:
+    dach:
+      measure: dach_2032
+      demand_kwh: {expr: "21560 * 0.88"}    # 18.972,8 kWh
+    fenster:
+      measure: fenster_2042
+      demand_kwh: {expr: "21560 * 0.88 * 0.95"}   # 18.024,16 kWh
+    wp:
+      measure: wp_2050
+      heating_carrier: heatpump_power
+      jaz: 3.0
+      service_eur_pa: 210.08403361          # 250 EUR brutto
+financing: {}                               # Einlage aus household.savings_eur (Expander household, 01b)
+accounts:
+  deposit_rate_pa: 0.025                    # Memo 07; MC: truncnorm (statisch, Memo 07 §4.4)
+  overdraft_rate_pa: {ref: market.mortgage_rate, anchor: 0.060}   # Ergänzungskredit
+  overdraft_limit_eur: .inf                 # Szenarioeinstellung (Memo 07: Fehlbeträge automatisch; Profil: 0 mit Nachschuss)
+  deficit_order: [dep_withdraw, od_draw, equity_call]
+market:
+  from: prices/referenzszenarien_2026
+  use: market
+  construction_price_index_base: {series: {2026: 0.030}, fill: locf, before: first}   # 3,0 % ab 2026
+  co2_price: {from: prices/co2_price_path_referenzszenarien_2026}
+residual_value:
+  method: component                         # Zeitwert der Maßnahmen (= Profil selbstnutzer), Pflichtausweis ohne Restwert
+  sale_cost_share: 0
+tax: {module: none}
+stochastic:
+  settings: {n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200, store: bands}
+  processes:
+    mortgage_rate: {target: market.mortgage_rate, from: processes/mortgage_rate_vasicek_2026}   # Anschluss KfW 358 nach 10 J.
+    inflation: {target: market.inflation, from: processes/inflation_ar1_2026}
+    energy_price_gas: {target: market.energy_price.gas, from: processes/energy_prices_mr_2026, use: gas, p_norm: base}
+    energy_price_heatpump_power: {target: market.energy_price.heatpump_power, from: processes/energy_prices_mr_2026, use: heatpump_power, p_norm: base}
+  parameters:
+    co2_2030: {target: shared.co2_2030, label: "CO2-Preis 2030", dist: triangular, min: 60, mode: 90, max: 200}
+    co2_2040: {target: shared.co2_2040, label: "CO2-Preis 2040", dist: triangular, min: 80, mode: 150, max: 300}
+    network_fee_growth_gas: {target: shared.network_fee_growth_gas, from: processes/energy_prices_mr_2026, use: network_fee_growth}
+    bio_premium_factor: {target: shared.bio_premium_factor, from: processes/energy_prices_mr_2026, use: bio_premium_factor, apply: replace}
+    construction_price_shift: {target: shared.construction_price_shift, label: "Abweichung Baupreisindex p. a.", dist: normal, mean: 0, sd: 0.012}
+    deposit_rate: {target: accounts.deposit_rate_pa, label: "Habenzins", dist: truncnorm, mean: 0.025, sd: 0.0075, lower: 0, upper: 0.06}
+    boiler_failure: {target: measures.gaskessel.delay_months, label: "Ausfall Altkessel (Verschiebung ggü. 2028)", dist: discrete, values: [0, 12, 24, 36, 48, 60]}   # gleich verteilt 2028-2033 (Memo 07); I mode_differs_base (Modus 0, Basis 24)
+  correlations:
+    parameters: [[co2_2030, co2_2040, 0.8]]
+    shocks: {from: processes/shock_correlations_2026}
+variants:
+  v1_isfp_stufen:
+    label: "V1 iSFP stufenweise: WP 2027, Dach + Fenster 2030, Fassade + Kellerdecke 2033"
+    remove: [measures.gaskessel, measures.dach_2032, measures.anstrich_2033, measures.fenster_2042, measures.wp_2050,
+             stochastic.parameters.boiler_failure]
+    replace:
+      energy.after:
+        measure: wp_2027
+        demand_kwh: 21560
+        heating_carrier: heatpump_power
+        jaz: 2.9
+        service_eur_pa: 210.08403361
+      energy.stages:                        # ersetzt die Stufen der Basis (wie V2; K3-18)
+        stufe2:
+          measure: dach_fenster_2030
+          demand_kwh: {expr: "21560 * (1 - shared.saving_stage2)"}                               # 16.170
+          jaz: 3.2
+        stufe3:
+          measure: fassade_2033
+          demand_kwh: {expr: "21560 * (1 - shared.saving_stage2) * (1 - shared.saving_stage3)"}  # 11.642,4
+          jaz: 3.5
+    set:
+      stochastic.correlations.parameters: [[co2_2030, co2_2040, 0.8], [jaz_s1, jaz_s2, 0.7], [jaz_s2, jaz_s3, 0.7], [jaz_s1, jaz_s3, 0.7]]   # D: dieselbe Anlage
+    add:
+      measures.wp_2027:
+        label: "Luft/Wasser-WP 10 kW inkl. 3 Heizkörper, Demontage"
+        measure_type: heizung_waermepumpe_luft
+        year: 2027
+        cost_eur: 32000                     # -> 32.960,00
+        price_base_year: 2025
+        useful_life_years: 20
+        replacement: {enabled: false}       # Ersatz explizit (wp_ersatz_2047)
+      measures.dach_fenster_2030:
+        label: "Dach (Aufsparrendämmung, U <= 0,14) und Fenster 3-fach"
+        measure_type: daemmung_dach_steil
+        year: 2030
+        cost_eur: {expr: "building.component_areas_m2.roof * 320 + building.component_areas_m2.windows * 900"}   # 76.400 -> 85.988,87
+        price_base_year: 2025
+        useful_life_years: 45               # Dach 50, Fenster 35 (kostengewichtet)
+      measures.fassade_2033:
+        label: "WDVS 16 cm, Kellerdecke, Gerüst"
+        measure_type: daemmung_fassade
+        year: 2033
+        cost_eur: {expr: "building.component_areas_m2.facade * 210 + building.component_areas_m2.basement_ceiling * 50 + 3500"}   # 45.050 -> 55.405,82
+        price_base_year: 2025
+        useful_life_years: 40
+      measures.wp_ersatz_2047:
+        label: "WP-Ersatz (Erzeuger)"
+        measure_type: heizung_waermepumpe_luft
+        year: 2047
+        cost_eur: 25000                     # -> 46.507,36
+        price_base_year: 2025
+        classification: erhaltung
+        useful_life_years: 20
+      funding.kfw458_wp:
+        from: funding/kfw_458_heizung_privat
+        measures: [wp_2027]
+        application_date: 2026-12-15
+        payout: {lag_months: 12}            # Termin 2028-01-01 -> t = 1 (= „2028“ nach Memo 07 §4.0, Jahr Y = 1. Januar Y; R-98)
+        approval_probability: 1.0
+      funding.bafa_2030:
+        from: funding/bafa_beg_em_huelle    # iSFP-Bonus nur auf den Betrag > 30.000 (Default, Konzept B2)
+        measures: [dach_fenster_2030]
+        application_date: 2029-12-01        # approval_timing auto -> before_start (Antrag vor dem Stufentermin 2030-01-01; R-111), keine W
+        payout: {lag_months: 12}            # Termin 2031-01-01 -> t = 4
+        approval_probability: 1.0
+      funding.bafa_2033:
+        from: funding/bafa_beg_em_huelle
+        measures: [fassade_2033]
+        application_date: 2032-12-01
+        approval_timing: after_start        # ausdrücklich (X-31, R-111): Zusage erst nach Vorhabenbeginn, einfache Ziehung ohne Entscheidungsknoten (Spec 00 §9.11 Nr. 6); Antrag vor dem Termin 2033, daher keine W; die Stufe findet in jedem Fall statt, die Lücke deckt der Ausgleich
+        payout: {lag_months: 12}            # Termin 2034-01-01 -> t = 7
+        approval_probability: 0.7           # Memo 07 (Förderverfügbarkeit nach 2030, Konzept B12); ohne Angabe ergäbe rule:approval_probability 0,90 x 0,7 = 0,63 (Antrag ab 2031)
+        on_reject: balance
+      funding.kfw358_2030:
+        from: funding/kfw_358_ergaenzungskredit_plus
+        measures: [dach_fenster_2030]
+        application_date: 2029-12-01
+        amount_eur: 70000
+        loan_variant: v25_3_10              # 25/3/10, 2,53 %; Auszahlung zum Maßnahmentermin 2030-01-01
+        loan: {payments_per_year: 1}
+        approval_probability: 1.0
+      funding.kfw358_2033:
+        from: funding/kfw_358_ergaenzungskredit_plus
+        measures: [fassade_2033]
+        application_date: 2032-12-01
+        amount_eur: 45000
+        loan_variant: v25_3_10
+        loan: {payments_per_year: 1}
+        approved: {ref: funding.bafa_2033.approved}   # Ergänzungskredit nur mit BEG-EM-Förderung
+        approval_probability: 1.0
+      stochastic.parameters.saving_stage2: {target: shared.saving_stage2, label: "Einsparwirkung Stufe 2", dist: triangular, min: 0.18, mode: 0.25, max: 0.30}
+      stochastic.parameters.saving_stage3: {target: shared.saving_stage3, label: "Einsparwirkung Stufe 3", dist: triangular, min: 0.20, mode: 0.28, max: 0.33}
+      stochastic.parameters.jaz_s1: {target: energy.after.jaz, label: "JAZ Zustand 1", dist: triangular, min: 2.6, mode: 2.9, max: 3.2}
+      stochastic.parameters.jaz_s2: {target: energy.stages.stufe2.jaz, label: "JAZ Zustand 2", dist: triangular, min: 2.9, mode: 3.2, max: 3.5}
+      stochastic.parameters.jaz_s3: {target: energy.stages.stufe3.jaz, label: "JAZ Zustand 3", dist: triangular, min: 3.2, mode: 3.5, max: 3.8}
+      stochastic.parameters.rate_kfw358_2030: {target: funding.kfw358_2030.loan.variants.v25_3_10.rate_pa, label: "Zins KfW 358 (2030)", dist: truncnorm, mean: 0.0275, sd: 0.0075, lower: 0.01, upper: 0.05}
+      stochastic.parameters.rate_kfw358_2033: {target: funding.kfw358_2033.loan.variants.v25_3_10.rate_pa, label: "Zins KfW 358 (2033)", dist: truncnorm, mean: 0.0275, sd: 0.0075, lower: 0.01, upper: 0.05}
+  v2_nur_wp:
+    label: "V2 nur Wärmepumpe 2027, Hülle zu den Ohnehin-Terminen"
+    remove: [measures.gaskessel, measures.wp_2050, stochastic.parameters.boiler_failure]
+    replace:
+      energy.after:
+        measure: wp_2027
+        demand_kwh: 21560
+        heating_carrier: heatpump_power
+        jaz: 2.9
+        service_eur_pa: 210.08403361
+      energy.stages:
+        dach: {measure: dach_2032, demand_kwh: {expr: "21560 * 0.88"}, jaz: 3.0}
+        fenster: {measure: fenster_2042, demand_kwh: {expr: "21560 * 0.88 * 0.95"}}
+    add:
+      measures.wp_2027: {label: "Luft/Wasser-WP 10 kW", measure_type: heizung_waermepumpe_luft, year: 2027, cost_eur: 32000, price_base_year: 2025, useful_life_years: 20, replacement: {enabled: false}}
+      measures.wp_ersatz_2047: {label: "WP-Ersatz", measure_type: heizung_waermepumpe_luft, year: 2047, cost_eur: 25000, price_base_year: 2025, classification: erhaltung, useful_life_years: 20}
+      funding.kfw458_wp: {from: funding/kfw_458_heizung_privat, measures: [wp_2027], application_date: 2026-12-15, payout: {lag_months: 12}, approval_probability: 1.0}
