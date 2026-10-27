@@ -106,21 +106,41 @@ test_that("Varianten bauen und rechnen deterministisch: Finanzierungssaldo 0, In
 })
 
 test_that("Steuerbereitschaft (Spec 00 10.10 Nr. 7) in S1-S5", {
+  n_known <- 0L
   for (id in names(wss_ids)) {
     for (v in c("base", setdiff(names(wss_scenario(id)$variants), "base"))) {
       res <- wss_det(id, v)
       rows <- res$ledger$rows
-      nz <- vapply(res$ledger$values[rows$key], function(m) any(abs(m) > 0), logical(1))
       cash <- rows$cash & rows$section != "check"
       expect_false(any(cash & rows$tax_category == "not_applicable"), info = paste(id, v))
-      # capex_*, acquisition_ancillary und subsidy_* mit Asset bzw. Massnahme (Zeilen mit Werten;
-      # die stets vorhandenen Engine-Merkzeilen loan_<k>_repayment_grant ohne Zuschuss sind 0)
-      a_ids <- vapply(res$registers$assets, function(a) a$asset_id, "")
-      m_ids <- vapply(res$registers$measures, function(m) m$measure_id, "")
-      sel <- nz & grepl("^(capex_|acquisition_ancillary$|subsidy_)", rows$tax_category)
-      ref <- (!is.na(rows$asset_id) & rows$asset_id %in% a_ids) |
-        (!is.na(rows$measure_id) & rows$measure_id %in% m_ids)
-      expect_true(all(ref[sel]), info = paste(id, v, paste(rows$key[sel & !ref], collapse = ",")))
+      # jede capex_*-, acquisition_ancillary- und subsidy_*-Zeile (auch Nullzeilen) mit Asset bzw.
+      # Massnahme; ausgenommen ist nur die bekannte Abweichung (eigener Test unten): Merkzeilen
+      # loan_<k>_repayment_grant von Krediten ohne Tilgungszuschuss, in allen Perioden 0
+      miss <- wss_tax_ready_missing(res)
+      known <- wss_unfunded_grant_memo(res, miss)
+      n_known <- n_known + sum(known)
+      expect_identical(miss[!known], character(0), info = paste(id, v))
+    }
+  }
+  expect_gt(n_known, 0L)                          # die Abweichung besteht (Test unten)
+  # Foerderkredit mit Tilgungszuschuss: Anzeige-Tag = Massnahme mit den groessten Basisfallkosten
+  # (R-99; S1 V2: huelle 990.580,50 von 1.451.488,50 EUR)
+  rows <- wss_det("s1", "v2_eh70")$ledger$rows
+  expect_identical(rows$measure_id[rows$key == "loan_f_kfw261_loan_repayment_grant"], "huelle")
+})
+
+test_that("Steuerbereitschaft: auch Merkzeilen loan_<k>_repayment_grant ohne Zuschuss mit id", {
+  reason <- paste(
+    "WS-F/WS-D (Instrument-Merkzeilen, Spec 00 7.6, R-99): die stets vorhandene Merkzeile",
+    "loan_<k>_repayment_grant eines Kredits ohne Tilgungszuschuss (z. B. loan_bank_repayment_grant",
+    "in S1, S2, S3 V2, S5) traegt tax_category subsidy_repayment_grant ohne measure_id bzw.",
+    "funding_id; 10.10 Nr. 7 verlangt den Verweis fuer jede subsidy_*-Zeile (Zeile entfallen",
+    "lassen oder Spec-Klaerung: Nullzeilen ohne Foerderung ausgenommen)"
+  )
+  skip_wss_known_bug(reason)
+  for (id in names(wss_ids)) {
+    for (v in c("base", setdiff(names(wss_scenario(id)$variants), "base"))) {
+      expect_identical(wss_tax_ready_missing(wss_det(id, v)), character(0), info = paste(id, v))
     }
   }
 })
@@ -661,16 +681,26 @@ test_that("S4-T11: Referenzpflicht im Bestand (Spec 00 12.3a)", {
 
 test_that("S4: Ausfalljahr als Verschiebung, wp_2050 folgt (48 Monate -> t = 25, 60 entfaellt)", {
   # Baupreisindex 3,0 % ab 2026 (Kostenstand 2026): Faktor 1,03^(Y - 2026) zum Termin Y-01-01
-  r48 <- wss_det("s4", overrides = list(measures = list(gaskessel = list(delay_months = 48))))
+  ov <- function(d) list(measures = list(gaskessel = list(delay_months = d)))
+  hint <- "types.flow.capex.msg.after_horizon"
+  cap48 <- wss_capture(r48 <- vofi_run(wss_model("s4", overrides = ov(48))))
   expect_wss_abs(-wss_val(r48, "m_gaskessel_capex__cost", "2031"), 12500 * 1.03^6,
                  label = "Kessel 2032")
   wp <- wss_row(r48, "m_wp_2050_capex__cost")
   expect_wss_abs(-wp[["2051"]], 32000 * 1.03^26, label = "wp_2050 am Horizontende")
   expect_wss_abs(sum(wp) - wp[["2051"]], 0, label = "wp_2050 nur in t = 25")
-  r60 <- wss_det("s4", overrides = list(measures = list(gaskessel = list(delay_months = 60))))
+  # Termin gleich Horizontende: gebucht, kein Hinweis
+  expect_length(wss_conditions(cap48, hint), 0L)
+  # 60 Monate: Termin 2053-01-01 nach dem Horizontende, wp_2050 entfaellt mit Hinweis (Teil C (m1))
+  cap <- wss_capture(r60 <- vofi_run(wss_model("s4", overrides = ov(60))))
   expect_wss_abs(-wss_val(r60, "m_gaskessel_capex__cost", "2032"), 12500 * 1.03^7,
                  label = "Kessel 2033")
   expect_identical(sum(abs(wss_row(r60, "m_wp_2050_capex__cost"))), 0)
+  hz <- wss_conditions(cap, hint)
+  expect_length(hz, 1L)
+  expect_s3_class(hz[[1L]], "vofi_message")
+  expect_identical(hz[[1L]]$args$id, "m_wp_2050_capex")
+  expect_equal(hz[[1L]]$args$share, 1)
 })
 
 test_that("S4: BAFA 2033 ohne Zusage -> KfW 358 (2033) entfaellt, Luecke ueber 6,0 %-Kredit", {
@@ -891,13 +921,15 @@ test_that("S1 MC (m3): entartete Verteilungen -> jeder Lauf = deterministischer 
   mc <- wss_quiet(vofi_mc(wss_quiet(vofi_build(sc)), n_sim = 200L))
   det <- wss_det("s1")
   k <- setdiff(intersect(names(mc$kpis), names(det$kpis)), c("sim", "block", "branch"))
+  expect_gt(length(k), 10L)
   for (z in k) {
     x <- mc$kpis[[z]]
     d <- det$kpis[[z]][1L]
     if (is.na(d)) {
       expect_true(all(is.na(x)), info = z)
     } else {
-      expect_lte(max(abs(x - d)), 1e-6 * max(1, abs(d)))
+      # Toleranz wie Spec 00 15.5 Nr. 2 (1e-10, relativ zu max(1, |Wert|))
+      expect_lte(max(abs(x - d)), 1e-10 * max(1, abs(d)), label = z)
     }
   }
 })
@@ -1056,6 +1088,73 @@ test_that("S4 MC (m1)-(m4): Ausfalljahr, BAFA-Zusage, Eingaenge, Hypothesen", {
   ds <- cmp$diff_stats
   expect_gt(ds$prob_better[ds$variant == "v2_nur_wp" & ds$kpi == "delta_vs_reference"], 0.9)
   expect_lt(ds$mean[ds$variant == "v1_isfp_stufen" & ds$kpi == "monthly_saving_avg10"], 0)
+})
+
+test_that("S4 MC (m1), (m2) je Lauf: wp_2050 folgt der Verschiebung, BAFA 2033 koppelt KfW 358", {
+  skip_on_cran()
+  cmp <- wss_cmp_mc("s4")
+  per_of <- function(m, lab) {
+    apply(m, 1L, function(r) {
+      j <- which(abs(r) > 0)
+      if (length(j) == 1L) lab[j] else if (length(j) == 0L) "-" else "mehrfach"
+    })
+  }
+  # (m1) Block 1 mit vollem Ledger: Laeufe 1-200 = Praefix des Vergleichs (R-73)
+  b <- cmp$results$base
+  cap <- wss_mc_full("s4")
+  mc <- cap$value
+  bf <- mc$inputs$boiler_failure
+  expect_identical(bf, b$inputs$boiler_failure[1:200])
+  expect_identical(mc$kpis$delta_terminal_value, b$kpis$delta_terminal_value[1:200])
+  expect_setequal(unique(bf), c(0, 12, 24, 36, 48, 60))
+  lab <- mc$grid$label
+  # Termin Y-01-01 in der Periode Y - 1 (R-35): Kessel 2028 + d/12, wp_2050 2050 + (d - 24)/12;
+  # 48 Monate -> 2052-01-01 = Horizontende (t = 25, Periode 2051), 60 Monate -> entfaellt
+  kessel <- per_of(mc$ledger$values$m_gaskessel_capex__cost, lab)
+  expect_identical(kessel, as.character(2027 + bf / 12))
+  wp <- per_of(mc$ledger$values$m_wp_2050_capex__cost, lab)
+  expect_identical(wp, ifelse(bf == 60, "-", as.character(2047 + bf / 12)))
+  expect_identical(wp[bf == 48], rep(lab[26L], sum(bf == 48)))
+  # Hinweis einmal je Komponente mit dem Anteil der Laeufe ohne Zahlung im Horizont
+  hz <- wss_conditions(cap, "types.flow.capex.msg.after_horizon")
+  expect_length(hz, 1L)
+  expect_identical(hz[[1L]]$args$id, "m_wp_2050_capex")
+  expect_equal(hz[[1L]]$args$share, mean(bf == 60))
+  expect_vofi_invariants(mc)
+  # Laeufe ausserhalb von Block 1 (vofi_sim, je Verschiebung ein Lauf) folgen derselben Regel
+  bf_all <- b$inputs$boiler_failure
+  for (d in c(0, 12, 24, 36, 48, 60)) {
+    i <- which(bf_all == d & seq_along(bf_all) > 200L)[1L]
+    one <- wss_quiet(vofi_sim(b, i))
+    expect_equal(one$kpis$delta_terminal_value, b$kpis$delta_terminal_value[i], tolerance = 1e-9)
+    w <- per_of(one$ledger$values$m_wp_2050_capex__cost, one$grid$label)
+    expect_identical(w, if (d == 60) "-" else as.character(2047 + d / 12), info = paste(d, i))
+  }
+  # (m2) V1: in Laeufen ohne BAFA-2033-Zusage entfallen Zuschuss und KfW 358 (2033) (Kopplung
+  # approved = ref funding.bafa_2033.approved); Stufe 3 findet statt, Fehlbetrag ueber das
+  # Kontokorrent (Ergaenzungskredit, Zins am Pfad market.mortgage_rate)
+  v1 <- cmp$results$v1_isfp_stufen
+  cap1 <- wss_mc_full("s4", "v1_isfp_stufen")
+  m1 <- cap1$value
+  ap <- m1$inputs[["funding.bafa_2033.approved"]]
+  expect_identical(ap, v1$inputs[["funding.bafa_2033.approved"]][1:200])
+  expect_equal(sum(ap), 140)
+  vals <- m1$ledger$values
+  tot <- function(k) rowSums(abs(vals[[k]]))
+  expect_identical(tot("loan_f_kfw358_2033_loan_draw")[ap == 0], rep(0, 60))
+  expect_identical(tot("f_bafa_2033_grant__grant_fassade_2033")[ap == 0], rep(0, 60))
+  expect_equal(tot("loan_f_kfw358_2033_loan_draw")[ap == 1], rep(45000, 140), tolerance = 1e-12)
+  expect_true(all(tot("f_bafa_2033_grant__grant_fassade_2033")[ap == 1] > 0))
+  expect_true(all(tot("loan_f_kfw358_2033_loan_interest")[ap == 0] == 0))
+  expect_true(all(tot("m_fassade_2033_capex__cost") > 0))
+  p32 <- match("2032", lab)
+  expect_true(all(vals$od_balance[ap == 0, p32] > 1))
+  expect_vofi_invariants(m1)
+  i <- which(v1$inputs[["funding.bafa_2033.approved"]] == 0 & seq_len(nrow(v1$kpis)) > 200L)[1L]
+  one <- wss_quiet(vofi_sim(v1, i))
+  expect_identical(sum(abs(wss_row(one, "loan_f_kfw358_2033_loan_draw"))), 0)
+  expect_identical(sum(abs(wss_row(one, "f_bafa_2033_grant__grant_fassade_2033"))), 0)
+  expect_equal(one$kpis$delta_terminal_value, v1$kpis$delta_terminal_value[i], tolerance = 1e-9)
 })
 
 test_that("S5 MC (m1)-(m3): Anschlusszinsfaecher, Eingaenge, Belastung und Ampel", {

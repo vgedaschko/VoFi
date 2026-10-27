@@ -17,22 +17,34 @@ wss_ids <- c(s1 = "s1_wu_mfh_1963_eh70", s2 = "s2_wu_neubau_mfh_36we",
 wss_quiet <- function(expr) suppressWarnings(suppressMessages(expr))
 
 #' Ausdruck auswerten und Meldungen sowie Warnungen als Texte einsammeln
-#' @return Liste `value`, `messages`, `warnings`.
+#' @return Liste `value`, `messages`, `warnings` und `conditions` (alle Bedingungsobjekte des
+#'   Pakets mit `key` und `args`, Spec 00 Abschnitt 2.10).
 wss_capture <- function(expr) {
   msgs <- character(0)
   warns <- character(0)
+  conds <- list()
+  keep <- function(cnd) {
+    if (!is.null(cnd$key)) conds[[length(conds) + 1L]] <<- cnd
+  }
   value <- withCallingHandlers(
     expr,
     message = function(m) {
       msgs <<- c(msgs, conditionMessage(m))
+      keep(m)
       invokeRestart("muffleMessage")
     },
     warning = function(w) {
       warns <<- c(warns, conditionMessage(w))
+      keep(w)
       invokeRestart("muffleWarning")
     }
   )
-  list(value = value, messages = msgs, warnings = warns)
+  list(value = value, messages = msgs, warnings = warns, conditions = conds)
+}
+
+#' Bedingungen mit Label-Schluessel `key` aus einem Ergebnis von `wss_capture()`
+wss_conditions <- function(cap, key) {
+  Filter(function(cnd) identical(cnd$key, key), cap$conditions)
 }
 
 #' Laufen die Simulationsteile? (wie testthat::skip_on_cran(): nur mit NOT_CRAN = "true")
@@ -81,6 +93,45 @@ wss_model <- function(id, variant = "base", overrides = NULL, set = NULL) {
 wss_cmp_mc <- function(id, n_sim = 1000L) {
   wss_memo(paste0("cmpmc|", id, "|", n_sim),
            wss_quiet(vofi_compare(wss_scenario(id), n_sim = n_sim, seed = 20261025L)))
+}
+
+#' Simulation des ersten Blocks einer Variante mit vollem Ledger (`store = "full"`)
+#'
+#' Die Laeufe 1 bis `n_sim` sind wegen der Praefix-Stabilitaet (Spec 00 11.4, R-73) identisch zu
+#' den ersten Laeufen des Vergleichs `wss_cmp_mc()`; Meldungen und Warnungen werden mit
+#' `wss_capture()` eingesammelt (Liste `value`, `messages`, `warnings`, `conditions`).
+wss_mc_full <- function(id, variant = "base", n_sim = 200L) {
+  wss_memo(paste0("mcfull|", id, "|", variant, "|", n_sim),
+           wss_capture(vofi_mc(wss_model(id, variant), n_sim = n_sim, seed = 20261025L,
+                               store = "full")))
+}
+
+#' Steuerbereitschaft (Spec 00 10.10 Nr. 7): Ledger-Schluessel der Zeilen `capex_*`,
+#' `acquisition_ancillary` und `subsidy_*` ohne Verweis auf ein vorhandenes Asset bzw. eine
+#' Massnahme (alle Zeilen, unabhaengig von ihren Werten)
+wss_tax_ready_missing <- function(res) {
+  rows <- res$ledger$rows
+  a_ids <- vapply(res$registers$assets, function(a) a$asset_id, "")
+  m_ids <- vapply(res$registers$measures, function(m) m$measure_id, "")
+  sel <- grepl("^(capex_|acquisition_ancillary$|subsidy_)", rows$tax_category)
+  ref <- (!is.na(rows$asset_id) & rows$asset_id %in% a_ids) |
+    (!is.na(rows$measure_id) & rows$measure_id %in% m_ids)
+  rows$key[sel & !ref]
+}
+
+#' Bekannte Abweichung zur Steuerbereitschaft: Merkzeilen `loan_<k>_repayment_grant` von
+#' Krediten ohne Tilgungszuschuss (Parameter `repayment_grant` fehlt) tragen weder `measure_id`
+#' noch `funding_id` (Spec 00 7.6, R-99) und sind in allen Perioden 0
+#' @param keys Ledger-Schluessel.
+#' @return logischer Vektor (TRUE = Zeile gehoert zur bekannten Abweichung).
+wss_unfunded_grant_memo <- function(res, keys) {
+  memo <- grepl("^loan_.+_repayment_grant$", keys)
+  inst <- sub("^loan_(.+)_repayment_grant$", "\\1", keys)
+  fin <- res$spec$financing
+  no_tz <- vapply(inst, function(k) !is.null(fin[[k]]) && is.null(fin[[k]]$repayment_grant),
+                  logical(1))
+  zero <- vapply(keys, function(k) all(res$ledger$values[[k]] == 0), logical(1))
+  unname(memo & no_tz & zero)
 }
 
 #' Deterministisches Ergebnis einer Variante
