@@ -354,6 +354,9 @@ test_that("Finanzierungsbausteine, Mittelherkunft und F\u00f6rderung aus dem Zah
                                  1044.5779670094366 + 537.5012839951481, 7500))
   expect_equal(ins$balance_end, c(0, 0))
   expect_equal(ins$rate_y1[2L], 1500 / 12)
+  # Rate nach Tilgungsbeginn je Kredit (SN-01): Annuität 40.000 EUR, 6 %, 5 Jahre
+  expect_equal(ins$rate[1L], 40000 * 0.06 / (1 - 1.06^-5) / 12, tolerance = 1e-6)
+  expect_identical(ins$rate_year[1L], as.integer(res$grid$year[2L]))
   expect_null(rep_html_grants(res))
   src <- rep_html_sources(res)
   expect_equal(src$invest, 100000)

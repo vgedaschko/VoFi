@@ -1569,7 +1569,7 @@ Konkretisierung von Spec 00 §4.9 (N-28).
 | `values` | beliebig | – | – | ja | E: Wertformen bzw. Felder des Zielblocks | Nutzlast; an der Fundstelle `{from, use, …lokal}` unter die lokale Angabe gemischt | Spec 00 §4.9 |
 
 **Bibliotheksstand (R-80):** `inst/extdata/library/VERSION` enthält eine Zeile `JJJJ.MM.n`; Stand dieses Katalogs
-**`2026.10.1`** (Stichtag der Werte 2026-10-25). Jede inhaltliche Änderung eines Eintrags erhöht n, ein neuer
+**`2026.10.2`** (Stichtag der Werte 2026-10-25; .2: Fortgeltung `costs/bewirtschaftung_immowertv_2026`, R-88). Jede inhaltliche Änderung eines Eintrags erhöht n, ein neuer
 Monatsstand setzt n = 1; der Wert erscheint in `meta$library_version` jedes Ergebnisses (Spec 00 §4.9, §13.1).
 WS-L prüft in `test-library.R` (Datentest, Spec 00 §2.2, R-104): Format der Datei, jede Datei hat die Pflichtfelder
 dieser Tabelle und keine anderen Wurzelschlüssel, `legal/*` der Qualität C trägt `release`, `legal/*` der Qualität D
@@ -1624,7 +1624,7 @@ jeder `from`-, `use`-, `useful_life_key`- und `repair_key`-Verweis löst auf.
 | `prices/referenzszenarien_2026` | market | – | ab 2026-01-01 | D | Markt- und Preisannahmen der Referenzszenarien S1–S5 (Memo 07 §4.0, netto umgerechnet; 5.0) |
 | `costs/massnahmentypen_2026` | costs | – | ab 2026-01-01 | D | Katalogdefaults der 37 Maßnahmentypen (Teil A §4.2, Schema Teil A §8.3; N-30) |
 | `costs/bewirtschaftung_ii_bv_2026` | costs | – | 2026-01-01 bis 2029-01-01 | B (Sek.-Bestätigung C) | II. BV §§ 26, 28, 29 |
-| `costs/bewirtschaftung_immowertv_2026` | costs | – | 2026-01-01 bis 2027-01-01 | B | ImmoWertV Anlage 3 (Modellansätze 2026) |
+| `costs/bewirtschaftung_immowertv_2026` | costs | – | ab 2026-01-01 (Fortgeltung, R-88) | B | ImmoWertV Anlage 3 (Modellansätze 2026) |
 | `costs/betriebskosten_benchmarks_2026` | costs | – | ab 2026-01-01 | C/D | Betriebskosten, nicht umlagefähige Kosten |
 | `costs/baukosten_neubau_2026` | costs | – | ab 2026-01-01 | B/D | Kostenkennwerte Neubau |
 | `costs/kostenzuschlaege_2026` | costs | – | ab 2026-01-01 | D | Baunebenkosten KG 700, Unvorhergesehenes |
@@ -3179,7 +3179,7 @@ source: {document: "Oberer Gutachterausschuss Brandenburg, Bewirtschaftungskoste
 as_of: 2026-10-25
 accessed: 2026-10-25
 valid_from: 2026-01-01
-valid_to: 2027-01-01                       # jährliche Fortschreibung (Januar)
+valid_to: null                             # Fortgeltung bis zur Fortschreibung (R-88); Prüfpunkt in notes
 quality: B
 legal_state: {as_of: 2026-01-01, status: in_force, reference: "ImmoWertV 2021 Anlage 3, fortgeschrieben mit VPI (Basis 2021)"}
 values:
@@ -3192,6 +3192,7 @@ values:
   admin_commercial_share_of_gross_rent: 0.03
   history: {admin_per_unit_eur_pa: {2022: 312, 2023: 339, 2024: 351, 2025: 359, 2026: 367}, maintenance_eur_m2_pa: {2022: 12.2, 2023: 13.2, 2024: 13.8, 2025: 14.0, 2026: 14.4}}
   indexation: {index: vpi, every_years: 1}
+notes: "Werte gelten bis zur jährlichen Fortschreibung fort (R-88, Spec 00 §4.10); Prüfpunkt: BewKo 2027 des OGA Brandenburg bzw. VPI-Fortschreibung ImmoWertV Anlage 3 im Januar 2027. Die Veraltung meldet as_of (Spec 00 §4.9)."
 ```
 
 ```yaml

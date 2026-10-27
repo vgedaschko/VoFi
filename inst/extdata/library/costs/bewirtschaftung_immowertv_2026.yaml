@@ -10,7 +10,7 @@ source: {document: "Oberer Gutachterausschuss Brandenburg, Bewirtschaftungskoste
 as_of: 2026-10-25
 accessed: 2026-10-25
 valid_from: 2026-01-01
-valid_to: 2027-01-01                       # jährliche Fortschreibung (Januar)
+valid_to: null                             # Fortgeltung bis zur Fortschreibung (R-88); Prüfpunkt in notes
 quality: B
 legal_state: {as_of: 2026-01-01, status: in_force, reference: "ImmoWertV 2021 Anlage 3, fortgeschrieben mit VPI (Basis 2021)"}
 values:
@@ -23,3 +23,4 @@ values:
   admin_commercial_share_of_gross_rent: 0.03
   history: {admin_per_unit_eur_pa: {2022: 312, 2023: 339, 2024: 351, 2025: 359, 2026: 367}, maintenance_eur_m2_pa: {2022: 12.2, 2023: 13.2, 2024: 13.8, 2025: 14.0, 2026: 14.4}}
   indexation: {index: vpi, every_years: 1}
+notes: "Werte gelten bis zur jährlichen Fortschreibung fort (R-88, Spec 00 §4.10); Prüfpunkt: BewKo 2027 des OGA Brandenburg bzw. VPI-Fortschreibung ImmoWertV Anlage 3 im Januar 2027. Die Veraltung meldet as_of (Spec 00 §4.9)."

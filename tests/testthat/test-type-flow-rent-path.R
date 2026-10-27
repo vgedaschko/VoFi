@@ -652,11 +652,12 @@ test_that("EOP-10: Bindung (bound_social) und Kappung nach Bindungsende", {
                 bound_increase_pa = 0.02, ovm_eur_m2_month = 8, rent_growth = 0,
                 rent_36m_ago_eur_m2_month = 5, post_binding_kappung = pbk, .grid = gm))
   }
-  bound <- c(rep(5, 12), rep(5.1, 12))
-  # erste Erhöhung nach Bindungsende ohne Kappungsgrenze
-  expect_eur(run(FALSE), c(bound, rep(8, 48)), tol = 1e-9)
+  bound <- c(rep(5, 12), rep(5.1, 15))
+  # erste Erhöhung nach Bindungsende ohne Kappungsgrenze; die Stufe der Bindungsmiete am
+  # 01.01.2028 zählt für die Wartefrist (§ 558 Abs. 1, MRE-05): frühestens Monat 28
+  expect_eur(run(FALSE), c(bound, rep(8, 45)), tol = 1e-9)
   # mit Kappung: 6,00 (Basis 5,00), 6,12 (Basis 5,10 ab Monat 49), 7,20 (Basis 6,00 ab Monat 64)
-  expect_eur(run(TRUE), c(bound, rep(6, 24), rep(6.12, 15), rep(7.2, 9)), tol = 1e-9)
+  expect_eur(run(TRUE), c(bound, rep(6, 21), rep(6.12, 15), rep(7.2, 9)), tol = 1e-9)
 })
 
 test_that("EOP-10: Indexmiete nach der Staffel (after_staffel_regime)", {
@@ -817,4 +818,24 @@ test_that("EOP-08: Staffelstufe zehrt eine § 559e-Umlage auf (bekannte Einschr�
   expect_eur(eop_years(res, "rent", 2028), 9360)
   expect_eur(eop_years(res, "rent", 2028) + eop_years(res, "levy_k", 2028), 9960)
   expect_true("types.flow.rent_path.msg.staffel_absorbs_levy" %in% res$flows$meta$note_keys)
+})
+
+test_that("Wartefrist § 558 Abs. 1 ab Mietbeginn und nach Staffelstufen (MRE-04, MRE-05)", {
+  gm <- rp_monthly_grid()
+  months <- function(x) which(abs(diff(x)) > 1e-9) + 1L
+  # Erstvermietung 10,00 ab 01.01.2029 (Monat 25), OVM 11,50: frühestens 15 Monate nach
+  # Mietbeginn, also Monat 40 (01.04.2030)
+  t1 <- rp_t(eop_rp(unit_group = "g", living_area_m2 = 100, n_units = 1L, rent_eur_m2_month = 10,
+                    rent_start = "2029-01-01", ovm_eur_m2_month = 11.5, rent_growth = 0,
+                    increase_policy = "max", .grid = gm))
+  expect_eur(t1[25:72], c(rep(10, 15), rep(11.5, 33)), tol = 1e-9)
+  # Staffel 2028-01-01: 8,30; 2029-01-01: 8,60; danach § 558 (OVM 10): erste Erhöhung
+  # frühestens 15 Monate nach der letzten Staffelstufe (Monat 40)
+  t2 <- rp_t(eop_rp(unit_group = "g", living_area_m2 = 100, n_units = 1L, rent_eur_m2_month = 8,
+                    rent_regime = "staffel", ovm_eur_m2_month = 10, rent_growth = 0,
+                    increase_policy = "max",
+                    staffel_steps = list(schedule = list("2028-01-01" = 8.30, "2029-01-01" = 8.60)),
+                    .grid = gm))
+  expect_identical(months(t2)[1:3], c(13L, 25L, 40L))
+  expect_eur(t2[40], 9.6, tol = 1e-9)
 })

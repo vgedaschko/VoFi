@@ -736,10 +736,38 @@ kpi_compare_values <- function(var, ref, q_T = NULL, # nolint: object_name_linte
   out$monthly_saving_avg10 <- cmp(ref, var, "monthly_burden_avg10")
   # Kleinvermieter: Cashflow der Variante - der Referenz; Warmmiete Variante - Referenz
   out$monthly_cashflow_change_y1 <- cmp(var, ref, "monthly_net_cashflow_y1")
-  out$warm_rent_change_y1 <- cmp(var, ref, "warm_rent_y1")
+  # Warmmiete: beide Seiten im Bezugsjahr j* der Variante (MRE-01); ohne Reihe der Referenz
+  # die Differenz der _y1-Werte
+  ref_w <- kpi_warm_rent_at_var_year(var, ref, n)
+  out$warm_rent_change_y1 <- if (is.null(ref_w)) cmp(var, ref, "warm_rent_y1") else
+    kpi_cmp_diff(get_kpi(var, "warm_rent_y1"), ref_w, n, kpi = "warm_rent_y1",
+                 perspectives = c(var$perspective %||% NA_character_,
+                                  ref$perspective %||% NA_character_))
   list(kpis = as.data.frame(lapply(out, function(v) v$values), optional = TRUE),
        na = as.data.frame(lapply(out, function(v) v$na_reason), stringsAsFactors = FALSE,
                           optional = TRUE))
+}
+
+#' Warmmiete der Referenz im Bezugsjahr j* der Variante (MRE-01)
+#'
+#' Aus der Reihe `warm_rent` der Referenz (`ref$kpi_series`) im Kalenderjahr des Bezugsjahres
+#' der Variante (`kpi_warm_y1_index()` mit Raster und Szenario der Variante).
+#' @return `NULL` (Reihe, Raster oder Jahr fehlt) oder Liste `values`, `na`.
+#' @noRd
+kpi_warm_rent_at_var_year <- function(var, ref, n) {
+  s <- ref$kpi_series[["warm_rent"]]
+  if (is.null(s) || is.null(var$grid) || is.null(var$spec) || !is.matrix(s$values)) return(NULL)
+  yr <- tryCatch({
+    ctx <- eng_context_from_parts(var$grid, var$spec, mode = "deterministic")
+    oy <- kpi_op_years(var$grid)
+    i <- kpi_warm_y1_index(ctx, oy)
+    if (is.na(i)) NA_integer_ else oy$year[i]
+  }, error = function(e) NA_integer_)
+  j <- match(yr, s$years)
+  if (is.na(j) || nrow(s$values) != n) return(NULL)
+  na <- s$na_reason
+  na <- if (is.matrix(na)) na[, j] else rep_len(as.character(na %||% NA_character_), n)
+  list(values = as.double(s$values[, j]), na = as.character(na))
 }
 
 #' Differenz a - b zweier Kennzahlen je Lauf mit NA-Weitergabe

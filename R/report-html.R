@@ -397,6 +397,7 @@ rep_html_context <- function(parts, mode, opts) {
   cmp_mc <- !is.null(cmp) && (identical(cmp$meta$mode, "mc") ||
                                 any(vapply(cmp$results, inherits, logical(1),
                                            what = "vofi_mc_result")))
+  rep_label_env$labels <- if (is.null(cmp)) NULL else cmp$meta$variant_labels
   list(x = x, cmp = cmp, base = base, mc = mc, res = res, mode = mode, kind = opts$name,
        opts = opts, sens = parts$sens, solutions = parts$solutions, scenario = parts$scenario,
        mandatory = parts$mandatory,
@@ -434,10 +435,30 @@ rep_html_b_heading <- function(text, level = 2L) {
   list(type = "heading", text = text, level = as.integer(level))
 }
 
+#' Variantenbezeichnungen des laufenden Berichts (aus `cmp$meta$variant_labels`, SN-10)
+#' @noRd
+rep_label_env <- new.env(parent = emptyenv())
+
+#' Bezeichnung einer Variante im Bericht: „Label“ (Kennung) bzw. die Kennung
+#' @param short `TRUE`: nur das Label (Tabellenköpfe, Fließtext).
+#' @noRd
+rep_vlabel <- function(v, short = FALSE) {
+  labs <- rep_label_env$labels
+  out <- as.character(v)
+  if (is.null(labs)) return(out)
+  for (i in seq_along(out)) {
+    l <- if (out[i] %in% names(labs)) labs[[out[i]]] else NA_character_
+    if (is.na(l) || identical(l, out[i])) next
+    out[i] <- if (short) l else paste0(l, " (", out[i], ")")
+  }
+  out
+}
+
 #' Block: Zwischenüberschrift „Variante …“
 #' @noRd
 rep_html_var_heading <- function(variant, level = 2L) {
-  rep_html_b_heading(lbl("report.html.vofi_table.variant_header", variant = variant), level)
+  rep_html_b_heading(lbl("report.html.vofi_table.variant_header", variant = rep_vlabel(variant)),
+                     level)
 }
 
 #' Block: Tabelle aus einer Zeichenmatrix mit Spaltenköpfen
@@ -840,7 +861,8 @@ rep_html_instruments <- function(res) {
   ids <- ids[!is.na(ids)]
   if (length(ids) == 0L) return(NULL)
   n_t <- res$grid$T + 1L
-  oy <- kpi_op_years(res$grid)
+  g <- res$grid
+  oy <- kpi_op_years(g)
   full <- which(oy$full)
   y1 <- if (length(full) > 0L) oy$cols[[full[1L]]] else integer(0)
   rows <- lapply(ids, function(id) {
@@ -851,7 +873,8 @@ rep_html_instruments <- function(res) {
     }
     debt <- s(c("interest", "fees", "repay"))
     bal <- led$values[[paste0("loan_", id, "_balance")]]
-    lab <- res$spec$financing[[id]]$label %||% id
+    lab <- rep_html_loan_label(res, id)
+    rt <- rep_html_loan_rate(g, s("draw"), s(c("interest", "fees")), s("repay"))
     data.frame(id = id, label = as.character(lab)[1L], draw = sum(s("draw")),
                interest = -sum(s(c("interest", "fees"))),
                repay = -sum(s(c("repay", "repay_balloon", "prepay"))),
@@ -859,9 +882,84 @@ rep_html_instruments <- function(res) {
                balance_end = if (is.null(bal)) NA_real_ else as.double(bal[1L, n_t]),
                rate_y1 = if (length(y1) > 0L) -sum(debt[y1]) / sum(res$grid$months[y1]) else
                  NA_real_,
+               rate = rt$rate, rate_year = rt$year, grace_interest = rt$grace_interest,
+               grace_from = rt$grace_from, grace_to = rt$grace_to,
                stringsAsFactors = FALSE)
   })
   do.call(rbind, rows)
+}
+
+#' Rate eines Kredits nach der tilgungsfreien Zeit (SN-01)
+#'
+#' Rate (Zinsen, Gebühren und Tilgung pro Monat) in der ersten Periode, die vollständig in der
+#' Tilgungsphase liegt (zweite Periode mit Tilgung, sonst die erste), mit dem Jahr des
+#' Tilgungsbeginns; dazu die Zinsen pro Monat der tilgungsfreien Anlaufjahre nach der
+#' Auszahlung.
+#' @param g Raster; @param draw,int,repay Zeilen des Kredits (Lauf 1, Vorzeichen des Ledgers).
+#' @return Liste `rate`, `year`, `grace_interest`, `grace_from`, `grace_to`.
+#' @noRd
+rep_html_loan_rate <- function(g, draw, int, repay) {
+  na <- list(rate = NA_real_, year = NA_integer_, grace_interest = NA_real_,
+             grace_from = NA_integer_, grace_to = NA_integer_)
+  tol <- vofi_tol$zero_abs
+  rp <- which(abs(repay) > tol & g$months > 0)
+  if (length(rp) == 0L) return(na)
+  j <- if (length(rp) >= 2L && rp[2L] == rp[1L] + 1L) rp[2L] else rp[1L]
+  out <- na
+  out$rate <- -(int[j] + repay[j]) / g$months[j]
+  out$year <- as.integer(g$year[rp[1L]])
+  d0 <- which(abs(draw) > tol)
+  if (length(d0) > 0L) {
+    gp <- which(seq_along(repay) > d0[1L] & seq_along(repay) < rp[1L] & abs(int) > tol &
+                  g$months > 0)
+    if (length(gp) > 0L) {
+      out$grace_interest <- -sum(int[gp]) / sum(g$months[gp])
+      out$grace_from <- as.integer(g$year[min(gp)])
+      out$grace_to <- as.integer(g$year[max(gp)])
+    }
+  }
+  out
+}
+
+#' Bezeichnung eines Kredits: Label mit Förderprogramm (z. B. „kfw358 (KfW 358)“, SN-10)
+#' @noRd
+rep_html_loan_label <- function(res, id) {
+  fin <- res$spec$financing[[id]] %||% list()
+  lab <- as.character(fin$label %||% id)[1L]
+  f <- as.character(fin$funding_id %||% NA_character_)[1L]
+  prog <- if (is.na(f)) "" else rep_html_program_name(res, f)
+  if (nzchar(prog) && !grepl(prog, lab, fixed = TRUE)) paste0(lab, " (", prog, ")") else lab
+}
+
+#' Programmbezeichnung eines Förderinstruments (Anbieter und Programmnummer; ohne Nummer die
+#' Bezeichnung des Bibliothekseintrags)
+#' @noRd
+rep_html_program_name <- function(res, f) {
+  fs <- res$spec$funding[[f]] %||% list()
+  prov <- as.character(exp_code(fs[["provider"]]) %||% "")[1L]
+  code <- as.character(fs[["program_code"]] %||% "")[1L]
+  if (grepl("^[0-9]+$", code) || !nzchar(code)) return(trimws(paste(prov, code)))
+  ents <- res$meta$library$entry %||% character(0)
+  ents <- ents[startsWith(ents, "funding/")]
+  key <- paste(prov, code)
+  memo <- rep_label_env$programs %||% list()
+  if (!is.null(memo[[key]])) return(memo[[key]])
+  lab <- tryCatch({
+    idx <- lib_index(vofi_library_paths())
+    hit <- NA_character_
+    for (e in ents) {
+      pl <- lib_payload(idx, e)$values
+      if (identical(as.character(pl$program_code %||% "")[1L], code)) {
+        hit <- as.character(lib_get(idx, e)$label %||% NA_character_)[1L]
+        break
+      }
+    }
+    hit
+  }, error = function(e) NA_character_)
+  out <- if (is.na(lab)) trimws(paste(prov, code)) else lab
+  memo[[key]] <- out
+  rep_label_env$programs <- memo
+  out
 }
 
 #' Zuschüsse und Steuerermäßigungen eines Ergebnisses (Abschnitt grants)
@@ -880,7 +978,19 @@ rep_html_grants <- function(res) {
     y <- unique(yrs[nz])
     ytxt <- if (length(y) == 1L) sprintf("%d", y) else sprintf("%d\u2013%d", min(y), max(y))
     prog <- if ("program" %in% names(r)) r$program[i] else NA_character_
-    data.frame(label = r$label[i], program = if (is.na(prog)) "" else prog,
+    # Bezeichnung: Maßnahmenlabel und Förderprogramm statt Kennungen (SN-10)
+    lab <- r$label[i]
+    mid <- if ("measure_id" %in% names(r)) r$measure_id[i] else NA_character_
+    f <- as.character(names(res$spec$funding %||% list()))
+    f <- f[paste0("f_", f, "_grant") %in% r$source_id[i]]
+    if (length(f) > 0L) {
+      f <- f[1L]
+      ml <- if (is.na(mid)) NULL else res$spec$measures[[mid]]$label
+      lab <- lbl("report.html.household.grant_label",
+                 measure = if (utl_is_string(ml)) ml else (if (is.na(mid)) f else mid))
+      prog <- rep_html_program_name(res, f)
+    }
+    data.frame(label = lab, program = if (is.na(prog)) "" else prog,
                amount = sum(v), years = ytxt, stringsAsFactors = FALSE)
   })
   rows <- rows[!vapply(rows, is.null, logical(1))]
@@ -900,10 +1010,24 @@ rep_html_funding_total <- function(res) {
 #' @noRd
 rep_html_input_label <- function(spec, key) {
   st <- spec$stochastic %||% list()
-  for (blk in c("parameters", "processes")) {
-    e <- st[[blk]]
-    if (is.list(e) && utl_has_name(e, key) && utl_is_string(e[[key]]$label)) {
-      return(e[[key]]$label)
+  find <- function(k) {
+    for (blk in c("parameters", "processes")) {
+      e <- st[[blk]]
+      if (is.list(e) && utl_has_name(e, k) && utl_is_string(e[[k]]$label)) return(e[[k]]$label)
+    }
+    NULL
+  }
+  lab <- find(key)
+  if (!is.null(lab)) return(lab)
+  # Prozessparameter „<prozess>.<parameter>“: Label des Overlay-Eintrags und des Parameters
+  # (SN-10)
+  if (grepl(".", key, fixed = TRUE)) {
+    k <- sub("\\..*$", "", key)
+    par <- sub("^[^.]*\\.", "", key)
+    lab <- find(k)
+    if (!is.null(lab)) {
+      return(lbl("report.html.input_param", label = lab,
+                 param = lbl(paste0("report.html.input_params.", par), .default = par)))
     }
   }
   key
@@ -1129,13 +1253,25 @@ rep_html_library_status <- function(res) {
 
 #' Spezifikationswert als Text (Konstante: Zahl; sonst Darstellung der Wertform)
 #' @noRd
-rep_html_spec_text <- function(spec, path, unit = "num") {
+rep_html_spec_text <- function(spec, path, unit = "num", res = NULL) {
+  fmt <- function(v) switch(unit, pct = fmt_pct(v[1L], 2), eur = fmt_eur(v[1L], 0),
+                            fmt_num(v[1L], 2))
   v <- rep_spec_number(spec, path)
-  if (!is.null(v)) {
-    return(switch(unit, pct = fmt_pct(v[1L], 2), eur = fmt_eur(v[1L], 0), fmt_num(v[1L], 2)))
-  }
+  if (!is.null(v)) return(fmt(v))
   node <- path_get(spec, path)
   if (is.null(node)) return(NA_character_)
+  # Bezüge und Pfade: aufgelöster Basisfallwert statt des Ausdrucks (SN-06)
+  if (!is.null(res)) {
+    ctx <- tryCatch(rep_ctx_of(res), error = function(e) NULL)
+    if (!is.null(ctx)) {
+      sc <- tryCatch(ctx$value_base(path, "scalar"), error = function(e) NULL)
+      if (is.numeric(sc) && length(sc) >= 1L && !is.na(sc[1L])) return(fmt(sc))
+      pa <- tryCatch(ctx$value_base(path, "path"), error = function(e) NULL)
+      if (is.matrix(pa) && ncol(pa) >= 2L && !is.na(pa[1L, 2L])) {
+        return(lbl("report.html.assumptions.first_year_base", value = fmt(pa[1L, 2L])))
+      }
+    }
+  }
   rep_value_text(node)
 }
 
@@ -1365,7 +1501,8 @@ rep_html_hh_risk_lines <- function(rc) {
         if (is.na(ds$prob_better[i])) next
         out <- c(out, lbl("report.html.risk.household_better",
                           count = as.integer(round(10 * ds$prob_better[i])),
-                          variant = ds$variant[i], baseline = rc$cmp$baseline))
+                          variant = rep_vlabel(ds$variant[i], short = TRUE),
+                          baseline = rep_vlabel(rc$cmp$baseline, short = TRUE)))
       }
     }
     return(out)
@@ -1585,6 +1722,10 @@ rep_html_variants_household <- function(rc) {
     c("monthly_net_cashflow_y1", "monthly_net_cashflow_min", "own_contribution",
       "sum_equity_calls", "payback_year")
   }
+  # Amortisation gegenüber der Referenz ohne Restwert wie im Klartext (SN-02)
+  if ("payback_year_vs_reference_ex_rv" %in% cmp$kpi_table$kpi) {
+    keys[keys == "payback_year"] <- "payback_year_vs_reference_ex_rv"
+  }
   keys <- keys[keys %in% cmp$kpi_table$kpi]
   vars <- rep_comparison_variants(cmp)
   blocks <- list()
@@ -1595,7 +1736,7 @@ rep_html_variants_household <- function(rc) {
       }, "")
     }, character(length(keys)))
     m <- cbind(vapply(keys, kpi_label, "", USE.NAMES = FALSE), matrix(cells, nrow = length(keys)))
-    colnames(m) <- c(lbl("report.html.table.kpi"), vars)
+    colnames(m) <- c(lbl("report.html.table.kpi"), rep_vlabel(vars, short = TRUE))
     blocks[[1L]] <- rep_html_b_table(m, caption = lbl("report.html.variants.household_header"))
   }
   s <- rep_html_hh_summary(rc)$summary
@@ -1606,7 +1747,8 @@ rep_html_variants_household <- function(rc) {
                                              "cashflow_change_y1", "payback_year"), ,
               drop = FALSE]
       items <- c(items, vapply(sv$text, function(tx) {
-        lbl("report.html.variants.household_text", variant = v, text = tx)
+        lbl("report.html.variants.household_text", variant = rep_vlabel(v, short = TRUE),
+            text = tx)
       }, "", USE.NAMES = FALSE))
     }
     blocks[[length(blocks) + 1L]] <- rep_html_b_list(items)
@@ -2559,7 +2701,16 @@ rep_html_risk_household <- function(rc) {
   blocks <- list()
   if (rc$is_mc) {
     s <- rep_html_hh_summary(rc)$summary
-    rng <- if (nrow(s) > 0L) s$text[s$item == "range_y1"] else character(0)
+    rng <- if (nrow(s) > 0L) s[s$item == "range", , drop = FALSE] else s
+    multi <- length(unique(rng$variant)) > 1L
+    rng <- if (nrow(rng) == 0L) character(0) else if (multi) {
+      vapply(seq_len(nrow(rng)), function(i) {
+        lbl("report.html.variants.household_text", variant = rep_vlabel(rng$variant[i], TRUE),
+            text = rng$text[i])
+      }, "")
+    } else {
+      rng$text
+    }
     blocks <- list(rep_html_b_list(c(rep_html_hh_risk_lines(rc), rng)),
                    rep_html_b_par(rep_html_drivers_text(rc, household = TRUE)))
     mc <- rc$mc
@@ -3006,11 +3157,12 @@ rep_html_assumptions_short <- function(rc) {
     c("item_horizon", lbl("report.html.assumptions.item_horizon_value",
                           years = as.integer(round(sum(g$months[g$t >= 1L]) / 12)),
                           end = g$end_date)),
-    c("item_deposit_rate", rep_html_spec_text(sp, "accounts.deposit_rate_pa", "pct")),
-    c("item_withholding", rep_html_spec_text(sp, "accounts.deposit_withholding_tax_share", "pct")),
-    c("item_overdraft_rate", rep_html_spec_text(sp, "accounts.overdraft_rate_pa", "pct")),
-    c("item_income", rep_html_spec_text(sp, "household.net_income_month_eur", "eur")),
-    c("item_rent_now", rep_html_spec_text(sp, "household.current_rent_month_eur", "eur"))
+    c("item_deposit_rate", rep_html_spec_text(sp, "accounts.deposit_rate_pa", "pct", res)),
+    c("item_withholding", rep_html_spec_text(sp, "accounts.deposit_withholding_tax_share", "pct",
+                                             res)),
+    c("item_overdraft_rate", rep_html_spec_text(sp, "accounts.overdraft_rate_pa", "pct", res)),
+    c("item_income", rep_html_spec_text(sp, "household.net_income_month_eur", "eur", res)),
+    c("item_rent_now", rep_html_spec_text(sp, "household.current_rent_month_eur", "eur", res))
   )
   rows <- lapply(items, function(it) {
     if (is.na(it[2L])) return(NULL)
@@ -3024,11 +3176,11 @@ rep_html_assumptions_short <- function(rc) {
     rv <- loan_res[[v]]
     ins <- rep_html_instruments(rv)
     for (i in seq_len(if (is.null(ins)) 0L else nrow(ins))) {
-      rate <- rep_html_spec_text(rv$spec, paste0("financing.", ins$id[i], ".rate_pa"), "pct")
+      rate <- rep_html_spec_text(rv$spec, paste0("financing.", ins$id[i], ".rate_pa"), "pct", rv)
       label <- lbl("report.html.assumptions.item_loan", label = ins$label[i])
       if (multi) {
-        label <- lbl("report.html.variants.household_text", variant = names(loan_res)[v],
-                     text = label)
+        label <- lbl("report.html.variants.household_text",
+                     variant = rep_vlabel(names(loan_res)[v], short = TRUE), text = label)
       }
       value <- lbl("report.html.assumptions.item_loan_value",
                    amount = rep_fmt_value(ins$draw[i], "EUR", 0),
@@ -3358,9 +3510,22 @@ rep_html_sec_funding <- function(rc) {
       items <- c(items, lbl("report.html.household.no_loans"))
     } else {
       items <- c(items, vapply(seq_len(nrow(ins)), function(i) {
+        if (is.na(ins$rate[i])) {
+          return(lbl("report.html.household.loan_item_norate", label = ins$label[i],
+                     amount = rep_amount_text(ins$draw[i], "sum"),
+                     balance = rep_amount_text(ins$balance_end[i], "sum")))
+        }
+        grace <- if (is.na(ins$grace_interest[i])) "" else if (ins$grace_from[i] ==
+                                                             ins$grace_to[i]) {
+          lbl("report.html.household.loan_grace_one", from = ins$grace_from[i],
+              interest = rep_amount_text(ins$grace_interest[i]))
+        } else {
+          lbl("report.html.household.loan_grace", from = ins$grace_from[i],
+              to = ins$grace_to[i], interest = rep_amount_text(ins$grace_interest[i]))
+        }
         lbl("report.html.household.loan_item", label = ins$label[i],
-            amount = rep_amount_text(ins$draw[i], "sum"),
-            rate = if (is.na(ins$rate_y1[i])) fmt_num(NA) else rep_amount_text(ins$rate_y1[i]),
+            amount = rep_amount_text(ins$draw[i], "sum"), year = ins$rate_year[i],
+            rate = rep_amount_text(ins$rate[i]), grace = grace,
             balance = rep_amount_text(ins$balance_end[i], "sum"))
       }, ""))
     }

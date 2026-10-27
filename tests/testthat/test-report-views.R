@@ -109,8 +109,11 @@ test_that("vofi_household_view (Selbstnutzer): Belastung je Jahr gleich den Kenn
   expect_true(all(c("burden_y1", "burden_construction", "burden_ratio", "own_contribution",
                     "equity_calls", "payback_year") %in% s$item))
   expect_equal(s$value[s$item == "own_contribution"], res$kpis$own_contribution)
-  expect_identical(s$text[s$item == "own_contribution"],
-                   lbl("report.household.text.own_contribution", value = "10.000"))
+  # Eigenanteil je Jahr der Zahlung, Kredite genannt (SN-05)
+  oc_txt <- s$text[s$item == "own_contribution"]
+  expect_match(oc_txt, "10.000", fixed = TRUE)
+  expect_match(oc_txt, lbl("report.household.text.own_contribution_loans"), fixed = TRUE)
+  expect_false(grepl("Einmalbetrag", oc_txt, fixed = TRUE))
   expect_identical(s$text[s$item == "burden_y1"],
                    lbl("report.household.text.burden_y1", value = "530", ex = "390"))
   expect_identical(s$text[s$item == "burden_construction"],
@@ -149,9 +152,14 @@ test_that("vofi_household_view (Vergleich): Ersparnis, W\u00f6rter statt Vorzeic
                    lbl("report.household.text.saving", ref = "wp",
                        when = lbl("report.household.text.when_y1"),
                        value = rep_amount_text(y1)))
+  # Gesamtersparnis = Gesamtkosten der Referenz - Gesamtkosten der Variante (SN-03)
+  tot <- s$value[s$variant == "wp" & s$item == "total_cost"] -
+    sg$value[sg$item == "total_cost"]
+  expect_equal(sg$value[sg$item == "total_saving"], tot)
   expect_identical(sg$text[sg$item == "total_saving"],
-                   lbl("report.household.text.total_saving", n = nrow(g), ref = "wp",
-                       value = rep_amount_text(utils::tail(g$cumulative_saving, 1L), "sum")))
+                   lbl(if (tot >= 0) "report.household.text.total_saving" else
+                     "report.household.text.total_more", n = nrow(g), ref = "wp",
+                       value = rep_amount_text(tot, "sum")))
   # umgekehrte Richtung: "zahlen ... mehr"
   cmp2 <- wsh_comparison(list(gas = gas, wp = wp))
   s2 <- attr(vofi_household_view(cmp2), "summary")
@@ -201,15 +209,21 @@ test_that("Verm\u00f6gensamortisation (R-72) und Bandbreite in Worten aus der Si
   mc <- wsh_mc()
   mc$deterministic <- wsh_run(wsh_self_scenario())
   row <- mc$stats[1L, ]
-  row$kpi <- "monthly_burden_y1"
+  row$kpi <- "monthly_burden_avg10"
   row$q10 <- 60
   row$q50 <- 112
   row$q90 <- 170
   mc$stats <- rbind(mc$stats, row)
   s2 <- attr(vofi_household_view(mc), "summary")
-  expect_identical(s2$text[s2$item == "range_y1"],
+  expect_identical(s2$text[s2$item == "range"],
                    lbl("report.household.text.range_burden", median = "110", lo = "60",
                        hi = "170"))
+  # entartete Spanne: keine Aussage „zwischen X und X“ (SN-07)
+  mc$stats$q10[nrow(mc$stats)] <- 111
+  mc$stats$q90[nrow(mc$stats)] <- 113
+  s3 <- attr(vofi_household_view(mc), "summary")
+  expect_identical(s3$text[s3$item == "range"],
+                   lbl("report.household.text.range_flat_burden", median = "110"))
 })
 
 test_that("Bestandsprojekt: Amortisation nur gegen\u00fcber einer Referenzvariante (12.3a)", {
@@ -231,7 +245,7 @@ test_that("Bestandsprojekt: Amortisation nur gegen\u00fcber einer Referenzvarian
     expect_identical(pb$value, as.double(w$year[which(w$paid_back)[1L]]))
   } else {
     expect_identical(pb$text, lbl("report.household.text.no_payback", end = wp$grid$end_date,
-                                  basis = lbl("report.household.text.basis_measures")))
+                                  basis = lbl("report.household.text.basis_ex_rv")))
   }
   expect_false("payback_year" %in% sc$item[sc$variant == "gas"])
   # summary() im Haushaltsmodus übernimmt den Klartext
@@ -250,7 +264,7 @@ test_that("Bandbreite des Cashflows in Worten ohne Vorzeichen (Memo 07 Paragraf 
     row$q90 <- q90
     m$stats <- rbind(m$stats, row)
     s <- attr(vofi_household_view(m), "summary")
-    s$text[s$item == "range_y1"]
+    s$text[s$item == "range"]
   }
   expect_identical(range_text(-300, -150, 20),
                    lbl("report.household.text.range_mixed_subsidy", median = "150",
@@ -306,4 +320,41 @@ test_that("WS-H-Testszenarien: building und unit_groups erzeugen keine Zusatzzah
   # Restwert nur aus der eigenen Reihe rw (300.000 am Horizont), nicht doppelt
   rv <- rows$key[rows$cash & rows$category == "residual_value"]
   expect_identical(sum(vapply(rv, function(k) sum(tenant$ledger$values[[k]]), 0)), 300000)
+})
+
+test_that("Haushaltsbericht S4: Wartung, Kreditrate, Zinsbezug, Bezeichnungen (SN-01, -06, -10, -11)", {
+  skip_on_cran()
+  local_utf8()
+  sc <- vofi_read_scenario(vofi_example("s4_efh_1975_isfp"))
+  res <- suppressWarnings(suppressMessages(vofi_run(vofi_build(sc, variant = "v1_isfp_stufen"))))
+  # SN-11: Wartung und Messdienst in der Spalte Wartung, nicht unter Energie
+  hv <- vofi_household_view(res)
+  svc <- -rep_service_sum(rep_core_of(res))
+  expect_gt(sum(svc), 0)
+  expect_true(all(hv$maintenance[hv$phase == "operation"] > 0))
+  # SN-01: Rate nach der tilgungsfreien Zeit je Kredit, Zinsen der Anlaufjahre
+  ins <- rep_html_instruments(res)
+  i <- which(startsWith(ins$label, "kfw358_2030"))
+  expect_identical(ins$rate_year[i], 2033L)
+  expect_equal(ins$rate[i], 349, tolerance = 0.01)
+  expect_equal(ins$grace_interest[i], 70000 * 0.0253 / 12, tolerance = 1e-6)
+  expect_identical(c(ins$grace_from[i], ins$grace_to[i]), c(2030L, 2032L))
+  # SN-10: Programmname am Kredit
+  expect_identical(ins$label[i], "kfw358_2030 (KfW 358)")
+  # SN-06: Bezug auf die Bibliothek als aufgelöster Zinssatz
+  path <- paste0("financing.", ins$id[i], ".rate_pa")
+  expect_match(rep_html_spec_text(res$spec, path, "pct"), "ref", fixed = TRUE)
+  expect_identical(rep_html_spec_text(res$spec, path, "pct", res), "2,53 %")
+  # SN-10: Varianten-Labels statt Kennungen
+  x <- list(meta = list(variant_labels = c(base = "Basis", v1 = "V1 Stufen")))
+  expect_identical(rep_hh_vlabel(x, "v1"), "„V1 Stufen“")
+  expect_identical(rep_hh_vlabel(list(), "v1"), "v1")
+  rep_label_env$labels <- x$meta$variant_labels
+  on.exit(rep_label_env$labels <- NULL, add = TRUE)
+  expect_identical(rep_vlabel(c("v1", "zz"), short = TRUE), c("V1 Stufen", "zz"))
+  expect_identical(rep_vlabel("v1"), "V1 Stufen (v1)")
+  # SN-04: Nachschüsse ohne „zusätzlich“
+  calls_txt <- lbl("report.household.text.equity_calls", value = "1")
+  expect_false(startsWith(calls_txt, "Zus\u00e4tzlich"))
+  expect_match(calls_txt, "Gesamtkosten", fixed = TRUE)
 })

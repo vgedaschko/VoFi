@@ -205,6 +205,51 @@ test_that("Warmmiete: Stub-Betriebsjahr zählt in der Reihe, _y1 ist das erste v
   expect_identical(d2_kpi("warm_rent_y1", c0, d2_ctx(c0))$na_reason, "no_operation_period")
 })
 
+test_that("Warmmiete _y1: Bezugsjahr nach Wirksamkeit der Maßnahme (MRE-01)", {
+  g <- vofi_time_grid(as.Date("2027-01-01"), 4L)
+  op <- as.double(g$t >= 1) * g$months / 12
+  yr <- c(0, 1, 2, 3, 4)
+  rows <- list(rent__value = d2_row("project", "rent", 12000 * op),
+               rent__levy_m1 = d2_row("project", "modernization_levy", 1200 * yr,
+                                      measure = "m1"),
+               tenant__energy = d2_row("memo", "tenant_energy_cost", 6000 * op),
+               tenant__energy_pre = d2_row("memo", "tenant_energy_cost_pre", 7000 * op))
+  core <- d2_core(g, rows)
+  spec <- reg_test_spec(g, analysis = list(restrictions = "warm_rent"))
+  spec$unit_groups <- list(a = list(living_area_m2 = 100, owner_occupied = FALSE))
+  pp <- function(v) (1200 * v - 1000) / 1200
+  # ohne Maßnahme: erstes volles Betriebsjahr (2027)
+  expect_equal(d2_kpi("warm_rent_change_prepost_y1", core, d2_ctx(core, spec = spec))$values,
+               pp(1))
+  # Fertigstellung 01.10.2027: erstes volles Jahr danach (2028)
+  spec$measures <- list(m1 = list(completion_date = as.Date("2027-10-01")))
+  ctx <- d2_ctx(core, spec = spec)
+  expect_identical(kpi_warm_y1_index(ctx, kpi_op_years(g)), 2L)
+  expect_equal(d2_kpi("warm_rent_change_prepost_y1", core, ctx)$values, pp(2))
+  expect_equal(d2_kpi("warm_rent_y1", core, ctx)$values, (12000 + 2400 + 6000) / 1200)
+  expect_identical(d2_kpi("restriction_warm_rent", core, ctx)$values, 1)
+  # späterer Umlagebeginn verschiebt j* (2029)
+  spec$measures$m1$rent_law <- list(levy_effective_date = as.Date("2028-03-01"))
+  expect_equal(d2_kpi("warm_rent_change_prepost_y1", core, d2_ctx(core, spec = spec))$values,
+               pp(3))
+  # analysis.stabilization_year wird beachtet (2030)
+  spec$analysis$stabilization_year <- 2030L
+  expect_equal(d2_kpi("warm_rent_change_prepost_y1", core, d2_ctx(core, spec = spec))$values,
+               pp(4))
+  # Vergleich: Referenz im Bezugsjahr der Variante
+  var <- list(kpis = data.frame(warm_rent_y1 = 12),
+              kpi_na = data.frame(warm_rent_y1 = NA_character_), grid = g,
+              spec = spec, perspective = "wu_kommunal")
+  ref <- list(kpis = data.frame(warm_rent_y1 = 10),
+              kpi_na = data.frame(warm_rent_y1 = NA_character_), perspective = "wu_kommunal",
+              kpi_series = list(warm_rent = list(values = matrix(c(10, 10.5, 11, 11.5), 1L),
+                                                 years = 2027:2030, na_reason = NA_character_)))
+  cv <- kpi_compare_values(var, ref)
+  expect_equal(cv$kpis$warm_rent_change_y1, 12 - 11.5)
+  ref$kpi_series <- NULL
+  expect_equal(kpi_compare_values(var, ref)$kpis$warm_rent_change_y1, 2)
+})
+
 test_that("CO2-Emissionen (Treibhausgasbilanz, R-101)", {
   core <- example_core(2L)
   expect_equal(d2_kpi("co2_emissions", core, d2_ctx(core))$values, c(72, 72))
