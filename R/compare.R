@@ -1162,7 +1162,7 @@ cmp_restriction_detail <- function(res, code) {
         oy <- kpi_op_years(g)
         noi <- kpi_by_year(kpi_noi(core), oy)[1L, ]
         kd <- kpi_by_year(kpi_kd(core), oy)[1L, ]
-        mask <- kpi_stab_mask(oy, list(spec = spec)) & kd > vofi_tol$zero_abs
+        mask <- kpi_stab_mask(oy, list(spec = spec)) & kd > kpi_kd_tol()
         d <- ifelse(mask, noi / ifelse(kd > 0, kd, 1), NA_real_)
         hit <- which(!is.na(d) & d < t1)
         if (length(hit) > 0L) {

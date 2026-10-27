@@ -1111,6 +1111,10 @@ test_that("spec_simple_from_model: unterstützte und nicht unterstützte Modelle
   m2 <- m
   m2$topup_id <- "bau"
   expect_error(spec_simple_from_model(m2), "topup")
+  m3 <- m
+  m3$decision <- list(funding_id = "f")
+  expect_error(spec_simple_from_model(m3), "Entscheidungsknoten")
+  expect_identical(names(ref_decision_branches(r, m)), "main")
   b1 <- spec_simple_from_model(attr(oracle_result("b1"), "model"))
   expect_identical(b1$loans$foe$tz$t, 1L)
   expect_identical(b1$loans$foe$tz$type, "amount")
@@ -1123,7 +1127,16 @@ test_that("spec_simple_from_model: unterstützte und nicht unterstützte Modelle
   sy <- list(kind = "series_year", years = c(2027L, 2029L), values = c(1, 3), fill = "linear",
              before = "first")
   expect_identical(ref_node_eval(sy, NULL, env), matrix(c(1, 1, 2), 2L, 3L, byrow = TRUE))
-  expect_error(ref_node_eval(list(kind = "expr", text = "1"), NULL, env), "nicht unterstuetzt")
+  # Ausdrücke (4.5 Regel 5): eigener Auswerter, Formregel und Whitelist
+  expect_identical(ref_node_eval(list(kind = "expr", text = "1"), NULL, env), c(1, 1))
+  env$spec$market$s <- list(kind = "series_t", values = c(1, 2, 3))
+  env$spec$project <- list(perspective = "wu_privat")
+  ex <- list(kind = "expr",
+             text = "pmax(market.x * 100, market.s) + (project.perspective == 'wu_privat')")
+  expect_identical(ref_node_eval(ex, NULL, env), matrix(c(3, 3, 4), 2L, 3L, byrow = TRUE))
+  expect_error(ref_node_eval(list(kind = "expr", text = "max(market.x, 1)"), NULL, env),
+               "nicht zugelassen")
+  expect_error(ref_node_eval(list(kind = "growth"), NULL, env), "nicht unterstuetzt")
   anc <- node_ref("market.p")
   anc$anchor <- 0.01
   env$spec$market$p <- list(kind = "series_t", values = c(0.03, 0.04, 0.05))

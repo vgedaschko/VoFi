@@ -810,6 +810,13 @@ inst_loan_months <- function(st, ev, t, ctx) {
       b <- zero
     }
   }
+  # Restbestand aus Rundungsfehlern nach der letzten Vertragszahlung (0 < B <= stock_abs, 9.7 I3)
+  # mit dieser Zahlung tilgen; sonst fiele er als Kapitaldienst von ~1e-9 EUR in spaetere Jahre
+  dust <- r_sum > 0 & b > 0 & b <= vofi_tol$stock_abs
+  if (any(dust)) {
+    r_sum[dust] <- r_sum[dust] + b[dust]
+    b[dust] <- 0
+  }
   if (ev$tail > 0L) {
     z <- b * i_pa / 12 * ev$tail
     z_sum <- z_sum + z

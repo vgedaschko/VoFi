@@ -88,3 +88,17 @@
   - `vofi_build()`: Overrides auf das Förderinstrument eines Entscheidungsknotens (z. B.
     `funding.<f>.approved = 0`) wählen den Zweig und werden nicht mehr an die
     Ausweichvariante weitergereicht (9.11 Nr. 1-3); bisher Validierungsfehler.
+* Stufe III (WS-S, Integrator):
+  - Referenzszenarien S1-S5 (Spec 01 Teil C 5.1-5.5) als `inst/extdata/examples/s1_*` bis
+    `s5_*` mit Excel-Fassungen aller Beispiele; Integrationstests mit allen Prüfwerten.
+  - Kredite (8.5): Ein Restbestand bis `stock_abs` (Rundungsrest) nach einer Vertragszahlung
+    wird mit ihr getilgt; bisher fiel er im Folgejahr als Tilgung und Zins von ~1e-9 EUR an
+    (S1 V2, KfW 261 mit `keep_term` und n_eff = 16).
+  - DSCR und ICR (12.3): Jahre mit Kapitaldienst bzw. Zinsen bis `stock_abs` zählen nicht
+    (bisher `zero_abs`; `dscr_mean` in S1 V2 lag dadurch bei 4,4e12).
+  - Ledger (7.6, R-99, 10.10 Nr. 7): Die Merkzeile `loan_<k>_repayment_grant` eines Kredits
+    ohne Tilgungszuschuss trägt `tax_category = not_applicable` statt
+    `subsidy_repayment_grant` ohne Maßnahme.
+  - Referenz-Engine (Tests): Ausdrucksknoten, Entscheidungsknoten als zwei getrennte Modelle,
+    Monatsindex von Zusagedaten, die keine Monatsersten sind (3.4 Nr. 1); Invarianten- und
+    Differenztest laufen für alle Beispiele einschließlich S2 und S5.

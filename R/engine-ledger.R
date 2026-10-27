@@ -203,8 +203,17 @@ eng_loan_rows <- function(id, k, comp, def) {
   }, "")
   # Tags des Bausteins auf allen Kreditzeilen (Spec 01 Teil A 5.4); Pflicht nur fuer die
   # Merkzeile repayment_grant (7.6)
+  tc <- vapply(cats, function(cc) vocab_category("loans", cc)$tax_category, "")
+  # Kredit ohne Tilgungszuschuss (Parameter repayment_grant ohne share/amount_eur bzw.
+  # Bestandsdarlehen, wie init()): die Merkzeile ist strukturell 0 und keine Foerderung, also
+  # nicht steuerrelevant (statt subsidy_repayment_grant ohne measure_id; 7.6, R-99, 10.10 Nr. 7)
+  rg <- comp$repayment_grant
+  has_tz <- !isTRUE(comp$existing) && is_map(rg) &&
+    (!is.null(rg[["share"]]) || !is.null(rg[["amount_eur"]]))
+  if (!has_tz) tc[cats == "repayment_grant"] <- "not_applicable"
   new_ledger_rows(
-    keys, "loans", cats, measure_id = comp$measure_id %||% NA_character_,
+    keys, "loans", cats, tax_category = unname(tc),
+    measure_id = comp$measure_id %||% NA_character_,
     asset_id = comp$asset_id %||% NA_character_, program = comp$program %||% NA_character_,
     source_id = id,
     existing_debt = isTRUE(comp$existing), source_type = def$name,

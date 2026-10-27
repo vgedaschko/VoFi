@@ -55,6 +55,28 @@ test_that("Stabilisierungsjahr (R-77): explizit und Default erstes volles Betrie
   expect_identical(d2_kpi("dscr_min", core, late)$na_reason, "no_debt_service")
 })
 
+test_that("DSCR, ICR: Kapitaldienst bis stock_abs zählt nicht (Rundungsrest, Befund B1 WS-S)", {
+  g <- vofi_time_grid(as.Date("2027-01-01"), 4L)
+  nt <- g$T + 1L
+  rows <- list(rent__value = d2_row("project", "rent", c(0, rep(12000, 4))),
+               ek__in = d2_row("equity", "equity_in", c(50000, rep(0, nt - 1L))))
+  dust <- function(kd) {
+    loans <- list(bank = d2_loan(draw = c(100000, rep(0, nt - 1L)),
+                                 interest = c(0, -2400, -2400, -kd, 0),
+                                 balance = c(rep(100000, 3), 0, 0)))
+    core <- d2_core(g, rows, loans)
+    ctx <- d2_ctx(core, analysis = list(thresholds = list(dscr = 1.2)))
+    vapply(c("dscr_min", "dscr_mean", "dscr_years_below", "dscr_min_new", "icr_min"),
+           function(k) d2_kpi(k, core, ctx)$values, double(1))
+  }
+  # 1e-9 bzw. stock_abs: kein Kapitaldienstjahr (sonst DSCR = NOI / 1e-9)
+  for (kd in c(1.09e-9, vofi_tol$stock_abs)) {
+    expect_equal(unname(dust(kd)), c(5, 5, 0, 5, 5), info = format(kd))
+  }
+  # oberhalb von stock_abs zählt das Jahr
+  expect_equal(unname(dust(1e-3)[c("dscr_min", "dscr_mean")]), c(5, (5 + 5 + 12000 / 1e-3) / 3))
+})
+
 test_that("DSCR Objekt- und Maßnahmenebene, ICR, Schwelle, Restriktion (R-46, R-77)", {
   core <- d2_debt_core()
   ctx <- d2_ctx(core, analysis = list(restrictions = "dscr", thresholds = list(dscr = 1.2)))

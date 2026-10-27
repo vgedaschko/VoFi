@@ -22,21 +22,29 @@ kpi_dscr_years <- function(core, ctx) {
        kd_new = yr(kpi_kd(core, FALSE)), int = yr(kpi_int(core)))
 }
 
-#' Quotient je Jahr mit Maske (Nenner > zero_abs)
+#' Quotient je Jahr mit Maske (Nenner > tol, Default zero_abs)
+#' @param tol Schwelle des Nenners; Kapitaldienst und Zinsen (DSCR, ICR) mit `kpi_kd_tol`.
 #' @return Liste `ratio` (n x k, außerhalb der Maske `NA`), `mask`, `none` (kein Jahr).
 #' @noRd
-kpi_masked_ratio <- function(num, den) {
-  mask <- den > vofi_tol$zero_abs
+kpi_masked_ratio <- function(num, den, tol = vofi_tol$zero_abs) {
+  mask <- den > tol
   ratio <- num / ifelse(mask, den, 1)
   ratio[!mask] <- NA_real_
   list(ratio = ratio, mask = mask, none = rowSums(mask) == 0)
 }
 
+#' Schwelle für Kapitaldienst und Zinsen eines Jahres in DSCR und ICR (12.3)
+#'
+#' Ein Jahr zählt nur mit KD_y > stock_abs: Beträge bis zur Bestandstoleranz (9.7 I3) sind
+#' Rundungsreste eines getilgten Kredits und kein Kapitaldienst (sonst NOI / 1e-9; WS-S B1).
+#' @noRd
+kpi_kd_tol <- function() max(vofi_tol$zero_abs, vofi_tol$stock_abs)
+
 #' DSCR je Jahr auf Objektebene (NOI / KD)
 #' @noRd
 kpi_dscr_object <- function(core, ctx) {
   y <- kpi_dscr_years(core, ctx)
-  kpi_masked_ratio(y$noi, y$kd)
+  kpi_masked_ratio(y$noi, y$kd, kpi_kd_tol())
 }
 
 #' @noRd
@@ -78,7 +86,7 @@ typedef_kpi_dscr_years_below <- function() {
 typedef_kpi_dscr_min_new <- function() {
   kpi_typedef("dscr_min_new", function(core, ctx) {
     y <- kpi_dscr_years(core, ctx)
-    r <- kpi_masked_ratio(y$noi - y$kd_ex, y$kd_new)
+    r <- kpi_masked_ratio(y$noi - y$kd_ex, y$kd_new, kpi_kd_tol())
     kpi_value_codes(kpi_row_min(r$ratio, r$mask), list(r$none, "no_debt_service"))
   }, unit = "ratio", higher_is_better = TRUE, mc_default = FALSE)
 }
@@ -87,7 +95,7 @@ typedef_kpi_dscr_min_new <- function() {
 typedef_kpi_icr_min <- function() {
   kpi_typedef("icr_min", function(core, ctx) {
     y <- kpi_dscr_years(core, ctx)
-    r <- kpi_masked_ratio(y$noi, y$int)
+    r <- kpi_masked_ratio(y$noi, y$int, kpi_kd_tol())
     kpi_value_codes(kpi_row_min(r$ratio, r$mask), list(r$none, "no_debt_service"))
   }, unit = "ratio", higher_is_better = TRUE, mc_default = FALSE)
 }

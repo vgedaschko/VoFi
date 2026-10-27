@@ -112,18 +112,30 @@ test_that("I1-I3, N1, N2 für alle Orakel und Beispielszenarien (deterministisch
   }
   skip_if_stub("vofi_example", "vofi_read_scenario")
   n_i3b <- 0L
+  n_branch <- 0L
   for (ex in vofi_example()) {
     sc <- vofi_read_scenario(vofi_example(ex))
     res <- oracle_result(ex, scenario = sc)
-    # Mindestliquidität und Limit aus dem Modell (mit Defaults, Spec 01 Teil A 5.7): I3b gilt
-    # auch ohne ausdrückliches accounts.min_liquidity_eur (Default 0)
-    inv <- expect_ref_invariants(res, attr(res, "model"), info = ex)
-    lmin <- spec_simple_from_model(attr(res, "model"))$accounts$min_liquidity_eur
-    n_i3b <- n_i3b + all(lmin == 0)
-    expect_identical(inv$invariant, c("I1", "I2", "I3a", "I3b", "I3c", "N1", "N2"))
+    # Entscheidungsknoten (S2, Spec 00 9.11): beide Zweige als getrennte Modelle (Variante mit
+    # erteilter Zusage, Ausweichvariante), jeweils mit dem Ergebnis ihres Zweigs
+    parts <- ref_decision_branches(res, attr(res, "model"))
+    n_branch <- n_branch + (length(parts) == 2L)
+    for (nm in names(parts)) {
+      info <- if (nm == "main") ex else paste(ex, nm)
+      # Mindestliquidität und Limit aus dem Modell (mit Defaults, Spec 01 Teil A 5.7): I3b gilt
+      # auch ohne ausdrückliches accounts.min_liquidity_eur (Default 0)
+      inv <- expect_ref_invariants(parts[[nm]]$res, parts[[nm]]$model, info = info)
+      lmin <- spec_simple_from_model(parts[[nm]]$model)$accounts$min_liquidity_eur
+      n_i3b <- n_i3b + all(lmin == 0)
+      expect_identical(inv$invariant, c("I1", "I2", "I3a", "I3b", "I3c", "N1", "N2"))
+      # Differenztest (Spec 00 15.6): Ledger und Kennzahlen gleich der Referenz-Engine
+      expect_ref_equal(parts[[nm]]$res, parts[[nm]]$model, info = info)
+    }
   }
   # Beispiele ohne ausdrückliche Mindestliquidität (z. B. das Skelett) prüfen I3b
   expect_gt(n_i3b, 0L)
+  # S2 hat einen Entscheidungsknoten; beide Zweige laufen über die Referenz-Engine
+  expect_gt(n_branch, 0L)
 })
 
 test_that("I1-I3, N1, N2 für 50 Zufallsszenarien (unabhängig der Engine-Prüfung)", {

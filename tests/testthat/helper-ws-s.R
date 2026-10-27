@@ -119,11 +119,10 @@ wss_tax_ready_missing <- function(res) {
   rows$key[sel & !ref]
 }
 
-#' Bekannte Abweichung zur Steuerbereitschaft: Merkzeilen `loan_<k>_repayment_grant` von
-#' Krediten ohne Tilgungszuschuss (Parameter `repayment_grant` fehlt) tragen weder `measure_id`
-#' noch `funding_id` (Spec 00 7.6, R-99) und sind in allen Perioden 0
+#' Merkzeilen `loan_<k>_repayment_grant` von Krediten ohne Tilgungszuschuss (Parameter
+#' `repayment_grant` fehlt): ohne `measure_id`, in allen Perioden 0 (Spec 00 7.6, R-99)
 #' @param keys Ledger-Schluessel.
-#' @return logischer Vektor (TRUE = Zeile gehoert zur bekannten Abweichung).
+#' @return logischer Vektor (TRUE = Merkzeile eines Kredits ohne Tilgungszuschuss).
 wss_unfunded_grant_memo <- function(res, keys) {
   memo <- grepl("^loan_.+_repayment_grant$", keys)
   inst <- sub("^loan_(.+)_repayment_grant$", "\\1", keys)
@@ -278,15 +277,4 @@ expect_wss_quantile <- function(x, p, expected, label = NULL) {
                                        format(expected, digits = 8), format(s[k_lo], digits = 8),
                                        format(s[k_hi], digits = 8)))
   invisible(NULL)
-}
-
-#' Test nur ausfuehren, wenn bekannte Paketfehler geprueft werden sollen
-#'
-#' Die betroffenen Tests sind praezise formuliert und schlagen mit dem aktuellen Paketstand fehl;
-#' sie laufen mit `VOFI_TEST_KNOWN_BUGS=true` (Befunde im Bericht von WS-S an den Integrator).
-skip_wss_known_bug <- function(reason) {
-  if (!identical(Sys.getenv("VOFI_TEST_KNOWN_BUGS"), "true")) {
-    testthat::skip(paste("Bekannter Paketfehler:", reason))
-  }
-  invisible(TRUE)
 }

@@ -88,6 +88,10 @@ test_that("L1 (= S1-T8): KfW 261, Tilgungszuschuss shorten_term, keep_term mit n
   expect_near(z[27], 3139.98)
   expect_near(rr[27], 78499.58)
   expect_near(b[27], 0, tol = 1e-6)
+  # Rundungsrest (~1e-9) nach der letzten Rate wird mit ihr getilgt: Bestand exakt 0, danach
+  # weder Tilgung noch Zins (Befund B1 von WS-S, S1 V2)
+  expect_identical(b[27], 0)
+  expect_true(all(rr[28:31] == 0) && all(z[28:31] == 0) && all(b[28:31] == 0))
   paid <- which(rr > 1e-6) - 1L
   expect_identical(length(paid), 21L)
   expect_identical(range(r$ctx$grid$year[paid + 1L]), c(2032L, 2052L))

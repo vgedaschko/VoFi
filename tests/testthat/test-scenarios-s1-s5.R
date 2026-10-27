@@ -106,7 +106,6 @@ test_that("Varianten bauen und rechnen deterministisch: Finanzierungssaldo 0, In
 })
 
 test_that("Steuerbereitschaft (Spec 00 10.10 Nr. 7) in S1-S5", {
-  n_known <- 0L
   for (id in names(wss_ids)) {
     for (v in c("base", setdiff(names(wss_scenario(id)$variants), "base"))) {
       res <- wss_det(id, v)
@@ -114,35 +113,38 @@ test_that("Steuerbereitschaft (Spec 00 10.10 Nr. 7) in S1-S5", {
       cash <- rows$cash & rows$section != "check"
       expect_false(any(cash & rows$tax_category == "not_applicable"), info = paste(id, v))
       # jede capex_*-, acquisition_ancillary- und subsidy_*-Zeile (auch Nullzeilen) mit Asset bzw.
-      # Massnahme; ausgenommen ist nur die bekannte Abweichung (eigener Test unten): Merkzeilen
-      # loan_<k>_repayment_grant von Krediten ohne Tilgungszuschuss, in allen Perioden 0
-      miss <- wss_tax_ready_missing(res)
-      known <- wss_unfunded_grant_memo(res, miss)
-      n_known <- n_known + sum(known)
-      expect_identical(miss[!known], character(0), info = paste(id, v))
+      # Massnahme, ohne Ausnahme
+      expect_identical(wss_tax_ready_missing(res), character(0), info = paste(id, v))
     }
   }
-  expect_gt(n_known, 0L)                          # die Abweichung besteht (Test unten)
   # Foerderkredit mit Tilgungszuschuss: Anzeige-Tag = Massnahme mit den groessten Basisfallkosten
   # (R-99; S1 V2: huelle 990.580,50 von 1.451.488,50 EUR)
   rows <- wss_det("s1", "v2_eh70")$ledger$rows
   expect_identical(rows$measure_id[rows$key == "loan_f_kfw261_loan_repayment_grant"], "huelle")
 })
 
-test_that("Steuerbereitschaft: auch Merkzeilen loan_<k>_repayment_grant ohne Zuschuss mit id", {
-  reason <- paste(
-    "WS-F/WS-D (Instrument-Merkzeilen, Spec 00 7.6, R-99): die stets vorhandene Merkzeile",
-    "loan_<k>_repayment_grant eines Kredits ohne Tilgungszuschuss (z. B. loan_bank_repayment_grant",
-    "in S1, S2, S3 V2, S5) traegt tax_category subsidy_repayment_grant ohne measure_id bzw.",
-    "funding_id; 10.10 Nr. 7 verlangt den Verweis fuer jede subsidy_*-Zeile (Zeile entfallen",
-    "lassen oder Spec-Klaerung: Nullzeilen ohne Foerderung ausgenommen)"
-  )
-  skip_wss_known_bug(reason)
+test_that("Merkzeilen loan_<k>_repayment_grant ohne Tilgungszuschuss: nicht steuerrelevant", {
+  # Kredite ohne Parameter repayment_grant (z. B. loan_bank_repayment_grant in S1, S2, S3 V2, S5):
+  # die Merkzeile ist in allen Perioden 0, unbar und traegt not_applicable statt
+  # subsidy_repayment_grant ohne measure_id (Spec 00 7.6, R-99, 10.10 Nr. 7; Befund WS-S)
+  n_rows <- 0L
   for (id in names(wss_ids)) {
     for (v in c("base", setdiff(names(wss_scenario(id)$variants), "base"))) {
-      expect_identical(wss_tax_ready_missing(wss_det(id, v)), character(0), info = paste(id, v))
+      res <- wss_det(id, v)
+      rows <- res$ledger$rows
+      keys <- rows$key[rows$section == "loans" & rows$category == "repayment_grant"]
+      memo <- wss_unfunded_grant_memo(res, keys)
+      n_rows <- n_rows + sum(memo)
+      sel <- rows$key %in% keys[memo]
+      expect_true(all(rows$tax_category[sel] == "not_applicable"), info = paste(id, v))
+      expect_false(any(rows$cash[sel]), info = paste(id, v))
+      # Kredite mit Tilgungszuschuss behalten subsidy_repayment_grant mit Massnahme
+      tz <- rows$key %in% keys[!memo]
+      expect_true(all(rows$tax_category[tz] == "subsidy_repayment_grant"), info = paste(id, v))
+      expect_false(anyNA(rows$measure_id[tz]), info = paste(id, v))
     }
   }
+  expect_gt(n_rows, 0L)
 })
 
 # ---------------------------------------------------------------------------------------------
@@ -263,13 +265,9 @@ test_that("S1-T8, T8a: KfW-261-Kredit (Zinsen, TZ, Annuitaet, Anschluss keep_ter
 })
 
 test_that("S1-T8 (Ende): nach der letzten Rate 2052 keine weitere Leistung (DSCR-Mittel)", {
+  # Restschuld 1,09e-9 nach der letzten Annuitaet wird mit ihr getilgt (R/type-inst-loan-core.R);
+  # Kapitaldienst bis stock_abs zaehlt in der DSCR nicht (R/kpi-realestate.R; Befund B1 von WS-S)
   v2 <- wss_det("s1", "v2_eh70")
-  reason <- paste(
-    "WS-F (R/type-inst-loan-core.R): nach der letzten Annuitaet 2052 bleibt eine Restschuld",
-    "1,09e-9 > zero_abs, die 2053 als Tilgung 1,09e-9 und Zins 4,4e-11 gebucht wird; dadurch",
-    "dscr_mean (WS-D2, R/kpi-realestate.R) = NOI/1e-9 = 4,4e12 in S1 V2"
-  )
-  skip_wss_known_bug(reason)
   expect_lte(abs(wss_val(v2, "loan_f_kfw261_loan_balance", "2052")), vofi_tol$zero_abs)
   expect_identical(unname(wss_row(v2, "loan_f_kfw261_loan_repay")[c("2053", "2054")]), c(0, 0))
   expect_lt(v2$kpis$dscr_mean, 100)

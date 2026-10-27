@@ -34,6 +34,10 @@
 # nolint start: object_name_linter.
 
 ref_zero <- 1e-9
+# Bestandstoleranz (Spec 00 9.7 I3, vofi_tol$stock_abs): Restbestand eines Kredits nach einer
+# Vertragszahlung bis zu dieser Hoehe wird mitgetilgt; Kapitaldienst bzw. Zinsen eines Jahres
+# bis zu dieser Hoehe zaehlen in DSCR und ICR nicht (Integrator, Befund B1 aus WS-S)
+ref_stock <- 1e-6
 
 #' Kategorien mit noi = TRUE (Spec 00 7.6) als "section/category"
 ref_noi_keys <- c("project/rent", "project/rent_loss", "project/modernization_levy",
@@ -327,6 +331,10 @@ ref_loan_step <- function(st, t, M) {
         st$B <- 0
       }
       if (m > p$m_start && (m - p$m_start) %% 12 == 0) st$prepaid_ytd <- 0   # (g)
+    }
+    if (R > 0 && st$B > 0 && st$B <= ref_stock) {                # Rundungsrest mittilgen
+      R <- R + st$B
+      st$B <- 0
     }
   }
   D <- 0
@@ -935,7 +943,7 @@ ref_kpis_one <- function(s, i, res) {
   kd_y <- ysum(kd)
   kd_ex_y <- ysum(kd_ex)
   int_y <- ysum(int)
-  sel <- kd_y > ref_zero
+  sel <- kd_y > ref_stock
   if (any(sel)) {
     dscr <- noi_y[sel] / kd_y[sel]
     K$dscr_min <- ref_kv(min(dscr))
@@ -947,10 +955,10 @@ ref_kpis_one <- function(s, i, res) {
     K$dscr_min <- K$dscr_mean <- K$dscr_years_below <- ref_kna("no_debt_service")
   }
   kd_new_y <- kd_y - kd_ex_y
-  sel <- kd_new_y > ref_zero
+  sel <- kd_new_y > ref_stock
   K$dscr_min_new <- if (any(sel)) ref_kv(min((noi_y[sel] - kd_ex_y[sel]) / kd_new_y[sel])) else
     ref_kna("no_debt_service")
-  sel <- int_y > ref_zero
+  sel <- int_y > ref_stock
   K$icr_min <- if (any(sel)) ref_kv(min(noi_y[sel] / int_y[sel])) else
     ref_kna("no_debt_service")
   # Marktwert und Beleihung (12.3)
@@ -1145,8 +1153,83 @@ ref_node_eval <- function(node, path, env, depth = 0L) {
       }
       pmin(pmax(y, node$floor), node$cap)
     },
+    expr = ref_expr_eval(node$text, env, depth),
     stop("ref_node_eval: Knotenart nicht unterstuetzt: ", node$kind, call. = FALSE)
   )
+}
+
+#' Funktionen der Ausdrucks-Whitelist (Spec 00 4.5 Regel 5), ohne min/max/&&/||
+ref_expr_num <- c("+", "-", "*", "/", "^", "%%", "pmin", "pmax", "abs", "round", "floor",
+                  "ceiling", "sqrt", "exp", "log")
+ref_expr_cmp <- c("<", "<=", ">", ">=", "==", "!=", "&", "|", "!", "is.na", "%in%")
+
+#' Ausdrucksknoten unabhaengig auswerten (Spec 00 4.5 Regel 5)
+#'
+#' Eigener Baumdurchlauf ueber `str2lang(text)` (nicht ueber expr_parse()/expr_eval() des
+#' Pakets): Whitelist, Formregel (Laenge 1 -> n-Vektor; ist ein Operand n x (T+1), werden alle
+#' numerischen Operanden zeilenweise gehoben), Vergleiche und Logik als 0/1 (double).
+#' Pfadsymbole loest ref_node_eval() am Symbolpfad auf (statische Ziehungen und Prozesspfade
+#' ersetzen den Knoten dort); deterministische nicht-numerische Blaetter (Codes, Schalter,
+#' R-91) bleiben Zeichen- bzw. Wahrheitswerte.
+ref_expr_eval <- function(text, env, depth = 0L) {
+  n <- env$n
+  t1 <- env$grid$T + 1L
+  if (!is.character(text) || length(text) != 1L) stop("ref_expr_eval: kein Ausdruckstext",
+                                                     call. = FALSE)
+  lift <- function(args) {
+    num <- vapply(args, is.numeric, logical(1))
+    if (any(vapply(args[num], is.matrix, logical(1)))) {
+      args[num] <- lapply(args[num], ref_as_path, n = n, t1 = t1)
+    } else {
+      args[num] <- lapply(args[num], function(a) rep_len(as.double(a), n))
+    }
+    args
+  }
+  dbl <- function(x) {
+    storage.mode(x) <- "double"
+    x
+  }
+  walk <- function(e) {
+    if (is.numeric(e) || is.logical(e)) return(as.double(e))
+    if (is.character(e)) return(e)
+    if (is.symbol(e)) {
+      p <- as.character(e)
+      if (!grepl(".", p, fixed = TRUE)) stop("ref_expr_eval: Symbol ohne Pfad: ", p,
+                                             call. = FALSE)
+      x <- ref_path_get(env$spec, p)
+      if ((is.character(x) || is.logical(x)) && is.null(env$static[[p]])) return(x)
+      return(ref_node_eval(x, p, env, depth + 1L))
+    }
+    if (!is.call(e) || !is.symbol(e[[1L]])) stop("ref_expr_eval: Ausdruck nicht lesbar",
+                                                 call. = FALSE)
+    f <- as.character(e[[1L]])
+    args <- lapply(as.list(e)[-1L], walk)
+    if (f == "(") return(args[[1L]])
+    if (f == "c") return(unlist(args))
+    if (f == "%in%") {
+      if (length(args) != 2L || is.matrix(args[[1L]])) stop("ref_expr_eval: %in%", call. = FALSE)
+      return(rep_len(as.double(args[[1L]] %in% args[[2L]]), n))
+    }
+    if (f == "ifelse") {
+      if (length(args) != 3L) stop("ref_expr_eval: ifelse braucht drei Argumente", call. = FALSE)
+      a <- lift(args)
+      return(dbl(ifelse(a[[1L]] != 0, a[[2L]], a[[3L]])))
+    }
+    if (!(f %in% c(ref_expr_num, ref_expr_cmp))) {
+      stop("ref_expr_eval: Funktion nicht zugelassen: ", f, call. = FALSE)
+    }
+    a <- lift(args)
+    if (f %in% c("&", "|", "!")) a[vapply(a, is.numeric, logical(1))] <-
+      lapply(a[vapply(a, is.numeric, logical(1))], function(v) v != 0)
+    out <- do.call(f, a)
+    if (f %in% ref_expr_num && !all(vapply(a, is.numeric, logical(1)))) {
+      stop("ref_expr_eval: nicht-numerischer Operand in ", f, call. = FALSE)
+    }
+    dbl(out)
+  }
+  out <- walk(str2lang(text))
+  if (!is.numeric(out)) stop("ref_expr_eval: Ergebnis nicht numerisch", call. = FALSE)
+  if (is.matrix(out)) out else rep_len(as.double(out), n)
 }
 
 #' Periode eines Datums (3.4, R-35); NA jenseits des Horizonts
@@ -1157,10 +1240,13 @@ ref_period_of <- function(g, d) {
   as.integer(which(g$date_end >= d)[1L] - 1L)
 }
 
-#' Monate vom Stichtag bis zu einem Monatsersten
+#' Monate vom Stichtag bis zu einem Monatsersten; ein Datum, das kein Monatserster ist, zählt
+#' wie der folgende Monatserste (Spec 00 3.4 Nr. 1, R-98; z. B. Zusage am 31.12. für
+#' `fee_free_until`)
 ref_months_from <- function(g, d) {
   (as.integer(format(d, "%Y")) - as.integer(format(g$valuation_date, "%Y"))) * 12L +
-    (as.integer(format(d, "%m")) - as.integer(format(g$valuation_date, "%m")))
+    (as.integer(format(d, "%m")) - as.integer(format(g$valuation_date, "%m"))) +
+    as.integer(as.integer(format(d, "%d")) > 1L)
 }
 
 #' Termin (Date oder Token "completion", 3.9)
@@ -1360,14 +1446,18 @@ ref_result_draws <- function(model, result) {
 #' Mit `result` (vofi_result oder vofi_mc_result mit `store = "full"`): exogene Zeilen aller
 #' Läufe aus `result$ledger`, laufspezifische statische Ziehungen aus `result$inputs` (Ziele
 #' aus `model$sampler$static`) bzw. `result$draws`.
-#' Nicht unterstützt (Fehler): Steuermodule außer `none`, `topup`, Entscheidungsknoten,
-#' Wertformen außer const/series_t/series_year/ref an Kredit- und Kontoparametern.
+#' Nicht unterstützt (Fehler): Steuermodule außer `none`, `topup`, Entscheidungsknoten (die
+#' beiden Zweige als getrennte Modelle über ref_decision_branches()), Wertformen außer
+#' const/series_t/series_year/ref/expr an Kredit- und Kontoparametern.
 spec_simple_from_model <- function(model, result = NULL) {
   if (!inherits(model, "vofi_model")) stop("spec_simple_from_model: kein vofi_model",
                                            call. = FALSE)
   if (!inherits(model$tax, "tax_none")) stop("nur tax_none unterstuetzt", call. = FALSE)
   if (!is.null(model$topup_id)) stop("topup nicht unterstuetzt", call. = FALSE)
-  if (!is.null(model$decision)) stop("Entscheidungsknoten nicht unterstuetzt", call. = FALSE)
+  if (!is.null(model$decision)) {
+    stop("Entscheidungsknoten nicht unterstuetzt (Zweige: ref_decision_branches())",
+         call. = FALSE)
+  }
   sp <- model$spec
   g <- model$grid
   t1 <- g$T + 1L
@@ -1445,6 +1535,31 @@ spec_simple_from_model <- function(model, result = NULL) {
     kpis = setdiff(unique(sub("_ex_rv$", "", kp)), character(0)),
     wd_tol = 1e-10
   )
+}
+
+#' Zweige eines Entscheidungsknotens als getrennte Modelle (Spec 00 9.11, R-71)
+#'
+#' Ohne Knoten: `list(main = list(model, res))`. Mit Knoten: das Modell der Variante (Zusage
+#' stets erteilt, 9.11 Nr. 2; ohne `decision` als eigenständiges Modell) mit dem Ergebnis des
+#' Zweigs 1 und das Modell der Ausweichvariante mit dem Ergebnis des Zweigs 0. Das Ergebnis
+#' eines deterministischen Laufs enthält den realisierten Zweig, der andere steht in
+#' `res$decision$alternative` (9.11, vofi_run()); beide werden einzeln übersetzt und geprüft.
+#' @param res vofi_result (deterministisch) des Modells.
+#' @param model vofi_model.
+#' @return Liste von list(model, res) mit Namen `main` bzw. `approved`, `fallback`.
+ref_decision_branches <- function(res, model) {
+  dec <- model$decision
+  if (is.null(dec)) return(list(main = list(model = model, res = res)))
+  if (!identical(res$meta$mode, "deterministic")) {
+    stop("ref_decision_branches: nur deterministische Ergebnisse", call. = FALSE)
+  }
+  b <- as.integer(res$decision$branch %||% dec$branch %||% 1L)
+  alt <- res$decision$alternative
+  if (is.null(alt)) stop("ref_decision_branches: Ergebnis ohne Alternative", call. = FALSE)
+  mv <- model
+  mv$decision <- NULL
+  list(approved = list(model = mv, res = if (b == 1L) res else alt),
+       fallback = list(model = dec$fallback, res = if (b == 1L) alt else res))
 }
 
 # ---------------------------------------------------------------------------------------------

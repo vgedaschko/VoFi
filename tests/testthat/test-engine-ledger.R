@@ -54,6 +54,17 @@ test_that("eng_loan_rows: Tags des Bausteins auf allen Kreditzeilen, Labels, Ord
   expect_true(all(rows$source_id == "bank"))
   expect_identical(order(rows$order), 1:9)
   expect_true(all(nzchar(rows$label)))
+  # Merkzeile repayment_grant (7.6, R-99, 10.10 Nr. 7): ohne Tilgungszuschuss nicht steuerrelevant,
+  # mit Tilgungszuschuss subsidy_repayment_grant; die übrigen Zeilen nach dem Vokabular
+  tc <- function(r) r$tax_category[r$category == "repayment_grant"]
+  expect_identical(tc(rows), "not_applicable")
+  expect_identical(rows$tax_category[rows$category == "interest"], "interest_expense")
+  comp$repayment_grant <- list(amount_eur = 1000, date = as.Date("2028-01-01"))
+  expect_identical(tc(eng_loan_rows("bank", 1L, comp, k$def)), "subsidy_repayment_grant")
+  comp$repayment_grant <- list(share = 0.1)
+  expect_identical(tc(eng_loan_rows("bank", 1L, comp, k$def)), "subsidy_repayment_grant")
+  comp$existing <- TRUE
+  expect_identical(tc(eng_loan_rows("bank", 1L, comp, k$def)), "not_applicable")
 })
 
 test_that("eng_model_rows: modellfeste Zeilen, Alternative mit opp-Zeilen", {
