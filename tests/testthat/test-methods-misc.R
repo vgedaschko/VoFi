@@ -21,6 +21,18 @@ test_that("rep_fmt_value: deutsches Format je Einheit (2.10)", {
   expect_identical(rep_fmt_kpi(-1, "EUR", NA), "-1,00 \u20ac")
 })
 
+test_that("rep_fmt_value: Flächen- und Mengenpreise mit Mindestnachkommastellen (MRE-02)", {
+  um <- rep_unit_label("EUR_m2_month")
+  expect_identical(rep_fmt_value(c(-0.2381912, 10.2316823), "EUR_m2_month", 0),
+                   paste(c("-0,24", "10,23"), um))
+  expect_identical(rep_fmt_kpi(-0.2381912, "EUR_m2_month", NA, 0), paste("-0,24", um))
+  expect_identical(rep_fmt_value(20.064, "EUR_m2_pa", 0),
+                   paste("20,06", rep_unit_label("EUR_m2_pa")))
+  expect_identical(rep_fmt_value(1234.5, "EUR_m2", 0), paste("1.234,50", rep_unit_label("EUR_m2")))
+  expect_identical(rep_fmt_value(0.08214, "EUR_kwh", 0), paste("0,0821", rep_unit_label("EUR_kwh")))
+  expect_identical(rep_fmt_value(10.2316, "EUR_m2_month", 3), paste("10,232", um))
+})
+
 test_that("rep_cat_matrix bricht nach der Zeilenbreite um und wiederholt die Kopfspalte", {
   m <- matrix(c("a", "b", rep("1.000,00", 10L)), nrow = 2L)
   colnames(m) <- c("Zeile", paste0("P", 1:5))

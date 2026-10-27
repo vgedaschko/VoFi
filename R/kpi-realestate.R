@@ -223,6 +223,63 @@ kpi_series_y1 <- function(res, oy, n) {
   vofi_kpi_value(res$values[, i[1L]], na_reason = res$na_reason)
 }
 
+#' Bezugsjahr j* der Warmmieten-Kennzahlen `_y1` (Index in `oy`; MRE-01, 01b 1.9.5)
+#'
+#' Erstes volles Betriebsjahr, das am oder nach der frühesten Wirksamkeit der Maßnahmen beginnt
+#' (Fertigstellung, bei angegebenem `rent_law.levy_effective_date` dessen späterer Termin;
+#' Verschiebung `delay_months` des Basisfalls) und dessen Kalenderjahr nicht vor
+#' `analysis.stabilization_year` liegt. Ohne Maßnahme bzw. Einstellung ist es das erste volle
+#' Betriebsjahr (12.2); gibt es kein solches Jahr, ebenfalls.
+#' @param ctx Laufkontext (`NULL`: erstes volles Betriebsjahr).
+#' @param oy Betriebsjahre (`kpi_op_years()`).
+#' @return Index in `oy` bzw. `NA_integer_` ohne volles Betriebsjahr.
+#' @noRd
+kpi_warm_y1_index <- function(ctx, oy) {
+  full <- which(oy$full)
+  if (length(full) == 0L) return(NA_integer_)
+  if (is.null(ctx) || is.null(ctx$spec)) return(full[1L])
+  g <- ctx$grid
+  starts <- c(0, g$month_end[-(g$T + 1L)]) + 1
+  start_m <- starts[oy$first]
+  eff <- tryCatch(kpi_measure_effect_month(ctx), error = function(e) -Inf)
+  ok <- full[start_m[full] >= eff]
+  ys <- kpi_spec_get(ctx, "analysis.stabilization_year")
+  ys <- if (is.null(ys) || length(ys) != 1L) NA_integer_ else suppressWarnings(as.integer(ys))
+  if (!is.na(ys)) ok <- ok[oy$year[ok] >= ys]
+  if (length(ok) == 0L) full[1L] else ok[1L]
+}
+
+#' Früheste Wirksamkeit der Maßnahmen im Basisfall (Monatsindex des Rasters; ohne: `-Inf`)
+#' @noRd
+kpi_measure_effect_month <- function(ctx) {
+  ms <- ctx$spec$measures %||% list()
+  g <- ctx$grid
+  eff <- vapply(names(ms), function(k) {
+    a <- if (is.null(rp_raw(ctx, paste0("measures.", k, ".active")))) 1 else
+      as.double(ctx$value_base(paste0("measures.", k, ".active"))[1L])
+    if (!is.na(a) && a < 0.5) return(Inf)
+    comp <- rp_measure_completion(ctx, k)
+    if (is.null(comp)) return(Inf)
+    m <- rp_mi(g, comp) + rp_measure_shift(ctx, k, base = TRUE)[1L]
+    le <- rp_as_date(ms[[k]][["rent_law"]][["levy_effective_date"]], g)
+    if (!is.null(le)) m <- max(m, rp_mi(g, le))
+    as.double(m)
+  }, double(1))
+  eff <- eff[is.finite(eff) & eff > 1]
+  if (length(eff) == 0L) -Inf else min(eff)
+}
+
+#' Wert im Bezugsjahr j* einer Warmmieten-Reihe (`kpi_warm_y1_index()`)
+#' @noRd
+kpi_series_warm_y1 <- function(res, core, ctx) {
+  oy <- kpi_op_years(core$grid)
+  i <- kpi_warm_y1_index(ctx, oy)
+  if (is.na(i) || length(oy$P) == 0L) {
+    return(vofi_kpi_value(rep(NA_real_, core$n), na_reason = "no_operation_period"))
+  }
+  vofi_kpi_value(res$values[, i], na_reason = res$na_reason)
+}
+
 #' Warmmiete je Betriebsjahr (rent + Umlage + Heiz- und Betriebskosten der Mieter) / (A_vm x Monate)
 #' @noRd
 kpi_calc_warm_rent <- function(core, ctx) {
@@ -247,7 +304,7 @@ typedef_kpi_warm_rent <- function() {
 #' @noRd
 typedef_kpi_warm_rent_y1 <- function() {
   kpi_typedef("warm_rent_y1", function(core, ctx) {
-    kpi_series_y1(kpi_calc_warm_rent(core, ctx), kpi_op_years(core$grid), core$n)
+    kpi_series_warm_y1(kpi_calc_warm_rent(core, ctx), core, ctx)
   }, unit = "EUR_m2_month", higher_is_better = FALSE, mc_default = TRUE,
   requires = c("tenant_data", "living_area"), tenant_view = TRUE)
 }
@@ -259,10 +316,10 @@ typedef_kpi_warm_rent_change_prepost <- function() {
               mc_default = TRUE, requires = c("tenant_data", "living_area"), tenant_view = TRUE)
 }
 
-#' Warmmietenänderung „vorher/nachher“ im ersten vollen Betriebsjahr
+#' Warmmietenänderung „vorher/nachher“ im Bezugsjahr j* (erstes volles Jahr nach Wirksamkeit)
 #' @noRd
 kpi_calc_warm_rent_change_prepost_y1 <- function(core, ctx) {
-  kpi_series_y1(kpi_calc_warm_rent_change_prepost(core, ctx), kpi_op_years(core$grid), core$n)
+  kpi_series_warm_y1(kpi_calc_warm_rent_change_prepost(core, ctx), core, ctx)
 }
 
 #' @noRd
@@ -272,7 +329,7 @@ typedef_kpi_warm_rent_change_prepost_y1 <- function() {
               requires = c("tenant_data", "living_area"), tenant_view = TRUE)
 }
 
-#' Restriktion Warmmiete: Anstieg „vorher/nachher“ im ersten vollen Jahr über der Schwelle
+#' Restriktion Warmmiete: Anstieg „vorher/nachher“ im Bezugsjahr j* über der Schwelle
 #' @noRd
 kpi_calc_restriction_warm_rent <- function(core, ctx) {
   if (!kpi_tenant_view(ctx)) {

@@ -1048,13 +1048,14 @@ test_that("S3 MC (m1)-(m3): Eingaenge, Umlage unabhaengig von der realisierten J
   expect_true(all(f >= 0.95))
   expect_equal(a$levy_heizung_wp_capped[, 3], rep(5040, length(f)), tolerance = 1e-9)
   expect_equal(a$levy_heizung_wp_charged[, 3], rep(3528, length(f)), tolerance = 1e-9)
-  # (m3) bestaetigt: V2 besser mit P > 0,8; Warmmiete V2 im ersten vollen Jahr unter V1, mit
-  # 0-ct-Verrechnung deutlicher als -0,04 EUR/m2; nicht bestaetigt: Groessenordnung +20 bis
-  # +60 TEUR (berechnet rund +15 TEUR)
+  # (m3) bestaetigt: V2 besser mit P > 0,8; Warmmiete V2 im Bezugsjahr j* (erstes volles Jahr
+  # nach Wirksamkeit der Massnahme, 2028; MRE-01) unter V1 (rund -0,03 EUR/m2; im Baujahr 2027
+  # waren es deutlicher als -0,04); nicht bestaetigt: Groessenordnung +20 bis +60 TEUR
+  # (berechnet rund +15 TEUR)
   ds <- cmp$diff_stats
   expect_gt(ds$prob_better[ds$variant == "v2_wp_pv" & ds$kpi == "delta_vs_reference"], 0.8)
   wr <- ds$mean[ds$variant == "v2_wp_pv" & ds$kpi == "warm_rent_change_y1"]
-  expect_lt(wr, -0.04)
+  expect_lt(wr, 0)
 })
 
 test_that("S4 MC (m1)-(m4): Ausfalljahr, BAFA-Zusage, Eingaenge, Hypothesen", {

@@ -53,4 +53,4 @@ compare:
     description: "Monatlicher Cashflow nach Kapitaldienst der Variante minus der Referenz; positiv = mehr Überschuss."
   warm_rent_change_y1:
     label: "Warmmietenänderung gegenüber der Referenz"
-    description: "Warmmiete der Variante minus der Referenz im ersten vollen Betriebsjahr (EUR/m² und Monat)."
+    description: "Warmmiete der Variante minus der Referenz im Bezugsjahr der Variante: erstes volles Betriebsjahr nach Wirksamkeit der Maßnahmen (EUR/m² und Monat)."

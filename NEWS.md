@@ -1,5 +1,29 @@
 # vofi 0.1.0 (in Entwicklung)
 
+* Abschlusskorrekturen aus der Verifikation (`docs/pruefung/offene_befunde.md`):
+  - Warmmieten-Kennzahlen `warm_rent_y1`, `warm_rent_change_prepost_y1`,
+    `restriction_warm_rent` und `warm_rent_change_y1` werten das Bezugsjahr j* aus: das erste
+    volle Betriebsjahr ab Wirksamkeit der Maßnahmen (Fertigstellung bzw.
+    `rent_law.levy_effective_date`), nicht vor `analysis.stabilization_year`; der Vergleich
+    nimmt die Referenz im selben Kalenderjahr, die Ampel-Restriktion und `vofi_solve()`
+    (warmmietenneutrale Umlage) folgen (MRE-01, PC-01). Spec 00 §12.2 ergänzt.
+  - Anzeige: EUR/m² (auch je Monat und Jahr) mit mindestens 2, EUR/kWh mit mindestens 4
+    Nachkommastellen in `print()`, MC-Ausgabe und HTML-Tabellen (MRE-02).
+  - Mietpfad: Die 15-Monats-Wartefrist des § 558 beginnt bei Mietbeginn nach dem Stichtag mit
+    dem Mietbeginn; Staffelstufen und Erhöhungen der Bindungsmiete setzen sie neu (MRE-04,
+    MRE-05).
+  - Haushaltsbericht: Kreditrate nach der tilgungsfreien Zeit je Kredit (SN-01), Amortisation
+    gegenüber der Referenz ohne Restwert (SN-02), Gesamtersparnis als Differenz der
+    Gesamtkosten (SN-03), Nachschüsse als Teil der Gesamtkosten (SN-04), Eigenanteil je Stufe
+    mit Vorfinanzierung und Kredithinweis (SN-05), aufgelöste Zinssätze in der
+    Annahmentabelle (SN-06), Bandbreite aus der Belastung im Mittel der ersten 10 Jahre je
+    Variante (SN-07), Bezeichnungen statt Kennungen (Varianten, Maßnahmen, Programme, Treiber;
+    SN-10), Wartung in der Spalte Wartung (SN-11). `vofi_compare()` speichert die
+    Variantenlabels in `meta$variant_labels`.
+  - Bibliothek 2026.10.2: `costs/bewirtschaftung_immowertv_2026` gilt nach R-88 bis zur
+    Fortschreibung fort (`valid_to: null`); die Warnung zum Stichtag 01.01.2027 entfällt.
+  - README neu geschrieben (SN-13).
+
 * Phase 0 (Integrator): Paketgerüst, Kernverträge (`contract_version` 1.0.0),
   Registry mit Prüfkit, Vokabulare, Label-Katalog, Bedingungsklassen,
   Hilfsfunktionen, vollständiges Zeitraster `vofi_time_grid()` sowie Stubs

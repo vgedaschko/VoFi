@@ -1025,7 +1025,9 @@ rp_simulate <- function(ctx, inp, meas, unit, vcap) {
   ovm_m <- inp[["ovm_m"]]
   b <- unit$r0
   lev <- matrix(0, n, nk)
-  m_last <- rep(m_last0, n)
+  # Wartefrist § 558 Abs. 1: Beginnt der Mietvertrag nach dem Stichtag (Erstvermietung), läuft
+  # sie ab Mietbeginn (MRE-04); sonst ab der letzten Erhöhung vor dem Stichtag
+  m_last <- pmax(rep(m_last0, n), ifelse(inp$mi_rs > 1, inp$mi_rs, -Inf))
   m_last_idx <- inp$mi_rs
   fab <- rep(identical(inp$regime, "bound_social"), n)
   proc_rec <- matrix("none", n, max(nk, 1L))
@@ -1066,6 +1068,9 @@ rp_simulate <- function(ctx, inp, meas, unit, vcap) {
       if (!is.na(sidx)) {
         staffel_absorb <- staffel_absorb | lsum > 1e-12
         b <- inp$staffel$values[, sidx] - lsum
+        # Staffelstufen sind keine Erhöhungen nach §§ 559 bis 560: sie zählen für die
+        # Wartefrist des § 558 Abs. 1 (MRE-05)
+        m_last[] <- m
       }
     }
     # (b) Index
@@ -1079,6 +1084,8 @@ rp_simulate <- function(ctx, inp, meas, unit, vcap) {
     if (ph == "bound" && mo$moy[m] == 1L) {
       ok <- m >= inp$mi_rs + 12
       b <- ifelse(ok, b * (1 + inp$bip_m[, m]), b)
+      # Erhöhung der Bindungsmiete zählt für die Wartefrist des § 558 Abs. 1 (MRE-05)
+      m_last[ok & inp$bip_m[, m] != 0] <- m
     }
     # (d) feste Steigerung
     if (ph == "p558" && identical(inp$policy, "fixed_growth")) {

@@ -22,7 +22,8 @@ mit \code{op_year = 0} und \code{phase = "construction"}), Beträge in EUR pro M
 \details{
 \strong{Selbstnutzer} (Perspektive \code{selbstnutzer}): Zinsen (\code{interest}), Tilgung (\code{repay}),
 Gebühren (\code{fees}), Energie- und CO2-Kosten (\code{energy}), Einspeiseerlöse und Ersparnisse als
-Gutschrift (\code{energy_income}, negativ), Instandhaltung und Wartung (\code{maintenance}),
+Gutschrift (\code{energy_income}, negativ), Instandhaltung und Wartung (\code{maintenance}, mit Wartung
+und Messdienst der Wärmeerzeugung aus den Energiekosten),
 Betriebskosten und Grundsteuer (\code{operating}), sonstige laufende Kosten (\code{other}), die
 monatliche Belastung (\code{burden}, gleich der Kennzahl \code{monthly_burden}) und die Belastung
 „ohne Tilgung“ (\code{burden_ex_repay}, Kostensicht). In der Bauphase kommt die bisherige Miete
@@ -41,8 +42,9 @@ Tilgung und Gebühren, bei Vergleichen die Änderung gegenüber der Referenz
 \strong{Beide:} Nachschüsse des Jahres in EUR (\code{equity_calls}) und die Vermögensdifferenz zur
 Unterlassungsalternative am Jahresende mit Restwertpfad (\code{wealth_diff}; im Haushaltsmodus mit
 dem Zeitwert der Maßnahmen, R-72) bzw. nur aus Guthaben und Schulden (\code{wealth_diff_ex_rv}),
-bei Vergleichen die Vermögensdifferenz gegenüber der Referenzvariante
-(\code{wealth_diff_vs_reference}) und die Markierung der dauerhaften Amortisation (\code{paid_back}).
+bei Vergleichen die Vermögensdifferenz gegenüber der Referenzvariante mit bzw. ohne Restwert
+(\code{wealth_diff_vs_reference}, \code{wealth_diff_ex_rv_vs_reference}) und die Markierung der
+dauerhaften Amortisation ohne Restwert (\code{paid_back}).
 
 Das Attribut \code{summary} enthält die Kopfwerte je Variante (\code{item}, \code{label}, \code{value}, \code{unit})
 mit einem Klartext (\code{text}) nach den Regeln für Nicht-Finanzleute: gerundete Monatswerte

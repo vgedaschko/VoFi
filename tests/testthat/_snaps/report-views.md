@@ -21,7 +21,7 @@
       In der Bauphase beträgt Ihre monatliche Belastung einschließlich der bisherigen Miete rund 1.100 €.
       Die Belastung beträgt höchstens rund 13 % Ihres Nettoeinkommens.
       Über 8 Jahre zahlen Sie insgesamt rund 60.500 € (Eigenanteil und laufende Belastung, nominal).
-      Ihr Eigenanteil nach Förderung (Einmalbetrag) beträgt rund 10.000 €.
+      Ihr Eigenanteil nach Zuschüssen und Krediten beträgt 2027 rund 10.000 €. Kredite sind dabei abgezogen; ihre Raten stecken in der monatlichen Belastung.
       Nachschüsse sind nicht nötig.
       Ob sich die Investition bezahlt macht, lässt sich bei einem Bestandsgebäude nur im Vergleich mit einer Referenzvariante bestimmen (der Vermögensvergleich mit der Unterlassung enthält die ohnehin anfallenden Kosten des Bestands).
 

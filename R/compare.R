@@ -198,8 +198,11 @@ cmp_setup <- function(x, variants = NULL, baseline = NULL, scenario_sets = NULL)
                                      scenario_set = s, reference = paste0(ref, "@", s),
                                      stringsAsFactors = FALSE))
   }
+  vt <- vofi_variants(x)
+  labels <- stats::setNames(ifelse(is.na(vt$label) | !nzchar(vt$label), vt$variant, vt$label),
+                            vt$variant)[all_cases]
   list(baseline = ref, variants = vars, sets = static, generated = generated,
-       requested_sets = scenario_sets, cases = cases)
+       requested_sets = scenario_sets, cases = cases, labels = labels)
 }
 
 #' Modell eines Falls bauen (Variante, optional statisches Set)
@@ -219,7 +222,8 @@ cmp_paths <- function() c("net_position", "opp_net_position", "wealth")
 #'   der Referenz.
 #' @noRd
 cmp_side <- function(ch, model, with_ref_rows = FALSE) {
-  list(kpis = ch$kpis, kpi_na = ch$kpi_na, paths = ch$paths, grid = model$grid,
+  list(kpis = ch$kpis, kpi_na = ch$kpi_na, kpi_series = ch$kpi_series, paths = ch$paths,
+       grid = model$grid,
        perspective = model$spec$project$perspective, spec = model$spec,
        q_T = ch$kpis[[cmp_qt_name()]], differential = isTRUE(with_ref_rows))
 }
@@ -1187,7 +1191,9 @@ cmp_restriction_detail <- function(res, code) {
       },
       warm_rent = {
         oy <- kpi_op_years(g)
-        yr <- if (any(oy$full)) oy$year[which(oy$full)[1L]] else NA_integer_
+        # Bezugsjahr j* wie warm_rent_change_prepost_y1 (MRE-01)
+        i <- kpi_warm_y1_index(eng_context_from_parts(g, res$spec, mode = "deterministic"), oy)
+        yr <- if (is.na(i)) NA_integer_ else oy$year[i]
         list(year = as.integer(yr), value = kv("warm_rent_change_prepost_y1"),
              threshold = thr("warm_rent_increase_eur_m2", 0.5))
       },
@@ -1524,7 +1530,8 @@ cmp_assemble <- function(out, models, setup, comp, cautious, mode, n_sim, seed, 
   if (!is.null(conditional)) rownames(conditional) <- NULL
   meta <- list(seed = if (is_mc) out$cfg$seed else seed, n_sim = as.integer(n_sim),
                mode = mode, allow_unequal = allow_unequal, created = Sys.time(),
-               cases = cases, cautious = cautious$info, notes = notes,
+               cases = cases, variant_labels = setup$labels, cautious = cautious$info,
+               notes = notes,
                runtime_sec = proc.time()[["elapsed"]] - t0,
                differential = any(vapply(models, function(m) {
                  identical(m$spec$project$comparison_mode, "differential")

@@ -1,11 +1,15 @@
 # Offene Befunde aus der Verifikation (Stand 27.10.2026, abgebrochen zur Kostenbegrenzung)
 
-Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht gegengeprüft** und **noch nicht behoben**.
+Die folgenden Befunde haben unabhängige Prüfer gemeldet. Befunde mit **Status: behoben** sind im Zweig `fix/final` nachgestellt, an der Ursache korrigiert und mit einem Regressionstest abgesichert; alle übrigen Befunde sind **offen** (noch nicht gegengeprüft bzw. noch nicht behoben).
+
+Zusätzlich behoben (ohne eigene Nummer): Die Warnung „costs/bewirtschaftung_immowertv_2026 ist zum 01.01.2027 nicht gültig“ erschien bei fast jedem Lauf. Der Eintrag gilt nach R-88 (Spec 00 §4.10) bis zur Fortschreibung fort (`valid_to: null`, Prüfpunkt in `notes`); Bibliotheksstand 2026.10.2.
 
 
 ## Persona Energieberater/Selbstnutzer
 
 ### SN-01 [major] Kreditrate im Haushaltsbericht falsch: Rate im ersten vollen Projektjahr statt Rate des Kredits (0 € bzw. nur Zinsen der tilgungsfreien Zeit)
+
+- **Status:** behoben: Rate je Kredit nach der tilgungsfreien Zeit mit Jahr des Tilgungsbeginns, dazu die Zinsen der Anlaufjahre (rep_html_loan_rate()).
 
 - **Ort:** R/report-html.R:rep_html_instruments (rate_y1, Z. 860) und Ausgabe Z. 3363; Label report.html.household.loan_item
 - **Beschreibung:** Der Abschnitt 'Förderung und Kredite' meldet für jeden Kredit die 'Rate im ersten vollen Jahr'. rate_y1 ist aber der Kapitaldienst im ersten vollen Betriebsjahr des PROJEKTS (2027) und nicht der Kredit. Ein Kredit, der erst 2029/2030 ausgezahlt wird, erscheint mit 0 €/Monat. Bei tilgungsfreien Anlaufjahren erscheinen nur die Zinsen. Die Familie erfährt nicht, welche Rate sie tatsächlich tragen muss. Nachgerechnet: KfW 358 10/2/10 mit 1,48 % auf 10.000 € ergibt ab 2029 eine Annuität von 110,52 €/Monat (Paketwert 1.326,22 €/a, richtig). Für den Dachkredit über 30.000 € sind es ab 2031 331,6 €/Monat. In S4 ergibt KfW 358 25/3/10 mit 2,53 % auf 70.000 € erst 147,58 €/Monat Zinsen, ab 2033 rund 349 €/Monat Annuität.
@@ -15,6 +19,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### SN-02 [major] Amortisationsjahr im Haushaltsbericht ist praktisch immer das Stichtagsjahr ('2027 bezahlt gemacht'), weil der Zeitwert zum Bruttopreis ohne Abzug der Förderung angesetzt wird
 
+- **Status:** behoben: Amortisation im Haushaltsbericht gegenüber der Referenz ohne Restwert (wealth_diff_ex_rv_vs_reference, paid_back); Tabelle zeigt payback_year_vs_reference_ex_rv; ohne Referenz nie „bezahlt gemacht“ im Stichtagsjahr aus dem Zeitwert.
+
 - **Ort:** R/report-views.R:rep_household_summary (payback_year, Z. 596–613); KPI payback_vs_reference mit rv_path_basis = measures
 - **Beschreibung:** Im Haushaltsmodus wird die Vermögensamortisation mit dem Komponenten-Zeitwert der Maßnahmen gerechnet. Dieser setzt die Maßnahme in t = 0 mit den vollen Bruttokosten an, ohne Abzug des Zuschusses. Damit gilt W_0 = Einlage, die Differenz zur Referenz ist 0. Ab der Zuschusszahlung in t = 1 ist sie positiv. Jede geförderte Maßnahme 'hat sich' deshalb im ersten Jahr 'bezahlt gemacht' (payback_vs_reference = 0 Jahre). Die aussagekräftige Größe ohne Restwert rechnet das Paket richtig (S4 v2: 4 Jahre bzw. 2030, entspricht dem Muster in Memo 07 'nach etwa vier bis fünf Jahren'; Familie B: 2032, Familie C: 2043). Diese Größe erscheint im Haushaltsbericht aber nicht. Zusätzlich zeigt die Tabelle 'Ihre Varianten im Vergleich' im selben Bericht 'Amortisationsjahr n. d.' für alle Varianten.
 - **Erwartet:** Familie B: 'hat sich voraussichtlich 2032 bezahlt gemacht' (ohne Restwert, unabhängig nachgerechnet: Vermögensdifferenz B−A ohne Restwert 2031 −246 €, 2032 +2.604 €). S4 v2: 2030. Höchstens zusätzlich und klar gekennzeichnet die Variante mit Zeitwert. Die Tabelle stimmt mit dem Text überein.
@@ -22,6 +28,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 - **Reproduktion:** repro_s4_haushalt.R (siehe SN-01) gibt payback-Texte und payback_*-KPIs aus; Familie: cmp <- vofi_compare(vofi_read_scenario('familie.yaml')); vofi_kpis(cmp)[grepl('payback_vs', vofi_kpis(cmp)$kpi), c('variant','kpi','value')]
 
 ### SN-03 [major] 'Gesamtersparnis über 25 Jahre' widerspricht den 'Gesamtkosten' im selben Bericht (Eigenanteil und Investitionen fehlen), in S4 sogar mit umgekehrtem Vorzeichen
+
+- **Status:** behoben: Gesamtersparnis = Gesamtkosten(Referenz) − Gesamtkosten(Variante).
 
 - **Ort:** R/report-views.R:rep_household_summary (total_saving Z. 534–539 vs. total_cost Z. 571–577)
 - **Beschreibung:** total_saving summiert nur die Differenz der monatlichen Belastung. Investitionen aus Eigenmitteln (Eigenanteil) bleiben außen vor, sodass Kredit-Tilgungen zählen, Eigenmittel-Investitionen aber nicht. total_cost enthält dagegen Eigenanteil und Belastung. Der Haushalt bekommt damit zwei unvereinbare Gesamtaussagen. S4 v1: Gesamtkosten 253.500 € gegenüber 285.800 € in der Referenz, also 32.300 € weniger, der Text sagt aber '70.100 € mehr'. Differenz = Eigenanteil 172.599 − 70.101 = 102.498 €. Familie C: Text 'sparen 54.400 €', Gesamtkosten-Differenz 189.093 − 143.784 = 45.309 €.
@@ -31,6 +39,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### SN-04 [major] 'Zusätzlich sind Nachschüsse von ... nötig' zählt doppelt: Die Nachschüsse finanzieren die laufende Belastung, die schon in den Gesamtkosten steckt
 
+- **Status:** behoben: Nachschüsse als Teil der Gesamtkosten aus dem laufenden Einkommen, Glossar angepasst.
+
 - **Ort:** inst/labels/de/report.yaml household.text.equity_calls (Z. 282) und Glossar calls_def (Z. 798); R/report-views.R:rep_household_summary Z. 586–592
 - **Beschreibung:** Mit dem Profil selbstnutzer (Kontokorrentlimit 0) zahlt der Haushalt die Energierechnungen zunächst aus dem Ersparten. Ist es aufgebraucht, verbucht das Modell den Rest als Nachschüsse, in allen Varianten, auch in 'Gaskessel behalten'. Die Familie zahlt diese Beträge in Wirklichkeit aus dem laufenden Einkommen. Der Bericht schreibt aber 'Zusätzlich sind Nachschüsse von insgesamt rund 145.700 € nötig', und das Glossar sagt 'Geld, das Sie später zusätzlich einzahlen müssen'. Nachgerechnet für base: Erspartes 40.000 + Habenzinsen 3.384,60 + Nachschüsse 145.708 = 189.093 € = ausgewiesene Gesamtkosten. Die Nachschüsse sind also kein zusätzliches Geld. Der Leser addiert 189.100 + 145.700 €. Die Vergleichsrechnung (Endwertdifferenz) bleibt richtig, unabhängig nachgerechnet.
 - **Erwartet:** Nachschüsse als Teil der Gesamtkosten bzw. als 'aus dem laufenden Einkommen zu zahlen' kennzeichnen, ohne 'zusätzlich', und mit einem Hinweis, dass sie die laufenden Energiekosten decken. Eine Restriktion nur, wenn sie die Sparfähigkeit übersteigen.
@@ -38,6 +48,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 - **Reproduktion:** LANG=C.UTF-8 VOFI_PKG=<Checkout> Rscript /tmp/claude-0/-home-user-VoFi/6a2d58c1-9387-5263-9942-e149585d85ae/scratchpad/sn/repro_familie.R (Items total_cost/equity_calls); Ledger base: sum(dep_interest)=3.384,60, sum(equity_call)=145.708
 
 ### SN-05 [major] 'Eigenanteil nach Förderung (Einmalbetrag)' bzw. 'zu Beginn' ist die Summe aller Investitionen über 25 Jahre abzüglich Krediten
+
+- **Status:** behoben (Bericht): Eigenanteil nach Zuschüssen und Krediten im Jahr der ersten Stufe und je spätere Stufe, Vorfinanzierung des Zuschusses, Hinweis auf Kredite; die Kennzahl own_contribution selbst ist unverändert (siehe EF-03, offen).
 
 - **Ort:** inst/labels/de/report.yaml household.text.own_contribution (Z. 280), html.household.own_contribution (Z. 782), Glossar own_def (Z. 796); KPI own_contribution
 - **Beschreibung:** Die Kennzahl own_contribution summiert nach Spec 00 §12.3 die Investitionen aller Perioden nominal und zieht Zuschüsse und neue Kredite ab. Der Bericht nennt sie aber 'Einmalbetrag', und das Glossar erklärt 'Was Sie zu Beginn aus eigenen Mitteln zahlen, nachdem Zuschüsse abgezogen sind'. Dass Kredite abgezogen sind, steht dort nicht. Bei stufenweisen Varianten ist die Aussage grob falsch: S4 v2 'Eigenanteil (Einmalbetrag) rund 157.300 €' = WP 2027 32.960 + Dach 2032 47.762,09 + Anstrich 2033 14.266,54 + Fenster 2042 31.452,25 + WP-Ersatz 2047 46.507,36 − 15.680. Heute fallen nur 32.960 − 15.680 = 17.280 € an. S4 base 'Einmalbetrag 172.600 €' für Maßnahmen 2030–2050. Außerdem fehlt die Vorfinanzierung des Zuschusses: Familie B zahlt in t = 0 34.000 € aus dem Ersparten, ausgewiesen sind 14.400 €.
@@ -47,6 +59,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### SN-06 [major] Annahmentabelle des Haushaltsberichts zeigt interne Bezugsausdrücke statt Zinssätzen ('ref: market.mortgage_rate', 'Zins ref: funding.kfw358.loan.variants.v10_2_10.rate_pa')
 
+- **Status:** behoben: Annahmentabelle löst Bezüge zum Basisfallwert auf (z. B. Habenzins 2,50 %, KfW 358 1,48 %).
+
 - **Ort:** R/report-html.R:rep_html_assumptions_short (Z. 3000 ff.) mit rep_html_spec_text (Z. 1132) → rep_value_text
 - **Beschreibung:** rep_html_spec_text gibt nur Konstanten als Zahl aus und schreibt sonst den Wertausdruck. Der Habenzins aus dem Profil selbstnutzer ist ein Bezug (anchor 2,5 %), ebenso der Kontokorrentzins und der Zins jedes Förderkredits aus der Bibliothek. Damit stehen in jedem Haushaltsbericht mit KfW-Kredit die wichtigsten Annahmen (Zinsen) als technischer Pfad da. Die Familie erfährt nicht, dass ihr KfW-358-Kredit 1,48 % (S4: 2,53 %) kostet.
 - **Erwartet:** Habenzins 2,50 %, Sollzins Kontokorrent 6,00 % (Basisfall), Kredit kfw358 10.000 € zu 1,48 % (10/2/10), S4: 70.000 € zu 2,53 %.
@@ -54,6 +68,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 - **Reproduktion:** repro_s4_haushalt.R bzw. repro_familie.R (grep 'ref:' im Berichtstext)
 
 ### SN-07 [major] Risiko in Worten ist ohne Aussage: 'in 8 von 10 simulierten Zukünften zwischen 410 € und 410 €', und die Zeilen nennen keine Variante
+
+- **Status:** behoben: Bandbreite aus monthly_burden_avg10, je Variante beschriftet, entartete Spannen ohne „zwischen X und X“.
 
 - **Ort:** R/report-views.R:rep_household_range (Z. 635 ff., KPI monthly_burden_y1); R/report-html.R Abschnitt risk (Haushalt)
 - **Beschreibung:** Die Bandbreite der Belastung wird aus monthly_burden_y1 gebildet. Im ersten Jahr (2027) sind Energiepreis-Startwert, CO2-Preis (60 €/t) und Inflation fest. Bei Unsicherheit nur über Energie- und CO2-Preispfade, also dem typischen Haushaltsfall, ist q10 = q50 = q90 exakt. Die Simulation zeigt dagegen echte Bandbreiten, z. B. monthly_burden_avg10 für B 311–340 € und eine Endwertdifferenz P5–P95 von 73.874–136.534 €. Im Abschnitt 'Wie sicher ist das Ergebnis?' stehen drei solche Zeilen ohne Variantenname untereinander. Die Frage der Familie nach dem Risiko bei steigenden Gas- und CO2-Preisen beantwortet der Bericht damit nicht.
@@ -79,6 +95,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### SN-10 [minor] Haushaltsbericht verwendet interne Kennungen statt Bezeichnungen (Varianten, Maßnahmen, Programme, Treiber)
 
+- **Status:** behoben: Variantenlabels (cmp$meta$variant_labels), Maßnahmenlabels und Programmnamen bei Zuschüssen und Krediten, Labels der Overlay-Einträge mit Parameter bei den Treibern.
+
 - **Ort:** R/report-html.R (rep_html_var_heading, rep_html_grants, rep_html_drivers_text), R/report-views.R (ref_label = Varianten-id)
 - **Beschreibung:** Die vergebenen Variantenlabels (z. B. 'B Wärmepumpe 2027 mit PV 8 kWp (KfW 458)') erscheinen nirgends. Texte lauten 'Gegenüber base sparen Sie ...', Überschriften 'Variante v_b_wp_pv'. Zuschüsse heißen 'Investitionszuschuss wp (458)' bzw. 'dach (beg_em_huelle)', Kredite 'kfw358'. Die Treiber heißen 'energy_price_gas.growth', 'energy_price_power.growth', 'inflation.mu'. Der Satzbaustein-Aufbau des Zuschusses (30 % + 16 % + 30 %, gedeckelt auf 70 % von 28.000 €) wird nicht gezeigt.
 - **Erwartet:** Bezeichnungen aus variants.<v>.label, measures.<m>.label, Programmbezeichnung der Bibliothek und Labels der Overlay-Einträge; optional Fördersatzaufbau.
@@ -86,6 +104,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 - **Reproduktion:** repro_familie.R (Berichtstext)
 
 ### SN-11 [minor] Spalte 'Wartung' ist immer 0, obwohl Wartung und Schornsteinfeger anfallen (unter 'Energie' gebucht)
+
+- **Status:** behoben: Wartung und Messdienst (Zeilen service der Energiekosten) in der Spalte Wartung.
 
 - **Ort:** R/report-views.R (Zuordnung Kategorie maintenance) / Energieexpander: Zeile '<seg>__service' mit Kategorie energy_cost
 - **Beschreibung:** service_eur_pa (Wartung der Wärmeerzeugung, Schornsteinfeger) wird als Zeile 'Wartung und Messdienst' mit Kategorie energy_cost gebucht und landet in der Spalte 'Energie'. Die Spalte 'Wartung' der Haushaltstabelle zeigt deshalb 0, obwohl Gas 300 €/a brutto (25 €/Monat) und WP 250 €/a brutto anfallen. Die Spalte 'Energie' ist zudem um die PV-Erlöse gekürzt, ohne dass das in der Spalte erkennbar ist.
@@ -102,6 +122,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 - **Reproduktion:** cmp <- vofi_compare(vofi_read_scenario('familie.yaml'), n_sim = 1000, seed = 4711); vofi_report(cmp, 'b.html', mode = 'household')
 
 ### SN-13 [minor] README veraltet und für Mittler irreführend
+
+- **Status:** behoben: README neu (Status, Installation, Schnellstart S1–S5, Excel, eigenes Szenario, Grenzen, Bibliothek).
 
 - **Ort:** README.md
 - **Beschreibung:** Laut README sind Simulation, Vergleich, Sensitivität und Berichte noch Platzhalter, die vofi_error_not_implemented melden. Bei 8f645ec stimmt das nicht. Es fehlen Hinweise auf vofi_example() (S1–S5), den Haushaltsmodus und den typischen Arbeitsablauf (vofi_compare → vofi_report(mode = 'household')). Vignetten gibt es nicht.
@@ -122,6 +144,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### PC-01 [major] Warmmieten-Kennzahlen (_y1) und Restriktion Warmmiete messen bei construction_months = 0 das Baujahr vor Umlagebeginn, nicht das erste Jahr nach der Sanierung
 
+- **Status:** behoben (mit MRE-01): Bezugsjahr j* nach Fertigstellung bzw. Umlagebeginn; eine eigene Warnung bei Fertigstellung in y1 gibt es nicht mehr, weil y1 nun verschoben wird.
+
 - **Ort:** R/kpi-realestate.R (warm_rent_y1, warm_rent_change_prepost_y1, warm_rent_change_y1, restriction_warm_rent); Szenario-Muster aus inst/extdata/examples/s1_wu_mfh_1963_eh70.yaml
 - **Beschreibung:** Das erste volle Betriebsjahr wird allein aus dem Zeitraster bestimmt. Mit grid.construction_months = 0 (so im Referenzszenario S1, das der Controller als Vorlage nimmt) und completion_date 2027-10-01 ist 2027 das Jahr y1. Die Umlage beginnt aber erst 2028, und die Heizkosten der Mieter sinken nur im 4. Quartal. Die Folge: Die Warmmietenänderung gegenüber der Referenz wird als Senkung um 0,20 EUR/m² ausgewiesen, tatsächlich steigt sie im ersten Jahr nach der Sanierung um 1,33 EUR/m². Die Restriktion Warmmiete (Schwelle 0,50) ist 0 statt 1, P(besser) für die Warmmiete steht bei 100 %, und die Ampel zeigt kein K.-o.-Kennzeichen. Die Gremienvorlage verschweigt damit den Warmmietenanstieg. Auch S1 ist betroffen: warm_rent_change_y1 = −0,20, tatsächlich +0,31 EUR/m² im Jahr 2028 trotz Beschluss 'warmmietenneutral'. Mit construction_months = 9 stimmen die Werte (0,94 / 1,33 / Restriktion 1, K.-o. in der Ampel), das steht aber nirgends dokumentiert, und das Paket warnt nicht, wenn die Fertigstellung einer Maßnahme mit Umlage innerhalb von y1 liegt.
 - **Erwartet:** y1-Kennzahlen bzw. Restriktion beziehen sich auf das erste volle Jahr nach Fertigstellung bzw. Umlagebeginn (eigenes Beispiel: change_prepost 0,94, change_vs_reference 1,33, restriction_warm_rent = 1, Ampel mit K.-o. Warmmiete); mindestens eine Warnung, wenn completion_date bzw. Umlagebeginn nach dem Beginn von y1 liegt
@@ -138,6 +162,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### PC-03 [major] Ein neuer Fall ist ohne Entwicklerspezifikation praktisch nicht anlegbar: README veraltet, keine Anwenderdoku zu den Szenariofeldern, irreführende Fehler
 
+- **Status:** teilweise behoben: README mit Anleitung „eigenes Szenario“ und Hinweis auf den shared-Block; Fehlermeldung mit Lösungsvorschlag und Bündelung der Korrelationsmeldungen offen.
+
 - **Ort:** README.md; man/vofi_read_scenario.Rd, vofi_scenario.Rd; docs/Konzept.md; Bibliothekseintrag prices/referenzszenarien_2026
 - **Beschreibung:** Das README meldet 'Simulation, Vergleich, Sensitivität und Berichte sind noch Platzhalter und melden vofi_error_not_implemented'. Das ist falsch, alle Funktionen laufen. Weder Hilfeseiten noch Konzept beschreiben die Szenariofelder. Wer einen neuen Fall anlegen will, muss S1 kopieren und Bedeutungen raten, etwa: demand_kwh ist Nutzwärme, amount_eur enthält die Baubegleitung, facts.ee_class ist Pflicht, loan_variant-Codes, und construction_months steuert die y1-Kennzahlen (PC-01). Das geht nur mit der Entwicklerspezifikation (über 17.000 Zeilen). Die Excel-Vorlage hilft mit Bezeichnungen, erklärt aber zum Beispiel 'Wärmebedarf kWh/Jahr' nicht als Nutzwärme. Typische Falle beim ersten Versuch: market: {from: prices/referenzszenarien_2026, use: market} (wie in S1) ohne den zugehörigen shared-Block bricht mit 'der Pfad shared.bio_premium_factor existiert nicht (Zeile 1, Spalte 32)' ab. Die Zeilenangabe bezieht sich auf den Ausdruck, nicht auf die Datei, und einen Lösungshinweis gibt es nicht. Zusätzlich überdecken je Variante und Aufruf rund 60 Meldungen 'Korrelationspaar … verworfen' (bei Standardprozessen aus der Bibliothek) die relevanten Hinweise.
 - **Erwartet:** Aktuelles README mit Kurzanleitung 'neuen Fall anlegen'; Feldbeschreibungen in Hilfe bzw. Vignette; Fehlermeldung mit Lösung (shared-Block derselben Quelle einbinden); verworfene Bibliotheks-Korrelationen zusammengefasst in einer Meldung
@@ -145,6 +171,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 - **Reproduktion:** cat(readLines(file.path(PKG,'README.md'))[1:12], sep='\n'); # Falle: in mfh1972_c0.yaml 'market:\n  from: prices/referenzszenarien_2026\n  use: market' ergänzen -> vofi_compare() bricht ab: 'Ausdruck market.bio_fuel_premium_base * shared.bio_premium_factor: der Pfad shared.bio_premium_factor existiert nicht'; Meldungsflut: Rscript -e "devtools::load_all(PKG); vofi_compare(vofi_read_scenario(vofi_example('s1_wu_mfh_1963_eh70')))" 2>&1 | grep -c Korrelationspaar  # 120
 
 ### PC-04 [minor] Kennzahlen in EUR/m²/Monat werden in print(<vofi_comparison>) und in Bericht und Kurzvorlage auf ganze Euro gerundet
+
+- **Status:** behoben (mit MRE-02).
 
 - **Ort:** R/methods-compare.R:87,108 (rep_fmt_value(..., 0)); Berichtstabellen R/report-html.R
 - **Beschreibung:** print.vofi_comparison formatiert alle Kennzahlen mit digits = 0, auch Einheiten wie EUR_m2_month. Warmmiete 10,28 erscheint als '10 EUR/m²/Monat', Warmmietenänderungen von −0,20 bzw. 0,94 als '0' bzw. '1 EUR/m²/Monat'. In der Gremienvorlage stehen deshalb für dieselbe Größe drei Werte: '0,94 €/m²' (Restriktion), '0,93 EUR/m²/Monat' (Summary) und '1 EUR/m²/Monat' (Kennzahltabelle). Gegen die Schwelle 0,50 ist eine Ganzzahl-Anzeige unbrauchbar.
@@ -229,6 +257,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### MRE-01 [major] Warmmieten-Kennzahlen *_y1 werten im Bestand das Baujahr aus, also bevor die Umlage wirkt: Kennzahl, K.-o.-Restriktion, Ampel, Vergleich und Zielwertsuche falsch
 
+- **Status:** behoben: _y1-Warmmietenkennzahlen, Restriktion, Ampel-Eingabe und warm_rent_change_y1 (Referenz im selben Jahr) im Bezugsjahr j* (erstes volles Jahr ab Wirksamkeit der Maßnahmen, nicht vor analysis.stabilization_year); vofi_solve ergibt 1,0499. Spec 00 §12.2 ergänzt. monthly_burden_y1/monthly_saving_y1 der Selbstnutzer bleiben beim ersten vollen Betriebsjahr (offen).
+
 - **Ort:** R/kpi-realestate.R: kpi_series_y1(), kpi_calc_warm_rent_change_prepost_y1(), kpi_calc_restriction_warm_rent(); R/kpi-core.R: warm_rent_change_y1; R/compare.R: Restriktion warm_rent; R/solve.R (Anwendungsfall 'warmmietenneutrale Umlage')
 - **Beschreibung:** `_y1` ist das erste volle Betriebsjahr (kpi_op_years: op_year_full). Im Bestand mit construction_months 0 ist das das Bewertungsjahr 2027. In S1 und S3 wird die Maßnahme am 01.10.2027 fertig, die Umlage wirkt erst ab 01.01.2028 (§ 559b Abs. 2). Ausgewertet wird also das Jahr mit 9 Monaten Gas, 3 Monaten Wärmepumpe und ohne Umlage. Die Kennzahl misst damit keine Änderung 'vorher/nachher', und das in S1 gesetzte analysis.stabilization_year 2028 bleibt unberücksichtigt. Folgen: (1) Die SEED-Frage ist mit 'beides' zu beantworten. Der Wert −0,2382 ist für 2027 richtig gerechnet (geprüft: 27.824,30 gegen 32.397,57 EUR/a auf 1.600 m²; Stufenmodell 2027 bei 23,76 kg/m²·a gleich 30 %), aber 2027 ist das falsche Jahr. Dazu kommt Befund MRE-02 (Anzeige mit 0 Nachkommastellen). (2) Plausibel ist −0,24 nach EH 70 mit Umlage nicht. Im ersten vollen Jahr mit Umlage (2028) gilt: Umlage 1,10 + Heizkosten 0,6919 − Heizkosten vorher 1,7418 = +0,050 EUR/m²·Monat, von Hand nachgerechnet. Der Beschluss 1,10 liegt also knapp über warmmietenneutral; neutral wären 1,0499, wie der Modus warm_rent_neutral auch ergibt. (3) restriction_warm_rent prüft 2027 und schlägt deshalb bei Bestandssanierungen mit Fertigstellung im ersten Jahr nie an. Ohne Beschluss (Umlage 2,00) steigt die Warmmiete 2028 um +0,95 > Schwelle 0,50, die Kennzahl meldet aber 0; Ampel und Restriktionstabelle zeigen 'nein'. (4) warm_rent_change_y1 (V2 − Referenz) = −0,20 mit P(besser) 100 %, und der Bericht schreibt '−0,20 € je m² und Monat'. Tatsächlich ist die Warmmiete in V2 von 2028 bis etwa 2033 um 0,24 bis 0,31 EUR/m² höher als in V1 (laut vofi_tenant_view: 2028 +0,308, 2030 +0,236). (5) Die Zielwertsuche nach Spec 00 §12.8 bzw. 01b 1.9.5 (kpi = warm_rent_change_prepost_y1, target 0, param voluntary_cap_per_m2) liefert NA, weil die Kennzahl in 2027 nicht vom Parameter abhängt. Der Fehler liegt schon in der Spec: Spec 00 §12.2 definiert _y1 als erstes volles Betriebsjahr, 01b 1.9.5 und RP-14 meinen aber die Bezugsperiode j* (erste volle Periode ab Wirksamkeit der Umlage). Vermutlich gleiche Ursache, nicht im Einzelnen geprüft: monthly_burden_y1 und monthly_saving_y1 im Selbstnutzer-Bestand.
 - **Erwartet:** S1 V2 (j* = 2028): warm_rent_change_prepost_y1 = +0,0501; warm_rent_y1 = 10,644; warm_rent_change_y1 = +0,308. Ohne Beschluss: +0,950 und restriction_warm_rent = 1. vofi_solve ≈ 1,0499 EUR/m²
@@ -236,6 +266,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 - **Reproduktion:** /tmp/claude-0/-home-user-VoFi/6a2d58c1-9387-5263-9942-e149585d85ae/scratchpad/me/repro/r1_y1_warmmiete.R
 
 ### MRE-02 [major] EUR/m²/Monat wird in print.vofi_comparison, print.vofi_mc und den HTML-Kennzahlentabellen mit 0 Nachkommastellen angezeigt
+
+- **Status:** behoben: rep_fmt_value() mit mindestens 2 Nachkommastellen für EUR_m2, EUR_m2_month, EUR_m2_pa und 4 für EUR_kwh.
 
 - **Ort:** R/methods-compare.R:87 und :108, R/methods-mc.R:84 (rep_fmt_value(..., 0)); R/report-html.R:1635 (rep_fmt_kpi(..., 0)); R/methods-misc.R rep_fmt_value(), Default-Zweig für EUR_m2_month
 - **Beschreibung:** rep_fmt_value() hat für EUR_m2_month (ebenso EUR_m2 und EUR_kwh) keinen eigenen Zweig und nimmt die übergebenen digits. Vergleich, MC-Ausgabe und HTML-Kennzahlentabellen übergeben 0. Kennzahlen um ±1 EUR/m² werden dadurch zu '0 EUR/m²/Monat', Warmmieten 10,43 und 10,23 zu '10'. Im selben HTML-Bericht nennt der Fließtext −0,24 (fmt_eur(w, 2)), die Tabelle 0. In der MC-Ausgabe stehen Mittel, SE und alle Quantile auf '0 EUR/m²/Monat', während P(< 0) 100 % zeigt. print.vofi_result (digits 2) und der Excel-Export (Format #,##0.00) sind richtig.
@@ -253,6 +285,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### MRE-04 [major] § 558 im Vergleichsmieten-Modus bei Mietbeginn nach dem Stichtag (Neubau): Erhöhung schon im ersten Mietmonat, ohne 15-Monats-Wartefrist
 
+- **Status:** behoben: Wartefrist beginnt bei Mietbeginn nach dem Stichtag mit dem Mietbeginn.
+
 - **Ort:** R/type-flow-rent-path.R: rp_inputs() (last558 Default valuation_date − 12, m_last0 = min(mi(last558), 0)) und rp_simulate() Schritt (f)
 - **Beschreibung:** Die Wartefrist rechnet ab m_last0, abgeleitet aus last_558_increase_date mit Default 'Stichtag − 12 Monate'. rent_start wird nicht berücksichtigt. Beginnt die Vermietung nach dem Stichtag (Neubau mit Token completion, neue Gruppe), gilt die Wartefrist schon bei Mietbeginn als erfüllt. Die Erstvermietungsmiete wird dann sofort auf OVM bzw. Kappungsgrenze angehoben. Nach § 558 Abs. 1 muss die Miete aber 15 Monate seit Mietbeginn unverändert sein, die erste Erhöhung ist also frühestens mi(rent_start) + 15 möglich.
 - **Erwartet:** Erstvermietung 10,00 ab 2029-01-01, OVM 11,50: Miete 10,00 bis 2030-03, frühestens ab 2030-04-01 11,50. S2 mit increase_policy max und OVM 14: Miete 2029 = 374.400 (13,00 × 2.400 × 12)
@@ -260,6 +294,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 - **Reproduktion:** /tmp/claude-0/-home-user-VoFi/6a2d58c1-9387-5263-9942-e149585d85ae/scratchpad/me/repro/r4_wartefrist.R (Fall c); Vollszenario: vofi_run(vofi_build(vofi_read_scenario(vofi_example('s2_wu_neubau_mfh_36we')), overrides = list('unit_groups.wohnen.increase_policy'='max','unit_groups.wohnen.ovm_eur_m2_month'=14,'unit_groups.wohnen.growth_from'=NULL)))
 
 ### MRE-05 [minor] Nach dem Ende von Staffel oder Mietbindung ist eine § 558-Erhöhung schon 12 statt 15 Monate nach der letzten Mietänderung möglich
+
+- **Status:** behoben: Staffelstufen und Erhöhungen der Bindungsmiete setzen die Wartefrist des § 558 neu.
 
 - **Ort:** R/type-flow-rent-path.R: rp_simulate() Schritte (a) Staffel und (c) Bindung setzen m_last nicht; Phase p558 beginnt bei mi(letzte Staffel) + 12 bzw. bei binding_end
 - **Beschreibung:** Nur die Schritte (d) fixed_growth und (f) § 558 setzen m_last. Staffelstufen (§ 557a) und Erhöhungen der Bewilligungsmiete sind keine Erhöhungen nach §§ 559 bis 560 und zählen für die Wartefrist nach § 558 Abs. 1. Weil die Phase p558 schon 12 Monate nach der letzten Staffel beginnt, kommt die erste § 558-Erhöhung 3 Monate zu früh. Bei der Bindung gilt dasselbe ab binding_end, wenn die letzte Erhöhung der Bindungsmiete weniger als 15 Monate zurückliegt. In der Spec ist das nicht geregelt (1.8.7 nennt nur §§ 559/560 als Ausnahme).
@@ -347,6 +383,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### FE-04 [major] Haushaltsmodus: Amortisation 'sofort' (payback_vs_reference = 0,0 Jahre), weil der Zeitwert bei Fertigstellung den Kosten entspricht (Seed a bestätigt)
 
+- **Status:** behoben für den Haushaltsbericht (Amortisation ohne Restwert, siehe SN-02); die Kennzahl payback_vs_reference mit Zeitwertpfad ist unverändert.
+
 - **Ort:** R/kpi-value.R:kpi_payback_vs_reference; R/report-views.R:rep_household_summary (pb_col = wealth_diff_vs_reference mit rv_path_basis measures); kpi_rv_basis (auto -> measures)
 - **Beschreibung:** Im Haushaltsmodus gilt W_t = BS_t + RW_t(measures), und der Komponenten-Zeitwert ist bei Fertigstellung gleich den Kosten. Für eine Investition zum Stichtag ist d_0 daher genau 0. Sobald der Zuschuss den Wertverlust und den Zinsverlust des ersten Jahres übersteigt, bleibt d_t ≥ 0, und t* = 0 folgt aus der Konstruktion. Für S4 V1 und V2 meldet der Bericht 'Die Investition hat sich voraussichtlich 2027 bezahlt gemacht', also im Jahr der Investition. Ohne Restwert sind es 2049 (V1) bzw. 2030 (V2). Memo 07 §5.4 definiert das Amortisationsjahr über Guthaben − Restschulden und nennt den Zeitwert nur optional; das S4-Muster erwartet 'nach etwa vier bis fünf Jahren'. Die Rechnung folgt R-72 formal, für Haushalte ist die Aussage aber irreführend.
 - **Erwartet:** Für S4 V2 eine Amortisation von etwa 4-5 Jahren (Memo 07, ohne Restwert 2030), V1 2049. Mindestens: kein 'bezahlt gemacht' im Investitionsjahr; den Wert ohne Restwert neben dem Zeitwert ausweisen.
@@ -422,6 +460,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### MCS-02 [major] Haushaltstext „Über 25 Jahre zahlen Sie … insgesamt rund 70.100 € mehr“ lässt die Einmalbeträge weg und widerspricht den eigenen Gesamtkosten
 
+- **Status:** behoben (mit SN-03).
+
 - **Ort:** R/report-views.R:rep_household_vs_ref() (cumulative_saving) und rep_household_summary() (Element total_saving)
 - **Beschreibung:** total_saving ist die kumulierte Differenz der Monatsbelastung. Investitionen aus Eigenmitteln gehören laut Definition nicht zur Monatsbelastung, im Vergleich fehlen sie damit vollständig. In S4 bezahlt base alle Ohnehin-Maßnahmen (Kessel, Dach, Anstrich, Fenster, WP 2050) aus dem Ersparten: Eigenanteil 172.600 €. V1 finanziert über KfW 358 (Zins und Tilgung stehen in der Belastung), Eigenanteil 70.100 €. Dieselbe Zusammenfassung weist als total_cost (Eigenanteil plus Belastung) 285.800 € für base und 253.500 € für V1 aus. V1 zahlt also insgesamt rund 32.400 € weniger, der Text behauptet 70.100 € mehr. Zusammen mit „In 10 von 10 simulierten Zukünften ist v1 besser“ und der grünen Ampel entsteht genau der Widerspruch aus Seed (a). Ebenfalls auffällig: „hat sich voraussichtlich 2027 bezahlt gemacht“. payback_vs_reference ist in 100 % der Läufe 0, weil der Zeitwert der Wärmepumpe zum Bruttopreis und zugleich der Zuschuss gutgeschrieben werden (rechnerisch spec-konform nach 12.3, für Haushalte aber irreführend).
 - **Erwartet:** Gesamtkosten über N Jahre = Summe aller variantenabhängigen Auszahlungen abzüglich Zuschüsse und Erlöse (Memo 07 §5.4), einschließlich der Einmalbeträge aus Eigenmitteln. Für S4: „Über 25 Jahre sparen Sie gegenüber base insgesamt rund 32.400 €“, passend zu total_cost.
@@ -429,6 +469,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 - **Reproduktion:** Rscript /tmp/claude-0/-home-user-VoFi/6a2d58c1-9387-5263-9942-e149585d85ae/scratchpad/mcs/repro/repro_s4_report.R /home/user/VoFi  (Abschnitt F2: attr(vofi_household_view(cmp), 'summary'), Elemente total_saving, total_cost, own_contribution)
 
 ### MCS-03 [major] Bandbreite der Monatsbelastung nur für das erste Jahr, ohne Zeitbezug; Marktpfade sind dort deterministisch
+
+- **Status:** behoben (mit SN-07).
 
 - **Ort:** R/report-views.R:rep_household_range() (Kennzahl monthly_burden_y1, Label report.household.text.range_burden)
 - **Beschreibung:** Die Bandbreite in Worten verwendet q10 und q90 von monthly_burden_y1. Bei Stichtag 1.1. ist das erste volle Jahr das Startjahr der Prozesse. Dort ist Spalte 1 nach Spec 00 §11.7 der Startwert, Energiepreis- und Zinspfade sind also in allen Läufen gleich. Die Bandbreite spiegelt dann fast nur statische Größen wider (V1: JAZ). Der Text „Voraussichtlich rund 190 € pro Monat; in 8 von 10 simulierten Zukünften zwischen 180 € und 190 €“ nennt kein Jahr, wird als Belastung schlechthin gelesen und blendet das Energiepreisrisiko aus. Prüfung Seed (a): Das Overlay von S4 variiert die Energiepreise sehr wohl (Gaspreis 2051 0,044–0,21 €/kWh), die enge Spanne ist ein reines Artefakt von Jahr 1.
@@ -497,6 +539,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### BA-01 [major] Haushalt: 'Gesamtersparnis' rechnet ohne Eigenanteil und widerspricht Gesamtkosten, Vermögensvergleich und Ampel
 
+- **Status:** behoben (mit SN-03).
+
 - **Ort:** R/report-views.R:rep_household_summary (item total_saving aus cumulative_saving) / rep_household_vs_ref
 - **Beschreibung:** total_saving kumuliert nur die Differenz der monatlichen Belastung. Investitionen aus Eigenmitteln (Eigenanteil) fehlen darin. Bei Varianten mit sehr unterschiedlichem Eigenanteil kehrt sich dadurch das Vorzeichen um. Beispiel S4 v1_isfp_stufen: Der Bericht sagt 'Über 25 Jahre zahlen Sie gegenüber base insgesamt rund 70.100 € mehr'. In derselben Liste stehen aber Gesamtkosten von 253.500 € gegenüber 285.800 € bei base, also 32.300 € weniger. Dazu kommen ΔEW gegenüber der Referenz von +110.000 € (ohne Restwert +78.400 €), Ampel grün und 'In 10 von 10 simulierten Zukünften besser'. Memo 07 §5.4 definiert die Gesamtkosten als 'Summe aller variantenabhängigen Auszahlungen abzüglich Zuschüsse'; die Gesamtersparnis muss darauf beruhen. Die Abweichung entspricht genau der Eigenanteil-Differenz (172.600 − 70.100 = 102.500; −70.100 + 102.500 ≈ +32.300).
 - **Erwartet:** Gesamtersparnis = Gesamtkosten(Referenz) − Gesamtkosten(Variante), also inklusive Eigenanteil und Zuschüssen. Für S4 v1 ergibt das rund 32.300 € Ersparnis, für v2 rund 65.500 € statt 50.200 €.
@@ -505,6 +549,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### BA-02 [major] Selbstnutzer: 'Zusätzlich sind Nachschüsse von rund 983.200 € nötig': die Nachschüsse sind die Monatsbelastung selbst (Doppelzählung)
 
+- **Status:** behoben (mit SN-04).
+
 - **Ort:** R/report-views.R:rep_household_summary (item equity_calls), Label report.household.text.equity_calls, Glossar report.html.household.glossary Nachschüsse
 - **Beschreibung:** Der Selbstnutzer-VoFi hat kein Einkommen. Jede laufende Belastung (Zinsen, Tilgung, Energie, Wartung) wird deshalb als endogener Nachschuss gebucht. In S5 v2 sind 2028 die Nachschüsse 29.661 € = 2.471,79 € × 12, also genau die Monatsbelastung. Der Bericht nennt die Monatsbelastung (2.470 €), den Eigenanteil (180.000 €) und dann 'Zusätzlich sind Nachschüsse von insgesamt rund 983.200 € nötig'. Das Glossar erklärt Nachschüsse als 'Geld, das Sie später zusätzlich einzahlen müssen'. Ein Haushalt liest daraus einen weiteren Finanzbedarf von knapp 1 Mio. €, der in Wahrheit die Summe der schon genannten Monatsraten ist. Gleiches gilt für die Tabelle 'Summe der Nachschüsse 967.400 / 983.200 / 1.020.200 / 980.100 €'.
 - **Erwartet:** Für Selbstnutzer die durch die Monatsbelastung gedeckten Fehlbeträge nicht als 'zusätzliche Nachschüsse' ausweisen. Nur Fehlbeträge über die Belastung bzw. Sparfähigkeit hinaus nennen, oder klar sagen, dass sie aus dem laufenden Einkommen bezahlt werden.
@@ -512,6 +558,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 - **Reproduktion:** cmp5 <- vofi_compare(vofi_read_scenario(vofi_example('s5_neubau_efh_eh40'))); hv <- vofi_household_view(cmp5,'v2_eh40_kfw300'); c(sum((hv$burden-hv$current_rent)*hv$months), sum(hv$equity_calls)); attr(hv,'summary')$text[9]  # F06
 
 ### BA-03 [major] Warmmietenänderung 'erstes volles Jahr' ist das Baujahr vor Umlagebeginn; Restriktion Warmmiete und Ampel übersehen einen Anstieg um +0,95 €/m²
+
+- **Status:** behoben (mit MRE-01).
 
 - **Ort:** R/kpi-realestate.R:kpi_series_y1 / warm_rent_change_prepost_y1, restriction_warm_rent; Ausweis in report-html.R (Summary, Restriktionen)
 - **Beschreibung:** Bei Bestandsprojekten mit construction_months = 0 gilt das Maßnahmenjahr als erstes volles Betriebsjahr. In S1 werden die Maßnahmen am 01.10.2027 fertig, die Umlage wirkt ab 2028. KPI und Restriktion messen also 2027 (keine Umlage, nur ein Quartal mit niedrigeren Heizkosten). Der Bericht meldet 'Warmmietenänderung vorher/nachher −0,24 €/m²' und 'gegenüber base −0,20 €'. Die Mietertabelle zeigt ab 2028 dagegen +0,05 (vorher/nachher) bzw. +0,31 (gegenüber Referenz). Gegenprobe S1 ohne freiwillige Kappung (voluntary_cap_per_m2 entfernt): ab 2028 +0,95 €/m² vorher/nachher und +1,21 gegenüber Referenz, also deutlich über der Schwelle von 0,50. Trotzdem restriction_warm_rent = 0, Restriktion 'nein' und kein K.-o. In S3 haben v2_wp_pv (§ 559e) und v2_jaz_test identische −0,14, weil die unterschiedliche Umlage nicht ins Jahr 2027 fällt.
@@ -529,6 +577,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 
 ### BA-05 [major] EUR/m²/Monat (und andere Nicht-EUR-Einheiten) in KPI-Tabellen ganzzahlig gerundet ('Warmmiete 10', 'Änderung 0') und damit im Widerspruch zum Text (−0,24 / −0,20)
 
+- **Status:** behoben (mit MRE-02).
+
 - **Ort:** R/methods-misc.R:rep_fmt_value (digits gilt im default-Zweig auch für EUR_m2_month, EUR_t, EUR_month); Aufrufer mit digits = 0: methods-compare.R:87,108 (rep_cmp_kpi_matrix, rep_cmp_diff_matrix), methods-mc.R:84, report-html.R:1501,1635,2396,2593,2774
 - **Beschreibung:** Die Kennzahlentabellen formatieren mit digits = 0, wie es für € gedacht ist. Dieser Wert gilt aber auch für EUR_m2_month. Folge in S1 (print und HTML-Fach- und Kurzbericht, auch Excel-unabhängige Konsolen-Prints): 'Warmmiete (erstes volles Jahr) 10 EUR/m²/Monat' (10,43), 'Warmmietenänderung vorher/nachher 0 EUR/m²/Monat' (−0,24), 'Warmmietenänderung gegenüber der Referenz 0 EUR/m²/Monat' (−0,20) mit 'P(besser) 100,0 %'. In der MC-Statistik stehen P5 bis P95 alle bei '0 EUR/m²/Monat' neben 'P(< 0) 100,0 %'. Derselbe Bericht schreibt im Text '−0,24 EUR/m²/Monat' und '−0,20 € je m²', in der Kopftabelle des Einzelberichts aber '0 EUR/m²/Monat' über einer Jahresreihe mit −0,04. Betroffen sind auch S2 (15 €/m²) und S3 (9 €/m²) sowie die Zielwerte der Zielwertsuche (target mit 0 Stellen).
 - **Erwartet:** €/m²/Monat immer mit 2 Nachkommastellen (Konzept: €/m²·Monat; Aufgabenstellung). Die Rundung je Einheit gehört in rep_fmt_value, nicht in den Aufrufer.
@@ -544,6 +594,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 - **Reproduktion:** sc3 <- vofi_read_scenario(vofi_example('s3_eg_waermepumpe_pv')); sc3$project$perspective <- 'kleinvermieter'; sc3$project$report_mode <- 'household'; sc3$unit_groups$mitglieder$rent_regime <- 'paragraph_558'; vofi_report(vofi_compare(sc3), 'kv.html', open=FALSE)  # Tabelle 'Amortisationsjahr 2027' vs. Text 'nicht bezahlt gemacht' (F11)
 
 ### BA-07 [major] 'Die Investition hat sich 2027 bezahlt gemacht' im Investitionsjahr; Zeitwert-Pfad macht jede geförderte Maßnahme sofort 'amortisiert'
+
+- **Status:** behoben für den Haushaltsbericht (mit SN-02).
 
 - **Ort:** R/report-views.R:rep_household_summary (payback aus wealth_diff_vs_reference mit rv_basis measures), Label report.household.text.payback
 - **Beschreibung:** Die Haushalts-Amortisation nutzt W_t = BS_t + Zeitwert der Maßnahmen. Am Jahresende des Investitionsjahres ist der Zeitwert fast gleich den Kosten. Mit Zuschüssen ist die Differenz deshalb sofort ≥ 0. S4: v1 und v2 'haben sich voraussichtlich 2027 bezahlt gemacht' (payback_vs_reference = 0,0 Jahre in allen 1.000 Läufen). Ohne Restwert liegt die Amortisation bei 23 Jahren (v1, 2049/2050) bzw. 4 Jahren (v2). Memo 07 §5.4 nennt im Formulierungsmuster für genau diesen Fall 'nach etwa vier bis fünf Jahren bezahlt gemacht', also die Liquiditäts- bzw. Vermögenssicht ohne Zeitwert. Dieselbe Aussage steht neben 'zahlen insgesamt 70.100 € mehr' (BA-01) und Ampel grün. Für einen Haushalt ist das irreführend, auch wenn die Basis in Klammern genannt wird.
@@ -584,6 +636,8 @@ Die folgenden Befunde haben unabhängige Prüfer gemeldet. Sie sind **noch nicht
 - **Reproduktion:** vofi_report(vofi_compare(vofi_read_scenario(vofi_example('s1_wu_mfh_1963_eh70'))), 's1.html', open=FALSE); Abschnitt 7 lesen
 
 ### BA-12 [minor] 'Rate im ersten vollen Jahr rund 0 €' für später ausgezahlte Kredite
+
+- **Status:** behoben (mit SN-01).
 
 - **Ort:** R/report-html.R:rep_html_instruments (rate_y1 = erstes volles Betriebsjahr des Projekts)
 - **Beschreibung:** rate_y1 nimmt das erste volle Betriebsjahr des Projekts, nicht das erste volle Jahr nach Auszahlung des Kredits. S4 v1: 'kfw358_2030: Kreditbetrag rund 70.000 €, Rate im ersten vollen Jahr rund 0 € pro Monat'. Die Belastungstabelle zeigt ab 2030 Zinsen von 150 €/Monat, ab 2036 Zins und Tilgung von 580 €/Monat.

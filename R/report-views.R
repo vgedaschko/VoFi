@@ -269,6 +269,17 @@ rep_burden_groups <- function() {
        other = list("project", "other_cost"))
 }
 
+#' Wartung und Messdienst der Energiekosten (Zeilen `service`, zahlungswirksam, Vorzeichen des
+#' Ledgers)
+#' @noRd
+rep_service_sum <- function(core) {
+  r <- core$ledger$rows
+  if (is.null(r) || is.null(r$local_row)) return(kpi_zeros(core))
+  keys <- r$key[r$section == "project" & r$category == "energy_cost" & r$cash &
+                  !is.na(r$local_row) & r$local_row == "service"]
+  kpi_sum_keys(core, keys)
+}
+
 #' Gruppen des monatlichen Cashflows nach Kapitaldienst (Kleinvermieter, 12.3)
 #'
 #' Zahlungswirksame Zeilen der Abschnitte project und grants ohne Restwert und Verkaufskosten,
@@ -327,9 +338,14 @@ rep_household_frame <- function(res, variant, owner) {
   vals <- list()
   cvals <- list()
   if (owner) {
+    # Wartung der Wärmeerzeugung und Schornsteinfeger (Zeilen `service` der Energiekosten)
+    # stehen in der Spalte Wartung, nicht unter Energie (Memo 07 5.4; SN-11)
+    svc <- -rep_service_sum(core)
     for (nm in names(rep_burden_groups())) {
       gdef <- rep_burden_groups()[[nm]]
       m <- -rep_cat_sum(core, gdef[[1L]], gdef[[2L]])
+      if (identical(nm, "energy")) m <- m - svc
+      if (identical(nm, "maintenance")) m <- m + svc
       vals[[nm]] <- per_year(m)
       if (has_c) cvals[[nm]] <- per_c(m)
     }
@@ -405,7 +421,8 @@ rep_household_frame <- function(res, variant, owner) {
 #'
 #' **Selbstnutzer** (Perspektive `selbstnutzer`): Zinsen (`interest`), Tilgung (`repay`),
 #' Gebühren (`fees`), Energie- und CO2-Kosten (`energy`), Einspeiseerlöse und Ersparnisse als
-#' Gutschrift (`energy_income`, negativ), Instandhaltung und Wartung (`maintenance`),
+#' Gutschrift (`energy_income`, negativ), Instandhaltung und Wartung (`maintenance`, mit Wartung
+#' und Messdienst der Wärmeerzeugung aus den Energiekosten),
 #' Betriebskosten und Grundsteuer (`operating`), sonstige laufende Kosten (`other`), die
 #' monatliche Belastung (`burden`, gleich der Kennzahl `monthly_burden`) und die Belastung
 #' „ohne Tilgung“ (`burden_ex_repay`, Kostensicht). In der Bauphase kommt die bisherige Miete
@@ -424,8 +441,9 @@ rep_household_frame <- function(res, variant, owner) {
 #' **Beide:** Nachschüsse des Jahres in EUR (`equity_calls`) und die Vermögensdifferenz zur
 #' Unterlassungsalternative am Jahresende mit Restwertpfad (`wealth_diff`; im Haushaltsmodus mit
 #' dem Zeitwert der Maßnahmen, R-72) bzw. nur aus Guthaben und Schulden (`wealth_diff_ex_rv`),
-#' bei Vergleichen die Vermögensdifferenz gegenüber der Referenzvariante
-#' (`wealth_diff_vs_reference`) und die Markierung der dauerhaften Amortisation (`paid_back`).
+#' bei Vergleichen die Vermögensdifferenz gegenüber der Referenzvariante mit bzw. ohne Restwert
+#' (`wealth_diff_vs_reference`, `wealth_diff_ex_rv_vs_reference`) und die Markierung der
+#' dauerhaften Amortisation ohne Restwert (`paid_back`).
 #'
 #' Das Attribut `summary` enthält die Kopfwerte je Variante (`item`, `label`, `value`, `unit`)
 #' mit einem Klartext (`text`) nach den Regeln für Nicht-Finanzleute: gerundete Monatswerte
@@ -454,6 +472,9 @@ vofi_household_view <- function(x, variant = NULL) {
   owner <- identical(persp, "selbstnutzer")
   ref_name <- x$baseline %||% NULL
   ref_tab <- if (is.null(ref)) NULL else rep_household_frame(ref, ref_name, owner)
+  # Gesamtkosten der Referenz für die Gesamtersparnis (SN-03)
+  ref_cost <- if (is.null(ref_tab) || !owner) NA_real_ else
+    rep_household_total_cost(ref_tab, ref$kpis$own_contribution)
   parts <- lapply(names(results), function(v) {
     d <- rep_household_frame(results[[v]], v, owner)
     if (!is.null(ref_tab)) d <- rep_household_vs_ref(d, ref_tab, owner)
@@ -462,7 +483,7 @@ vofi_household_view <- function(x, variant = NULL) {
   out <- rep_rbind_fill(parts)
   summ <- lapply(names(results), function(v) {
     rep_household_summary(x, results[[v]], out[out$variant == v, , drop = FALSE], v, owner,
-                          ref_name)
+                          ref_name, ref_cost = ref_cost)
   })
   attr(out, "summary") <- rep_rbind_fill(summ)
   attr(out, "perspective") <- persp
@@ -482,8 +503,82 @@ rep_household_vs_ref <- function(d, ref, owner) {
     d$cashflow_change <- d$cashflow - pick("cashflow")
   }
   d$wealth_diff_vs_reference <- d$wealth_diff - pick("wealth_diff")
-  d$paid_back <- rep_paid_back(d$wealth_diff_vs_reference)
+  d$wealth_diff_ex_rv_vs_reference <- d$wealth_diff_ex_rv - pick("wealth_diff_ex_rv")
+  # Amortisation gegenüber der Referenz ohne Restwert: der Zeitwert der Maßnahmen setzt die
+  # Investition im Jahr der Zahlung voll als Vermögen an (SN-02)
+  d$paid_back <- rep_paid_back(d$wealth_diff_ex_rv_vs_reference)
   d
+}
+
+#' Gesamtkosten einer Variante über den Horizont (Selbstnutzer, nominal; Memo 07 5.4)
+#'
+#' Laufende Belastung ohne bisherige Miete (einschließlich der aus dem Einkommen gezahlten
+#' Nachschüsse) plus Eigenanteil nach Förderung (Investitionen abzüglich Zuschüssen und
+#' Krediten, deren Raten in der Belastung stehen).
+#' @noRd
+rep_household_total_cost <- function(d, oc) {
+  oc <- as.double(oc %||% NA_real_)[1L]
+  sum((d$burden - d$current_rent) * d$months, na.rm = TRUE) + max(0, if (is.na(oc)) 0 else oc)
+}
+
+#' Bezeichnung einer Variante (Label des Szenarios; ohne Label die Kennung)
+#'
+#' Labels stehen in Anführungszeichen, Kennungen ohne.
+#' @noRd
+rep_hh_vlabel <- function(x, v) {
+  if (is.null(v)) return("")
+  labs <- if (is.list(x$meta)) x$meta$variant_labels else NULL
+  if (!is.null(labs) && v %in% names(labs) && !identical(labs[[v]], v)) {
+    return(paste0("\u201e", labs[[v]], "\u201c"))
+  }
+  v
+}
+
+#' Eigenanteil nach Zuschüssen und Krediten je Kalenderjahr (SN-05)
+#'
+#' Investitionsauszahlungen abzüglich Zuschüssen und Kreditauszahlungen je Kalenderjahr
+#' (nominal, positiv = eigene Mittel); ein negativer Jahreswert (z. B. ein Zuschuss, der erst im
+#' Folgejahr ausgezahlt wird) wird dem vorigen Jahr zugerechnet. `prefinance`: größter Betrag,
+#' der vor der Auszahlung der Zuschüsse eines Jahres aus eigenen Mitteln vorzufinanzieren ist.
+#' @return Liste `years`, `amounts`, `prefinance` (EUR bzw. `NA`).
+#' @noRd
+rep_household_own_by_year <- function(res) {
+  core <- rep_core_of(res)
+  inv <- kpi_sum(core, section = "project", category = rep_html_invest_categories(), cash = TRUE)
+  gr <- kpi_sum(core, section = "grants", cash = TRUE)
+  dr <- kpi_sum(core, section = "loans", category = "draw", cash = TRUE)
+  own <- -as.double((inv + gr + dr)[1L, ])
+  inv1 <- -as.double(inv[1L, ])
+  yrs <- as.integer(res$grid$year)
+  by <- tapply(own, yrs, sum)
+  y <- as.integer(names(by))
+  a <- as.double(by)
+  keep <- abs(a) > 50
+  y <- y[keep]
+  a <- a[keep]
+  i <- 2L
+  while (i <= length(a)) {
+    if (a[i] < 0) {
+      a[i - 1L] <- a[i - 1L] + a[i]
+      a <- a[-i]
+      y <- y[-i]
+    } else {
+      i <- i + 1L
+    }
+  }
+  keep <- a > 50
+  pre <- NA_real_
+  if (any(keep)) {
+    # vorzufinanzieren: Investition und Kredit bis zur ersten Zuschusszahlung im ersten Jahr
+    y0 <- y[keep][1L]
+    cols <- which(yrs == y0)
+    g0 <- cols[abs(gr[1L, cols]) > vofi_tol$zero_abs]
+    if (length(g0) > 0L) {
+      before <- cols[cols < g0[1L]]
+      pre <- sum(inv1[before]) - sum(dr[1L, before])
+    }
+  }
+  list(years = y[keep], amounts = a[keep], prefinance = pre)
 }
 
 #' Dauerhafte Amortisation: ab der Zeile, ab der alle folgenden Werte >= 0 sind
@@ -496,7 +591,7 @@ rep_paid_back <- function(v) {
 
 #' Klartext-Kopfwerte der Haushaltssicht (Memo 07 Paragraf 5.4)
 #' @noRd
-rep_household_summary <- function(x, res, d, variant, owner, ref_name) {
+rep_household_summary <- function(x, res, d, variant, owner, ref_name, ref_cost = NA_real_) {
   acc <- new.env(parent = emptyenv())
   acc$items <- list()
   add <- function(item, value, unit, text, label = NULL) {
@@ -512,7 +607,9 @@ rep_household_summary <- function(x, res, d, variant, owner, ref_name) {
   avg_rows <- utils::head(full, 10L)
   kp <- res$kpis
   has_ref <- !is.null(ref_name) && !identical(variant, ref_name)
-  ref_label <- ref_name %||% ""
+  ref_label <- rep_hh_vlabel(x, ref_name)
+  oc <- kp$own_contribution %||% NA_real_
+  paid <- if (owner) rep_household_total_cost(d, oc) else NA_real_
   if (owner) {
     if (!is.null(y1)) {
       add("burden_y1", y1$burden, "EUR_month",
@@ -532,7 +629,8 @@ rep_household_summary <- function(x, res, d, variant, owner, ref_name) {
       add("saving_avg10", sv, "EUR_month",
           rep_saving_text(sv, ref_label, "report.household.text.when_avg",
                           n = nrow(avg_rows)))
-      tot <- utils::tail(op$cumulative_saving, 1L)
+      # Gesamtersparnis = Gesamtkosten der Referenz - Gesamtkosten der Variante (SN-03)
+      tot <- if (is.na(ref_cost)) utils::tail(op$cumulative_saving, 1L) else ref_cost - paid
       key <- if (tot >= 0) "report.household.text.total_saving" else
         "report.household.text.total_more"
       add("total_saving", tot, "EUR",
@@ -566,35 +664,40 @@ rep_household_summary <- function(x, res, d, variant, owner, ref_name) {
           lbl(key, value = rep_amount_text(y1$cashflow_change), ref = ref_label))
     }
   }
-  oc <- kp$own_contribution %||% NA_real_
   if (owner) {
     # Gesamtkosten über den Horizont (Memo 07 Paragraf 5.4): Eigenanteil und laufende
     # Belastung ohne bisherige Miete, nominal
-    paid <- sum((d$burden - d$current_rent) * d$months, na.rm = TRUE) +
-      max(0, if (is.na(oc[1L])) 0 else oc[1L])
     add("total_cost", paid, "EUR",
         lbl("report.household.text.total_cost", n = nrow(op),
             value = rep_amount_text(paid, "sum")))
   }
   if (!is.na(oc[1L])) {
-    add("own_contribution", oc[1L], "EUR",
-        if (oc[1L] > vofi_tol$zero_abs) {
-          lbl("report.household.text.own_contribution", value = rep_amount_text(oc[1L], "sum"))
-        } else {
-          lbl("report.household.text.own_contribution_none")
-        })
+    add("own_contribution", oc[1L], "EUR", rep_own_contribution_text(res, oc[1L]))
   }
   calls <- sum(d$equity_calls, na.rm = TRUE)
   add("equity_calls", calls, "EUR",
       if (calls > vofi_tol$zero_abs) {
-        lbl("report.household.text.equity_calls", value = rep_amount_text(calls, "sum"))
+        lbl(if (owner) "report.household.text.equity_calls" else
+          "report.household.text.equity_calls_landlord", value = rep_amount_text(calls, "sum"))
       } else {
         lbl("report.household.text.no_equity_calls")
       })
-  pb_col <- if (has_ref) d$wealth_diff_vs_reference else d$wealth_diff
+  if (has_ref) {
+    # gegenüber der Referenz ohne Restwert (SN-02)
+    pb_col <- d$wealth_diff_ex_rv_vs_reference
+    basis <- "ex_rv"
+  } else {
+    pb_col <- d$wealth_diff
+    basis <- kpi_rv_basis(rep_ctx_of(res))
+  }
   pb <- rep_paid_back(pb_col)
   pb_year <- if (any(pb)) d$year[which(pb)[1L]] else NA_integer_
-  basis <- kpi_rv_basis(rep_ctx_of(res))
+  if (!has_ref && !is.na(pb_year) && pb_year <= min(d$year)) {
+    # „bezahlt gemacht“ im Stichtagsjahr nur ohne Restwert, nie aus dem Zeitwert (SN-02)
+    pb <- rep_paid_back(d$wealth_diff_ex_rv)
+    pb_year <- if (any(pb)) d$year[which(pb)[1L]] else NA_integer_
+    basis <- "ex_rv"
+  }
   btxt <- lbl(paste0("report.household.text.basis_", basis))
   if (!has_ref && isTRUE(kpi_primary(res$spec)$existing)) {
     # Bestandsprojekt ohne Referenzvariante: Der Vermögensvergleich mit der Unterlassung
@@ -616,6 +719,36 @@ rep_household_summary <- function(x, res, d, variant, owner, ref_name) {
   rep_rbind_fill(acc$items)
 }
 
+#' Klartext des Eigenanteils: heute bzw. im Jahr der ersten Stufe, spätere Stufen je Jahr,
+#' Vorfinanzierung des Zuschusses, Hinweis auf Kredite (SN-05)
+#' @noRd
+rep_own_contribution_text <- function(res, oc) {
+  ob <- tryCatch(rep_household_own_by_year(res), error = function(e) NULL)
+  if (is.null(ob) || length(ob$years) == 0L) {
+    if (oc > vofi_tol$zero_abs) {
+      return(lbl("report.household.text.own_contribution_total",
+                 value = rep_amount_text(oc, "sum")))
+    }
+    return(lbl("report.household.text.own_contribution_none"))
+  }
+  txt <- lbl("report.household.text.own_contribution", year = ob$years[1L],
+             value = rep_amount_text(ob$amounts[1L], "sum"))
+  if (!is.na(ob$prefinance) && ob$prefinance > ob$amounts[1L] + 50) {
+    txt <- paste(txt, lbl("report.household.text.own_contribution_prefinance",
+                          value = rep_amount_text(ob$prefinance, "sum")))
+  }
+  if (length(ob$years) > 1L) {
+    items <- vapply(seq_along(ob$years)[-1L], function(i) {
+      lbl("report.household.text.own_contribution_item", year = ob$years[i],
+          value = rep_amount_text(ob$amounts[i], "sum"))
+    }, "")
+    txt <- paste(txt, lbl("report.household.text.own_contribution_later",
+                          items = paste(items, collapse = ", "),
+                          total = rep_amount_text(sum(ob$amounts), "sum")))
+  }
+  paste(txt, lbl("report.household.text.own_contribution_loans"))
+}
+
 #' Text „Sie sparen … / Sie zahlen … mehr“ (Wörter statt Vorzeichen)
 #' @noRd
 rep_saving_text <- function(v, ref, when_key, n = NULL) {
@@ -635,7 +768,12 @@ rep_saving_text <- function(v, ref, when_key, n = NULL) {
 rep_household_range <- function(x, variant, owner) {
   mc <- if (inherits(x, "vofi_comparison")) x$results[[variant]] else x
   if (!inherits(mc, "vofi_mc_result") || !is.data.frame(mc$stats)) return(NULL)
-  kpi <- if (owner) "monthly_burden_y1" else "monthly_net_cashflow_y1"
+  # Selbstnutzer: Belastung im Mittel der ersten 10 Jahre; im ersten Jahr sind Preise und
+  # Inflation meist noch fest (SN-07)
+  kpi <- if (owner) c("monthly_burden_avg10", "monthly_burden_y1") else
+    "monthly_net_cashflow_y1"
+  kpi <- kpi[kpi %in% mc$stats$kpi][1L]
+  if (is.na(kpi)) return(NULL)
   s <- mc$stats[mc$stats$kpi == kpi, , drop = FALSE]
   if (nrow(s) == 0L || is.na(s$q10) || is.na(s$q50) || is.na(s$q90)) return(NULL)
   s <- s[1L, , drop = FALSE]
@@ -643,9 +781,15 @@ rep_household_range <- function(x, variant, owner) {
   q50 <- rep_round_household(s$q50)
   q90 <- rep_round_household(s$q90)
   med <- rep_amount_text(s$q50)
-  if (owner) {
-    text <- lbl("report.household.text.range_burden", median = med,
-                lo = rep_amount_text(s$q10), hi = rep_amount_text(s$q90))
+  if (q10 == q90) {
+    # entartete Spanne: keine Aussage „zwischen X und X“
+    key <- if (owner) "report.household.text.range_flat_burden" else
+      "report.household.text.range_flat"
+    text <- if (owner) lbl(key, median = med) else lbl(key)
+  } else if (owner) {
+    key <- if (identical(kpi, "monthly_burden_avg10")) "report.household.text.range_burden" else
+      "report.household.text.range_burden_y1"
+    text <- lbl(key, median = med, lo = rep_amount_text(s$q10), hi = rep_amount_text(s$q90))
   } else if (q10 >= 0) {
     text <- lbl("report.household.text.range_surplus", median = med,
                 lo = rep_amount_text(s$q10), hi = rep_amount_text(s$q90))
@@ -658,7 +802,7 @@ rep_household_range <- function(x, variant, owner) {
       "report.household.text.range_mixed_subsidy"
     text <- lbl(key, median = med, lo = rep_amount_text(s$q10), hi = rep_amount_text(s$q90))
   }
-  list(item = "range_y1", value = s$q50, unit = "EUR_month", text = text)
+  list(item = "range", value = s$q50, unit = "EUR_month", text = text)
 }
 
 #' Wert eines Spezifikationspfads (Knoten: Basisfallwert der Konstanten)

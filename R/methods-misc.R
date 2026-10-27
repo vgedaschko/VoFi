@@ -23,7 +23,9 @@ rep_note_text <- function(x) {
 #' 0/1-Kennzeichen als „ja“/„nein“, übrige Einheiten mit ihrer Bezeichnung.
 #' @param x Zahlen.
 #' @param unit Einheit (Länge 1 oder wie `x`).
-#' @param digits Nachkommastellen für Geldbeträge.
+#' @param digits Nachkommastellen für Geldbeträge. Flächen- und Mengenpreise (`EUR_m2`,
+#'   `EUR_m2_month`, `EUR_m2_pa`) erhalten mindestens 2, `EUR_kwh` mindestens 4
+#'   Nachkommastellen, auch wenn `digits` kleiner ist (Befund MRE-02).
 #' @return Zeichenvektor (`NA` als „n. d.“).
 #' @noRd
 rep_fmt_value <- function(x, unit = "EUR", digits = 2) {
@@ -49,6 +51,8 @@ rep_fmt_value <- function(x, unit = "EUR", digits = 2) {
       count = fmt_int(v),
       t_co2 = paste(fmt_num(v, 1), rep_unit_label(u)),
       kWh = , kWh_pa = paste(fmt_num(v, 0), rep_unit_label(u)),
+      EUR_m2 = , EUR_m2_month = , EUR_m2_pa = paste(fmt_num(v, max(digits, 2L)), rep_unit_label(u)),
+      EUR_kwh = paste(fmt_num(v, max(digits, 4L)), rep_unit_label(u)),
       {
         lab <- if (nzchar(u)) rep_unit_label(u) else NA_character_
         if (is.na(lab)) fmt_num(v, digits) else paste(fmt_num(v, digits), lab)

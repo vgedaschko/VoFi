@@ -549,13 +549,13 @@ wsl_listing_pair <- function(id, actual, listing) {
 # Bibliotheksstand, Verzeichnis, Lesbarkeit
 # ---------------------------------------------------------------------------------------------
 
-test_that("VERSION: eine Zeile JJJJ.MM.n, Stand 2026.10.1 (Spec 00 4.9, R-80)", {
+test_that("VERSION: eine Zeile JJJJ.MM.n, Stand 2026.10.2 (Spec 00 4.9, R-80)", {
   f <- file.path(wsl_root(), "VERSION")
   expect_true(file.exists(f))
   v <- readLines(f, warn = FALSE)
   expect_length(v, 1L)
   expect_match(v, "^[0-9]{4}\\.(0[1-9]|1[0-2])\\.[1-9][0-9]*$")
-  expect_identical(v, "2026.10.1")
+  expect_identical(v, "2026.10.2")
 })
 
 test_that("Verzeichnis der v1-Eintr\u00e4ge vollst\u00e4ndig, keine fremden Dateien (Teil C 3.3)", {
@@ -722,7 +722,7 @@ test_that("Eintragsschema: Quellen, Datumsfelder, G\u00fcltigkeit [valid_from, v
   expect_identical(v("funding/estg_35c"), c("2020-01-01", "2030-01-01"))
   expect_identical(v("prices/eeg_feed_in_2026"), c("2026-08-01", "2027-02-01"))
   expect_identical(v("costs/bewirtschaftung_ii_bv_2026"), c("2026-01-01", "2029-01-01"))
-  expect_identical(v("costs/bewirtschaftung_immowertv_2026"), c("2026-01-01", "2027-01-01"))
+  expect_identical(v("costs/bewirtschaftung_immowertv_2026"), c("2026-01-01", NA_character_))
   expect_identical(v("legal/emission_factors_geg_anlage9"), c("2023-01-01", NA_character_))
   expect_identical(v("valuation/immowertv_anlage1_2_2026"), c("2022-01-01", NA_character_))
   expect_identical(v("legal/grunderwerbsteuer_2026"), c("2025-07-01", NA_character_))
