@@ -1,0 +1,223 @@
+# inst/extdata/examples/s5_neubau_efh_eh40.yaml
+schema_version: 1
+meta:
+  scenario_id: s5_neubau_efh_eh40
+  title: "S5 – Familie, Neubau EFH: EH 40 mit KfW 300 gegenüber GModG-Standard mit KfW 297 (EH-55-Stufe)"
+  author: "WS-S (Referenzszenario, Memo 07 §4.5)"
+  created_date: 2026-10-25
+  tags: [referenzszenario, s5, neubau, selbstnutzer, haushaltsmodus]
+project:
+  perspective: selbstnutzer
+  project_type: neubau
+  comparison_mode: absolute
+  valuation_date: 2027-01-01
+  horizon_years: 30                         # 2027-2056, Horizontende 2057-01-01 (global.yaml by_project_type: Neubau 40; Memo 07: 30)
+  application_date: 2026-12-15              # EH-55-Stufe bis 31.12.2026, Baugenehmigung vorhanden
+  legal_state: 2026-10-25
+  price_base_year: 2026
+  reference_variant: base                   # V1
+  report_mode: household
+grid: {construction_months: 12, construction_step_months: 12}   # Bauzeit 2027, Bezug 2028-01-01
+building:
+  building_type: EFH
+  construction_year: 2027
+  n_units: 1
+  living_area_m2: 140
+  efficiency_standard_after: eh55           # GModG-Mindeststandard (≈ EH 55); V2: eh40
+  land_value_eur: 150000                    # 500 m2 x 300 EUR (Sachwert: Bodenwert fortgeschrieben 1,5 % p. a.)
+  maintenance:
+    rate_eur_m2_pa: 10.0                    # Instandhaltungsrücklage 1.400 EUR/a (Memo 07), ab Fertigstellung
+household:
+  taxable_income_avg_eur: 85000             # Ø 2023/2024; KfW 300: <= 90.000 + 10.000 je weiterem Kind
+  n_children_u18: 2
+  net_income_month_eur: 6300                # inkl. Kindergeld
+  current_rent_month_eur: 1250              # Warmmiete bis Einzug (Doppelbelastung 2027)
+  savings_eur: 180000
+unit_groups:
+  haus:
+    label: "Selbstgenutztes EFH"
+    n_units: 1
+    living_area_m2: 140
+    owner_occupied: true                    # rule:unit_group_defaults: Verwaltung, Leerstand, Mietausfall 0 (N-08)
+    operating: {recoverable_opex_eur_m2_month: 0}   # Nebenkosten in der Komponente grundsteuer_versicherung (Memo 07; F-11)
+measures:
+  grundstueck:
+    label: "Grundstück 500 m2 x 300 EUR + 10 % Erwerbsnebenkosten (pauschal)"
+    measure_type: erwerb_grundstueck
+    date: 2027-01-01
+    purchase_price_eur: 165000              # Memo 07: 150.000 + 15.000 Nebenkosten als Gesamtbetrag
+    grest_rate: 0                           # in den pauschalen Nebenkosten enthalten (W)
+    notary_share: 0
+    land_registry_share: 0
+  bauwerk:
+    label: "Bauwerk KG 300+400 (3.000 EUR/m2)"
+    measure_type: neubau
+    date: 2027-01-01                        # Testkonvention: Zahlung zum Stichtag, damit Förderkredit ab 2027-01 voll (01b 4.6)
+    completion_date: 2028-01-01
+    cost_eur: 420000                        # V2: 420.000 x (1 + Mehrkosten EH 40)
+    price_index: 0                          # Festpreis-Bauvertrag 2027
+  nebenkosten:
+    label: "Baunebenkosten KG 700 (12 %), Hausanschlüsse KG 200, Außenanlagen KG 500"
+    measure_type: baunebenkosten
+    date: 2027-01-01
+    completion_date: 2028-01-01
+    cost_eur: 95400                         # 50.400 + 20.000 + 25.000; V2: + 3.000 LCA/EEE
+    price_index: 0
+  kueche:
+    label: "Küche KG 600"
+    measure_type: ausstattung               # nicht im Sachwert (asset_value.kg_include ohne 600)
+    date: 2027-12-31
+    cost_eur: 15000
+    price_index: 0
+    useful_life_years: 15
+    replacement: {enabled: false}
+  pv:
+    label: "PV-Anlage 8 kWp"
+    measure_type: pv
+    date: 2027-12-01
+    completion_date: 2027-12-01             # IBN 12/2027
+    cost_eur: 11000
+    vat_rate: 0
+    price_index: 0
+    useful_life_years: 25
+    replacement: {enabled: false}
+shared:
+  from: prices/referenzszenarien_2026
+  use: shared
+  eh40_surcharge: 0.06                      # Mehrkosten EH 40 (Anteil an KG 300+400)
+  efficiency_premium_v2: 0.03               # Effizienzzuschlag Sachwert V2
+  feed_in_flag: 1                           # EEG-Vergütung für Neuanlagen < 25 kWp fortgeführt
+energy:
+  carriers:
+    power: {base_fee_eur_pa: 100.84033613}  # Haushaltsstrom 37 ct, Grundpreis 120 EUR brutto (ein Zähler mit PV)
+  after:                                    # Zustand ab Fertigstellung (Token completion)
+    demand_kwh: 7000                        # 50 kWh/m2 a; V2: 4.900
+    heating_carrier: power
+    heat_pump_carrier: power                # WP am Haushaltszähler (Klasse power: ausdrücklich, 01b 3.2.2)
+    jaz: 3.5                                # V2: 3,8
+    flow_temperature_c: 35
+    service_eur_pa: 210.08403361            # WP-Wartung 250 EUR brutto
+    extra_consumption:
+      haushalt: {carrier: power, kwh_pa: 3500, label: "Haushaltsstrom"}
+  pv:
+    kwp: 8
+    measure: pv
+    commissioning_date: 2027-12-01
+    specific_yield_kwh_kwp: 950
+    self_consumption_share: 0.35            # V2: 0,33
+    feed_in_tariff_eur_kwh: {expr: "0.0755 * shared.feed_in_flag"}   # IBN 12/2027 (7,70 ct −1 %/Halbjahr, Näherung D ± 0,01 ct, F-25), 20 J. fest
+    tariff_years: 20
+    opex_eur_pa: 150
+components:
+  grundsteuer_versicherung:
+    type: recurring
+    label: "Grundsteuer und Gebäudeversicherung"
+    category: other_cost                    # trägt auch die Grundsteuer: ohne building.property_tax W property_tax_missing erwartet (01b 2.3, X-16)
+    amount_eur: 1600
+    growth: {ref: market.inflation}
+    start_event: completion                 # Terminparameter (Spec 00 §4.9, R-110)
+financing:
+  bank:
+    type: annuity_loan
+    label: "Bankdarlehen"
+    amount_eur: 426400                      # V2: 384.600
+    start: 2027-01-01                       # Testkonvention: voll zum Stichtag (S5-T4..T6)
+    rate_pa: 0.041
+    initial_repayment_pa: 0.02              # 2.167,53 EUR/Monat (Rate aus τ)
+    term_years: 35                          # Fälligkeit 2062 (Anschluss keep_term); τ + term_years zulässig, I Schlusstilgung bei Fälligkeit (R-100, N-25)
+    fixed_years: 10
+    payments_per_year: 12
+    followup_rate_pa: {ref: market.mortgage_rate}
+    refi_rule: keep_term
+    fees: {commitment_fee_rate_month: 0.0025, commitment_free_months: 6}   # ohne Wirkung bei Vollauszahlung
+funding:
+  kfw297:
+    from: funding/kfw_297_khn_eh55_stufe    # 35/5/10, 2,19 %; Auszahlung zum ersten Maßnahmentermin (01b 4.6)
+    measures: [bauwerk, nebenkosten]
+    application_date: 2026-12-15
+    amount_eur: 100000
+    loan_variant: v35_5_10
+    loan: {payments_per_year: 12}
+    approval_probability: 1.0               # Memo 07: kein Zusagerisiko modelliert
+accounts:
+  deposit_rate_pa: {ref: market.mortgage_rate, anchor: 0.025, floor: 0}   # Untergrenze 0 (F-14)
+  overdraft_rate_pa: {ref: market.mortgage_rate, anchor: 0.060}
+market:
+  from: prices/referenzszenarien_2026
+  use: market
+  co2_price: {from: prices/co2_price_path_referenzszenarien_2026}
+residual_value:
+  method: asset_value                       # Sachwert vereinfacht (= Profil selbstnutzer/neubau)
+  sale_cost_share: 0.03
+  asset_value:
+    market_adjustment_factor: 1.0
+    uplift_share: 0                         # V2: Effizienzzuschlag
+tax: {module: none}
+analysis:
+  stabilization_year: 2028
+stochastic:
+  settings: {n_sim: 10000, seed: 20261025, sampling: lhs, block_size: 200, store: bands}
+  processes:
+    mortgage_rate: {target: market.mortgage_rate, from: processes/mortgage_rate_vasicek_2026}   # Anschluss 2037 (Fächer, Quantile 5/50/95 %)
+    inflation: {target: market.inflation, from: processes/inflation_ar1_2026}
+    energy_price_power: {target: market.energy_price.power, from: processes/energy_prices_mr_2026, use: power, p_norm: base}
+  parameters:
+    demand_after: {target: energy.after.demand_kwh, label: "Nutzwärme", dist: triangular, min: 5600, mode: 7000, max: 8400}   # 40/50/60 kWh/m2 a
+    feed_in_flag: {target: shared.feed_in_flag, label: "EEG-Vergütung < 25 kWp fortgeführt", from: processes/funding_risks_2026, use: feed_in_continuation, apply: replace}
+    construction_price_shift: {target: shared.construction_price_shift, label: "Abweichung Baupreisindex p. a.", dist: normal, mean: 0, sd: 0.012}
+  correlations:
+    shocks: {from: processes/shock_correlations_2026}
+variants:
+  v2_eh40_kfw300:
+    label: "V2 EH 40 + LCA mit KfW 300 (170.000 EUR, 1,00 %)"
+    remove: [funding.kfw297]
+    set:
+      building.efficiency_standard_after: eh40
+      measures.bauwerk.cost_eur: {expr: "420000 * (1 + shared.eh40_surcharge)"}   # 445.200
+      measures.nebenkosten.cost_eur: 98400
+      financing.bank.amount_eur: 384600     # 1.955,05 EUR/Monat
+      energy.after.demand_kwh: 4900
+      energy.after.jaz: 3.8
+      energy.pv.self_consumption_share: 0.33
+      residual_value.asset_value.uplift_share: {ref: shared.efficiency_premium_v2}
+      stochastic.parameters.demand_after: {min: 3920, mode: 4900, max: 6300}   # 28/35/45 kWh/m2 a; gleicher Schlüssel (CRN)
+      energy.after.extra_consumption:       # keine Sammlung: set mischt das Element ein (Spec 00 4.11; WS-S)
+        lueftung: {carrier: power, kwh_pa: 400, label: "Lüftung mit WRG"}
+    add:
+      funding.kfw300:
+        from: funding/kfw_300_wohneigentum_familien   # Stufe 1 EH 40: 170.000 EUR, 35/5/10, 1,00 %
+        measures: [bauwerk, nebenkosten]
+        application_date: 2026-12-15
+        amount_eur: 170000
+        loan_variant: v35_5_10
+        loan: {payments_per_year: 12}
+        facts: {lca_thg: true}              # LCA mit THG-Grenze QNG-PLUS (Berechtigung, Deckel ohne QNG 170.000; N-10)
+        approval_probability: 1.0
+      components.lueftungsfilter:
+        type: recurring
+        label: "Lüftungsfilter"
+        category: maintenance
+        amount_eur: 120
+        growth: {ref: market.inflation}
+        start_event: completion
+      stochastic.parameters.eh40_surcharge: {target: shared.eh40_surcharge, label: "Mehrkosten EH 40", dist: triangular, min: 0.03, mode: 0.06, max: 0.10}
+      stochastic.parameters.efficiency_premium_v2: {target: shared.efficiency_premium_v2, label: "Effizienzzuschlag Restwert", dist: uniform, min: 0, max: 0.06}
+  v2b_eh40_ohne_kfw300:
+    label: "V2b EH 40 ohne KfW-300-Berechtigung (KfW 297 Standard 100.000 EUR, 2,94 %)"
+    extends: v2_eh40_kfw300
+    remove: [funding.kfw300]
+    set: {financing.bank.amount_eur: 454600}
+    add:
+      funding.kfw297_standard:
+        from: funding/kfw_297_khn_selbstnutzung
+        measures: [bauwerk, nebenkosten]
+        application_date: 2026-12-15
+        amount_eur: 100000
+        loan_variant: v35_5_10              # 2,94 %
+        loan: {payments_per_year: 12}
+        facts: {lca_thg: true}              # N-10
+        approval_probability: 1.0
+  v1b_ohne_kfw:
+    label: "V1b Standard ohne KfW (EH-55-Stufe ausgelaufen)"
+    remove: [funding.kfw297]
+    set: {financing.bank.amount_eur: 526400}
